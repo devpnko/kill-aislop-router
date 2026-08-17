@@ -1,0 +1,48 @@
+{
+  "name": "killsloprouter",
+  "version": "0.1.0",
+  "description": "Project-aware routing for anti-AI-slop creators, critics, and proof gates",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "killsloprouter": "./bin/killsloprouter.mjs",
+    "killslop": "./bin/killsloprouter.mjs"
+  },
+  "exports": {
+    ".": "./src/router.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "router",
+    "schemas",
+    "registry",
+    "docs",
+    "examples",
+    "skills",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "THIRD_PARTY.md"
+  ],
+  "scripts": {
+    "test": "node test/route.test.mjs",
+    "check": "npm test && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
+    "pack:check": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai-slop",
+    "agent-skill",
+    "design-review",
+    "frontend",
+    "ui-audit",
+    "orchestrator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devpnko/killsloprouter.git"
+  }
+}

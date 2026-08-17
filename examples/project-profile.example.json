@@ -1,0 +1,39 @@
+{
+  "profile_version": 1,
+  "project_id": "example-product",
+  "default_locale": "en-US",
+  "approved_design_system": true,
+  "tool_lock": "registry/tool-lock.json",
+  "local_adapters": {
+    "project-contract": "docs/product-contract.md",
+    "project-design-system": "docs/design-system.md",
+    "locale-copy-review": "reviewers/en-US-copy",
+    "domain-authority-review": "reviewers/product-owner",
+    "privacy-authority-review": "reviewers/privacy-owner",
+    "browser-evidence": "tests/playwright",
+    "owner-approval": "reviewers/release-owner"
+  },
+  "external_adapters": {
+    "kill-ai-slop": {"status": "available", "version": "git:96d1ca5"},
+    "anti-slop": {"status": "available", "version": "git:c22857f"}
+  },
+  "surface_overrides": {
+    "operator-product-ui": {
+      "creator": "project-design-system",
+      "exclude_tools": ["taste-skill"]
+    },
+    "consumer-product-ui": {
+      "creator_by_direction": {"approved": "project-design-system"},
+      "exclude_tools": []
+    }
+  },
+  "high_risk_gates": [
+    "domain-authority-review",
+    "privacy-authority-review",
+    "owner-approval"
+  ],
+  "evidence": {
+    "browser": "playwright",
+    "required_viewports": ["mobile", "desktop"]
+  }
+}

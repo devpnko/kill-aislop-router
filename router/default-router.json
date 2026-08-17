@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "router_id": "kill-slop-router",
+  "router_version": "0.1.0",
+  "invariants": {
+    "one_creator_per_artifact": true,
+    "creator_cannot_self_approve": true,
+    "overlapping_tools_run_as_separate_passes": true,
+    "scanner_hit_is_not_a_failure": true,
+    "external_result_is_not_local_authority": true,
+    "browser_evidence_required_for_visual_approval": true,
+    "project_contract_overrides_style_advice": true
+  },
+  "routes": [
+    {
+      "id": "copy-only",
+      "match": {"task": "copy"},
+      "creator_policy": {"type": "none"},
+      "stages": [
+        {"id": "copy-review", "question": "Is the copy specific, honest, concise, and voice-preserving?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
+        {"id": "optional-long-form-review", "question": "Does unresolved long-form prose still contain formulaic structure or rhythm?", "optional": true, "actors": [{"id": "stop-slop", "kind": "external"}]},
+        {"id": "adjudication", "question": "Does the edited copy preserve project meaning and authority?", "actors": [{"id": "domain-authority-review", "kind": "local"}]}
+      ]
+    },
+    {
+      "id": "existing-ui-audit",
+      "match": {"task": "audit"},
+      "creator_policy": {"type": "none"},
+      "stages": [
+        {"id": "project-contract", "question": "What user task, object, states, and authority define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
+        {"id": "functional-human-review", "question": "Does the interface work for the real task, people, mobile layout, accessibility, and required states?", "actors": [{"id": "anti-slop", "kind": "external"}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, restraint, and execution quality?", "actors": [{"id": "hallmark", "kind": "external"}]},
+        {"id": "copy-review", "question": "Is visible copy specific, honest, concise, and natural?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
+        {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
+        {"id": "adjudication", "question": "How are conflicting findings resolved against product semantics and evidence?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "approval", "question": "Who accepts the result and remaining debt?", "actors": [{"id": "owner-approval", "kind": "local"}]}
+      ]
+    },
+    {
+      "id": "pr-hygiene",
+      "match": {"task": "pr-hygiene"},
+      "creator_policy": {"type": "none"},
+      "stages": [
+        {"id": "pr-hygiene", "question": "Does the contribution meet separately approved PR-quality rules?", "actors": [{"id": "peakoss-anti-slop", "kind": "external", "mode": "separately-approved"}]}
+      ]
+    },
+    {
+      "id": "operator-product-ui",
+      "match": {"surface": "operator-product-ui", "task": ["build", "redesign", "runtime-handoff"]},
+      "creator_policy": {"type": "fixed", "tool": "project-design-system", "requires_profile_flag": "approved_design_system"},
+      "excluded_tools": ["taste-skill"],
+      "stages": [
+        {"id": "project-contract", "question": "What operator decision, data density, states, and authority define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "functional-human-review", "question": "Does the dense product UI support the real task, mobile fallback, accessibility, and state completeness?", "actors": [{"id": "anti-slop", "kind": "external"}]},
+        {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface preserve hierarchy and restraint without hiding required density?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "copy-review", "question": "Is visible operator copy direct, domain-correct, and non-generic?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
+        {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
+        {"id": "adjudication", "question": "How are density and visual-restraint conflicts resolved against the operator task?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "approval", "question": "Who accepts the result and remaining debt?", "actors": [{"id": "owner-approval", "kind": "local"}]}
+      ]
+    },
+    {
+      "id": "consumer-product-ui",
+      "match": {"surface": "consumer-product-ui", "task": ["build", "redesign", "runtime-handoff"]},
+      "creator_policy": {
+        "type": "by-direction",
+        "cases": [
+          {"direction": "approved", "tool": "project-design-system", "requires_profile_flag": "approved_design_system"},
+          {"direction": "missing", "tool": "taste-skill"},
+          {"direction": "reference", "tool": "hallmark"}
+        ]
+      },
+      "stages": [
+        {"id": "project-contract", "question": "What customer task, trust boundary, states, and outcome define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "functional-human-review", "question": "Does the interface work for the real customer task, mobile layout, accessibility, and required states?", "actors": [{"id": "anti-slop", "kind": "external"}]},
+        {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, restraint, and execution quality?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "direction-coherence-review", "question": "Does the chosen visual direction remain coherent and specific?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
+        {"id": "copy-review", "question": "Is customer copy specific, honest, concise, and natural?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
+        {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
+        {"id": "adjudication", "question": "How are trust, task, and visual findings resolved against project semantics?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "approval", "question": "Who accepts the result and remaining debt?", "actors": [{"id": "owner-approval", "kind": "local"}]}
+      ]
+    },
+    {
+      "id": "marketing-editorial",
+      "match": {"surface": "marketing-editorial", "task": ["build", "redesign", "runtime-handoff"]},
+      "creator_policy": {
+        "type": "by-direction",
+        "cases": [
+          {"direction": "approved", "tool": "project-design-system", "requires_profile_flag": "approved_design_system"},
+          {"direction": "missing", "tool": "taste-skill"},
+          {"direction": "reference", "tool": "hallmark"}
+        ]
+      },
+      "stages": [
+        {"id": "project-contract", "question": "What audience, offer, evidence, action, and brand direction define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
+        {"id": "functional-human-review", "question": "Do responsive behavior, accessibility, controls, and states work for real visitors?", "actors": [{"id": "anti-slop", "kind": "external"}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered page have specific hierarchy, restraint, and execution quality?", "when_creator": ["taste-skill", "project-design-system"], "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "direction-coherence-review", "question": "Does the visual direction remain coherent and non-generic?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
+        {"id": "copy-review", "question": "Is the public copy specific, credible, and free of generic claims?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}, {"id": "stop-slop", "kind": "external", "optional": true}]},
+        {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
+        {"id": "adjudication", "question": "How are evidence, brand, and visual findings resolved?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "approval", "question": "Who accepts the result and remaining debt?", "actors": [{"id": "owner-approval", "kind": "local"}]}
+      ]
+    }
+  ],
+  "change_requirements": {
+    "copy": ["copy-review"],
+    "style": ["static-discovery", "rendered-craft-review", "browser-evidence"],
+    "layout": ["static-discovery", "functional-human-review", "rendered-craft-review", "browser-evidence"],
+    "interaction": ["functional-human-review", "browser-evidence"],
+    "state": ["functional-human-review", "browser-evidence"],
+    "data": ["project-contract", "domain-authority-review"],
+    "authority": ["project-contract", "domain-authority-review", "owner-approval"]
+  },
+  "adjudication": {
+    "hard_blockers": [
+      "fabricated-data-or-claim",
+      "dead-or-misleading-control",
+      "authority-or-privacy-leak",
+      "missing-required-state",
+      "keyboard-failure",
+      "contrast-failure",
+      "overflow-overlap-or-clipping",
+      "fake-runtime-claim"
+    ],
+    "reviewer_disagreement": "record-both-do-not-average",
+    "style_conflict": "project-contract-then-owner",
+    "scanner_conflict": "semantic-triage-with-rendered-evidence"
+  }
+}

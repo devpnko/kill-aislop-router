@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-08-17",
+  "tools": [
+    {
+      "id": "taste-skill",
+      "repository": "https://github.com/Leonxlnx/taste-skill",
+      "commit": "e988add20dab0fa97d7a76781c48961c8184288e",
+      "license": "MIT",
+      "kind": "skill"
+    },
+    {
+      "id": "hallmark",
+      "repository": "https://github.com/Nutlope/hallmark",
+      "commit": "13ac0ec7e148655948100b6396439e481361d690",
+      "license": "MIT",
+      "kind": "skill"
+    },
+    {
+      "id": "anti-slop",
+      "repository": "https://github.com/miqdadbadjuber/anti-slop",
+      "commit": "c22857f7aac39003f0d79f51fc545f687442fb07",
+      "license": "MIT",
+      "kind": "skill-suite"
+    },
+    {
+      "id": "kill-ai-slop",
+      "repository": "https://github.com/yetone/kill-ai-slop",
+      "commit": "96d1ca568a1db7e1ef9a381644c744440f816ee4",
+      "license": "Apache-2.0",
+      "kind": "read-only-scanner"
+    },
+    {
+      "id": "no-ai-slop",
+      "repository": "https://github.com/petergyang/no-ai-slop",
+      "commit": "d30eddb9e04562234f2070b5ee63ca4649d9a05e",
+      "license": "MIT",
+      "kind": "skill"
+    },
+    {
+      "id": "stop-slop",
+      "repository": "https://github.com/hardikpandya/stop-slop",
+      "commit": "8da1f030185bdfe8471220585162991eaeb970e9",
+      "license": "MIT",
+      "kind": "skill"
+    },
+    {
+      "id": "peakoss-anti-slop",
+      "repository": "https://github.com/peakoss/anti-slop",
+      "commit": "57858eead489d08b255fab2af45a506c2ca6eab2",
+      "license": "AGPL-3.0",
+      "kind": "github-action"
+    }
+  ]
+}

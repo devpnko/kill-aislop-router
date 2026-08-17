@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/kill-slop-router/project-profile.schema.json",
+  "title": "KillSlopRouter Project Profile",
+  "type": "object",
+  "required": ["profile_version", "project_id", "approved_design_system", "local_adapters"],
+  "properties": {
+    "profile_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "default_locale": {"type": "string", "minLength": 2},
+    "approved_design_system": {"type": "boolean"},
+    "tool_lock": {"type": "string"},
+    "local_adapters": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "external_adapters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"enum": ["available", "unavailable", "disabled"]},
+          "version": {"type": "string"},
+          "root": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "surface_overrides": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "creator": {"type": "string"},
+          "creator_by_direction": {
+            "type": "object",
+            "additionalProperties": {"type": "string"}
+          },
+          "exclude_tools": {
+            "type": "array",
+            "items": {"type": "string"},
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "high_risk_gates": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "evidence": {"type": "object"}
+  },
+  "additionalProperties": false
+}

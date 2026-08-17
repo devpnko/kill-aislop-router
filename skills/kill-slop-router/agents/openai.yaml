@@ -1,0 +1,4 @@
+interface:
+  display_name: "KillSlopRouter"
+  short_description: "Route anti-slop creators, critics, and proof gates"
+  default_prompt: "Use $kill-slop-router to classify this artifact, select one creator, route independent anti-slop reviews, and return an evidence-backed verdict."
