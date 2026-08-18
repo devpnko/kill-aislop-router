@@ -24,6 +24,20 @@ Legend: `P` primary, `S` secondary, `A` executable automation, `C` conditional,
 | PR contribution hygiene | - | - | - | - | - | - | A/P |
 | Browser interaction proof | - | - | - | - | - | - | - |
 
+Project-local authority and evidence providers are outside the upstream table:
+
+| Provider | Minimum strength | Required capabilities |
+|---|:---:|---|
+| `visual-intent-review` | 4 | visual-intent fidelity, editorial boundary, character, energy, and depth preservation |
+| `project-contract` | 4 | task contract, object model, and state authority |
+| `domain-authority-review` | 4 | domain authority and conflict adjudication |
+| `browser-evidence` | 3 | responsive, keyboard, state, overflow, contrast, and zoom evidence |
+
+The visual-intent reviewer is independent from the creator. It evaluates the
+verified project contract rather than choosing a preferred aesthetic. Missing
+capabilities cannot be borrowed from the scanner or inferred from a craft
+score.
+
 Design-system extraction is deliberately outside this upstream-tool matrix.
 It is a project-local creator contract, because no generic visual skill can
 decide which domain states, authority boundaries, or density profiles are safe
@@ -55,6 +69,13 @@ All can find visual tells, but they inspect different representations:
 
 Run them as separate passes. A regex hit is not a verdict, and a rendered review
 cannot prove interaction behavior.
+
+Here, restraint means avoiding unjustified effects relative to the approved
+direction. It does not mean gray, flat, paper-like, shadowless, or low-energy.
+None of these critics may convert its anti-pattern list into creator direction.
+The visual-intent contract decides whether the artifact is quiet, expressive,
+editorial, layered, or otherwise specific. Zero scanner hits satisfy none of
+the independent visual-intent, craft, browser, or owner gates.
 
 If one provider is unavailable, route by the missing capability contract. Do
 not substitute a source scanner for rendered craft or a browser smoke test for

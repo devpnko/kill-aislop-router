@@ -8,6 +8,11 @@ application is `consumer-product-ui`; acquisition and editorial material is
 evidence, density expectations, and domain questions, so it is resolved before
 creator selection.
 
+`marketing-editorial` describes the artifact's purpose; it does not authorize
+an editorial-looking or paper-like treatment. `operator-product-ui` likewise
+does not prescribe a gray dashboard. Visual character is controlled separately
+by the [visual-intent contract](visual-intent-contract.md).
+
 ## Single-surface project
 
 Bootstrap requires an explicit choice and locks the whole repository:
@@ -40,7 +45,9 @@ After that lock, `plan` and `run` can omit `--surface`. Supplying it asserts the
 expected value; it never overrides the profile.
 
 `killsloprouter doctor` verifies that the project root and every binding root
-exist as real directories before reporting automation readiness.
+exist as real directories. It also verifies every surface's visual-intent
+authority; a valid surface boundary with unresolved visual intent reports
+`configuration_required`, not automation readiness.
 
 ## Multi-surface repository
 

@@ -37,6 +37,8 @@
       "type": "object",
       "required": [
         "approved_design_system",
+        "visual_intent_resolved",
+        "editorial_default_allowed",
         "arbitrary_profile_commands",
         "executable_adapters_authorized",
         "missing_execution_remains_manual_pending"
@@ -44,6 +46,8 @@
       "properties": {
         "approved_design_system": {"const": false},
         "surface_contract_locked": {"const": true},
+        "visual_intent_resolved": {"const": false},
+        "editorial_default_allowed": {"const": false},
         "arbitrary_profile_commands": {"const": false},
         "executable_adapters_authorized": {"const": false},
         "missing_execution_remains_manual_pending": {"const": true}

@@ -20,6 +20,11 @@ const PROVIDERS = {
     strength: 4,
     capabilities: ["task-contract", "object-model", "state-authority"]
   },
+  "visual-intent-review": {
+    adapter: "agent-json-v1",
+    strength: 4,
+    capabilities: ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation"]
+  },
   "anti-slop": {
     adapter: "skill-json-v1",
     strength: 3,
@@ -161,6 +166,18 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     const childAttempts = state.attempts.filter((attempt) => attempt.child_pid);
     assert.ok(childAttempts.length > 0);
     assert.ok(childAttempts.every((attempt) => attempt.child_pid !== process.pid));
+    const visualIntentAttempt = state.attempts.find((attempt) =>
+      attempt.provider_id === "visual-intent-review"
+    );
+    assert.equal(visualIntentAttempt.execution_status, "ran");
+    assert.notEqual(visualIntentAttempt.child_pid, process.pid);
+    const preApprovalAudit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    const scannerResult = preApprovalAudit.results.find((item) =>
+      item.normalized.stage_id === "static-discovery"
+    );
+    assert.equal(scannerResult.normalized.verdict, "pass");
+    assert.equal(scannerResult.normalized.findings.length, 0);
+    assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
 
     const approval = writeApproval(fixture);
     const resumed = runCli([
@@ -235,6 +252,32 @@ test("missing host adapter remains manual_pending and is never reported as ran",
       resumedState.attempts.find((item) => item.provider_id === "anti-slop" && item.execution_status === "manual_recorded").ingest_status,
       "recorded"
     );
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("scanner zero hits cannot approve when the visual-intent reviewer is unavailable", () => {
+  const fixture = makeFixture({ omit: ["visual-intent-review"] });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 6, result.stderr || result.stdout);
+    const state = readState(fixture);
+    assert.equal(state.status, "manual_pending");
+    const visualAttempt = state.attempts.find((item) =>
+      item.provider_id === "visual-intent-review"
+    );
+    assert.equal(visualAttempt.execution_status, "manual_pending");
+    assert.match(visualAttempt.reason, /not allowlisted/);
+    const scannerAttempt = state.attempts.find((item) => item.provider_id === "kill-ai-slop");
+    assert.equal(scannerAttempt.execution_status, "ran");
+    const audit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    const scannerResult = audit.results.find((item) =>
+      item.normalized.stage_id === "static-discovery"
+    );
+    assert.equal(scannerResult.normalized.verdict, "pass");
+    assert.equal(scannerResult.normalized.findings.length, 0);
+    assert.equal(state.final_audit_status, null);
   } finally {
     cleanup(fixture);
   }

@@ -27,6 +27,16 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function materializeExampleVisualIntent(selectedProfile) {
+  const materialized = structuredClone(selectedProfile);
+  for (const contract of Object.values(materialized.visual_intents || {})) {
+    if (contract.authority_receipt && !path.isAbsolute(contract.authority_receipt)) {
+      contract.authority_receipt = path.resolve(path.dirname(profilePath), contract.authority_receipt);
+    }
+  }
+  return materialized;
+}
+
 function createFixture() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-audit-test-"));
   const artifact = path.join(directory, "fixture.html");
@@ -125,6 +135,15 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
     const dispatch = dispatchAuditPackets(fixture.run, dispatchDirectory);
     assert.equal(dispatch.packets.length, fixture.run.packets.length);
     assert.equal(fs.existsSync(dispatch.approval_template), true);
+    const intentPacket = fixture.run.packets.find((packet) => packet.stage_id === "visual-intent-review");
+    assert.ok(intentPacket);
+    assert.equal(intentPacket.reviewer_independence_required, true);
+    assert.equal(intentPacket.visual_intent_contract.authority_status, "verified");
+    assert.equal(intentPacket.visual_intent_contract.editorial_treatment, "forbidden");
+    assert.match(intentPacket.visual_intent_contract.contract_digest, /^sha256:[a-f0-9]{64}$/);
+    assert.ok(fixture.run.packets.every((packet) =>
+      packet.visual_intent_contract.contract_digest === intentPacket.visual_intent_contract.contract_digest
+    ));
 
     const incomplete = finalizeAudit(fixture.run, { now: finishedAt });
     assert.equal(incomplete.status, "incomplete");
@@ -163,7 +182,7 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
   try {
     const artifact = path.join(directory, "fixture.html");
     fs.writeFileSync(artifact, "<!doctype html><main>fixture</main>\n");
-    const guardedProfile = structuredClone(profile);
+    const guardedProfile = materializeExampleVisualIntent(profile);
     guardedProfile.planning.required = true;
     guardedProfile.planning.surface_receipts["operator-product-ui"] = path.resolve(
       path.dirname(profilePath),
@@ -236,7 +255,7 @@ test("planning evidence tamper after audit initialization blocks finalization", 
       },
       updated_at: startedAt
     });
-    const guardedProfile = structuredClone(profile);
+    const guardedProfile = materializeExampleVisualIntent(profile);
     guardedProfile.planning = { required: true, receipt: "planning.json" };
     const guardedProfilePath = path.join(directory, "profile.json");
     writeJson(guardedProfilePath, guardedProfile);
@@ -269,6 +288,102 @@ test("planning evidence tamper after audit initialization blocks finalization", 
     assert.match(receipt.blockers.join("\n"), /planning gate verification failed.*evidence digest changed/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("visual-intent authority and its evidence remain integrity-bound through finalization", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-intent-tamper-"));
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    const basis = path.join(directory, "visual-direction.md");
+    const authorityPath = path.join(directory, "visual-intent.json");
+    const routedProfilePath = path.join(directory, "profile.json");
+    fs.writeFileSync(artifact, "<!doctype html><main>operator artifact</main>\n");
+    fs.writeFileSync(basis, "Product-native operator UI with retained density and visual energy.\n");
+    const intent = {
+      mode: "product-native",
+      editorial_treatment: "forbidden",
+      editorial_scope: [],
+      energy: "balanced",
+      depth: "layered",
+      preserve: ["operator task density", "visual energy", "existing brand character"],
+      avoid: ["paper-like neutralization", "universal flattening"]
+    };
+    writeJson(authorityPath, {
+      visual_intent_receipt_version: 1,
+      project_id: profile.project_id,
+      surface: "operator-product-ui",
+      status: "approved",
+      intent,
+      authority: {
+        kind: "project-contract",
+        authority_id: "fixture-product-contract",
+        basis: "The project contract is the visual-direction authority.",
+        decided_at: startedAt
+      },
+      evidence: [{
+        kind: "project-contract",
+        path: path.basename(basis),
+        digest: hashArtifact(basis)
+      }]
+    });
+    const routedProfile = materializeExampleVisualIntent(profile);
+    routedProfile.visual_intents["operator-product-ui"] = {
+      visual_intent_version: 1,
+      status: "approved",
+      ...intent,
+      authority_receipt: path.basename(authorityPath),
+      authority_digest: hashArtifact(authorityPath)
+    };
+    writeJson(routedProfilePath, routedProfile);
+    const plan = planRoute({
+      router,
+      profile: routedProfile,
+      routerPath,
+      profilePath: routedProfilePath,
+      input: {
+        task: "audit",
+        direction: "none",
+        changes: ["style", "layout"],
+        risk: "standard"
+      },
+      artifacts: [artifact],
+      root: directory
+    });
+    assert.equal(plan.status, "planned");
+    const run = initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "runtime",
+      root: directory,
+      runId: "visual-intent-tamper-run",
+      now: startedAt
+    });
+    fs.appendFileSync(authorityPath, "\n");
+    fs.appendFileSync(basis, "tampered\n");
+    const receipt = finalizeAudit(run, { now: finishedAt });
+    assert.equal(receipt.status, "blocked");
+    assert.match(receipt.blockers.join("\n"), /integrity failure: visual-intent:authority-receipt/);
+    assert.match(receipt.blockers.join("\n"), /integrity failure: visual-intent:authority-evidence:project-contract/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("audit initialization rejects a forged visual-intent plan claim", () => {
+  const fixture = createFixture();
+  try {
+    const forged = structuredClone(fixture.plan);
+    forged.visual_intent.energy = "quiet";
+    assert.throws(() => initializeAudit({
+      plan: forged,
+      artifacts: [fixture.artifact],
+      scope: "mockup",
+      creatorActorId: "creator-agent-1",
+      root: fixture.directory
+    }), /visual-intent contract does not match the digest-bound project profile/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
   }
 });
 
@@ -438,10 +553,11 @@ test("surface profile changes after routing invalidate audit initialization and 
     const artifact = path.join(directory, "fixture.html");
     const routedProfilePath = path.join(directory, "profile.json");
     fs.writeFileSync(artifact, "<!doctype html><main>operator workflow</main>\n");
-    writeJson(routedProfilePath, profile);
+    const routedProfile = materializeExampleVisualIntent(profile);
+    writeJson(routedProfilePath, routedProfile);
     const plan = planRoute({
       router,
-      profile,
+      profile: routedProfile,
       routerPath,
       profilePath: routedProfilePath,
       input: {
@@ -464,7 +580,7 @@ test("surface profile changes after routing invalidate audit initialization and 
       root: directory
     }), /project profile changed after route planning/);
 
-    writeJson(routedProfilePath, profile);
+    writeJson(routedProfilePath, routedProfile);
     const run = initializeAudit({
       plan,
       artifacts: [artifact],

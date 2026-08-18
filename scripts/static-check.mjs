@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AXE_CORE_VERSION, PLAYWRIGHT_CORE_VERSION } from "../src/playwright.mjs";
+import { hashArtifact } from "../src/integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -36,6 +37,10 @@ const packageLock = JSON.parse(fs.readFileSync(path.join(root, "package-lock.jso
 const pluginJson = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
 const router = JSON.parse(fs.readFileSync(path.join(root, "router", "default-router.json"), "utf8"));
 const toolLock = JSON.parse(fs.readFileSync(path.join(root, "registry", "tool-lock.json"), "utf8"));
+const exampleProfile = JSON.parse(fs.readFileSync(
+  path.join(root, "examples", "project-profile.example.json"),
+  "utf8"
+));
 assert.equal(packageJson.version, router.router_version, "package and router versions must agree");
 const pluginBaseVersion = pluginJson.version.replace(/\+codex\.[0-9A-Za-z.-]+$/, "");
 assert.equal(packageJson.version, pluginBaseVersion, "package and plugin base versions must agree");
@@ -53,6 +58,45 @@ assert.ok(
 );
 assert.ok(fs.existsSync(path.join(root, "skills", "kill-slop-router", "SKILL.md")), "plugin skill is missing");
 assert.ok(fs.existsSync(path.join(root, "scripts", "install-codex-plugin.mjs")), "plugin installer is missing");
+assert.equal(router.invariants.surface_is_not_a_visual_style_preset, true);
+assert.equal(router.invariants.editorial_treatment_requires_verified_visual_intent, true);
+assert.equal(router.invariants.scanner_zero_hits_is_not_design_approval, true);
+assert.ok(router.provider_capabilities["visual-intent-review"]?.independent_from_creator);
+assert.ok(router.stage_capability_contracts["visual-intent-review"]?.requires_independent_critic);
+for (const routeId of [
+  "existing-ui-audit",
+  "design-system-extraction",
+  "operator-product-ui",
+  "consumer-product-ui",
+  "marketing-editorial"
+]) {
+  const route = router.routes.find((item) => item.id === routeId);
+  assert.ok(route?.stages.some((stage) => stage.id === "visual-intent-review"),
+    `${routeId} must preserve the visual-intent gate`);
+}
+const exampleIntent = exampleProfile.visual_intents?.[exampleProfile.surface_contract.primary];
+assert.equal(exampleIntent?.status, "approved", "example visual intent must be approved");
+const intentReceiptPath = path.resolve(
+  path.dirname(path.join(root, "examples", "project-profile.example.json")),
+  exampleIntent.authority_receipt
+);
+assert.equal(hashArtifact(intentReceiptPath), exampleIntent.authority_digest,
+  "example visual-intent receipt digest must match the profile");
+const intentReceipt = JSON.parse(fs.readFileSync(intentReceiptPath, "utf8"));
+assert.deepEqual(intentReceipt.intent, {
+  mode: exampleIntent.mode,
+  editorial_treatment: exampleIntent.editorial_treatment,
+  editorial_scope: exampleIntent.editorial_scope,
+  energy: exampleIntent.energy,
+  depth: exampleIntent.depth,
+  preserve: exampleIntent.preserve,
+  avoid: exampleIntent.avoid
+}, "example visual-intent receipt must repeat the exact profile contract");
+for (const evidence of intentReceipt.evidence) {
+  const evidencePath = path.resolve(path.dirname(intentReceiptPath), evidence.path);
+  assert.equal(hashArtifact(evidencePath), evidence.digest,
+    `example visual-intent evidence digest must match: ${evidence.path}`);
+}
 assert.equal(packageJson.engines.node, ">=20", "V1 Node engine floor must remain explicit");
 assert.equal(packageLock.lockfileVersion, 3, "npm lockfile version must remain explicit");
 assert.equal(packageLock.packages[""].dependencies["playwright-core"], "1.62.1");

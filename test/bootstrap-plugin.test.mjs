@@ -23,6 +23,51 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function approveVisualIntent(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-intent-approval.json");
+  const intent = {
+    mode: "product-native",
+    editorial_treatment: "forbidden",
+    editorial_scope: [],
+    energy: "balanced",
+    depth: "layered",
+    preserve: ["operator task density", "existing brand character", "visual energy"],
+    avoid: ["paper-like neutralization", "universal flattening"]
+  };
+  writeJson(receiptPath, {
+    visual_intent_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    intent,
+    authority: {
+      kind: "approved-reference",
+      authority_id: "bootstrap-fixture-owner",
+      basis: "The fixture is an operator product surface, not an editorial treatment.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{
+      kind: "approved-artifact",
+      path: path.relative(path.dirname(receiptPath), artifactPath),
+      digest: hashArtifact(artifactPath)
+    }]
+  });
+  profile.visual_intents[surface] = {
+    visual_intent_version: 1,
+    status: "approved",
+    ...intent,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
+function writeJson(filePath, value) {
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
 test("bootstrap requires an explicit project surface before writing configuration", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-bootstrap-surface-"));
   try {
@@ -72,6 +117,10 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     ]);
     assert.equal(receipt.surface, "operator-product-ui");
     assert.equal(receipt.safety.surface_contract_locked, true);
+    assert.equal(receipt.safety.visual_intent_resolved, false);
+    assert.equal(receipt.safety.editorial_default_allowed, false);
+    assert.equal(profile.visual_intents["operator-product-ui"].status, "unresolved");
+    assert.equal(profile.visual_intents["operator-product-ui"].editorial_treatment, "forbidden");
     assert.ok(Object.values(profile.local_adapters).every((item) => item.executor === "manual-review"));
     assert.ok(Object.values(host.providers).every((item) => item.adapter === "manual-v1"));
     assert.deepEqual(host.granted_permissions, []);
@@ -97,8 +146,8 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     );
 
     const doctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
-    assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
-    assert.equal(JSON.parse(doctor.stdout).status, "automation-ready");
+    assert.equal(doctor.status, 5, doctor.stderr || doctor.stdout);
+    assert.equal(JSON.parse(doctor.stdout).status, "configuration_required");
 
     const invalidProfilePath = path.join(directory, "invalid-profile.json");
     const invalidProfile = structuredClone(profile);
@@ -114,6 +163,26 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
 
     const artifact = path.join(directory, "artifact.html");
     fs.writeFileSync(artifact, "<!doctype html><button>Save</button>\n");
+    const blockedDryRun = runNode(cli, [
+      "run",
+      "--dry-run",
+      "--profile", profilePath,
+      "--host-config", hostPath,
+      "--task", "audit",
+      "--direction", "none",
+      "--changes", "source,layout",
+      "--artifact", artifact,
+      "--scope", "runtime",
+      "--json"
+    ], directory);
+    assert.equal(blockedDryRun.status, 5, blockedDryRun.stderr || blockedDryRun.stdout);
+    assert.match(JSON.parse(blockedDryRun.stdout).blockers.join("\n"), /visual intent contract is unresolved/);
+
+    approveVisualIntent(profilePath, artifact);
+    const readyDoctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
+    assert.equal(readyDoctor.status, 0, readyDoctor.stderr || readyDoctor.stdout);
+    assert.equal(JSON.parse(readyDoctor.stdout).status, "automation-ready");
+
     const dryRun = runNode(cli, [
       "run",
       "--dry-run",

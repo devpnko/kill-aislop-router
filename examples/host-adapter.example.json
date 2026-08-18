@@ -2,6 +2,7 @@
   "host_adapter_version": 1,
   "allowed_providers": [
     "project-contract",
+    "visual-intent-review",
     "kill-ai-slop",
     "anti-slop",
     "independent-rendered-craft-agent",
@@ -16,6 +17,7 @@
   "granted_permissions": [],
   "providers": {
     "project-contract": {"adapter": "manual-v1", "strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"], "permissions": []},
+    "visual-intent-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation"], "permissions": []},
     "kill-ai-slop": {"adapter": "manual-v1", "strength": 2, "capabilities": ["source-pattern-detection"], "permissions": []},
     "anti-slop": {"adapter": "manual-v1", "strength": 3, "capabilities": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"], "permissions": []},
     "independent-rendered-craft-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"], "permissions": []},

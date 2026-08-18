@@ -9,6 +9,12 @@ The planning authority owns discovery, evidence, interviews, PRD, UAC, IA,
 data authority, mockup scope, and owner decisions. KillSlopRouter owns the late
 design-quality and implementation bridge:
 
+Planning, product, brand, reference, or owner evidence must also establish the
+visual-intent receipt consumed by KillSlopRouter. The router does not invent
+that direction from anti-slop rules. Surface classification and visual style
+remain separate, so a planning receipt for `marketing-editorial` alone does not
+authorize editorial treatment.
+
 | Planning gate | Planning meaning | KillSlopRouter action |
 |---|---|---|
 | G6 | Versioned all-scope mockup exists | Allow a mockup audit |
@@ -46,6 +52,11 @@ or approval record forces a new route plan.
 An `approved` `design_system` profile entry likewise needs an
 `authority_receipt` and `authority_digest`. The router verifies that authority
 before allowing `project-design-system` to create an artifact.
+
+An approved `visual_intents` entry needs its own authority receipt and digest.
+That receipt repeats the exact intent and binds the underlying planning,
+project, brand, reference, artifact, or owner evidence. See
+[Visual intent contract](visual-intent-contract.md).
 
 If `planning.required` is `false`, findings are reported as warnings for normal
 tasks. `systemize` always requires G6T and exact G7 evidence, regardless of that

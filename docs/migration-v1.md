@@ -10,11 +10,14 @@ V1 keeps the existing route and audit contracts and adds an execution layer.
 - Package exports for `.`, `./audit`, `./integrity`, and `./planning` remain unchanged.
 - Existing audit final statuses and their meanings remain unchanged.
 
-`doctor` now reports `automation-ready` instead of `core-ready`, and validates
-the runtime profile boundary before reporting it.
+`doctor` reports `automation-ready` instead of `core-ready` only when the
+runtime profile boundary and every visual-intent authority are verified. It
+reports `configuration_required` with exit code 5 for a fresh unresolved
+bootstrap profile.
 
-Dispatch packets add `minimum_strength`. Consumers that allow additive fields
-need no change. Consumers that reject unknown fields should permit this field.
+Dispatch packets add `minimum_strength` and `visual_intent_contract`. Consumers
+that allow additive fields need no change. Consumers that reject unknown fields
+should permit both fields.
 
 ## New contracts
 
@@ -37,6 +40,11 @@ Playwright as the preferred browser. Existing profiles and generic
 `browser-json-v1` adapters remain valid; no existing browser adapter is silently
 replaced. Run `killsloprouter browser configure` to opt into the official
 digest-locked adapter. It creates backups of the profile and host manifest.
+
+Bootstrap also writes one conservative, unresolved `visual_intents` entry per
+surface. It preserves existing character and energy and forbids editorial
+treatment until project or owner evidence resolves the contract. This prevents
+bootstrap itself from selecting a generic house style.
 
 The official adapter adds a served-artifact attestation gate and an approved
 pixel baseline. A missing baseline is a deliberate first-run block. This is an
@@ -84,6 +92,48 @@ than one surface. `--surface` is now only an optional consistency assertion; it
 cannot override the artifact contract. Start a new run after an intentional
 contract change because resume verifies the original profile digest.
 
+### Bind visual intent separately from the surface
+
+Existing `profile_version: 1` files remain structurally readable when
+`visual_intents` is absent so copy-only and PR-hygiene integrations do not
+break. However, `build`, `redesign`, `systemize`, `runtime-handoff`, and `audit`
+now fail closed until the resolved surface has an approved contract and
+verified authority receipt.
+
+Add one entry for every allowed surface. Do not infer an editorial visual style
+from `marketing-editorial`; the surface is semantic only. For a product-native
+operator interface:
+
+```json
+{
+  "visual_intents": {
+    "operator-product-ui": {
+      "visual_intent_version": 1,
+      "status": "approved",
+      "mode": "product-native",
+      "editorial_treatment": "forbidden",
+      "editorial_scope": [],
+      "energy": "balanced",
+      "depth": "layered",
+      "preserve": ["task density", "brand contrast", "visual energy"],
+      "avoid": ["paper-like neutralization", "universal flatness"],
+      "authority_receipt": "planning/visual-intent.json",
+      "authority_digest": "sha256:replace-with-exact-digest"
+    }
+  }
+}
+```
+
+The authority receipt repeats the exact intent and binds its product, brand,
+reference, or owner evidence. See
+`visual-intent-contract.md` and
+`../schemas/visual-intent-receipt.schema.json`.
+
+Visual routes add a required independent `visual-intent-review` stage at
+strength 4. Add that provider to routing declarations and host manifests with
+the complete capability set documented in `capability-matrix.md`. Until then,
+the stage remains `manual_pending`; it is never treated as executed.
+
 ### Node version
 
 V1 supports Node.js 20 and 22. Upgrade environments that still run Node 18.
@@ -120,7 +170,7 @@ the automation run is not complete until an exact owner approval is supplied.
 ## Recommended rollout
 
 1. Run the existing tests on Node 20 or 22.
-2. Add and review the surface contract, then run
+2. Add and review the surface and visual-intent contracts, then run
    `killsloprouter run --dry-run` with the current profile and artifacts.
 3. Create manual host declarations for every selected provider.
 4. Replace one manual declaration at a time with a digest-locked adapter.

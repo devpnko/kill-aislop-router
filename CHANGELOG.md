@@ -8,6 +8,9 @@
 - Added a short default journey that resumes matching state and advances only eligible stages.
 - Added fail-closed project bootstrap with manual-only adapters and a digest-bound receipt.
 - Added required, digest-bound surface contracts that resolve artifact roots before creator selection and block ambiguous, mismatched, mixed-surface, or tampered routing.
+- Added per-surface visual-intent contracts that separate product semantics from aesthetics and make editorial treatment evidence-gated instead of a default.
+- Added a digest-bound visual-intent authority/evidence chain and an independent strength-4 intent-preservation review stage.
+- Made unresolved intent, unapproved editorial treatment, authority tamper, and scanner-zero-as-approval fail closed without changing receipt version 1.
 - Added the resumable `run` lifecycle with per-phase receipts and hashes.
 - Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.
 - Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.

@@ -10,6 +10,30 @@
       {"root": ".", "surface": "operator-product-ui"}
     ]
   },
+  "visual_intents": {
+    "operator-product-ui": {
+      "visual_intent_version": 1,
+      "status": "approved",
+      "mode": "product-native",
+      "editorial_treatment": "forbidden",
+      "editorial_scope": [],
+      "energy": "balanced",
+      "depth": "layered",
+      "preserve": [
+        "operator task density",
+        "action hierarchy",
+        "existing brand contrast",
+        "fast same-screen comparison"
+      ],
+      "avoid": [
+        "paper-like neutralization",
+        "universal flatness",
+        "consumer-service restyling"
+      ],
+      "authority_receipt": "planning-evidence/visual-intent-approval.json",
+      "authority_digest": "sha256:63dc8fc0007f17a1ccb8cedb8dec659d3cb45aa42774a73adec32aa2696d60ef"
+    }
+  },
   "approved_design_system": true,
   "design_system": {
     "id": "example-product-ui",
@@ -31,6 +55,7 @@
     "project-design-system": "docs/design-system.md",
     "project-systemizer": "docs/systemization-protocol.md",
     "design-system-contract-review": "reviewers/design-system-contract",
+    "visual-intent-review": "reviewers/visual-intent",
     "locale-copy-review": "reviewers/en-US-copy",
     "domain-authority-review": "reviewers/product-owner",
     "privacy-authority-review": "reviewers/privacy-owner",

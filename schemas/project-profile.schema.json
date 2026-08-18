@@ -37,6 +37,13 @@
       },
       "additionalProperties": false
     },
+    "visual_intents": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]
+      },
+      "additionalProperties": {"$ref": "#/$defs/visual-intent"}
+    },
     "approved_design_system": {"type": "boolean"},
     "design_system": {
       "type": "object",
@@ -191,6 +198,97 @@
           "uniqueItems": true
         }
       },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "visual-intent": {
+      "type": "object",
+      "required": [
+        "visual_intent_version",
+        "status",
+        "mode",
+        "editorial_treatment",
+        "editorial_scope",
+        "energy",
+        "depth",
+        "preserve",
+        "avoid"
+      ],
+      "properties": {
+        "visual_intent_version": {"const": 1},
+        "status": {"enum": ["unresolved", "approved"]},
+        "mode": {"enum": ["unresolved", "product-native", "brand-expressive", "editorial", "campaign", "reference-led"]},
+        "editorial_treatment": {"enum": ["forbidden", "bounded", "required"]},
+        "editorial_scope": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "energy": {"enum": ["preserve", "quiet", "balanced", "high"]},
+        "depth": {"enum": ["preserve", "flat", "layered", "immersive"]},
+        "preserve": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "avoid": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "authority_receipt": {"type": "string", "minLength": 1},
+        "authority_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "approved"}}},
+          "then": {
+            "required": ["authority_receipt", "authority_digest"],
+            "properties": {
+              "mode": {"enum": ["product-native", "brand-expressive", "editorial", "campaign", "reference-led"]},
+              "energy": {"enum": ["quiet", "balanced", "high"]},
+              "depth": {"enum": ["flat", "layered", "immersive"]}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "unresolved"}}},
+          "then": {
+            "properties": {
+              "mode": {"const": "unresolved"},
+              "editorial_treatment": {"const": "forbidden"},
+              "editorial_scope": {"maxItems": 0},
+              "energy": {"const": "preserve"},
+              "depth": {"const": "preserve"}
+            },
+            "not": {
+              "anyOf": [
+                {"required": ["authority_receipt"]},
+                {"required": ["authority_digest"]}
+              ]
+            }
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "editorial"}}},
+          "then": {"properties": {"editorial_treatment": {"const": "required"}}}
+        },
+        {
+          "if": {"properties": {"editorial_treatment": {"const": "required"}}},
+          "then": {"properties": {"mode": {"const": "editorial"}}}
+        },
+        {
+          "if": {"properties": {"editorial_treatment": {"const": "bounded"}}},
+          "then": {"properties": {"editorial_scope": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"editorial_treatment": {"const": "forbidden"}}},
+          "then": {"properties": {"editorial_scope": {"maxItems": 0}}}
+        }
+      ],
       "additionalProperties": false
     }
   },

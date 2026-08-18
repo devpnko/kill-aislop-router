@@ -56,6 +56,47 @@ function bootstrapProject(directory) {
   };
 }
 
+function approveFixtureVisualIntent(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-intent-approval.json");
+  const receipt = {
+    visual_intent_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    intent: {
+      mode: "product-native",
+      editorial_treatment: "forbidden",
+      editorial_scope: [],
+      energy: "balanced",
+      depth: "layered",
+      preserve: ["fixture interaction hierarchy", "browser state clarity", "visual energy"],
+      avoid: ["paper-like neutralization", "universal flattening"]
+    },
+    authority: {
+      kind: "approved-reference",
+      authority_id: "playwright-fixture-owner",
+      basis: "The fixture tests a product-native interactive surface, not an editorial treatment.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{
+      kind: "approved-artifact",
+      path: path.relative(path.dirname(receiptPath), artifactPath),
+      digest: hashArtifact(artifactPath)
+    }]
+  };
+  writeJson(receiptPath, receipt);
+  profile.visual_intents[surface] = {
+    visual_intent_version: 1,
+    status: "approved",
+    ...receipt.intent,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
 function startServer(artifactDigests) {
   const child = spawn(process.execPath, [serverEntrypoint], {
     cwd: root,
@@ -134,6 +175,7 @@ function enableFixtureReviewers(hostPath) {
   const host = readJson(hostPath);
   const providerIds = [
     "project-contract",
+    "visual-intent-review",
     "kill-ai-slop",
     "anti-slop",
     "hallmark",
@@ -557,6 +599,7 @@ test("integrated automation resumes and retries the official Playwright stage be
     const snapshot = snapshotArtifact(artifact, { root: directory });
     server = await startServer({ [snapshot.path]: snapshot.digest });
     const paths = bootstrapProject(directory);
+    approveFixtureVisualIntent(paths.profile, artifact);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{

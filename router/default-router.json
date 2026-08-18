@@ -14,6 +14,11 @@
     "design_system_release_requires_exact_owner_approval": true,
     "profile_commands_are_never_executed": true,
     "routable_is_not_execution_evidence": true,
+    "surface_is_not_a_visual_style_preset": true,
+    "anti_slop_critique_is_not_creator_direction": true,
+    "editorial_treatment_requires_verified_visual_intent": true,
+    "scanner_zero_hits_is_not_design_approval": true,
+    "visual_intent_authority_is_digest_bound": true,
     "locale_domain_privacy_browser_and_owner_gates_remain_hard": true
   },
   "provider_capabilities": {
@@ -29,6 +34,7 @@
     "stop-slop": {"strength": 2, "independent_from_creator": true, "capabilities": ["long-form-rhythm", "formulaic-prose-detection"]},
     "peakoss-anti-slop": {"strength": 3, "independent_from_creator": true, "capabilities": ["pr-contribution-hygiene"]},
     "locale-copy-review": {"strength": 4, "capabilities": ["locale-domain-copy"]},
+    "visual-intent-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation"]},
     "browser-evidence": {"strength": 3, "independent_from_creator": true, "capabilities": ["responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence", "contrast-evidence", "zoom-evidence"]},
     "domain-authority-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["domain-authority"]},
     "privacy-authority-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["privacy-authority"]},
@@ -36,6 +42,7 @@
   },
   "stage_capability_contracts": {
     "project-contract": {"minimum_strength": 4, "required": ["task-contract", "object-model", "state-authority"]},
+    "visual-intent-review": {"minimum_strength": 4, "requires_independent_critic": true, "required": ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation"]},
     "system-contract-review": {"minimum_strength": 4, "requires_independent_critic": true, "required": ["token-contract", "component-boundaries", "variant-state-contract", "responsive-density-contract", "surface-profile-contract", "migration-map", "drift-control"]},
     "static-discovery": {"minimum_strength": 2, "required": ["source-pattern-detection"]},
     "functional-human-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"]},
@@ -66,9 +73,10 @@
       "creator_policy": {"type": "none"},
       "stages": [
         {"id": "project-contract", "question": "What user task, object, states, and authority define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "visual-intent-review", "question": "Does the artifact follow the verified visual-intent contract, preserve its character, energy, and depth, and keep editorial treatment inside the explicit boundary?", "when_visual_intent": true, "actors": [{"id": "visual-intent-review", "kind": "local"}]},
         {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
         {"id": "functional-human-review", "question": "Does the interface work for the real task, people, mobile layout, accessibility, and required states?", "actors": [{"id": "anti-slop", "kind": "external"}]},
-        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, restraint, and execution quality?", "actors": [{"id": "hallmark", "kind": "external"}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, intentional visual character, appropriate depth, and execution quality without flattening the approved direction?", "actors": [{"id": "hallmark", "kind": "external"}]},
         {"id": "copy-review", "question": "Is visible copy specific, honest, concise, and natural?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
         {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
         {"id": "adjudication", "question": "How are conflicting findings resolved against product semantics and evidence?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
@@ -89,10 +97,11 @@
       "creator_policy": {"type": "fixed", "tool": "project-systemizer", "requires_profile_adapter": "project-systemizer", "allow_surface_override": false},
       "stages": [
         {"id": "project-contract", "question": "Which approved artifact, user task, object model, states, and authority bound this extraction?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "visual-intent-review", "question": "Does systemization preserve the verified character, energy, depth, and editorial boundary instead of turning anti-slop heuristics into a universal style?", "when_visual_intent": true, "actors": [{"id": "visual-intent-review", "kind": "local"}]},
         {"id": "static-discovery", "question": "Which duplicated or generic source patterns must not enter the shared system?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
         {"id": "system-contract-review", "question": "Are tokens, component boundaries, variants, responsive profiles, migration order, and drift controls explicit and reusable?", "actors": [{"id": "design-system-contract-review", "kind": "local"}]},
         {"id": "functional-human-review", "question": "Does systemization preserve real tasks, states, accessibility, and mobile behavior instead of flattening the product?", "actors": [{"id": "anti-slop", "kind": "external"}]},
-        {"id": "rendered-craft-review", "question": "Do the shared primitives preserve the approved hierarchy, restraint, and surface-specific character?", "actors": [{"id": "hallmark", "kind": "external"}]},
+        {"id": "rendered-craft-review", "question": "Do the shared primitives preserve the approved hierarchy, energy, depth, and surface-specific character?", "actors": [{"id": "hallmark", "kind": "external"}]},
         {"id": "browser-evidence", "question": "Do component variants and representative surfaces work at required viewports and interaction states?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
         {"id": "adjudication", "question": "Which patterns are truly shared, and which must remain product- or surface-specific?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
         {"id": "approval", "question": "Who approves this versioned design-system release and its migration boundary?", "actors": [{"id": "owner-approval", "kind": "local"}]}
@@ -105,12 +114,13 @@
       "excluded_tools": ["taste-skill"],
       "stages": [
         {"id": "project-contract", "question": "What operator decision, data density, states, and authority define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "visual-intent-review", "question": "Does the operator UI preserve its verified task density, visual energy, depth, and brand character while rejecting unapproved paper/editorial neutralization?", "when_visual_intent": true, "actors": [{"id": "visual-intent-review", "kind": "local"}]},
         {"id": "functional-human-review", "question": "Does the dense product UI support the real task, mobile fallback, accessibility, and state completeness?", "actors": [{"id": "anti-slop", "kind": "external"}]},
         {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
-        {"id": "rendered-craft-review", "question": "Does the rendered interface preserve hierarchy and restraint without hiding required density?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface preserve task hierarchy, required density, approved visual energy, and intentional depth?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
         {"id": "copy-review", "question": "Is visible operator copy direct, domain-correct, and non-generic?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
         {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
-        {"id": "adjudication", "question": "How are density and visual-restraint conflicts resolved against the operator task?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "adjudication", "question": "How are density and visual-intent conflicts resolved against the operator task and verified contract?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
         {"id": "approval", "question": "Who accepts the result and remaining debt?", "actors": [{"id": "owner-approval", "kind": "local"}]}
       ]
     },
@@ -127,10 +137,11 @@
       },
       "stages": [
         {"id": "project-contract", "question": "What customer task, trust boundary, states, and outcome define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "visual-intent-review", "question": "Does the customer UI preserve its verified brand character, visual energy, depth, and explicit editorial boundary?", "when_visual_intent": true, "actors": [{"id": "visual-intent-review", "kind": "local"}]},
         {"id": "functional-human-review", "question": "Does the interface work for the real customer task, mobile layout, accessibility, and required states?", "actors": [{"id": "anti-slop", "kind": "external"}]},
         {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
-        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, restraint, and execution quality?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
-        {"id": "direction-coherence-review", "question": "Does the chosen visual direction remain coherent and specific?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered interface have specific hierarchy, brand character, intentional depth, and execution quality without generic neutralization?", "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "direction-coherence-review", "question": "Does the chosen visual direction remain coherent, specific, and inside the verified visual-intent contract?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
         {"id": "copy-review", "question": "Is customer copy specific, honest, concise, and natural?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}]},
         {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
         {"id": "adjudication", "question": "How are trust, task, and visual findings resolved against project semantics?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
@@ -150,10 +161,11 @@
       },
       "stages": [
         {"id": "project-contract", "question": "What audience, offer, evidence, action, and brand direction define this artifact?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "visual-intent-review", "question": "Does the page preserve its verified brand character, energy, and depth, and use editorial treatment only where the contract explicitly permits it?", "when_visual_intent": true, "actors": [{"id": "visual-intent-review", "kind": "local"}]},
         {"id": "static-discovery", "question": "Which source patterns are anti-slop review candidates?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
         {"id": "functional-human-review", "question": "Do responsive behavior, accessibility, controls, and states work for real visitors?", "actors": [{"id": "anti-slop", "kind": "external"}]},
-        {"id": "rendered-craft-review", "question": "Does the rendered page have specific hierarchy, restraint, and execution quality?", "when_creator": ["taste-skill", "project-design-system"], "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
-        {"id": "direction-coherence-review", "question": "Does the visual direction remain coherent and non-generic?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
+        {"id": "rendered-craft-review", "question": "Does the rendered page have specific hierarchy, brand character, intentional depth, and execution quality without defaulting to paper/editorial neutral?", "when_creator": ["taste-skill", "project-design-system"], "actors": [{"id": "hallmark", "kind": "external", "skip_if_creator": true}]},
+        {"id": "direction-coherence-review", "question": "Does the visual direction remain coherent, non-generic, and inside the verified editorial boundary?", "when_creator": ["hallmark"], "actors": [{"id": "taste-skill", "kind": "external", "skip_if_creator": true}]},
         {"id": "copy-review", "question": "Is the public copy specific, credible, and free of generic claims?", "actors": [{"id": "no-ai-slop", "kind": "external"}, {"id": "locale-copy-review", "kind": "local"}, {"id": "stop-slop", "kind": "external", "optional": true}]},
         {"id": "browser-evidence", "question": "Do required viewports, states, keyboard paths, and controls work in a browser?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
         {"id": "adjudication", "question": "How are evidence, brand, and visual findings resolved?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
@@ -163,8 +175,8 @@
   ],
   "change_requirements": {
     "copy": ["copy-review"],
-    "style": ["static-discovery", "rendered-craft-review", "browser-evidence"],
-    "layout": ["static-discovery", "functional-human-review", "rendered-craft-review", "browser-evidence"],
+    "style": ["visual-intent-review", "static-discovery", "rendered-craft-review", "browser-evidence"],
+    "layout": ["visual-intent-review", "static-discovery", "functional-human-review", "rendered-craft-review", "browser-evidence"],
     "interaction": ["functional-human-review", "browser-evidence"],
     "state": ["functional-human-review", "browser-evidence"],
     "data": ["project-contract", "domain-authority-review"],
@@ -179,10 +191,12 @@
       "keyboard-failure",
       "contrast-failure",
       "overflow-overlap-or-clipping",
+      "visual-intent-contract-violation",
+      "unapproved-editorial-treatment",
       "fake-runtime-claim"
     ],
     "reviewer_disagreement": "record-both-do-not-average",
-    "style_conflict": "project-contract-then-owner",
+    "style_conflict": "visual-intent-contract-then-project-contract-then-owner-replan",
     "scanner_conflict": "semantic-triage-with-rendered-evidence"
   }
 }

@@ -58,6 +58,12 @@ same artifact could reasonably be an operator, consumer, or editorial surface.
 An ERP or staff console is not converted into a consumer product merely because
 the requested task is a redesign.
 
+Visual intent is resolved separately. The skill must not turn anti-slop advice
+into a default gray, flat, paper/editorial style, and `marketing-editorial` is
+not visual permission. It binds unambiguous project, brand, approved-reference,
+or owner evidence; otherwise it stops before creation with the exact missing
+authority. See [Visual intent contract](visual-intent-contract.md).
+
 Use the namespaced invocation when an explicit skill reference is preferred:
 
 ```text
@@ -93,8 +99,11 @@ Bootstrap writes:
 - `.killsloprouter/bootstrap-receipt.json`
 
 Bootstrap requires an explicit surface and generates a locked `.` artifact
-binding for it. The generated profile preserves all hard gates, does not claim
-an approved design system, and routes providers to explicit manual contracts.
+binding for it. It also writes an unresolved visual-intent contract that
+preserves existing character and forbids editorial treatment until approved
+evidence is digest-bound. `doctor` reports `configuration_required` in that
+state. The generated profile preserves all hard gates, does not claim an
+approved design system, and routes providers to explicit manual contracts.
 The host manifest contains only `manual-v1` declarations with no permissions.
 Therefore the first execution remains `manual_pending` until an operator
 supplies valid manual results or replaces declarations with digest-locked

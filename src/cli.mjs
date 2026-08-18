@@ -16,6 +16,7 @@ import {
   findProjectProfile,
   formatReceipt,
   inspectSurfaceContract,
+  inspectVisualIntents,
   planRoute,
   readJson,
   resolveDesignSystem,
@@ -259,8 +260,15 @@ function doctor(args) {
     profile: context.profile,
     root: routingRoot(context.profilePath, args.root || null)
   });
+  const visualIntents = inspectVisualIntents({
+    profile: context.profile,
+    profilePath: context.profilePath
+  });
+  const visualIntentsReady = visualIntents.length > 0 && visualIntents.every((intent) =>
+    intent.status === "approved" && intent.authority_status === "verified"
+  );
   const report = {
-    status: "automation-ready",
+    status: visualIntentsReady ? "automation-ready" : "configuration_required",
     router_id: context.router.router_id,
     router_version: context.router.router_version,
     router_path: context.routerPath,
@@ -268,6 +276,7 @@ function doctor(args) {
     project_id: context.profile?.project_id || null,
     surface_contract: context.profile?.surface_contract || null,
     surface_boundary: surfaceBoundary,
+    visual_intents: visualIntents,
     approved_design_system: context.profile?.approved_design_system ?? null,
     design_system: resolveDesignSystem(context.profile, context.profilePath),
     planning: context.profile?.planning || null,
@@ -277,12 +286,13 @@ function doctor(args) {
     capability_contracts: Object.keys(context.router.stage_capability_contracts || {}),
     execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands"
   };
-  return args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
+  const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
     `profile: ${report.project_id || "not found"}`,
     `surface: ${report.surface_contract?.primary || "unbound"}`,
     `surface bindings: ${report.surface_boundary?.artifact_bindings.length || 0}`,
+    `visual intents: ${report.visual_intents.filter((intent) => intent.authority_status === "verified").length}/${report.visual_intents.length} verified`,
     `planning bridge: ${report.planning ? "configured" : "not configured"}`,
     `design system: ${report.design_system ? `${report.design_system.id}@${report.design_system.version} (${report.design_system.status}; ${report.design_system.authority_status})` : "missing"}`,
     `local adapters: ${report.configured_local_adapters.length}`,
@@ -291,6 +301,7 @@ function doctor(args) {
     `capability contracts: ${report.capability_contracts.length}`,
     `boundary: ${report.execution_boundary}`
   ].join("\n") + "\n";
+  return { status: report.status, output: rendered };
 }
 
 function output(value, args, textFormatter = null) {
@@ -535,7 +546,9 @@ export async function main(argv) {
     return;
   }
   if (args.command === "doctor") {
-    process.stdout.write(doctor(args));
+    const result = doctor(args);
+    process.stdout.write(result.output);
+    if (result.status === "configuration_required") process.exitCode = 5;
     return;
   }
   if (args.command === "digest") {

@@ -12,12 +12,15 @@ package or create a GitHub Release as part of the V1 work.
 
 - Selects one creator per artifact and rejects creator self-review or approval.
 - Resolves the product surface from a digest-bound project/artifact contract before creator selection.
+- Resolves a separate, evidence-bound visual-intent contract; a surface name never acts as a style preset.
+- Allows editorial treatment only when the visual-intent authority explicitly marks it `bounded` or `required`.
 - Preserves minimum reviewer strength and capability-union requirements.
 - Executes only provider IDs allowed by an explicit host adapter manifest.
 - Never executes `command`, `args`, `shell`, or an entrypoint from a project profile.
 - Runs JSON agent, skill, browser, and `kill-ai-slop` adapters across a real child-process boundary.
 - Leaves missing, manual, weak, or partial adapters as `manual_pending`. A `routable` plan is not execution evidence.
 - Requires explicit scanner triage, conflict adjudication, browser proof, and owner approval where the route requires them.
+- Treats scanner zero hits as discovery output, never as design approval.
 - Re-hashes plans, artifacts, results, evidence, triage, approval, step receipts, and automation state.
 - Resumes interrupted runs and retries a failed packet, provider, or stage without discarding completed evidence.
 - Ships an official Playwright adapter for real responsive, interaction, accessibility-proxy, trace, and pixel-baseline evidence.
@@ -74,12 +77,14 @@ Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-cl
 ```
 
 The plugin determines the route from project evidence, but it does not guess an
-ambiguous product surface. It locks an unambiguous repository contract or stops
-for an explicit owner choice before creating a manual-only starter
-configuration. It then runs `doctor` and `--dry-run` and uses the integrated
-resumable ledger. A short `전체 여정` request resumes a matching run, advances
-only the currently eligible stage, and stops for missing planning or owner
-evidence. It does not ship an MCP server or gain remote authority. See
+ambiguous product surface or visual direction. It locks unambiguous repository
+contracts or stops for an explicit project or owner decision. Bootstrap creates
+a manual-only starter configuration with an unresolved visual intent; `doctor`
+stays non-zero until the intent is backed by a digest-locked authority receipt.
+The plugin then runs `--dry-run` and uses the integrated resumable ledger. A
+short `전체 여정` request resumes a matching run, advances only the currently
+eligible stage, and stops for missing planning or owner evidence. It does not
+ship an MCP server or gain remote authority. See
 [Codex plugin](docs/codex-plugin.md).
 
 The bootstrap command is also available directly:
@@ -99,6 +104,14 @@ workflow is normally `operator-product-ui`; a customer-facing product is
 `consumer-product-ui`. This is a semantic contract, not a request to make one
 surface look like another. Real adapters still require explicit allowlisting
 and digest locking.
+
+Before `doctor`, replace the generated unresolved `visual_intents` entry with a
+contract derived from project, brand, approved-reference, or owner evidence.
+Bind its authority receipt and every evidence file by SHA-256. In particular,
+`marketing-editorial` does not permit a paper/editorial visual treatment by
+itself. See [Visual intent contract](docs/visual-intent-contract.md) and the
+working fixture at
+`examples/planning-evidence/visual-intent-approval.json`.
 
 For a UI artifact, the official browser setup is three explicit operations:
 
@@ -274,6 +287,12 @@ artifact roots, and each run must stay within one resolved surface. The most
 specific binding wins; CLI input cannot override it. See
 [Surface contract](docs/surface-contract.md).
 
+Every visual route also needs one approved `visual_intents` entry for the
+resolved surface. The authority receipt locks mode, editorial boundary, energy,
+depth, and the project-specific qualities to preserve or avoid. Legacy profiles
+remain structurally readable, but visual tasks fail closed until this additive
+contract is configured. See [Visual intent contract](docs/visual-intent-contract.md).
+
 Surfaces:
 
 - `operator-product-ui`
@@ -299,8 +318,13 @@ contracts instead of replacing them.
 - A creator cannot review or approve its own artifact.
 - Surface identity is resolved from the project/artifact contract before creator
   selection; ambiguous, mismatched, or mixed-surface runs block.
+- Visual intent is resolved independently from surface identity; unresolved,
+  changed, or mismatched authority blocks all visual routes.
+- Editorial treatment is forbidden unless the verified contract explicitly
+  allows a bounded scope or requires editorial mode.
 - Fallbacks must meet minimum strength and cover the complete capability union.
-- Scanner findings are candidates until individually classified.
+- Scanner findings are candidates until individually classified; zero hits do
+  not satisfy visual-intent, craft, browser, or owner gates.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
 - Required locale, domain, privacy, browser, and owner stages cannot be skipped.
 - Browser packets need viewport screenshots and non-screenshot proof for every required check.
@@ -317,13 +341,16 @@ and [Systemization protocol](docs/systemization-protocol.md).
 Route receipt version 1, audit run version 1, audit result version 1, triage
 version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
-Profiles must now add the fail-closed `surface_contract`; receipt versions did
-not change. See [V1 migration notes](docs/migration-v1.md).
+Profiles must add the fail-closed `surface_contract`. Visual tasks also require
+an approved `visual_intents` contract; profiles without it remain readable for
+non-visual compatibility but visual plans block. Receipt versions did not
+change. See [V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
 - [Surface contract](docs/surface-contract.md)
+- [Visual intent contract](docs/visual-intent-contract.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

@@ -209,6 +209,13 @@ function planPayload(plan, planPath = null) {
     status: plan.status,
     route_id: plan.route_id,
     creator: plan.creator,
+    visual_intent: plan.visual_intent ? {
+      status: plan.visual_intent.status,
+      mode: plan.visual_intent.mode || null,
+      editorial_treatment: plan.visual_intent.editorial_treatment || null,
+      authority_status: plan.visual_intent.authority_status,
+      contract_digest: plan.visual_intent.contract_digest
+    } : null,
     unresolved: plan.unresolved,
     warnings: plan.warnings,
     plan_path: planPath,

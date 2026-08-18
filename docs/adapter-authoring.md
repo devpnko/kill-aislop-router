@@ -77,7 +77,7 @@ are `schemas/host-adapter-request.schema.json` and
 
 - `host_adapter_request_version`: currently `1`
 - `run_id` and `attempt`
-- `packet`: provider identity, stage question, capability assignment, evidence contract, and artifact digests
+- `packet`: provider identity, stage question, capability assignment, visual-intent contract, evidence contract, and artifact digests
 - `packets`: the complete dispatch set, useful to form conflict references
 - `creator`: creator provider and actor identity
 - `scope`
@@ -89,6 +89,24 @@ are `schemas/host-adapter-request.schema.json` and
 
 The adapter must perform the review described by `packet.stage_question`. It
 must not emit `pass` merely because the transport succeeded.
+
+### Visual-intent reviewer
+
+Implement `visual-intent-review` as an independent `agent-json-v1` or explicit
+manual provider at strength 4. It must cover:
+
+- `visual-intent-fidelity`
+- `editorial-boundary`
+- `character-preservation`
+- `energy-preservation`
+- `depth-preservation`
+
+Read `packet.visual_intent_contract` as authority. Compare the rendered
+artifact with its mode, editorial scope, energy, depth, `preserve`, and `avoid`
+claims. Report `visual-intent-contract-violation` or
+`unapproved-editorial-treatment` as a blocker. Do not choose a quieter style,
+turn craft restraint into flatness, or approve merely because the scanner found
+nothing. The reviewer actor and provider must remain distinct from the creator.
 
 ## Response protocol
 
@@ -167,6 +185,9 @@ baseline approval, evidence files, and the screen-reader scope boundary.
 host locates one of the documented scanner paths under that root and verifies
 its `entrypoint_digest` before invocation. Scanner findings enter the ledger as
 `candidate` findings and always stop at the triage gate.
+Zero findings mean only that the locked scanner patterns were absent. A scanner
+cannot emit or substitute the visual-intent, craft, browser, adjudication, or
+owner verdict.
 
 ## Manual fallback
 

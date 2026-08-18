@@ -9,6 +9,19 @@ export const VALID_SURFACES = new Set([
   "marketing-editorial"
 ]);
 
+export const VALID_VISUAL_INTENT_MODES = new Set([
+  "unresolved",
+  "product-native",
+  "brand-expressive",
+  "editorial",
+  "campaign",
+  "reference-led"
+]);
+export const VALID_EDITORIAL_TREATMENTS = new Set(["forbidden", "bounded", "required"]);
+export const VALID_VISUAL_ENERGY = new Set(["preserve", "quiet", "balanced", "high"]);
+export const VALID_VISUAL_DEPTH = new Set(["preserve", "flat", "layered", "immersive"]);
+const VISUAL_INTENT_TASKS = new Set(["build", "redesign", "systemize", "runtime-handoff", "audit"]);
+
 export const VALID_TASKS = new Set([
   "build",
   "redesign",
@@ -37,6 +50,56 @@ const SURFACE_CONTRACT_KEYS = new Set([
   "artifact_bindings"
 ]);
 const SURFACE_BINDING_KEYS = new Set(["root", "surface"]);
+const VISUAL_INTENT_KEYS = new Set([
+  "visual_intent_version",
+  "status",
+  "mode",
+  "editorial_treatment",
+  "editorial_scope",
+  "energy",
+  "depth",
+  "preserve",
+  "avoid",
+  "authority_receipt",
+  "authority_digest"
+]);
+const REQUIRED_VISUAL_INTENT_KEYS = [
+  "visual_intent_version",
+  "status",
+  "mode",
+  "editorial_treatment",
+  "editorial_scope",
+  "energy",
+  "depth",
+  "preserve",
+  "avoid"
+];
+const VISUAL_INTENT_RECEIPT_KEYS = new Set([
+  "visual_intent_receipt_version",
+  "project_id",
+  "surface",
+  "status",
+  "intent",
+  "authority",
+  "evidence"
+]);
+const VISUAL_INTENT_AUTHORITY_KEYS = new Set(["kind", "authority_id", "basis", "decided_at"]);
+const VISUAL_INTENT_EVIDENCE_KEYS = new Set(["kind", "path", "digest"]);
+const VISUAL_INTENT_AUTHORITY_KINDS = new Set([
+  "project-contract",
+  "brand-system",
+  "owner-direction",
+  "approved-reference"
+]);
+const VISUAL_INTENT_EVIDENCE_KINDS = new Set([
+  "project-contract",
+  "brand-system",
+  "owner-direction",
+  "approved-reference",
+  "approved-artifact",
+  "owner-approval"
+]);
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 
 export class RouterError extends Error {
   constructor(message, exitCode = 1) {
@@ -138,6 +201,118 @@ export function validateSurfaceContract(profile) {
   return contract;
 }
 
+function requireUniqueStrings(value, label, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0) ||
+    value.some((item) => typeof item !== "string" || !item.trim()) ||
+    new Set(value).size !== value.length) {
+    throw new RouterError(`${label} must contain ${allowEmpty ? "unique" : "one or more unique"} non-empty strings`, 2);
+  }
+}
+
+function visualIntentBody(contract) {
+  return {
+    mode: contract.mode,
+    editorial_treatment: contract.editorial_treatment,
+    editorial_scope: [...(contract.editorial_scope || [])],
+    energy: contract.energy,
+    depth: contract.depth,
+    preserve: [...contract.preserve],
+    avoid: [...contract.avoid]
+  };
+}
+
+function validateVisualIntentContract(contract, label) {
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    throw new RouterError(`${label} must be an object`, 2);
+  }
+  for (const key of Object.keys(contract)) {
+    if (!VISUAL_INTENT_KEYS.has(key)) {
+      throw new RouterError(`${label} contains unsupported field: ${key}`, 2);
+    }
+  }
+  for (const key of REQUIRED_VISUAL_INTENT_KEYS) {
+    if (!Object.hasOwn(contract, key)) throw new RouterError(`${label}.${key} is required`, 2);
+  }
+  if (contract.visual_intent_version !== 1) {
+    throw new RouterError(`${label}.visual_intent_version must be 1`, 2);
+  }
+  if (!["unresolved", "approved"].includes(contract.status)) {
+    throw new RouterError(`${label}.status must be unresolved or approved`, 2);
+  }
+  if (!VALID_VISUAL_INTENT_MODES.has(contract.mode)) {
+    throw new RouterError(`${label}.mode is invalid`, 2);
+  }
+  if (!VALID_EDITORIAL_TREATMENTS.has(contract.editorial_treatment)) {
+    throw new RouterError(`${label}.editorial_treatment is invalid`, 2);
+  }
+  if (!VALID_VISUAL_ENERGY.has(contract.energy)) {
+    throw new RouterError(`${label}.energy is invalid`, 2);
+  }
+  if (!VALID_VISUAL_DEPTH.has(contract.depth)) {
+    throw new RouterError(`${label}.depth is invalid`, 2);
+  }
+  requireUniqueStrings(contract.editorial_scope || [], `${label}.editorial_scope`, { allowEmpty: true });
+  requireUniqueStrings(contract.preserve, `${label}.preserve`);
+  requireUniqueStrings(contract.avoid, `${label}.avoid`);
+
+  if (contract.editorial_treatment === "bounded" && !(contract.editorial_scope || []).length) {
+    throw new RouterError(`${label}.editorial_scope is required for bounded editorial treatment`, 2);
+  }
+  if (contract.editorial_treatment === "forbidden" && (contract.editorial_scope || []).length) {
+    throw new RouterError(`${label}.editorial_scope must be empty when editorial treatment is forbidden`, 2);
+  }
+  if (contract.mode === "editorial" && contract.editorial_treatment !== "required") {
+    throw new RouterError(`${label} editorial mode requires editorial_treatment required`, 2);
+  }
+  if (contract.mode !== "editorial" && contract.editorial_treatment === "required") {
+    throw new RouterError(`${label} required editorial treatment requires editorial mode`, 2);
+  }
+
+  if (contract.status === "unresolved") {
+    if (contract.mode !== "unresolved" || contract.editorial_treatment !== "forbidden" ||
+      contract.energy !== "preserve" || contract.depth !== "preserve") {
+      throw new RouterError(
+        `${label} unresolved contracts must preserve energy/depth and forbid editorial treatment`,
+        2
+      );
+    }
+    if (contract.authority_receipt !== undefined || contract.authority_digest !== undefined) {
+      throw new RouterError(`${label} unresolved contracts cannot claim authority`, 2);
+    }
+  } else {
+    if (contract.mode === "unresolved" || contract.energy === "preserve" || contract.depth === "preserve") {
+      throw new RouterError(`${label} approved contracts require resolved mode, energy, and depth`, 2);
+    }
+    if (typeof contract.authority_receipt !== "string" || !contract.authority_receipt) {
+      throw new RouterError(`${label} approved contracts require authority_receipt`, 2);
+    }
+    if (!DIGEST_PATTERN.test(contract.authority_digest || "")) {
+      throw new RouterError(`${label} approved contracts require a sha256 authority_digest`, 2);
+    }
+  }
+  return contract;
+}
+
+export function validateVisualIntents(profile, surfaceContract = validateSurfaceContract(profile)) {
+  const declarations = profile?.visual_intents;
+  if (declarations === undefined) return null;
+  if (!declarations || typeof declarations !== "object" || Array.isArray(declarations)) {
+    throw new RouterError("profile visual_intents must be an object keyed by allowed surface", 2);
+  }
+  for (const [surface, contract] of Object.entries(declarations)) {
+    if (!VALID_SURFACES.has(surface) || !surfaceContract.allowed.includes(surface)) {
+      throw new RouterError(`profile visual_intents.${surface} is outside surface_contract.allowed`, 2);
+    }
+    validateVisualIntentContract(contract, `profile visual_intents.${surface}`);
+  }
+  for (const surface of surfaceContract.allowed) {
+    if (!declarations[surface]) {
+      throw new RouterError(`profile visual_intents has no contract for ${surface}`, 2);
+    }
+  }
+  return declarations;
+}
+
 export function validateProfile(profile) {
   if (!profile) return;
   if (profile.profile_version !== 1) throw new RouterError("profile_version must be 1", 2);
@@ -145,6 +320,7 @@ export function validateProfile(profile) {
     throw new RouterError("profile project_id is required", 2);
   }
   const surfaceContract = validateSurfaceContract(profile);
+  validateVisualIntents(profile, surfaceContract);
   if (typeof profile.approved_design_system !== "boolean") {
     throw new RouterError("profile approved_design_system must be boolean", 2);
   }
@@ -533,6 +709,179 @@ export function resolveDesignSystem(profile, profilePath) {
   }
 }
 
+export function visualIntentRequired(input) {
+  return VISUAL_INTENT_TASKS.has(input?.task);
+}
+
+function exactObjectKeys(value, allowed, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) throw new Error(`${label} contains unsupported field: ${key}`);
+  }
+}
+
+function verifiedIntentSource(filePath, expectedDigest, kind, label) {
+  if (!fs.existsSync(filePath)) throw new Error(`${label} is missing: ${filePath}`);
+  const stat = fs.lstatSync(filePath);
+  if (stat.isSymbolicLink() || !stat.isFile()) {
+    throw new Error(`${label} must be a regular non-symlink file: ${filePath}`);
+  }
+  const digest = hashArtifact(filePath);
+  if (digest !== expectedDigest) throw new Error(`${label} digest changed: ${filePath}`);
+  return { kind, path: filePath, digest };
+}
+
+function visualIntentResolutionBase(contract, surface) {
+  if (!contract) {
+    return {
+      visual_intent_version: 1,
+      surface,
+      status: "missing",
+      contract_digest: null,
+      authority_status: "missing",
+      issues: [`visual intent contract is missing for ${surface}`],
+      sources: []
+    };
+  }
+  const body = visualIntentBody(contract);
+  return {
+    visual_intent_version: contract.visual_intent_version,
+    surface,
+    status: contract.status,
+    ...body,
+    contract_digest: canonicalDigest({
+      visual_intent_version: contract.visual_intent_version,
+      surface,
+      status: contract.status,
+      ...body
+    }),
+    authority_status: contract.status === "approved" ? "not-verified" : "unresolved",
+    issues: contract.status === "approved"
+      ? []
+      : [`visual intent contract is unresolved for ${surface}`],
+    sources: []
+  };
+}
+
+export function resolveVisualIntent(profile, profilePath, surface) {
+  if (!profile) return visualIntentResolutionBase(null, surface);
+  const contract = profile.visual_intents?.[surface] || null;
+  const base = visualIntentResolutionBase(contract, surface);
+  if (!contract || contract.status !== "approved") return base;
+
+  try {
+    const profileBase = profilePath ? path.dirname(path.resolve(profilePath)) : process.cwd();
+    const receiptPath = path.isAbsolute(contract.authority_receipt)
+      ? contract.authority_receipt
+      : path.resolve(profileBase, contract.authority_receipt);
+    const receiptSource = verifiedIntentSource(
+      receiptPath,
+      contract.authority_digest,
+      "authority-receipt",
+      "visual intent authority receipt"
+    );
+    const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+    exactObjectKeys(receipt, VISUAL_INTENT_RECEIPT_KEYS, "visual intent authority receipt");
+    if (receipt.visual_intent_receipt_version !== 1) {
+      throw new Error("visual intent authority receipt version must be 1");
+    }
+    if (receipt.project_id !== profile.project_id) {
+      throw new Error(`visual intent project mismatch: expected ${profile.project_id}`);
+    }
+    if (receipt.surface !== surface) {
+      throw new Error(`visual intent surface mismatch: expected ${surface}`);
+    }
+    if (receipt.status !== "approved") {
+      throw new Error("visual intent authority receipt is not approved");
+    }
+    const bodyKeys = new Set(Object.keys(visualIntentBody(contract)));
+    exactObjectKeys(receipt.intent, bodyKeys, "visual intent authority receipt.intent");
+    if (Object.keys(receipt.intent).length !== bodyKeys.size ||
+      canonicalDigest(receipt.intent) !== canonicalDigest(visualIntentBody(contract))) {
+      throw new Error("visual intent authority receipt does not match the profile contract");
+    }
+    exactObjectKeys(receipt.authority, VISUAL_INTENT_AUTHORITY_KEYS, "visual intent authority receipt.authority");
+    if (!VISUAL_INTENT_AUTHORITY_KINDS.has(receipt.authority.kind) ||
+      !receipt.authority.authority_id || !receipt.authority.basis ||
+      !receipt.authority.decided_at || Number.isNaN(Date.parse(receipt.authority.decided_at))) {
+      throw new Error("visual intent authority requires kind, authority_id, basis, and decided_at");
+    }
+    if (!Array.isArray(receipt.evidence) || receipt.evidence.length === 0) {
+      throw new Error("visual intent authority receipt requires evidence");
+    }
+    const sources = [receiptSource];
+    const evidence = [];
+    const seenEvidence = new Set();
+    for (const [index, item] of receipt.evidence.entries()) {
+      const label = `visual intent authority receipt.evidence[${index}]`;
+      exactObjectKeys(item, VISUAL_INTENT_EVIDENCE_KEYS, label);
+      if (!VISUAL_INTENT_EVIDENCE_KINDS.has(item.kind) ||
+        typeof item.path !== "string" || !item.path || !DIGEST_PATTERN.test(item.digest || "")) {
+        throw new Error(`${label} requires kind, path, and a sha256 digest`);
+      }
+      const evidencePath = path.isAbsolute(item.path)
+        ? item.path
+        : path.resolve(path.dirname(receiptPath), item.path);
+      if (seenEvidence.has(evidencePath)) throw new Error(`${label} duplicates an evidence path`);
+      seenEvidence.add(evidencePath);
+      const source = verifiedIntentSource(
+        evidencePath,
+        item.digest,
+        `authority-evidence:${item.kind}`,
+        `${label} (${item.kind})`
+      );
+      sources.push(source);
+      evidence.push({ kind: item.kind, path: evidencePath, digest: source.digest });
+      if (item.kind === "owner-approval") {
+        const approval = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+        const ownerId = approval.owner_id || approval.owner_approval?.owner_id;
+        if (approval.status !== "approved" || !ownerId) {
+          throw new Error(`${label} is not an explicit approved owner decision`);
+        }
+      }
+    }
+    const evidenceKinds = new Set(evidence.map((item) => item.kind));
+    const authorityEvidence = {
+      "project-contract": ["project-contract"],
+      "brand-system": ["brand-system"],
+      "owner-direction": ["owner-direction", "owner-approval"],
+      "approved-reference": ["approved-reference", "approved-artifact"]
+    }[receipt.authority.kind];
+    if (!authorityEvidence.some((kind) => evidenceKinds.has(kind))) {
+      throw new Error(
+        `visual intent authority ${receipt.authority.kind} lacks matching evidence`
+      );
+    }
+    return {
+      ...base,
+      authority_status: "verified",
+      issues: [],
+      authority: {
+        ...receipt.authority,
+        receipt_path: receiptPath,
+        receipt_digest: receiptSource.digest,
+        evidence
+      },
+      sources
+    };
+  } catch (error) {
+    return {
+      ...base,
+      authority_status: "invalid",
+      issues: [error.message],
+      sources: []
+    };
+  }
+}
+
+export function inspectVisualIntents({ profile, profilePath = null }) {
+  if (!profile) return [];
+  const surfaces = profile.surface_contract?.allowed || [];
+  return surfaces.map((surface) => resolveVisualIntent(profile, profilePath, surface));
+}
+
 function resolveCreator(route, input, profile, override, unresolved) {
   const policy = route.creator_policy;
   if (policy.type === "none") return null;
@@ -749,6 +1098,7 @@ function resolveStages(route, creator, profile, override, input, router) {
   const stages = [];
 
   for (const stage of route.stages) {
+    if (stage.when_visual_intent && !visualIntentRequired(input)) continue;
     if (stage.when_creator && !stage.when_creator.includes(creator)) continue;
     const actors = stage.actors
       .filter((actor) => !excluded.has(actor.id))
@@ -819,6 +1169,11 @@ export function planRoute({
 
   const override = profile?.surface_overrides?.[normalized.surface] || {};
   const unresolved = [];
+  const visualIntent = resolveVisualIntent(profile, profileSource.path, normalized.surface);
+  if (visualIntentRequired(normalized) &&
+    (visualIntent.status !== "approved" || visualIntent.authority_status !== "verified")) {
+    unresolved.push(...visualIntent.issues);
+  }
   const creator = resolveCreator(route, normalized, profile, override, unresolved);
   const stages = resolveStages(route, creator, profile, override, normalized, router);
   const required = requiredStages(router, normalized, profile);
@@ -880,6 +1235,7 @@ export function planRoute({
     route_id: route.id,
     input: normalized,
     surface_resolution: surfaceResolution,
+    visual_intent: visualIntent,
     creator,
     stages,
     required_stage_ids: required,
@@ -902,6 +1258,7 @@ export function formatReceipt(receipt) {
     `creator: ${receipt.creator || "none"}`,
     `surface/task: ${receipt.input.surface} / ${receipt.input.task}`,
     `surface contract: ${receipt.surface_resolution?.status || "unbound"} (${receipt.surface_resolution?.contract_digest || "none"})`,
+    `visual intent: ${receipt.visual_intent?.status || "missing"} (${receipt.visual_intent?.authority_status || "missing"}; ${receipt.visual_intent?.mode || "unresolved"})`,
     `direction/risk: ${receipt.input.direction} / ${receipt.input.risk}`,
     `scope: ${receipt.input.scope || "deferred"}`,
     `planning gate: ${receipt.planning_gate?.status || "not-configured"}`,
