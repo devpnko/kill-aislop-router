@@ -15,7 +15,8 @@ import {
   findProjectProfile,
   formatReceipt,
   planRoute,
-  readJson
+  readJson,
+  resolveDesignSystem
 } from "./router.mjs";
 import { runKillAiSlop } from "./adapters/kill-ai-slop.mjs";
 
@@ -87,7 +88,7 @@ Surfaces:
   marketing-editorial
 
 Tasks:
-  build, redesign, runtime-handoff, audit, copy, pr-hygiene
+  build, redesign, systemize, runtime-handoff, audit, copy, pr-hygiene
 
 Audit scopes:
   mockup, runtime, source, document
@@ -96,6 +97,7 @@ Options:
   --direction approved|missing|reference|none
   --changes source,copy,style,layout,interaction,state,data,authority
   --risk standard|high
+  --scope mockup|runtime|source|document
   --profile /path/to/profile.json
   --router /path/to/router.json
   --creator-id ID
@@ -125,6 +127,8 @@ function doctor(args) {
     profile_path: context.profilePath,
     project_id: context.profile?.project_id || null,
     approved_design_system: context.profile?.approved_design_system ?? null,
+    design_system: resolveDesignSystem(context.profile, context.profilePath),
+    planning: context.profile?.planning || null,
     configured_local_adapters: Object.keys(context.profile?.local_adapters || {}),
     declared_external_adapters: context.profile?.external_adapters || {},
     fallback_adapters: context.profile?.fallback_adapters || {},
@@ -135,6 +139,8 @@ function doctor(args) {
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
     `profile: ${report.project_id || "not found"}`,
+    `planning bridge: ${report.planning ? "configured" : "not configured"}`,
+    `design system: ${report.design_system ? `${report.design_system.id}@${report.design_system.version} (${report.design_system.status}; ${report.design_system.authority_status})` : "missing"}`,
     `local adapters: ${report.configured_local_adapters.length}`,
     `external adapters declared: ${Object.keys(report.declared_external_adapters).length}`,
     `fallback routes declared: ${Object.values(report.fallback_adapters).flat().length}`,
@@ -305,7 +311,8 @@ export async function main(argv) {
       task: args.task,
       direction: args.direction,
       changes: args.changes,
-      risk: args.risk
+      risk: args.risk,
+      scope: args.scope || null
     }
   });
   output(receipt, args, formatReceipt);

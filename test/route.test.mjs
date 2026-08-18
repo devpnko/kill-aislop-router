@@ -64,6 +64,41 @@ const audit = plan({
 assert.equal(audit.creator, null);
 assert.equal(audit.route_id, "existing-ui-audit");
 
+const systemize = plan({
+  surface: "operator-product-ui",
+  task: "systemize",
+  direction: "approved",
+  changes: ["source", "style", "layout", "interaction", "state"]
+});
+assert.equal(systemize.status, "planned");
+assert.equal(systemize.creator, "project-systemizer");
+assert.equal(systemize.route_id, "design-system-extraction");
+assert.equal(systemize.planning_gate.status, "ready");
+assert.deepEqual(systemize.planning_gate.requirements.map((item) => item.gate), ["G6T", "G7"]);
+assert.equal(systemize.stages.some((stage) => stage.id === "system-contract-review"), true);
+
+const noPlanningProfile = structuredClone(profile);
+delete noPlanningProfile.planning;
+const blockedSystemize = plan({
+  surface: "operator-product-ui",
+  task: "systemize",
+  direction: "approved",
+  changes: ["style", "layout"]
+}, noPlanningProfile);
+assert.equal(blockedSystemize.status, "blocked");
+assert.match(blockedSystemize.unresolved.join("\n"), /no planning receipt/);
+
+const planningRequiredProfile = structuredClone(profile);
+planningRequiredProfile.planning.required = true;
+const consumerPlanningBlocked = plan({
+  surface: "consumer-product-ui",
+  task: "runtime-handoff",
+  direction: "approved",
+  changes: ["interaction"]
+}, planningRequiredProfile);
+assert.equal(consumerPlanningBlocked.status, "blocked");
+assert.match(consumerPlanningBlocked.unresolved.join("\n"), /no planning receipt/);
+
 const highRisk = plan({
   surface: "consumer-product-ui",
   task: "runtime-handoff",
@@ -103,6 +138,17 @@ assert.equal(
   "blocked"
 );
 assert.match(noFallback.unresolved.join("\n"), /functional-human-review blocked/);
+
+const changedDesignAuthorityProfile = structuredClone(profile);
+changedDesignAuthorityProfile.design_system.authority_digest = `sha256:${"0".repeat(64)}`;
+const changedDesignAuthority = plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, changedDesignAuthorityProfile);
+assert.equal(changedDesignAuthority.status, "blocked");
+assert.match(changedDesignAuthority.unresolved.join("\n"), /authority is digest-mismatch/);
 
 const weakFallbackProfile = structuredClone(profile);
 weakFallbackProfile.external_adapters["anti-slop"].status = "unavailable";

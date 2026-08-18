@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "router_id": "kill-slop-router",
-  "router_version": "0.3.0",
+  "router_version": "0.4.0",
   "invariants": {
     "one_creator_per_artifact": true,
     "creator_cannot_self_approve": true,
@@ -9,11 +9,15 @@
     "scanner_hit_is_not_a_failure": true,
     "external_result_is_not_local_authority": true,
     "browser_evidence_required_for_visual_approval": true,
-    "project_contract_overrides_style_advice": true
+    "project_contract_overrides_style_advice": true,
+    "planning_authority_stays_external": true,
+    "design_system_release_requires_exact_owner_approval": true
   },
   "provider_capabilities": {
     "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},
     "project-design-system": {"strength": 4, "capabilities": ["approved-direction", "component-system", "domain-density"]},
+    "project-systemizer": {"strength": 4, "capabilities": ["artifact-inventory", "token-taxonomy", "component-taxonomy", "variant-contract", "surface-profile-contract", "migration-map"]},
+    "design-system-contract-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["token-contract", "component-boundaries", "variant-state-contract", "responsive-density-contract", "surface-profile-contract", "migration-map", "drift-control"]},
     "kill-ai-slop": {"strength": 2, "capabilities": ["source-pattern-detection"]},
     "anti-slop": {"strength": 3, "independent_from_creator": true, "capabilities": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"]},
     "hallmark": {"strength": 3, "independent_from_creator": true, "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"]},
@@ -29,6 +33,7 @@
   },
   "stage_capability_contracts": {
     "project-contract": {"minimum_strength": 4, "required": ["task-contract", "object-model", "state-authority"]},
+    "system-contract-review": {"minimum_strength": 4, "requires_independent_critic": true, "required": ["token-contract", "component-boundaries", "variant-state-contract", "responsive-density-contract", "surface-profile-contract", "migration-map", "drift-control"]},
     "static-discovery": {"minimum_strength": 2, "required": ["source-pattern-detection"]},
     "functional-human-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"]},
     "rendered-craft-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"]},
@@ -73,6 +78,21 @@
       "creator_policy": {"type": "none"},
       "stages": [
         {"id": "pr-hygiene", "question": "Does the contribution meet separately approved PR-quality rules?", "actors": [{"id": "peakoss-anti-slop", "kind": "external", "mode": "separately-approved"}]}
+      ]
+    },
+    {
+      "id": "design-system-extraction",
+      "match": {"task": "systemize"},
+      "creator_policy": {"type": "fixed", "tool": "project-systemizer", "requires_profile_adapter": "project-systemizer", "allow_surface_override": false},
+      "stages": [
+        {"id": "project-contract", "question": "Which approved artifact, user task, object model, states, and authority bound this extraction?", "actors": [{"id": "project-contract", "kind": "local"}]},
+        {"id": "static-discovery", "question": "Which duplicated or generic source patterns must not enter the shared system?", "actors": [{"id": "kill-ai-slop", "kind": "external", "mode": "read-only-json"}]},
+        {"id": "system-contract-review", "question": "Are tokens, component boundaries, variants, responsive profiles, migration order, and drift controls explicit and reusable?", "actors": [{"id": "design-system-contract-review", "kind": "local"}]},
+        {"id": "functional-human-review", "question": "Does systemization preserve real tasks, states, accessibility, and mobile behavior instead of flattening the product?", "actors": [{"id": "anti-slop", "kind": "external"}]},
+        {"id": "rendered-craft-review", "question": "Do the shared primitives preserve the approved hierarchy, restraint, and surface-specific character?", "actors": [{"id": "hallmark", "kind": "external"}]},
+        {"id": "browser-evidence", "question": "Do component variants and representative surfaces work at required viewports and interaction states?", "actors": [{"id": "browser-evidence", "kind": "local"}]},
+        {"id": "adjudication", "question": "Which patterns are truly shared, and which must remain product- or surface-specific?", "actors": [{"id": "domain-authority-review", "kind": "local"}]},
+        {"id": "approval", "question": "Who approves this versioned design-system release and its migration boundary?", "actors": [{"id": "owner-approval", "kind": "local"}]}
       ]
     },
     {

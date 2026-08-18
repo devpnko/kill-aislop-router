@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { hashArtifact } from "./integrity.mjs";
+import { resolvePlanningGate } from "./planning.mjs";
 
 export const VALID_SURFACES = new Set([
   "operator-product-ui",
@@ -10,6 +12,7 @@ export const VALID_SURFACES = new Set([
 export const VALID_TASKS = new Set([
   "build",
   "redesign",
+  "systemize",
   "runtime-handoff",
   "audit",
   "copy",
@@ -18,6 +21,7 @@ export const VALID_TASKS = new Set([
 
 export const VALID_DIRECTIONS = new Set(["approved", "missing", "reference", "none"]);
 export const VALID_RISKS = new Set(["standard", "high"]);
+export const VALID_SCOPES = new Set(["mockup", "runtime", "source", "document"]);
 
 export class RouterError extends Error {
   constructor(message, exitCode = 1) {
@@ -54,6 +58,52 @@ export function validateProfile(profile) {
   }
   if (typeof profile.approved_design_system !== "boolean") {
     throw new RouterError("profile approved_design_system must be boolean", 2);
+  }
+  if (profile.design_system) {
+    if (typeof profile.design_system !== "object" || Array.isArray(profile.design_system)) {
+      throw new RouterError("profile design_system must be an object", 2);
+    }
+    if (!profile.design_system.id || !profile.design_system.version) {
+      throw new RouterError("profile design_system requires id and version", 2);
+    }
+    if (!["candidate", "approved", "deprecated"].includes(profile.design_system.status)) {
+      throw new RouterError("profile design_system.status must be candidate, approved, or deprecated", 2);
+    }
+    if (profile.approved_design_system !== (profile.design_system.status === "approved")) {
+      throw new RouterError(
+        "approved_design_system must agree with design_system.status",
+        2
+      );
+    }
+    if (profile.design_system.status === "approved") {
+      if (!profile.design_system.authority_receipt) {
+        throw new RouterError("approved design_system requires authority_receipt", 2);
+      }
+      if (!/^sha256:[a-f0-9]{64}$/.test(profile.design_system.authority_digest || "")) {
+        throw new RouterError("approved design_system requires a sha256 authority_digest", 2);
+      }
+    }
+  }
+  if (profile.planning) {
+    if (typeof profile.planning !== "object" || Array.isArray(profile.planning)) {
+      throw new RouterError("profile planning must be an object", 2);
+    }
+    if (typeof profile.planning.required !== "boolean") {
+      throw new RouterError("profile planning.required must be boolean", 2);
+    }
+    if (profile.planning.receipt !== undefined && typeof profile.planning.receipt !== "string") {
+      throw new RouterError("profile planning.receipt must be a string", 2);
+    }
+    if (profile.planning.surface_receipts) {
+      if (typeof profile.planning.surface_receipts !== "object" || Array.isArray(profile.planning.surface_receipts)) {
+        throw new RouterError("profile planning.surface_receipts must be an object", 2);
+      }
+      for (const [surface, receiptPath] of Object.entries(profile.planning.surface_receipts)) {
+        if (!VALID_SURFACES.has(surface) || typeof receiptPath !== "string" || !receiptPath) {
+          throw new RouterError(`profile planning.surface_receipts.${surface} is invalid`, 2);
+        }
+      }
+    }
   }
   if (!profile.local_adapters || typeof profile.local_adapters !== "object") {
     throw new RouterError("profile local_adapters is required", 2);
@@ -98,12 +148,16 @@ export function normalizeInput(input) {
     task: input.task,
     direction: input.direction || "none",
     changes: [...new Set(input.changes || [])],
-    risk: input.risk || "standard"
+    risk: input.risk || "standard",
+    scope: input.scope || null
   };
   if (!VALID_SURFACES.has(normalized.surface)) throw new RouterError("provide a valid surface", 2);
   if (!VALID_TASKS.has(normalized.task)) throw new RouterError("provide a valid task", 2);
   if (!VALID_DIRECTIONS.has(normalized.direction)) throw new RouterError("provide a valid direction", 2);
   if (!VALID_RISKS.has(normalized.risk)) throw new RouterError("risk must be standard or high", 2);
+  if (normalized.scope && !VALID_SCOPES.has(normalized.scope)) {
+    throw new RouterError("scope must be mockup, runtime, source, or document", 2);
+  }
   return normalized;
 }
 
@@ -118,16 +172,64 @@ function selectRoute(router, input) {
   );
 }
 
+function hasProfileFlag(profile, flag) {
+  if (flag === "approved_design_system" && profile?.design_system) {
+    return profile.design_system.status === "approved";
+  }
+  return Boolean(profile?.[flag]);
+}
+
+function hasProfileAdapter(profile, adapterId) {
+  const declaration = profile?.local_adapters?.[adapterId] || profile?.external_adapters?.[adapterId];
+  if (!declaration) return false;
+  if (typeof declaration === "string") return true;
+  return AVAILABLE_STATUSES.has(declaration.status);
+}
+
+export function resolveDesignSystem(profile, profilePath) {
+  if (!profile?.design_system) {
+    return profile?.approved_design_system
+      ? { id: null, version: null, status: "approved", authority_status: "legacy-unverified", legacy: true }
+      : null;
+  }
+  const contract = { ...profile.design_system };
+  if (contract.status !== "approved") return { ...contract, authority_status: "not-approved" };
+  const base = profilePath ? path.dirname(path.resolve(profilePath)) : process.cwd();
+  const authorityPath = path.isAbsolute(contract.authority_receipt)
+    ? contract.authority_receipt
+    : path.resolve(base, contract.authority_receipt);
+  if (!fs.existsSync(authorityPath)) {
+    return { ...contract, authority_status: "missing", authority_path: authorityPath };
+  }
+  try {
+    const actual = hashArtifact(authorityPath);
+    return {
+      ...contract,
+      authority_status: actual === contract.authority_digest ? "verified" : "digest-mismatch",
+      authority_path: authorityPath,
+      authority_actual_digest: actual
+    };
+  } catch (error) {
+    return { ...contract, authority_status: "unreadable", authority_path: authorityPath };
+  }
+}
+
 function resolveCreator(route, input, profile, override, unresolved) {
   const policy = route.creator_policy;
   if (policy.type === "none") return null;
-  if (override.creator) return override.creator;
-  if (override.creator_by_direction?.[input.direction]) {
-    return override.creator_by_direction[input.direction];
+  if (policy.allow_surface_override !== false) {
+    if (override.creator) return override.creator;
+    if (override.creator_by_direction?.[input.direction]) {
+      return override.creator_by_direction[input.direction];
+    }
   }
   if (policy.type === "fixed") {
-    if (policy.requires_profile_flag && !profile?.[policy.requires_profile_flag]) {
+    if (policy.requires_profile_flag && !hasProfileFlag(profile, policy.requires_profile_flag)) {
       unresolved.push(`creator requires project profile flag: ${policy.requires_profile_flag}`);
+      return null;
+    }
+    if (policy.requires_profile_adapter && !hasProfileAdapter(profile, policy.requires_profile_adapter)) {
+      unresolved.push(`creator requires routable project adapter: ${policy.requires_profile_adapter}`);
       return null;
     }
     return policy.tool;
@@ -138,8 +240,12 @@ function resolveCreator(route, input, profile, override, unresolved) {
       unresolved.push(`no creator case for direction: ${input.direction}`);
       return null;
     }
-    if (selected.requires_profile_flag && !profile?.[selected.requires_profile_flag]) {
+    if (selected.requires_profile_flag && !hasProfileFlag(profile, selected.requires_profile_flag)) {
       unresolved.push(`creator requires project profile flag: ${selected.requires_profile_flag}`);
+      return null;
+    }
+    if (selected.requires_profile_adapter && !hasProfileAdapter(profile, selected.requires_profile_adapter)) {
+      unresolved.push(`creator requires routable project adapter: ${selected.requires_profile_adapter}`);
       return null;
     }
     return selected.tool;
@@ -388,6 +494,30 @@ export function planRoute({ router, profile = null, input, routerPath = null, pr
     .map((id) => `required stage or gate is not represented in selected route: ${id}`);
   unresolved.push(...missingRequired);
   const warnings = [];
+  const designSystem = resolveDesignSystem(profile, profilePath);
+
+  if (profile?.approved_design_system && !profile.design_system) {
+    warnings.push(
+      "approved_design_system uses the legacy unversioned boolean; add design_system id, version, status, and authority_receipt"
+    );
+  }
+  if (creator === "project-design-system" && designSystem?.authority_status !== "verified") {
+    if (designSystem?.legacy) {
+      warnings.push("project-design-system authority is not hash-verified under the legacy profile contract");
+    } else {
+      unresolved.push(
+        `project-design-system authority is ${designSystem?.authority_status || "missing"}`
+      );
+    }
+  }
+
+  const planningGate = resolvePlanningGate({
+    profile,
+    profilePath,
+    input: normalized
+  });
+  unresolved.push(...planningGate.unresolved);
+  warnings.push(...planningGate.warnings);
 
   for (const stage of stages) {
     if (stage.routing_status !== "blocked" || stage.optional) continue;
@@ -419,6 +549,8 @@ export function planRoute({ router, profile = null, input, routerPath = null, pr
     required_stage_ids: required,
     unresolved: [...new Set(unresolved)],
     warnings,
+    planning_gate: planningGate,
+    design_system: designSystem,
     evidence_contract: profile?.evidence || null,
     adjudication: router.adjudication,
     invariants: router.invariants
@@ -434,6 +566,8 @@ export function formatReceipt(receipt) {
     `creator: ${receipt.creator || "none"}`,
     `surface/task: ${receipt.input.surface} / ${receipt.input.task}`,
     `direction/risk: ${receipt.input.direction} / ${receipt.input.risk}`,
+    `scope: ${receipt.input.scope || "deferred"}`,
+    `planning gate: ${receipt.planning_gate?.status || "not-configured"}`,
     "stages:"
   ];
   for (const stage of receipt.stages) {

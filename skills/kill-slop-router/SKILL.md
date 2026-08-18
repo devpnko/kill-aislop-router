@@ -21,18 +21,28 @@ Use the `killsloprouter` CLI as the deterministic route authority.
 - Require browser evidence for visual and interaction approval.
 - Apply project locale and domain review after English-first tools.
 - Report missing adapters as blocked. Never pretend a tool ran.
+- Treat service planning as an external authority. Read its gate receipt; do
+  not recreate PRD, UAC, IA, ERD, or owner approval inside this router.
+- Run `systemize` only after G6T and exact G7 approval evidence pass.
 
 ## Workflow
 
 1. Read `.killsloprouter/profile.json` and the local product and design contracts.
 2. Classify surface, task, direction, changes, and risk.
 3. Run `killsloprouter plan` before editing.
-4. Confirm every required stage is `ready_primary` or `ready_with_fallback`.
-5. Start `killsloprouter audit init` with an explicit artifact scope and creator identity.
-6. Dispatch every generated packet separately; use `killsloprouter scan` for supported read-only adapters.
-7. Record each result with `audit record`; never convert `routable` into completed evidence.
-8. Record scanner dispositions with `audit triage` and resolve critic conflicts in the adjudication result.
-9. Run `audit finalize`; report its exact status, hashes, blockers, and approval owner.
+4. When a planning bridge is configured, verify its receipt and exact evidence digests.
+5. Confirm every required stage is `ready_primary` or `ready_with_fallback`.
+6. Start `killsloprouter audit init` with an explicit artifact scope and creator identity.
+7. Dispatch every generated packet separately; use `killsloprouter scan` for supported read-only adapters.
+8. Record each result with `audit record`; never convert `routable` into completed evidence.
+9. Record scanner dispositions with `audit triage` and resolve critic conflicts in the adjudication result.
+10. Run `audit finalize`; report its exact status, hashes, blockers, and approval owner.
+
+For a design-system extraction, route `--task systemize`. Preserve the approved
+artifact's semantics, distinguish shared primitives from surface-specific
+patterns, and produce tokens, component contracts, states, responsive profiles,
+migration mappings, and drift controls. The extracted system is a candidate
+until its own audit and owner approval complete.
 
 Do not load every design skill into one generation prompt. KillSlopRouter is an
 orchestrator, not a generator, linter, browser, or local design authority.

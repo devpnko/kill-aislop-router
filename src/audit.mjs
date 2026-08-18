@@ -9,6 +9,7 @@ import {
   verifySnapshot,
   writeJsonAtomic
 } from "./integrity.mjs";
+import { verifyPlanningGateForAudit } from "./planning.mjs";
 
 const VALID_SCOPES = new Set(["mockup", "runtime", "source", "document"]);
 const VALID_VERDICTS = new Set(["pass", "pass_with_findings", "block"]);
@@ -65,6 +66,7 @@ function auditManifest(run) {
     run_id: run.run_id,
     scope: run.scope,
     route: run.route,
+    planning_gate: run.planning_gate,
     creator: run.creator,
     artifacts: run.artifacts,
     evidence_contract: run.evidence_contract,
@@ -139,6 +141,12 @@ export function initializeAudit({
   if (plan.input?.task === "runtime-handoff") {
     requireValue(scope === "runtime", "runtime-handoff audits require --scope runtime");
   }
+  let planningGate = null;
+  try {
+    planningGate = verifyPlanningGateForAudit(plan, scope);
+  } catch (error) {
+    throw new RouterError(error.message, 3);
+  }
   requireValue(Array.isArray(artifacts) && artifacts.length > 0, "audit init requires at least one artifact");
   if (plan.creator) requireValue(creatorActorId, "--creator-id is required when the route has a creator");
 
@@ -173,6 +181,7 @@ export function initializeAudit({
     run_id: runId,
     plan_digest: canonicalDigest(plan),
     scope,
+    planning_gate: planningGate,
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactDigestMap(artifactSnapshots),
     packets: packets.map((packet) => packet.packet_digest)
@@ -195,6 +204,7 @@ export function initializeAudit({
       plan_source: planSource,
       input: plan.input
     },
+    planning_gate: planningGate,
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactSnapshots,
     evidence_contract: plan.evidence_contract || null,

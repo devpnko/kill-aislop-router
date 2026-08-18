@@ -23,13 +23,15 @@ browser and project evidence before approval.
 
 ## Current Status
 
-Version `0.3.0` includes two separate layers:
+Version `0.4.0` includes three separate layers:
 
 1. The route planner selects one creator and capability-complete independent
    critics. Missing, weak, partial, or self-review fallbacks block the route.
 2. The audit ledger issues critic packets, records structured results, hashes
    artifacts and evidence, requires scanner triage, resolves reviewer conflict,
    and emits a deterministic final receipt.
+3. The optional service-planning bridge verifies external G6-G9 receipts and
+   allows versioned design-system extraction only after exact G7 owner approval.
 
 External tools are referenced, not bundled. KillSlopRouter does not execute
 arbitrary commands from a project profile or treat `routable` as `ran`.
@@ -91,6 +93,7 @@ Tasks:
 
 - `build`
 - `redesign`
+- `systemize`
 - `runtime-handoff`
 - `audit`
 - `copy`
@@ -111,6 +114,37 @@ the working directory automatically.
 The profile maps generic gates such as `project-contract`,
 `domain-authority-review`, and `browser-evidence` to local project contracts.
 Validate its shape against `schemas/project-profile.schema.json`.
+
+Use `design_system` to identify the approved system by ID, version, and
+hash-verified authority receipt. The legacy `approved_design_system` boolean remains for
+profile-version 1 compatibility, but a bare boolean now produces a warning.
+
+## Service Planning Bridge
+
+KillSlopRouter can consume a machine-readable gate receipt from an existing
+service-planning process. It does not replace that process or infer approval
+from visual quality.
+
+- A mockup audit requires G6 when the bridge is enforced.
+- `systemize` requires G6T evidence and exact G7 owner approval.
+- `runtime-handoff` requires G7 and G8 implementation contracts.
+- A runtime audit requires G7, G8, and a G9A implementation artifact.
+
+```bash
+node bin/killsloprouter.mjs plan \
+  --profile examples/project-profile.example.json \
+  --surface operator-product-ui \
+  --task systemize \
+  --direction approved \
+  --changes source,style,layout,interaction,state \
+  --format json
+```
+
+The systemization route extracts semantic tokens, component boundaries,
+variants and states, responsive surface profiles, migration mappings, and
+drift controls. It keeps the result at `candidate` until an independent audit
+and owner approval release it. See `docs/service-planning-bridge.md` and
+`docs/systemization-protocol.md`.
 
 ## Evidence-Backed Audit
 
@@ -225,6 +259,8 @@ itself cannot satisfy an independent critic stage.
 - Reviewer scores are not averaged.
 - Browser evidence is required for visual approval.
 - Project contracts settle style conflicts.
+- Service-planning authority remains external to this router.
+- Design-system release requires an exact approved artifact and owner receipt.
 - External repositories and AGPL actions are not bundled.
 - No arbitrary adapter command is executed from a profile.
 
@@ -237,8 +273,9 @@ The CLI remains the deterministic route authority.
 ## Roadmap
 
 1. Host adapters for MCP and agent runners with explicit permission scopes.
-2. Cryptographically signed owner approvals and audit receipts.
-3. Human-readable HTML coverage reports built from the JSON receipt.
+2. Cryptographically signed owner approvals and planning receipts.
+3. Machine-readable design-system release and migration manifests.
+4. Human-readable HTML coverage reports built from the JSON receipt.
 
 See `docs/capability-matrix.md` for overlap decisions and
 `docs/adapter-contract.md` for integration requirements.

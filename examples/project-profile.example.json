@@ -3,10 +3,26 @@
   "project_id": "example-product",
   "default_locale": "en-US",
   "approved_design_system": true,
+  "design_system": {
+    "id": "example-product-ui",
+    "version": "1.0.0",
+    "status": "approved",
+    "authority_receipt": "planning-evidence/owner-approval.json",
+    "authority_digest": "sha256:d19bdc7bfbb1b6abdd11f0a3df4e759c6c7537eeaec358a5133ac6a2671c00df",
+    "source_scope_id": "example-operator-ui-v1"
+  },
+  "planning": {
+    "required": false,
+    "surface_receipts": {
+      "operator-product-ui": "service-planning-gate.example.json"
+    }
+  },
   "tool_lock": "registry/tool-lock.json",
   "local_adapters": {
     "project-contract": "docs/product-contract.md",
     "project-design-system": "docs/design-system.md",
+    "project-systemizer": "docs/systemization-protocol.md",
+    "design-system-contract-review": "reviewers/design-system-contract",
     "locale-copy-review": "reviewers/en-US-copy",
     "domain-authority-review": "reviewers/product-owner",
     "privacy-authority-review": "reviewers/privacy-owner",

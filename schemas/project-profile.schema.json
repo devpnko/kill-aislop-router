@@ -9,6 +9,45 @@
     "project_id": {"type": "string", "minLength": 1},
     "default_locale": {"type": "string", "minLength": 2},
     "approved_design_system": {"type": "boolean"},
+    "design_system": {
+      "type": "object",
+      "required": ["id", "version", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "status": {"enum": ["candidate", "approved", "deprecated"]},
+        "authority_receipt": {"type": "string", "minLength": 1},
+        "authority_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "source_scope_id": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "approved"}}},
+          "then": {"required": ["authority_receipt", "authority_digest"]}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "planning": {
+      "type": "object",
+      "required": ["required"],
+      "properties": {
+        "required": {"type": "boolean"},
+        "receipt": {"type": "string", "minLength": 1},
+        "surface_receipts": {
+          "type": "object",
+          "propertyNames": {
+            "enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]
+          },
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
+      },
+      "anyOf": [
+        {"required": ["receipt"]},
+        {"required": ["surface_receipts"]}
+      ],
+      "additionalProperties": false
+    },
     "tool_lock": {"type": "string"},
     "local_adapters": {
       "type": "object",

@@ -24,6 +24,12 @@ Legend: `P` primary, `S` secondary, `A` executable automation, `C` conditional,
 | PR contribution hygiene | - | - | - | - | - | - | A/P |
 | Browser interaction proof | - | - | - | - | - | - | - |
 
+Design-system extraction is deliberately outside this upstream-tool matrix.
+It is a project-local creator contract, because no generic visual skill can
+decide which domain states, authority boundaries, or density profiles are safe
+to share. The `systemize` route uses upstream tools only as independent source,
+functional, rendered, and copy critics around that local extraction.
+
 ## Overlap Resolution
 
 ### Taste, Hallmark, and anti-slop

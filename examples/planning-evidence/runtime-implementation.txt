@@ -1,0 +1,1 @@
+Documentation fixture only. A real G9A receipt must hash the runtime implementation.

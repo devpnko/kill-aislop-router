@@ -1,0 +1,70 @@
+{
+  "planning_gate_version": 1,
+  "protocol": {
+    "id": "two-phase-service-planning",
+    "version": "1.2.0",
+    "authority": "external-project-planning-authority"
+  },
+  "project_id": "example-product",
+  "surface": "operator-product-ui",
+  "scope_id": "example-operator-ui-v1",
+  "phase": "phase_2",
+  "gates": {
+    "G6": {
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "mockup",
+          "path": "planning-evidence/mockup.html",
+          "digest": "sha256:8705e970fde84d43902a98b4dfa3094a0e2a486cf5ca8d4526ce078c6f01d111"
+        }
+      ]
+    },
+    "G6T": {
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "audit-receipt",
+          "path": "planning-evidence/mockup-audit-receipt.json",
+          "digest": "sha256:1cadf8393b0309e7beeac1671409af861f9dceb8fdba6455fd2bdc711db5d48a"
+        }
+      ]
+    },
+    "G7": {
+      "status": "approved",
+      "evidence": [
+        {
+          "kind": "approved-artifact",
+          "path": "planning-evidence/mockup.html",
+          "digest": "sha256:8705e970fde84d43902a98b4dfa3094a0e2a486cf5ca8d4526ce078c6f01d111"
+        },
+        {
+          "kind": "owner-approval",
+          "path": "planning-evidence/owner-approval.json",
+          "digest": "sha256:d19bdc7bfbb1b6abdd11f0a3df4e759c6c7537eeaec358a5133ac6a2671c00df"
+        }
+      ]
+    },
+    "G8": {
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "implementation-contract",
+          "path": "planning-evidence/implementation-contract.md",
+          "digest": "sha256:9ea4fac2fa85ebeb2f27d8cd56534ede2bd3e4fdad1257497b62f2d565d7e308"
+        }
+      ]
+    },
+    "G9A": {
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "implementation",
+          "path": "planning-evidence/runtime-implementation.txt",
+          "digest": "sha256:8d24c2b51624787304dcc42e417ee60608114bc72ae30d1721ea826c6f0afdf0"
+        }
+      ]
+    }
+  },
+  "updated_at": "2026-08-18T00:00:00.000Z"
+}

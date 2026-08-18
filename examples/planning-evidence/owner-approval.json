@@ -1,0 +1,8 @@
+{
+  "fixture": true,
+  "status": "approved",
+  "owner_id": "example-owner",
+  "artifact": "mockup.html",
+  "decided_at": "2026-08-18T00:00:00.000Z",
+  "note": "Documentation fixture only; not evidence for a real product."
+}

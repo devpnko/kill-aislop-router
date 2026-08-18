@@ -157,6 +157,55 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
   }
 });
 
+test("planning-gated mockup audits require an unchanged G6 receipt", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-planning-test-"));
+  try {
+    const artifact = path.join(directory, "fixture.html");
+    fs.writeFileSync(artifact, "<!doctype html><main>fixture</main>\n");
+    const guardedProfile = structuredClone(profile);
+    guardedProfile.planning.required = true;
+    const plan = planRoute({
+      router,
+      profile: guardedProfile,
+      routerPath,
+      profilePath,
+      input: {
+        surface: "operator-product-ui",
+        task: "audit",
+        direction: "none",
+        changes: ["source"],
+        risk: "standard",
+        scope: "mockup"
+      }
+    });
+    assert.equal(plan.status, "planned");
+    assert.equal(plan.planning_gate.gate_statuses.G6, "passed");
+    const run = initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "mockup",
+      root: directory,
+      runId: "planning-gated-run",
+      now: startedAt
+    });
+    assert.equal(run.planning_gate.requirements[0].gate, "G6");
+
+    const changedPlan = structuredClone(plan);
+    changedPlan.planning_gate.receipt_digest = `sha256:${"0".repeat(64)}`;
+    assert.throws(
+      () => initializeAudit({
+        plan: changedPlan,
+        artifacts: [artifact],
+        scope: "mockup",
+        root: directory
+      }),
+      /planning receipt changed/
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("creator self-review is rejected before it enters the ledger", () => {
   const fixture = createFixture();
   try {

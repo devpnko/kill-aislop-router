@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Project-aware routing for anti-AI-slop creators, critics, and proof gates",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,8 @@
   "exports": {
     ".": "./src/router.mjs",
     "./audit": "./src/audit.mjs",
-    "./integrity": "./src/integrity.mjs"
+    "./integrity": "./src/integrity.mjs",
+    "./planning": "./src/planning.mjs"
   },
   "files": [
     "bin",

@@ -6,17 +6,19 @@ triage, and owner approval. A route plan is not execution evidence.
 ## Lifecycle
 
 1. `plan` selects the creator and capability-complete providers.
-2. `audit init` snapshots the plan and artifacts and emits one packet per
+2. If configured, the service-planning bridge verifies the required gate,
+   receipt digest, and evidence digests for the requested task and scope.
+3. `audit init` snapshots the plan and artifacts and emits one packet per
    selected provider.
-3. The host runs each provider independently and writes an
+4. The host runs each provider independently and writes an
    `audit-result.schema.json` result.
-4. `audit record` validates provider identity, reviewer independence,
+5. `audit record` validates provider identity, reviewer independence,
    capabilities, artifact digests, timestamps, and required browser evidence.
-5. `audit triage` gives every scanner candidate an explicit disposition.
-6. The adjudication provider records conflict resolutions against project or
+6. `audit triage` gives every scanner candidate an explicit disposition.
+7. The adjudication provider records conflict resolutions against project or
    browser evidence. Scores are never averaged.
-7. `audit finalize` re-hashes every source and emits the final receipt.
-8. The owner approves or rejects the exact `approval_scope_digest`; approval is
+8. `audit finalize` re-hashes every source and emits the final receipt.
+9. The owner approves or rejects the exact `approval_scope_digest`; approval is
    never inferred from critic success.
 
 ## Result Contract
@@ -59,6 +61,10 @@ accepted risk.
 The run stores SHA-256 snapshots of artifacts, route plans, critic result
 files, screenshots, test reports, triage files, and owner approval. Any change
 after recording blocks the receipt.
+
+When a planning bridge is enforced, `audit init` also re-hashes its external
+receipt and required evidence. A changed planning receipt cannot silently
+upgrade an already planned route; the caller must generate a new plan.
 
 Symlink artifacts are rejected because hashing only a link path would not bind
 the receipt to changing target content. Pass the resolved file or directory.
