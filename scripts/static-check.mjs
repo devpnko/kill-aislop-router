@@ -34,7 +34,13 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 const pluginJson = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
 const router = JSON.parse(fs.readFileSync(path.join(root, "router", "default-router.json"), "utf8"));
 assert.equal(packageJson.version, router.router_version, "package and router versions must agree");
-assert.equal(packageJson.version, pluginJson.version, "package and plugin versions must agree");
+const pluginBaseVersion = pluginJson.version.replace(/\+codex\.[0-9A-Za-z.-]+$/, "");
+assert.equal(packageJson.version, pluginBaseVersion, "package and plugin base versions must agree");
+assert.match(
+  pluginJson.version,
+  new RegExp(`^${packageJson.version.replace(/\./g, "\\.")}(?:\\+codex\\.[0-9A-Za-z.-]+)?$`),
+  "plugin version may contain only the Codex development cachebuster"
+);
 assert.equal(pluginJson.name, "killsloprouter", "plugin name must match its folder and package identity");
 assert.equal(pluginJson.skills, "./skills/", "plugin must expose its bundled skills");
 assert.equal("mcpServers" in pluginJson, false, "V1 plugin must not declare an MCP server");

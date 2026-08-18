@@ -1,4 +1,5 @@
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   auditExitCode,
@@ -32,7 +33,14 @@ import { bootstrapProject } from "./bootstrap.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
-const BOOLEAN_OPTIONS = new Set(["replace", "require-owner", "dry-run", "json"]);
+const BOOLEAN_OPTIONS = new Set([
+  "replace",
+  "require-owner",
+  "dry-run",
+  "json",
+  "force",
+  "no-activate"
+]);
 
 function parseArgs(argv) {
   const args = {
@@ -49,7 +57,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (args.command === "audit" && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -86,6 +94,7 @@ function help() {
   return `KillSlopRouter
 
 Usage:
+  killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
   killsloprouter bootstrap --project-id ID --locale LOCALE [--root DIR] [--json]
   killsloprouter plan --surface SURFACE --task TASK [options]
   killsloprouter run --surface SURFACE --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -134,6 +143,27 @@ Options:
   --packets-dir DIR
   --format text|json
 `;
+}
+
+function pluginCommand(args) {
+  if (args.subcommand !== "install") {
+    throw new RouterError("plugin requires the install subcommand", 2);
+  }
+  const installer = path.join(packageRoot, "scripts", "install-codex-plugin.mjs");
+  const installerArgs = [installer];
+  if (args["dry-run"]) installerArgs.push("--dry-run");
+  if (args.force) installerArgs.push("--force");
+  if (args["no-activate"]) installerArgs.push("--no-activate");
+  if (args.home) installerArgs.push("--home", args.home);
+  const result = spawnSync(process.execPath, installerArgs, {
+    encoding: "utf8",
+    shell: false,
+    timeout: 30_000
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.error) throw new RouterError(`plugin installer failed: ${result.error.message}`, 5);
+  process.exitCode = result.status ?? 5;
 }
 
 function loadContext(args) {
@@ -400,6 +430,10 @@ export async function main(argv) {
   }
   if (args.command === "bootstrap") {
     bootstrapCommand(args);
+    return;
+  }
+  if (args.command === "plugin") {
+    pluginCommand(args);
     return;
   }
   if (args.command === "audit") {

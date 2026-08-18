@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0",
+  "version": "1.0.0+codex.20260818104642",
   "description": "Fail-closed anti-slop routing, reviewer execution, and evidence-bound approval automation.",
   "author": {
     "name": "devpnko",
@@ -33,9 +33,10 @@
     "privacyPolicyURL": "https://github.com/devpnko/kill-aislop-router/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/devpnko/kill-aislop-router/blob/main/LICENSE",
     "defaultPrompt": [
-      "Use $killsloprouter:kill-slop-router to bootstrap this project and run its fail-closed audit.",
+      "Use $killsloprouter:kill-slop-router to continue this project's gated journey from planning evidence through anti-slop audit and eligible systemization.",
       "Use $killsloprouter:kill-slop-router to resume this audit and report every receipt hash.",
-      "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence."
+      "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence.",
+      "Use $killsloprouter:kill-slop-router to systemize this exact owner-approved artifact only if G6T and G7 evidence pass."
     ]
   }
 }

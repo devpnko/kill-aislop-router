@@ -42,16 +42,20 @@ npm run pack:check
 ## Codex plugin
 
 Install the skill-only Codex plugin once, then invoke the same bundled CLI from
-any project. During V1 branch review, check out the feature branch explicitly:
+any project. During V1 branch review, the shortest install is one command:
 
 ```bash
-git clone https://github.com/devpnko/kill-aislop-router.git
-git -C kill-aislop-router switch feat/v1-automation
-node kill-aislop-router/scripts/install-codex-plugin.mjs --dry-run
-node kill-aislop-router/scripts/install-codex-plugin.mjs
+npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install
 ```
 
-Start a new Codex thread in the target repository and say:
+Pin the Git ref to a reviewed commit instead of the branch name in unattended
+installation. Start a new Codex thread in the target repository and say:
+
+```text
+KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
+```
+
+The explicit invocation is available when implicit skill discovery is disabled:
 
 ```text
 Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-closed audit of ./src.
@@ -59,8 +63,10 @@ Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-cl
 
 The plugin determines the route from project evidence, creates a manual-only
 starter configuration when needed, runs `doctor` and `--dry-run`, then uses the
-integrated resumable ledger. It does not ship an MCP server or gain remote
-authority. See [Codex plugin](docs/codex-plugin.md).
+integrated resumable ledger. A short `전체 여정` request resumes a matching run,
+advances only the currently eligible stage, and stops for missing planning or
+owner evidence. It does not ship an MCP server or gain remote authority. See
+[Codex plugin](docs/codex-plugin.md).
 
 The bootstrap command is also available directly:
 

@@ -6,7 +6,21 @@ any repository. It contains no MCP server and requests no external app access.
 
 ## Install
 
-From a V1 checkout:
+Install from the V1 review branch without a checkout:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install
+```
+
+For unattended use, replace the branch with an exact reviewed commit. The same
+entrypoint supports a non-mutating preview and a marked-install refresh:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install --dry-run
+npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install --force
+```
+
+From an existing V1 checkout, the original script remains supported:
 
 ```bash
 node scripts/install-codex-plugin.mjs --dry-run
@@ -24,7 +38,19 @@ After installation, start a new Codex thread so the skill is discovered.
 
 ## Invoke
 
-Use a natural-language artifact and objective:
+The shortest request uses implicit skill discovery:
+
+```text
+KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
+```
+
+`전체 여정` means continue from existing repository evidence: resume a matching
+run, consume but never invent planning authority, route the anti-slop change and
+independent audit, and enter `systemize` only after exact G6T and G7 evidence.
+Missing creator integrations, reviews, browser evidence, or owner approval remain
+explicitly pending.
+
+Use the namespaced invocation when an explicit skill reference is preferred:
 
 ```text
 Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-closed audit of ./src.

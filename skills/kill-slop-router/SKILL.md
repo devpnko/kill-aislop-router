@@ -1,6 +1,6 @@
 ---
 name: kill-slop-router
-description: Bootstrap and run project-aware, fail-closed anti-AI-slop audits with independent reviewers, browser evidence, resumable receipts, and owner approval. Use when the user says KillSlopRouter, killsloprouter, anti-slop routing, AI slop audit or removal, asks to apply the process to a new repository, or wants evidence-backed creator, critic, browser, privacy, domain, and approval gates.
+description: Bootstrap, continue, and run the safest eligible stage of a project-aware, fail-closed anti-AI-slop journey with independent reviewers, browser evidence, resumable receipts, owner approval, and gated design-system extraction. Use when the user says KillSlopRouter, killsloprouter, "킬슬롭", "이 프로젝트 정리해", anti-slop routing, AI slop audit or removal, asks to apply the process to a new repository, or wants evidence-backed creator, critic, browser, privacy, domain, and approval gates.
 ---
 
 # KillSlopRouter
@@ -27,6 +27,31 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.
+
+## Default journey
+
+When the user gives only a short request such as `KillSlopRouter로 ./src 전체 여정
+진행해`, treat it as `continue`: inspect the repository and advance the safest
+currently eligible stage without asking the user to restate CLI flags.
+
+1. Reuse a matching active automation state below `.killsloprouter/`; resume it
+   instead of starting a duplicate run. Ask only when multiple active states make
+   the intended artifact ambiguous.
+2. Read external planning evidence. If product intent, artifact scope, or the
+   required planning receipt is absent, stop with the exact missing evidence. Do
+   not synthesize PRD, UAC, IA, data authority, or owner decisions.
+3. For a requested improvement, plan before changes and hand the exact artifact
+   to the single selected creator. If that creator is unavailable through an
+   authorized integration, emit the handoff and remain `manual_pending`.
+4. Audit the changed artifact with separate critics, scanner triage, conflict
+   adjudication, locale/domain/privacy checks, browser evidence, and owner scope.
+5. Continue to `systemize` only when the planning bridge verifies G6T and exact
+   G7 approval for the unchanged artifact. Audit the extracted candidate design
+   system independently; never promote it merely because extraction completed.
+
+Infer project ID, locale, surface, changed dimensions, and artifact paths from
+repository evidence when unambiguous. Report the inferred values before execution.
+Never infer an owner decision, adapter permission, reviewer identity, or evidence.
 
 ## Rules
 

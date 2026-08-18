@@ -4,6 +4,8 @@
 
 - Added a validated Codex plugin manifest with the bundled KillSlopRouter skill.
 - Added a safe personal-marketplace installer and cross-project invocation prompt.
+- Added a packed-CLI `plugin install` entrypoint for one-command GitHub installation.
+- Added a short default journey that resumes matching state and advances only eligible stages.
 - Added fail-closed project bootstrap with manual-only adapters and a digest-bound receipt.
 - Added the resumable `run` lifecycle with per-phase receipts and hashes.
 - Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.

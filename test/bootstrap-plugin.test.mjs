@@ -168,3 +168,27 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("the packaged CLI exposes the plugin installer for one-command remote use", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-plugin-cli-"));
+  try {
+    const preview = runNode(cli, [
+      "plugin",
+      "install",
+      "--home", directory,
+      "--dry-run"
+    ], root);
+    assert.equal(preview.status, 0, preview.stderr || preview.stdout);
+    const report = JSON.parse(preview.stdout);
+    assert.equal(report.ok, true);
+    assert.equal(report.dry_run, true);
+    assert.equal(report.plugin_target, path.join(directory, "plugins", "killsloprouter"));
+    assert.equal(fs.existsSync(report.plugin_target), false);
+
+    const invalid = runNode(cli, ["plugin", "unknown"], root);
+    assert.equal(invalid.status, 2, invalid.stderr || invalid.stdout);
+    assert.match(invalid.stderr, /plugin requires the install subcommand/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

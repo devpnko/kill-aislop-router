@@ -1,4 +1,4 @@
 interface:
   display_name: "KillSlopRouter"
-  short_description: "Bootstrap and run fail-closed anti-slop audits"
-  default_prompt: "Use $kill-slop-router to bootstrap this project, run its independent evidence-bound audit, and resume every required gate to an exact final status."
+  short_description: "Continue a gated anti-slop and systemization journey"
+  default_prompt: "Use $kill-slop-router to continue the safest eligible KillSlopRouter stage for this project and report exact receipts or pending evidence."
