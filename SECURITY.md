@@ -28,7 +28,7 @@ Before sending artifacts to an external service:
 - remove credentials, secrets, PII, payment data, and private source material;
 - verify the adapter version and license;
 - require explicit approval for writes, publishing, deployment, comments, or closes;
-- preserve raw evidence and mark unavailable adapters as blocked.
+- preserve raw evidence and report unavailable adapters as `manual_pending` or blocked according to the exact run state.
 
 See `docs/threat-model-and-permissions.md` for the complete trust and permission
 model. Repository writes, publishing, deployment, credentials, production

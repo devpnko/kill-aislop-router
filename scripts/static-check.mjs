@@ -22,6 +22,7 @@ function filesBelow(relative, extension) {
 
 const jsonFiles = [
   path.join(root, "package.json"),
+  path.join(root, ".codex-plugin", "plugin.json"),
   ...filesBelow("router", ".json"),
   ...filesBelow("registry", ".json"),
   ...filesBelow("schemas", ".json"),
@@ -30,8 +31,19 @@ const jsonFiles = [
 for (const file of jsonFiles) JSON.parse(fs.readFileSync(file, "utf8"));
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const pluginJson = JSON.parse(fs.readFileSync(path.join(root, ".codex-plugin", "plugin.json"), "utf8"));
 const router = JSON.parse(fs.readFileSync(path.join(root, "router", "default-router.json"), "utf8"));
 assert.equal(packageJson.version, router.router_version, "package and router versions must agree");
+assert.equal(packageJson.version, pluginJson.version, "package and plugin versions must agree");
+assert.equal(pluginJson.name, "killsloprouter", "plugin name must match its folder and package identity");
+assert.equal(pluginJson.skills, "./skills/", "plugin must expose its bundled skills");
+assert.equal("mcpServers" in pluginJson, false, "V1 plugin must not declare an MCP server");
+assert.ok(
+  pluginJson.interface.defaultPrompt.every((prompt) => prompt.includes("$killsloprouter:kill-slop-router")),
+  "plugin prompts must use the namespaced skill invocation"
+);
+assert.ok(fs.existsSync(path.join(root, "skills", "kill-slop-router", "SKILL.md")), "plugin skill is missing");
+assert.ok(fs.existsSync(path.join(root, "scripts", "install-codex-plugin.mjs")), "plugin installer is missing");
 assert.equal(packageJson.engines.node, ">=20", "V1 Node engine floor must remain explicit");
 
 const markdownFiles = [

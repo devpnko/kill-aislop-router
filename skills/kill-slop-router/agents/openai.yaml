@@ -1,4 +1,4 @@
 interface:
   display_name: "KillSlopRouter"
-  short_description: "Route and verify independent anti-slop reviews"
-  default_prompt: "Use $kill-slop-router to classify this artifact, select one creator, dispatch independent critics, and finalize an evidence-bound audit receipt."
+  short_description: "Bootstrap and run fail-closed anti-slop audits"
+  default_prompt: "Use $kill-slop-router to bootstrap this project, run its independent evidence-bound audit, and resume every required gate to an exact final status."

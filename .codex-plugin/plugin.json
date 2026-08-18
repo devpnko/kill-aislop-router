@@ -1,0 +1,41 @@
+{
+  "name": "killsloprouter",
+  "version": "1.0.0",
+  "description": "Fail-closed anti-slop routing, reviewer execution, and evidence-bound approval automation.",
+  "author": {
+    "name": "devpnko",
+    "url": "https://github.com/devpnko"
+  },
+  "homepage": "https://github.com/devpnko/kill-aislop-router#readme",
+  "repository": "https://github.com/devpnko/kill-aislop-router",
+  "license": "MIT",
+  "keywords": [
+    "anti-slop",
+    "audit",
+    "codex",
+    "evidence",
+    "review-routing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "KillSlopRouter",
+    "shortDescription": "Run fail-closed anti-slop audits across projects.",
+    "longDescription": "Bootstrap a project-specific route, dispatch independent reviewers through authorized adapters, enforce browser and authority gates, resume pending work, and report digest-bound receipts without treating routable work as completed execution.",
+    "developerName": "devpnko",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Workflow",
+      "Local CLI",
+      "Evidence Audit",
+      "Resumable Review"
+    ],
+    "websiteURL": "https://github.com/devpnko/kill-aislop-router",
+    "privacyPolicyURL": "https://github.com/devpnko/kill-aislop-router/blob/main/SECURITY.md",
+    "termsOfServiceURL": "https://github.com/devpnko/kill-aislop-router/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Use $killsloprouter:kill-slop-router to bootstrap this project and run its fail-closed audit.",
+      "Use $killsloprouter:kill-slop-router to resume this audit and report every receipt hash.",
+      "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence."
+    ]
+  }
+}

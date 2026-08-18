@@ -28,6 +28,7 @@ import {
 } from "./automation.mjs";
 import { loadHostManifest } from "./execution.mjs";
 import { hashArtifact } from "./integrity.mjs";
+import { bootstrapProject } from "./bootstrap.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -85,6 +86,7 @@ function help() {
   return `KillSlopRouter
 
 Usage:
+  killsloprouter bootstrap --project-id ID --locale LOCALE [--root DIR] [--json]
   killsloprouter plan --surface SURFACE --task TASK [options]
   killsloprouter run --surface SURFACE --task TASK --artifact PATH --scope SCOPE --out FILE [options]
   killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
@@ -110,6 +112,9 @@ Audit scopes:
   mockup, runtime, source, document
 
 Options:
+  --project-id ID
+  --locale LOCALE
+  --root DIR
   --direction approved|missing|reference|none
   --changes source,copy,style,layout,interaction,state,data,authority
   --risk standard|high
@@ -217,6 +222,28 @@ function automationOutput(value, args) {
   } else {
     process.stdout.write(formatAutomationState(value));
   }
+}
+
+function bootstrapCommand(args) {
+  const router = readJson(path.resolve(args.router || defaultRouterPath), "router");
+  const receipt = bootstrapProject({
+    router,
+    root: args.root || process.cwd(),
+    projectId: args["project-id"],
+    locale: args.locale
+  });
+  if (args.json || args.format === "json") {
+    process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write([
+    "KillSlopRouter bootstrap",
+    `status: ${receipt.status}`,
+    `profile: ${receipt.profile.path} (${receipt.profile.digest})`,
+    `host: ${receipt.host_manifest.path} (${receipt.host_manifest.execution_mode})`,
+    `receipt: ${receipt.receipt_path}`,
+    `receipt digest: ${receipt.receipt_digest}`
+  ].join("\n") + "\n");
 }
 
 function runCommand(args) {
@@ -369,6 +396,10 @@ export async function main(argv) {
   if (args.json) args.format = "json";
   if (args.help) {
     process.stdout.write(help());
+    return;
+  }
+  if (args.command === "bootstrap") {
+    bootstrapCommand(args);
     return;
   }
   if (args.command === "audit") {

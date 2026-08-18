@@ -12,11 +12,13 @@
     ".": "./src/router.mjs",
     "./audit": "./src/audit.mjs",
     "./automation": "./src/automation.mjs",
+    "./bootstrap": "./src/bootstrap.mjs",
     "./execution": "./src/execution.mjs",
     "./integrity": "./src/integrity.mjs",
     "./planning": "./src/planning.mjs"
   },
   "files": [
+    ".codex-plugin",
     "bin",
     "src",
     "router",
@@ -25,6 +27,7 @@
     "docs",
     "examples",
     "skills",
+    "scripts/install-codex-plugin.mjs",
     "LICENSE",
     "README.md",
     "SECURITY.md",

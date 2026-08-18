@@ -20,20 +20,27 @@ if (packed.error || packed.status !== 0) {
 const report = JSON.parse(packed.stdout)[0];
 const files = new Set(report.files.map((entry) => entry.path));
 const required = [
+  ".codex-plugin/plugin.json",
   "bin/killsloprouter.mjs",
   "src/router.mjs",
   "src/audit.mjs",
   "src/automation.mjs",
+  "src/bootstrap.mjs",
   "src/execution.mjs",
   "router/default-router.json",
   "schemas/automation-run.schema.json",
+  "schemas/bootstrap-receipt.schema.json",
   "schemas/automation-step-receipt.schema.json",
   "schemas/host-adapter.schema.json",
   "schemas/host-adapter-request.schema.json",
   "schemas/host-adapter-response.schema.json",
   "docs/adapter-authoring.md",
+  "docs/codex-plugin.md",
   "docs/threat-model-and-permissions.md",
   "docs/migration-v1.md",
+  "scripts/install-codex-plugin.mjs",
+  "skills/kill-slop-router/SKILL.md",
+  "skills/kill-slop-router/agents/openai.yaml",
   "README.md",
   "LICENSE"
 ];

@@ -23,7 +23,12 @@ need no change. Consumers that reject unknown fields should permit this field.
 - automation phase receipt version 1
 - host adapter manifest version 1
 - host adapter response version 1
-- package exports `./automation` and `./execution`
+- bootstrap receipt version 1 and `killsloprouter bootstrap`
+- package exports `./automation`, `./bootstrap`, and `./execution`
+
+`bootstrap` is additive and refuses to replace an existing project profile,
+host manifest, or bootstrap receipt. It starts with manual-only adapters and an
+unapproved design-system state; it does not upgrade legacy authority claims.
 
 ## Required changes
 

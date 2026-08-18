@@ -14,6 +14,19 @@ independence, required proof, or artifact integrity is missing.
 
 ## Trust boundaries
 
+### Codex plugin installation
+
+The optional installer copies an explicit source allowlist to
+`~/plugins/killsloprouter` and updates only the `killsloprouter` entry in the
+personal marketplace. It preserves other entries, backs up an existing
+marketplace file, and refreshes only a plugin directory carrying its own
+installation marker. The plugin declares no MCP server or external app.
+
+Installing the plugin exposes the workflow skill and bundled local CLI. It does
+not authorize a host adapter, grant artifact access to a reviewer, authenticate
+an owner, or turn a manual provider into executed evidence. Those authorities
+still require the project profile, explicit `--host-config`, and audit ledger.
+
 ### Project profile
 
 The profile is routing data. It may declare availability, an executor label,

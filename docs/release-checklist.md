@@ -8,9 +8,12 @@ GitHub Release.
 - [ ] `npm test` passes, including child-process E2E fixtures.
 - [ ] `npm run check` passes.
 - [ ] `npm run pack:check` confirms required public files and excludes tests.
+- [ ] The Codex plugin and bundled skill pass their official local validators.
+- [ ] Bootstrap tests prove non-overwrite behavior and manual-only host readiness.
 - [ ] CI covers Node.js 20 and 22 with read-only repository permissions.
 - [ ] README commands were executed from a clean checkout or equivalent worktree.
 - [ ] Migration notes describe the Node 20 floor and rejected profile execution fields.
 - [ ] Threat model names the host child and identity limitations.
+- [ ] Personal-plugin installation preserves unrelated marketplace entries and backs up refreshed installs.
 - [ ] No real credentials, private artifacts, screenshots, or owner approvals are packaged.
 - [ ] npm publication and GitHub Release remain separate, explicit owner actions.

@@ -39,6 +39,42 @@ npm run check
 npm run pack:check
 ```
 
+## Codex plugin
+
+Install the skill-only Codex plugin once, then invoke the same bundled CLI from
+any project. During V1 branch review, check out the feature branch explicitly:
+
+```bash
+git clone https://github.com/devpnko/kill-aislop-router.git
+git -C kill-aislop-router switch feat/v1-automation
+node kill-aislop-router/scripts/install-codex-plugin.mjs --dry-run
+node kill-aislop-router/scripts/install-codex-plugin.mjs
+```
+
+Start a new Codex thread in the target repository and say:
+
+```text
+Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-closed audit of ./src.
+```
+
+The plugin determines the route from project evidence, creates a manual-only
+starter configuration when needed, runs `doctor` and `--dry-run`, then uses the
+integrated resumable ledger. It does not ship an MCP server or gain remote
+authority. See [Codex plugin](docs/codex-plugin.md).
+
+The bootstrap command is also available directly:
+
+```bash
+killsloprouter bootstrap \
+  --root . \
+  --project-id my-product \
+  --locale ko-KR \
+  --json
+```
+
+It refuses to overwrite existing configuration and creates a manual-only host
+manifest. Real adapters still require explicit allowlisting and digest locking.
+
 Inspect the example route and host readiness without executing an adapter:
 
 ```bash
@@ -213,12 +249,14 @@ and [Systemization protocol](docs/systemization-protocol.md).
 ## Compatibility
 
 Route receipt version 1, audit run version 1, audit result version 1, triage
-version 1, and audit receipt version 1 remain supported. V1 adds automation run
-version 1 and host adapter version 1. See [V1 migration notes](docs/migration-v1.md).
+version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
+receipt version 1, automation run version 1, and host adapter version 1. See
+[V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
+- [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Audit protocol](docs/audit-protocol.md)
 - [Capability matrix](docs/capability-matrix.md)
