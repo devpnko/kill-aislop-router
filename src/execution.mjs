@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 import { runKillAiSlop, findKillAiSlopScanner } from "./adapters/kill-ai-slop.mjs";
 import { hashArtifact, publicSnapshot, sha256, snapshotArtifact } from "./integrity.mjs";
 import { RouterError } from "./router.mjs";
+import {
+  PLAYWRIGHT_ADAPTER_CONTRACT,
+  PLAYWRIGHT_SUPPORTED_CHECKS,
+  validateOfficialPlaywrightSettings
+} from "./playwright.mjs";
 
 export const HOST_ADAPTER_TYPES = new Set([
   "kill-ai-slop-v1",
@@ -144,6 +149,14 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
   requireValue(declaration.settings === undefined || (
     declaration.settings && typeof declaration.settings === "object" && !Array.isArray(declaration.settings)
   ), `host provider ${providerId} settings must be an object`);
+  if (declaration.adapter === "browser-json-v1" &&
+    declaration.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
+    validateOfficialPlaywrightSettings(declaration.settings, {
+      entrypoint,
+      permissionScopes: permissions,
+      manifestPath
+    });
+  }
 
   return {
     ...declaration,
@@ -234,6 +247,20 @@ export function inspectPacketAdapter(packet, manifest) {
   }
   if (packet.stage_id !== "browser-evidence" && declaration.adapter === "browser-json-v1") {
     return manualPending(packet, "browser-json-v1 may only satisfy browser-evidence packets", manifest);
+  }
+  if (declaration.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
+    const missingViewports = (packet.evidence_contract?.required_viewports || [])
+      .filter((viewport) => !declaration.settings.viewports?.[viewport]);
+    if (missingViewports.length) {
+      return manualPending(packet,
+        `official Playwright adapter lacks viewports: ${missingViewports.join(", ")}`, manifest);
+    }
+    const unsupportedChecks = (packet.evidence_contract?.required_checks || [])
+      .filter((check) => !PLAYWRIGHT_SUPPORTED_CHECKS.has(check));
+    if (unsupportedChecks.length) {
+      return manualPending(packet,
+        `official Playwright adapter cannot prove checks: ${unsupportedChecks.join(", ")}`, manifest);
+    }
   }
   if (declaration.strength < (packet.minimum_strength || 1)) {
     return manualPending(packet,

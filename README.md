@@ -19,24 +19,35 @@ package or create a GitHub Release as part of the V1 work.
 - Requires explicit scanner triage, conflict adjudication, browser proof, and owner approval where the route requires them.
 - Re-hashes plans, artifacts, results, evidence, triage, approval, step receipts, and automation state.
 - Resumes interrupted runs and retries a failed packet, provider, or stage without discarding completed evidence.
+- Ships an official Playwright adapter for real responsive, interaction, accessibility-proxy, trace, and pixel-baseline evidence.
 
 ## Requirements
 
 - Node.js 20 or 22
 - npm
+- Google Chrome or Microsoft Edge for local Playwright runs, or an explicitly installed Playwright Chromium build
 - Project-specific adapters for any review you want the host to execute
 
-There are no runtime package dependencies.
+`playwright-core` and `axe-core` are exact runtime pins. Installing the package
+does not implicitly download a browser.
 
 ## Quickstart
 
 From a clean checkout:
 
 ```bash
-npm install --ignore-scripts
+npm ci --ignore-scripts
 npm test
 npm run check
 npm run pack:check
+```
+
+The browser E2E uses the local Chrome channel by default. On a machine without
+Chrome, install the pinned Chromium build explicitly and select it:
+
+```bash
+npx playwright-core install chromium
+KSR_PLAYWRIGHT_CHANNEL=bundled npm test
 ```
 
 ## Codex plugin
@@ -48,9 +59,8 @@ any project. The shortest install from the default branch is one command:
 npx --yes github:devpnko/kill-aislop-router plugin install
 ```
 
-For unattended installation, append an exact reviewed commit such as
-`#ad71826ba2c9b50d99d0f4c758b271d9a6fccfb0` to the package spec. Start a new
-Codex thread in the target repository and say:
+For unattended installation, append an exact reviewed 40-character commit to
+the package spec. Start a new Codex thread in the target repository and say:
 
 ```text
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
@@ -81,6 +91,33 @@ killsloprouter bootstrap \
 
 It refuses to overwrite existing configuration and creates a manual-only host
 manifest. Real adapters still require explicit allowlisting and digest locking.
+
+For a UI artifact, the official browser setup is three explicit operations:
+
+```bash
+killsloprouter browser attest \
+  --root "$PWD" \
+  --artifact ./src \
+  --out .killsloprouter/browser-attestation.json \
+  --json
+
+# Start the project using its own reviewed command, and expose the generated
+# JSON at /.well-known/killsloprouter-artifact.json.
+
+killsloprouter browser configure \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --base-url http://127.0.0.1:3000 \
+  --channel chrome \
+  --json
+```
+
+KillSlopRouter never starts a profile-supplied development-server command.
+The first visual run intentionally blocks when approved baselines are absent.
+Review the candidate screenshots, copy only approved pixels into
+`.killsloprouter/playwright-baselines/`, rerun `browser configure` to lock the
+new baseline digest, and resume with `--retry browser-evidence`. See
+[Official Playwright browser evidence](docs/playwright-browser.md).
 
 Inspect the example route and host readiness without executing an adapter:
 
@@ -246,6 +283,7 @@ contracts instead of replacing them.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
 - Required locale, domain, privacy, browser, and owner stages cannot be skipped.
 - Browser packets need viewport screenshots and non-screenshot proof for every required check.
+- The official browser adapter requires served-artifact attestation and locks its runtime, scenarios, and baseline directory by digest.
 - Owner approval is bound to the exact run and approval-scope digest.
 - Changed artifacts or evidence block finalization.
 
@@ -265,11 +303,14 @@ receipt version 1, automation run version 1, and host adapter version 1. See
 - [Automation lifecycle](docs/automation-run.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
+- [Official Playwright browser evidence](docs/playwright-browser.md)
 - [Audit protocol](docs/audit-protocol.md)
 - [Capability matrix](docs/capability-matrix.md)
 - [Threat model and permissions](docs/threat-model-and-permissions.md)
 - [V1 migration notes](docs/migration-v1.md)
 - [Release checklist](docs/release-checklist.md)
 
-External tools are referenced, not bundled. Their reviewed revisions and
-licenses are recorded in `registry/tool-lock.json` and `THIRD_PARTY.md`.
+Reviewer tools are referenced rather than bundled. The two browser runtime
+packages are exact dependencies and are copied into the Codex plugin; their
+versions, integrity values, and licenses are recorded in
+`registry/tool-lock.json` and `THIRD_PARTY.md`.

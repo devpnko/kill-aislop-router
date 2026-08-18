@@ -18,6 +18,13 @@ operating-system privileges of the parent process. Use a container, VM, or
 restricted CI worker for an adapter you do not fully trust. The permission
 manifest is an authorization and audit boundary, not an OS sandbox.
 
+The official Playwright adapter uses loopback by default, blocks page requests
+outside configured origins, and requires the served application to attest the
+exact artifact digest map before browser launch. External URLs require explicit
+`network:external` authority. Playwright/axe libraries, scenarios, and visual
+baselines are digest-locked; browser binaries are installed separately by the
+operator.
+
 Audit hashes detect accidental or post-review changes; they are not digital
 signatures. A person with write access to the run and all evidence can replace
 the ledger. Reviewer and owner IDs are asserted provenance, not authenticated

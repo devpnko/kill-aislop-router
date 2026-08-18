@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { canonicalDigest, hashArtifact, writeJsonAtomic } from "./integrity.mjs";
 import { RouterError } from "./router.mjs";
+import { DEFAULT_PLAYWRIGHT_CHECKS, DEFAULT_PLAYWRIGHT_VIEWPORTS } from "./playwright.mjs";
 
 const LOCAL_PROVIDER_IDS = new Set([
   "project-contract",
@@ -22,17 +23,9 @@ const REQUIRED_HIGH_RISK_GATES = [
 ];
 
 const DEFAULT_BROWSER_EVIDENCE = {
-  browser: "project-browser-harness",
-  required_viewports: ["mobile", "desktop"],
-  required_checks: [
-    "keyboard",
-    "state",
-    "overflow",
-    "contrast",
-    "zoom-200",
-    "visual-regression",
-    "screen-reader"
-  ]
+  browser: "playwright",
+  required_viewports: Object.keys(DEFAULT_PLAYWRIGHT_VIEWPORTS),
+  required_checks: [...DEFAULT_PLAYWRIGHT_CHECKS]
 };
 
 function assertProjectId(value) {

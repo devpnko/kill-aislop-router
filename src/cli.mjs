@@ -30,6 +30,7 @@ import {
 import { loadHostManifest } from "./execution.mjs";
 import { hashArtifact } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
+import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -39,7 +40,8 @@ const BOOLEAN_OPTIONS = new Set([
   "dry-run",
   "json",
   "force",
-  "no-activate"
+  "no-activate",
+  "allow-external"
 ]);
 
 function parseArgs(argv) {
@@ -57,7 +59,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -95,6 +97,8 @@ function help() {
 
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
+  killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
+  killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
   killsloprouter bootstrap --project-id ID --locale LOCALE [--root DIR] [--json]
   killsloprouter plan --surface SURFACE --task TASK [options]
   killsloprouter run --surface SURFACE --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -132,6 +136,12 @@ Options:
   --router /path/to/router.json
   --creator-id ID
   --host-config FILE
+  --base-url URL
+  --channel chrome|msedge|chromium|bundled
+  --scenario FILE
+  --baseline-dir DIR
+  --allowed-origins URL,URL
+  --allow-external
   --dry-run
   --resume FILE
   --retry all|PACKET|PROVIDER|STAGE
@@ -143,6 +153,61 @@ Options:
   --packets-dir DIR
   --format text|json
 `;
+}
+
+function browserCommand(args) {
+  if (args.subcommand === "attest") {
+    if (!args.out) throw new RouterError("browser attest requires --out", 2);
+    const result = createBrowserAttestation({
+      artifacts: args.artifacts,
+      root: args.root || process.cwd(),
+      outPath: args.out
+    });
+    if (args.json || args.format === "json") {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return;
+    }
+    process.stdout.write([
+      "KillSlopRouter browser attestation",
+      `status: ${result.status}`,
+      `path: ${result.path}`,
+      `digest: ${result.digest}`
+    ].join("\n") + "\n");
+    return;
+  }
+  if (args.subcommand !== "configure") {
+    throw new RouterError("browser requires the configure or attest subcommand", 2);
+  }
+  if (!args["base-url"]) throw new RouterError("browser configure requires --base-url", 2);
+  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  if (!profilePath) throw new RouterError("browser configure requires a project profile", 2);
+  const hostManifestPath = path.resolve(args["host-config"] ||
+    path.join(path.dirname(profilePath), "host-adapters.json"));
+  const receipt = configurePlaywright({
+    profilePath,
+    hostManifestPath,
+    baseUrl: args["base-url"],
+    browserChannel: args.channel || "chrome",
+    allowedOrigins: (args["allowed-origins"] || "").split(",").map((item) => item.trim()).filter(Boolean),
+    allowExternal: Boolean(args["allow-external"]),
+    scenarioPath: args.scenario || null,
+    baselineDirectory: args["baseline-dir"] || null
+  });
+  if (args.json || args.format === "json") {
+    process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write([
+    "KillSlopRouter Playwright browser",
+    `status: ${receipt.status}`,
+    `base URL: ${receipt.browser.base_url}`,
+    `channel: ${receipt.browser.browser_channel}`,
+    `scenario: ${receipt.browser.scenario_file} (${receipt.browser.scenario_digest})`,
+    `baselines: ${receipt.browser.baseline_directory} (${receipt.browser.baseline_digest})`,
+    `host: ${receipt.host_manifest.path} (${receipt.host_manifest.digest})`,
+    `receipt: ${receipt.receipt_path}`,
+    `receipt digest: ${receipt.receipt_digest}`
+  ].join("\n") + "\n");
 }
 
 function pluginCommand(args) {
@@ -434,6 +499,10 @@ export async function main(argv) {
   }
   if (args.command === "plugin") {
     pluginCommand(args);
+    return;
+  }
+  if (args.command === "browser") {
+    browserCommand(args);
     return;
   }
   if (args.command === "audit") {

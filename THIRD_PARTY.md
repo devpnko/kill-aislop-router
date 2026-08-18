@@ -1,6 +1,6 @@
 # Third-Party Tools
 
-KillSlopRouter references these projects but does not bundle their source code:
+KillSlopRouter references these reviewer projects but does not bundle their source code:
 
 | Tool | Repository | Reviewed license |
 |---|---|---|
@@ -14,3 +14,14 @@ KillSlopRouter references these projects but does not bundle their source code:
 
 Exact reviewed commits live in `registry/tool-lock.json`. Users install and run
 third-party tools under their own licenses and security policies.
+
+The Codex plugin installer bundles these pinned browser-runtime dependencies
+from npm into its private `.runtime` directory:
+
+| Package | Version | License | Purpose |
+|---|---:|---|---|
+| `playwright-core` | 1.62.1 | Apache-2.0 | Browser control without an implicit browser download |
+| `axe-core` | 4.13.0 | MPL-2.0 | Automated accessibility and contrast evidence |
+
+Their package license files remain in the copied runtime directories. Browser
+binaries are not bundled or downloaded during plugin installation.

@@ -12,6 +12,11 @@
 - Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.
 - Preserved route and audit receipt version 1 compatibility.
 - Added child-process E2E coverage for success and required fail-closed gates.
+- Added the official Playwright browser adapter with served-artifact attestation,
+  responsive/state/keyboard/overflow/zoom/axe/ARIA/console/network evidence,
+  traces, and digest-locked visual baselines.
+- Added `browser attest` and `browser configure` commands, exact pinned
+  `playwright-core`/`axe-core` runtimes, and real-browser resume/retry E2E coverage.
 - Added adapter authoring, permission, threat-model, migration, and release documentation.
 - Raised the supported Node.js floor to 20 and verified Node 20/22 CI.
 

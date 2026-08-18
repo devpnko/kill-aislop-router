@@ -131,6 +131,36 @@ capabilities, viewports, and checks it actually covers. A smoke-test label does
 not satisfy keyboard, state, overflow, contrast, zoom, visual regression, or
 screen-reader requirements.
 
+### Official Playwright adapter
+
+Prefer the bundled adapter for normal UI audits. Configure it through the CLI;
+do not hand-author its entrypoint or runtime paths:
+
+```bash
+killsloprouter browser configure \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --base-url http://127.0.0.1:3000 \
+  --channel chrome \
+  --scenario .killsloprouter/playwright-scenarios.json \
+  --baseline-dir .killsloprouter/playwright-baselines \
+  --json
+```
+
+Configuration binds the bundled entrypoint, the complete `playwright-core` and
+`axe-core` runtime directories, the scenario file, and the baseline directory
+to SHA-256 digests. Localhost is the default network boundary. External base
+URLs or resource origins require both `--allow-external` at configuration time
+and `network:external` in the resulting provider permission set.
+
+The adapter connects only to a server the operator already started. It never
+accepts a start command, package script, shell, arbitrary executable, or
+profile-supplied argument. It also blocks page requests outside the configured
+origin set and requires the server to attest the exact audit artifact digest
+map before opening a browser. See
+[Official Playwright browser evidence](playwright-browser.md) for scenarios,
+baseline approval, evidence files, and the screen-reader scope boundary.
+
 ## Scanner adapter
 
 `kill-ai-slop-v1` takes `adapter_root` instead of an arbitrary entrypoint. The

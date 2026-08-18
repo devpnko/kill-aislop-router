@@ -70,6 +70,24 @@ failed or pending packets, but does not replace already recorded successful
 results. Naming an already successful provider or stage explicitly replaces
 that result and invalidates its prior scanner triage decisions.
 
+The official Playwright adapter uses the same mechanism for baseline approval.
+An absent or changed pixel baseline returns an ingested `block` result. Review
+the candidate screenshots, place only approved files in the configured
+baseline directory, and rerun `browser configure` so the host manifest binds
+the new directory digest. Then replace the blocked result:
+
+```bash
+killsloprouter run \
+  --resume .killsloprouter/v1-run.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --retry browser-evidence \
+  --json
+```
+
+Do not change an audited artifact while doing this. An artifact change is a new
+audit scope, not a browser retry. See
+[Playwright browser evidence](playwright-browser.md).
+
 ## Status and exit behavior
 
 `complete` means the audit receipt is `approved` or the route did not require an

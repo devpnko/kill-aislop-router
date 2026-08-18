@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const packed = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", [
@@ -27,6 +28,8 @@ const required = [
   "src/automation.mjs",
   "src/bootstrap.mjs",
   "src/execution.mjs",
+  "src/playwright.mjs",
+  "src/adapters/playwright-browser.mjs",
   "router/default-router.json",
   "schemas/automation-run.schema.json",
   "schemas/bootstrap-receipt.schema.json",
@@ -34,8 +37,12 @@ const required = [
   "schemas/host-adapter.schema.json",
   "schemas/host-adapter-request.schema.json",
   "schemas/host-adapter-response.schema.json",
+  "schemas/browser-attestation.schema.json",
+  "schemas/playwright-scenarios.schema.json",
+  "schemas/playwright-setup-receipt.schema.json",
   "docs/adapter-authoring.md",
   "docs/codex-plugin.md",
+  "docs/playwright-browser.md",
   "docs/threat-model-and-permissions.md",
   "docs/migration-v1.md",
   "scripts/install-codex-plugin.mjs",
@@ -50,5 +57,11 @@ for (const file of files) {
   assert.equal(file.startsWith("test/"), false, `test fixture leaked into package: ${file}`);
   assert.equal(file.startsWith(".git/"), false, `Git metadata leaked into package: ${file}`);
 }
+
+const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"));
+assert.deepEqual(packageJson.dependencies, {
+  "axe-core": "4.13.0",
+  "playwright-core": "1.62.1"
+}, "browser runtime dependencies must remain exact pins");
 
 process.stdout.write(`package: ${report.filename}\nfiles: ${report.entryCount}\nbytes: ${report.size}\n`);

@@ -15,6 +15,7 @@
     "./bootstrap": "./src/bootstrap.mjs",
     "./execution": "./src/execution.mjs",
     "./integrity": "./src/integrity.mjs",
+    "./playwright": "./src/playwright.mjs",
     "./planning": "./src/planning.mjs"
   },
   "files": [
@@ -36,12 +37,17 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "test:e2e": "node --test test/e2e.test.mjs",
+    "test:e2e": "node --test test/e2e.test.mjs test/playwright.test.mjs",
+    "test:playwright": "node --test test/playwright.test.mjs",
     "check": "npm test && node scripts/static-check.mjs && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
     "pack:check": "node scripts/pack-check.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "axe-core": "4.13.0",
+    "playwright-core": "1.62.1"
   },
   "keywords": [
     "ai-slop",

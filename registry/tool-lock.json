@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-08-17",
+  "reviewed_at": "2026-08-18",
   "tools": [
     {
       "id": "taste-skill",
@@ -50,6 +50,22 @@
       "commit": "57858eead489d08b255fab2af45a506c2ca6eab2",
       "license": "AGPL-3.0",
       "kind": "github-action"
+    },
+    {
+      "id": "playwright-core",
+      "repository": "https://github.com/microsoft/playwright",
+      "version": "1.62.1",
+      "integrity": "sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==",
+      "license": "Apache-2.0",
+      "kind": "npm-runtime"
+    },
+    {
+      "id": "axe-core",
+      "repository": "https://github.com/dequelabs/axe-core",
+      "version": "4.13.0",
+      "integrity": "sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A==",
+      "license": "MPL-2.0",
+      "kind": "npm-runtime"
     }
   ]
 }

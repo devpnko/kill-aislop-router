@@ -1,4 +1,4 @@
 interface:
   display_name: "KillSlopRouter"
-  short_description: "Continue a gated anti-slop and systemization journey"
-  default_prompt: "Use $kill-slop-router to continue the safest eligible KillSlopRouter stage for this project and report exact receipts or pending evidence."
+  short_description: "Run gated anti-slop review with Playwright evidence"
+  default_prompt: "Use $kill-slop-router to continue the safest eligible KillSlopRouter stage, collect official Playwright evidence for UI work, and report exact receipts or pending evidence."

@@ -26,6 +26,8 @@ Installing the plugin exposes the workflow skill and bundled local CLI. It does
 not authorize a host adapter, grant artifact access to a reviewer, authenticate
 an owner, or turn a manual provider into executed evidence. Those authorities
 still require the project profile, explicit `--host-config`, and audit ledger.
+The installer copies exact `playwright-core` and `axe-core` runtime packages,
+but it neither downloads a browser nor starts one.
 
 ### Project profile
 
@@ -57,6 +59,27 @@ approval is bound to an exact scope digest and cannot come from the creator,
 but V1 does not cryptographically sign identities. Use signed CI attestations
 or an identity service when impersonation is in scope.
 
+### Official Playwright browser boundary
+
+The official adapter does not start a project server. The operator supplies an
+already running HTTP(S) base URL. Loopback is required unless external network
+authority is explicit. Page requests are restricted to the configured origin
+set, redirects are subject to the same restriction, and service workers are
+disabled for the evidence context.
+
+Before browser launch, the server must return the exact audit packet artifact
+digest map from `/.well-known/killsloprouter-artifact.json`. This prevents a
+passing browser report from being attached to a different build or server. The
+adapter entrypoint, complete npm runtime package directories, scenario file,
+and visual baseline directory are independently digest-locked. A mismatch
+blocks before evidence ingestion.
+
+Playwright's ARIA snapshot and axe checks are automated semantic proxies. They
+are not evidence that VoiceOver, NVDA, JAWS, TalkBack, or another real
+assistive technology was operated by a person. The report states this scope
+explicitly. Require a separate independent assistive-technology result when
+the project risk or accessibility contract demands it.
+
 ## Permission scopes
 
 | Scope | Meaning | Notes |
@@ -83,6 +106,9 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Scanner false verdict | Findings remain candidates until explicit triage |
 | Reviewer averaging | Conflicting finding references require an adjudication resolution |
 | Fake browser proof | Viewport screenshots and non-screenshot check coverage are validated separately |
+| Browser points at another build | Served endpoint must attest the packet's exact artifact digest map before launch |
+| Browser runtime or scenario substitution | Bundled entrypoint, runtime packages, scenario file, and baseline directory are digest-locked |
+| Browser data exfiltration | Loopback default, explicit external-network authority, and per-request origin blocking |
 | Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
 | Approval reuse | Approval must match the run ID and exact approval-scope digest |

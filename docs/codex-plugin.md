@@ -1,8 +1,10 @@
 # Codex Plugin
 
-The KillSlopRouter plugin packages the workflow skill and the V1 CLI together.
+The KillSlopRouter plugin packages the workflow skill, V1 CLI, and exact
+Playwright/axe runtime libraries together.
 Install it once into the personal Codex marketplace, then invoke the skill from
-any repository. It contains no MCP server and requests no external app access.
+any repository. It contains no MCP server, requests no external app access,
+and does not bundle or download a browser binary.
 
 ## Install
 
@@ -92,6 +94,11 @@ manual results or replaces declarations with digest-locked adapters.
 Bootstrap never overwrites any of these files. Existing projects must be
 inspected and migrated deliberately.
 
+When the artifact has a UI and the project exposes a reviewed local URL, use
+`browser attest` and `browser configure` to replace only the manual
+`browser-evidence` declaration. The skill must not invent or execute a project
+server command. See [Playwright browser evidence](playwright-browser.md).
+
 ## Why this is not MCP
 
 The plugin solves discovery and repeatable agent behavior. The CLI remains the
@@ -114,4 +121,6 @@ node scripts/install-codex-plugin.mjs --force
 
 The previous marked plugin copy is moved under
 `~/plugins/.killsloprouter-backups/`; it is not deleted. Start a new Codex
-thread after the refresh.
+thread after the refresh. Projects using the official Playwright provider must
+rerun `browser configure` with the refreshed CLI so their host manifest binds
+the new adapter and runtime paths and digests.

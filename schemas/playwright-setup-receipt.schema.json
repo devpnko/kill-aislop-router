@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/playwright-setup-receipt.schema.json",
+  "title": "KillSlopRouter Playwright Setup Receipt",
+  "type": "object",
+  "required": [
+    "playwright_setup_receipt_version",
+    "status",
+    "generated_at",
+    "profile",
+    "host_manifest",
+    "adapter",
+    "browser",
+    "receipt_path",
+    "receipt_digest"
+  ],
+  "properties": {
+    "playwright_setup_receipt_version": {"const": 1},
+    "status": {"const": "configured"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "profile": {"$ref": "#/$defs/file_with_backup"},
+    "host_manifest": {"$ref": "#/$defs/file_with_backup"},
+    "adapter": {
+      "type": "object",
+      "required": ["contract", "entrypoint", "entrypoint_digest", "runtime_root", "runtime_digest", "playwright_version", "axe_version"],
+      "properties": {
+        "contract": {"const": "killsloprouter-playwright-v1"},
+        "entrypoint": {"type": "string", "minLength": 1},
+        "entrypoint_digest": {"$ref": "#/$defs/digest"},
+        "runtime_root": {"type": "string", "minLength": 1},
+        "runtime_digest": {"$ref": "#/$defs/digest"},
+        "playwright_version": {"type": "string", "minLength": 1},
+        "axe_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "browser": {
+      "type": "object",
+      "required": ["base_url", "attestation_path", "allowed_origins", "browser_channel", "scenario_file", "scenario_digest", "baseline_directory", "baseline_digest", "external_network"],
+      "properties": {
+        "base_url": {"type": "string", "format": "uri"},
+        "attestation_path": {"type": "string", "pattern": "^/[^/]"},
+        "allowed_origins": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "format": "uri"}
+        },
+        "browser_channel": {"enum": ["chrome", "msedge", "chromium", "bundled"]},
+        "scenario_file": {"type": "string", "minLength": 1},
+        "scenario_digest": {"$ref": "#/$defs/digest"},
+        "baseline_directory": {"type": "string", "minLength": 1},
+        "baseline_digest": {"$ref": "#/$defs/digest"},
+        "external_network": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "receipt_path": {"type": "string", "minLength": 1},
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "file_with_backup": {
+      "type": "object",
+      "required": ["path", "digest", "backup"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "backup": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

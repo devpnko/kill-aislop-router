@@ -25,10 +25,22 @@ need no change. Consumers that reject unknown fields should permit this field.
 - host adapter response version 1
 - bootstrap receipt version 1 and `killsloprouter bootstrap`
 - package exports `./automation`, `./bootstrap`, and `./execution`
+- package export `./playwright`, official Playwright adapter contract version 1,
+  browser attestation version 1, scenario version 1, and setup receipt version 1
 
 `bootstrap` is additive and refuses to replace an existing project profile,
 host manifest, or bootstrap receipt. It starts with manual-only adapters and an
 unapproved design-system state; it does not upgrade legacy authority claims.
+
+Bootstrap now requests `mobile`, `tablet`, and `desktop` evidence and names
+Playwright as the preferred browser. Existing profiles and generic
+`browser-json-v1` adapters remain valid; no existing browser adapter is silently
+replaced. Run `killsloprouter browser configure` to opt into the official
+digest-locked adapter. It creates backups of the profile and host manifest.
+
+The official adapter adds a served-artifact attestation gate and an approved
+pixel baseline. A missing baseline is a deliberate first-run block. This is an
+additive strengthening of browser evidence, not a receipt-version break.
 
 ## Required changes
 

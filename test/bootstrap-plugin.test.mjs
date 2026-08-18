@@ -147,6 +147,12 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
     assert.ok(fs.existsSync(path.join(target, ".codex-plugin", "plugin.json")));
     assert.ok(fs.existsSync(path.join(target, "bin", "killsloprouter.mjs")));
     assert.ok(fs.existsSync(path.join(target, ".killsloprouter-plugin-installed.json")));
+    assert.equal(readJson(path.join(target, ".runtime", "node_modules", "playwright-core", "package.json")).version,
+      "1.62.1");
+    assert.equal(readJson(path.join(target, ".runtime", "node_modules", "axe-core", "package.json")).version,
+      "4.13.0");
+    assert.equal(fs.existsSync(path.join(target, ".runtime", "node_modules", "playwright-core", "LICENSE")), true);
+    assert.equal(fs.existsSync(path.join(target, ".runtime", "node_modules", "axe-core", "LICENSE")), true);
 
     const registered = readJson(marketplace);
     assert.equal(registered.interface.displayName, "My Plugins");

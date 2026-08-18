@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -27,6 +28,8 @@ const BUNDLE_ENTRIES = [
   "CHANGELOG.md"
 ];
 const MARKER = ".killsloprouter-plugin-installed.json";
+const RUNTIME_PACKAGES = ["axe-core", "playwright-core"];
+const requireFromSource = createRequire(path.join(sourceRoot, "package.json"));
 
 function parseArgs(argv) {
   const args = { activate: true };
@@ -121,6 +124,24 @@ function copyBundle(target, { force }) {
         force: false
       });
     }
+    const runtimeRoot = path.join(staging, ".runtime");
+    for (const packageName of RUNTIME_PACKAGES) {
+      let packageFile;
+      try {
+        packageFile = requireFromSource.resolve(`${packageName}/package.json`);
+      } catch (error) {
+        throw new Error(`runtime dependency ${packageName} is missing; run npm install --ignore-scripts (${error.message})`);
+      }
+      const source = path.dirname(packageFile);
+      const destination = path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.cpSync(source, destination, { recursive: true, errorOnExist: true, force: false });
+    }
+    writeJsonAtomic(path.join(runtimeRoot, "package.json"), {
+      private: true,
+      name: "killsloprouter-browser-runtime",
+      version: "1.0.0"
+    });
     const packageJson = readJson(path.join(sourceRoot, "package.json"), "package metadata");
     writeJsonAtomic(path.join(staging, MARKER), {
       name: "killsloprouter",

@@ -21,9 +21,10 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
    ```
 
 4. Treat the generated host manifest as manual-only. Bind real project contracts in the profile. Replace a manual adapter only when its entrypoint, digest, permissions, strength, and complete capabilities are known.
-5. Run `doctor`, then an integrated `run --dry-run`. Do not edit the artifact while the route is blocked.
-6. Start `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID.
-7. Resume the same state until it is complete or an exact external action is required.
+5. For a UI artifact, use the official Playwright adapter only when the project's reviewed server URL is already running or the user explicitly starts it. Run `browser attest` for the exact artifacts and make the project serve that JSON at `/.well-known/killsloprouter-artifact.json`, then run `browser configure`. Never infer or execute a dev-server command.
+6. Run `doctor`, then an integrated `run --dry-run`. Do not edit the artifact while the route is blocked.
+7. Start `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID.
+8. Resume the same state until it is complete or an exact external action is required.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.
@@ -65,6 +66,8 @@ Never infer an owner decision, adapter permission, reviewer identity, or evidenc
 - Treat scanner hits as candidates, not verdicts.
 - Let hard product, truth, accessibility, privacy, and authority failures block approval.
 - Require browser evidence for visual and interaction approval.
+- Treat missing Playwright baselines as an approval stop: review candidate screenshots, copy only owner-approved pixels, rerun `browser configure` to lock the baseline digest, then retry `browser-evidence`.
+- Do not describe ARIA snapshots or axe output as a real screen-reader session. Require separate assistive-technology evidence when project risk demands it.
 - Apply project locale and domain review after English-first tools.
 - Report missing adapters as `manual_pending` or blocked according to the CLI state. Never pretend a tool ran.
 - Treat service planning as an external authority. Read its gate receipt; do

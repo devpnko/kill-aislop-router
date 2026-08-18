@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      KSR_PLAYWRIGHT_CHANNEL: bundled
     strategy:
       matrix:
         node: [20, 22]
@@ -18,6 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: npm install --ignore-scripts
+      - run: npm ci --ignore-scripts
+      - run: npx playwright-core install --with-deps chromium
       - run: npm run check
       - run: npm run pack:check

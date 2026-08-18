@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/browser-attestation.schema.json",
+  "title": "KillSlopRouter served browser artifact attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "killsloprouter_browser_attestation_version",
+    "artifact_digests"
+  ],
+  "properties": {
+    "killsloprouter_browser_attestation_version": {
+      "const": 1
+    },
+    "artifact_digests": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    }
+  }
+}
