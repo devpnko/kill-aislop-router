@@ -1,6 +1,6 @@
 # Capability Matrix
 
-This matrix describes the reviewed upstream versions in `../assets/tool-lock.json`.
+This matrix describes the reviewed upstream versions in `../registry/tool-lock.json`.
 Re-check upstream scope when a locked commit changes.
 
 Legend: `P` primary, `S` secondary, `A` executable automation, `C` conditional,
@@ -49,6 +49,11 @@ All can find visual tells, but they inspect different representations:
 
 Run them as separate passes. A regex hit is not a verdict, and a rendered review
 cannot prove interaction behavior.
+
+If one provider is unavailable, route by the missing capability contract. Do
+not substitute a source scanner for rendered craft or a browser smoke test for
+human task review. Multiple independent fallbacks may be combined, but their
+union must cover the full stage and each must meet its minimum strength.
 
 ### no-ai-slop and stop-slop
 

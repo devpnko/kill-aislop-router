@@ -15,7 +15,37 @@
   },
   "external_adapters": {
     "kill-ai-slop": {"status": "available", "version": "git:96d1ca5"},
-    "anti-slop": {"status": "available", "version": "git:c22857f"}
+    "anti-slop": {"status": "available", "version": "git:c22857f"},
+    "hallmark": {"status": "unavailable", "version": "git:13ac0ec"},
+    "no-ai-slop": {"status": "unavailable", "version": "git:d30eddb"}
+  },
+  "fallback_adapters": {
+    "hallmark": [
+      {
+        "id": "independent-rendered-craft-agent",
+        "kind": "agent",
+        "status": "routable",
+        "version": "review-contract:rendered-craft-v1",
+        "target": "reviewers/rendered-craft",
+        "executor": "fresh-agent-review",
+        "strength": 3,
+        "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"],
+        "independent_from_creator": true
+      }
+    ],
+    "no-ai-slop": [
+      {
+        "id": "independent-copy-agent",
+        "kind": "agent",
+        "status": "routable",
+        "version": "review-contract:copy-v1",
+        "target": "reviewers/copy",
+        "executor": "fresh-agent-review",
+        "strength": 3,
+        "capabilities": ["copy-specificity", "copy-honesty", "copy-concision"],
+        "independent_from_creator": true
+      }
+    ]
   },
   "surface_overrides": {
     "operator-product-ui": {
@@ -34,6 +64,7 @@
   ],
   "evidence": {
     "browser": "playwright",
-    "required_viewports": ["mobile", "desktop"]
+    "required_viewports": ["mobile", "desktop"],
+    "required_checks": ["keyboard", "state", "overflow", "contrast", "zoom-200", "visual-regression", "screen-reader"]
   }
 }

@@ -11,6 +11,10 @@ Use the `killsloprouter` CLI as the deterministic route authority.
 
 - Select one creator per artifact.
 - Run overlapping tools as separate critics with different questions.
+- Replace unavailable or weak tools only with capability-complete fallbacks of
+  equal or greater minimum strength.
+- Combine multiple fallback providers when necessary; block the stage if their
+  capability union is incomplete.
 - Never let the creator self-approve.
 - Treat scanner hits as candidates, not verdicts.
 - Let hard product, truth, accessibility, privacy, and authority failures block approval.
@@ -23,10 +27,12 @@ Use the `killsloprouter` CLI as the deterministic route authority.
 1. Read `.killsloprouter/profile.json` and the local product and design contracts.
 2. Classify surface, task, direction, changes, and risk.
 3. Run `killsloprouter plan` before editing.
-4. Use `killsloprouter scan` for supported read-only adapters.
-5. Execute remaining receipt stages separately and preserve raw findings.
-6. Resolve conflicts against project semantics and browser evidence.
-7. Return the route, exact tool versions, findings, evidence, blockers, and approval owner.
+4. Confirm every required stage is `ready_primary` or `ready_with_fallback`.
+5. Start `killsloprouter audit init` with an explicit artifact scope and creator identity.
+6. Dispatch every generated packet separately; use `killsloprouter scan` for supported read-only adapters.
+7. Record each result with `audit record`; never convert `routable` into completed evidence.
+8. Record scanner dispositions with `audit triage` and resolve critic conflicts in the adjudication result.
+9. Run `audit finalize`; report its exact status, hashes, blockers, and approval owner.
 
 Do not load every design skill into one generation prompt. KillSlopRouter is an
 orchestrator, not a generator, linter, browser, or local design authority.

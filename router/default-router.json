@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "router_id": "kill-slop-router",
-  "router_version": "0.1.0",
+  "router_version": "0.3.0",
   "invariants": {
     "one_creator_per_artifact": true,
     "creator_cannot_self_approve": true,
@@ -10,6 +10,36 @@
     "external_result_is_not_local_authority": true,
     "browser_evidence_required_for_visual_approval": true,
     "project_contract_overrides_style_advice": true
+  },
+  "provider_capabilities": {
+    "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},
+    "project-design-system": {"strength": 4, "capabilities": ["approved-direction", "component-system", "domain-density"]},
+    "kill-ai-slop": {"strength": 2, "capabilities": ["source-pattern-detection"]},
+    "anti-slop": {"strength": 3, "independent_from_creator": true, "capabilities": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"]},
+    "hallmark": {"strength": 3, "independent_from_creator": true, "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"]},
+    "taste-skill": {"strength": 3, "independent_from_creator": true, "capabilities": ["direction-coherence", "visual-specificity"]},
+    "no-ai-slop": {"strength": 3, "independent_from_creator": true, "capabilities": ["copy-specificity", "copy-honesty", "copy-concision"]},
+    "stop-slop": {"strength": 2, "independent_from_creator": true, "capabilities": ["long-form-rhythm", "formulaic-prose-detection"]},
+    "peakoss-anti-slop": {"strength": 3, "independent_from_creator": true, "capabilities": ["pr-contribution-hygiene"]},
+    "locale-copy-review": {"strength": 4, "capabilities": ["locale-domain-copy"]},
+    "browser-evidence": {"strength": 3, "independent_from_creator": true, "capabilities": ["responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence", "contrast-evidence", "zoom-evidence"]},
+    "domain-authority-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["domain-authority"]},
+    "privacy-authority-review": {"strength": 4, "independent_from_creator": true, "capabilities": ["privacy-authority"]},
+    "owner-approval": {"strength": 4, "independent_from_creator": true, "capabilities": ["owner-approval"]}
+  },
+  "stage_capability_contracts": {
+    "project-contract": {"minimum_strength": 4, "required": ["task-contract", "object-model", "state-authority"]},
+    "static-discovery": {"minimum_strength": 2, "required": ["source-pattern-detection"]},
+    "functional-human-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"]},
+    "rendered-craft-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"]},
+    "direction-coherence-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["direction-coherence", "visual-specificity"]},
+    "copy-review": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["copy-specificity", "copy-honesty", "copy-concision", "locale-domain-copy"]},
+    "optional-long-form-review": {"minimum_strength": 2, "requires_independent_critic": true, "required": ["long-form-rhythm", "formulaic-prose-detection"]},
+    "browser-evidence": {"minimum_strength": 3, "requires_independent_critic": true, "evidence_required": true, "required_evidence_kinds": ["screenshot", "test-report"], "required": ["responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence", "contrast-evidence", "zoom-evidence"]},
+    "adjudication": {"minimum_strength": 4, "required": ["domain-authority"]},
+    "high-risk-project-gates": {"minimum_strength": 4, "required": ["privacy-authority"]},
+    "approval": {"minimum_strength": 4, "required": ["owner-approval"]},
+    "pr-hygiene": {"minimum_strength": 3, "requires_independent_critic": true, "required": ["pr-contribution-hygiene"]}
   },
   "routes": [
     {

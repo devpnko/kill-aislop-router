@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/owner-approval.schema.json",
+  "title": "KillSlopRouter Owner Approval",
+  "type": "object",
+  "required": ["approval_version", "run_id", "scope_digest", "owner_id", "status", "note", "decided_at"],
+  "properties": {
+    "approval_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "scope_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["approved", "rejected"]},
+    "note": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

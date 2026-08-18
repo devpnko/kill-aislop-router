@@ -1,37 +1,9 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { RouterError } from "../router.mjs";
-
-function hashFile(filePath) {
-  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-}
-
-function walkFiles(root) {
-  const files = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if ([".git", "node_modules"].includes(entry.name)) continue;
-    const absolute = path.join(root, entry.name);
-    if (entry.isDirectory()) files.push(...walkFiles(absolute));
-    if (entry.isFile()) files.push(absolute);
-  }
-  return files;
-}
-
-function hashArtifact(target) {
-  const stat = fs.statSync(target);
-  if (stat.isFile()) return `sha256:${hashFile(target)}`;
-  const hash = crypto.createHash("sha256");
-  for (const file of walkFiles(target).sort()) {
-    hash.update(path.relative(target, file));
-    hash.update("\0");
-    hash.update(hashFile(file));
-    hash.update("\0");
-  }
-  return `sha256:${hash.digest("hex")}`;
-}
+import { hashArtifact } from "../integrity.mjs";
 
 function prepareScanTarget(target) {
   const stat = fs.statSync(target);

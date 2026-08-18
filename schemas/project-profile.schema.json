@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.invalid/kill-slop-router/project-profile.schema.json",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/project-profile.schema.json",
   "title": "KillSlopRouter Project Profile",
   "type": "object",
   "required": ["profile_version", "project_id", "approved_design_system", "local_adapters"],
@@ -12,7 +12,29 @@
     "tool_lock": {"type": "string"},
     "local_adapters": {
       "type": "object",
-      "additionalProperties": {"type": "string", "minLength": 1}
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "string", "minLength": 1},
+          {
+            "type": "object",
+            "required": ["target", "status"],
+            "properties": {
+              "target": {"type": "string", "minLength": 1},
+              "status": {"enum": ["available", "routable", "unavailable", "disabled"]},
+              "version": {"type": "string"},
+              "executor": {"type": "string", "minLength": 1},
+              "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+              "capabilities": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1},
+                "uniqueItems": true
+              },
+              "independent_from_creator": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
     },
     "external_adapters": {
       "type": "object",
@@ -20,11 +42,46 @@
         "type": "object",
         "required": ["status"],
         "properties": {
-          "status": {"enum": ["available", "unavailable", "disabled"]},
+          "status": {"enum": ["available", "routable", "unavailable", "disabled"]},
           "version": {"type": "string"},
-          "root": {"type": "string", "minLength": 1}
+          "root": {"type": "string", "minLength": 1},
+          "executor": {"type": "string", "minLength": 1},
+          "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+          "capabilities": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "independent_from_creator": {"type": "boolean"}
         },
         "additionalProperties": false
+      }
+    },
+    "fallback_adapters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["id", "status", "strength", "capabilities", "independent_from_creator"],
+          "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "kind": {"enum": ["local", "external", "agent", "browser"]},
+            "status": {"enum": ["available", "routable", "unavailable", "disabled"]},
+            "version": {"type": "string", "minLength": 1},
+            "target": {"type": "string", "minLength": 1},
+            "executor": {"type": "string", "minLength": 1},
+            "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+            "capabilities": {
+              "type": "array",
+              "items": {"type": "string", "minLength": 1},
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "independent_from_creator": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
       }
     },
     "surface_overrides": {
@@ -51,7 +108,23 @@
       "items": {"type": "string"},
       "uniqueItems": true
     },
-    "evidence": {"type": "object"}
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "browser": {"type": "string", "minLength": 1},
+        "required_viewports": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "required_checks": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

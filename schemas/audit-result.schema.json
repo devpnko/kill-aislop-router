@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/audit-result.schema.json",
+  "title": "KillSlopRouter Audit Result",
+  "type": "object",
+  "required": [
+    "audit_result_version",
+    "packet_id",
+    "provider_id",
+    "reviewer",
+    "verdict",
+    "capabilities_checked",
+    "artifact_digests",
+    "findings",
+    "evidence",
+    "started_at",
+    "finished_at"
+  ],
+  "properties": {
+    "audit_result_version": {"const": 1},
+    "packet_id": {"type": "string", "minLength": 1},
+    "provider_id": {"type": "string", "minLength": 1},
+    "reviewer": {
+      "type": "object",
+      "required": ["actor_id", "kind"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "verdict": {"enum": ["pass", "pass_with_findings", "block"]},
+    "capabilities_checked": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+    },
+    "findings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/finding"}
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "resolutions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/resolution"}
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "severity", "category", "claim", "evidence"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "rule_id": {"type": ["string", "null"]},
+        "severity": {"enum": ["blocker", "major", "minor", "note", "candidate"]},
+        "category": {"type": "string", "minLength": 1},
+        "location": {"type": ["string", "null"]},
+        "claim": {"type": "string", "minLength": 1},
+        "evidence": {"type": "string", "minLength": 1},
+        "suggested_fix": {"type": ["string", "null"]},
+        "disposition": {
+          "enum": ["open", "fixed", "false-positive", "accepted-risk", "informational", "deferred"]
+        },
+        "rationale": {"type": ["string", "null"]},
+        "conflicts_with": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["path", "kind"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1},
+        "covers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "viewports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    },
+    "resolution": {
+      "type": "object",
+      "required": ["finding_refs", "decision", "basis", "rationale"],
+      "properties": {
+        "finding_refs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "decision": {"type": "string", "minLength": 1},
+        "basis": {"type": "string", "minLength": 1},
+        "rationale": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

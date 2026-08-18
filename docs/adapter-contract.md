@@ -4,6 +4,25 @@ An adapter connects one external skill, scanner, browser harness, or local revie
 gate to KillSlopRouter. The router may plan an unavailable adapter, but execution
 must report it as blocked.
 
+Planning and execution are distinct. Profile status `routable` means a host can
+dispatch the provider through the named executor; it is never evidence that the
+provider completed a review.
+
+## Capability Substitution
+
+Each required stage has a capability contract and minimum strength. When a
+primary provider is unavailable or below that strength, the router may select
+one or more fallback providers only when:
+
+- their combined capabilities cover every required capability;
+- each selected provider meets the minimum strength;
+- an independent critic is present when the stage requires one;
+- the selected critic is not the artifact creator; and
+- the profile gives an explicit availability and executor boundary.
+
+The plan records primary failures, candidates, substitutions, covered
+capabilities, and missing capabilities. Any missing capability blocks the stage.
+
 ## Required Identity
 
 ```json
@@ -20,6 +39,8 @@ Use an exact commit, package version, or local contract revision. Do not use sta
 count, repository popularity, or `latest` as provenance.
 
 ## Required Result
+
+The built-in scanner first emits an adapter receipt:
 
 ```json
 {
@@ -54,12 +75,24 @@ Allowed result status values:
 An advisory adapter cannot emit the final artifact verdict. Final disposition is
 owned by project adjudication and approval stages.
 
+For audit ingestion, non-scanner providers use
+`../schemas/audit-result.schema.json`. `audit init` writes a provider-specific
+template with the packet ID, exact artifact digest map, assigned capabilities,
+and evidence requirements. `audit record` rejects a different provider,
+creator self-review, incomplete capability coverage, stale artifact hashes, or
+missing browser proof.
+
+Scanner receipts may be ingested directly when the audit has one root artifact.
+For several independent artifacts, aggregate their scans into one standard
+audit result or initialize one run per root. Every scanner candidate must then
+be resolved through `../schemas/triage.schema.json`.
+
 ## Finding Severity
 
 - `blocker`: truth, privacy, authority, accessibility, dead control, missing
   required state, overflow, or fake-runtime failure.
 - `major`: materially harms the primary task or hierarchy.
-- `review`: requires semantic or rendered triage.
+- `candidate`: requires semantic or rendered triage in the audit ledger.
 - `minor`: bounded polish issue.
 
 Do not convert every scanner hit into a blocker. Preserve the raw category and
@@ -71,5 +104,6 @@ record the reason when dismissing or accepting it.
 - Require explicit approval for repository writes, PR comments, PR closes,
   publishing, deployment, credentials, or production access.
 - Keep browser screenshots and interaction traces separate from static findings.
+- Bind every result and evidence file to the dispatch packet's artifact digests.
 - Redact PII and secrets before sending artifacts to external services.
 - Never claim an adapter ran when only its instructions were read.

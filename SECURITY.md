@@ -6,11 +6,17 @@ Security fixes target the latest released minor version.
 
 ## Execution Boundary
 
-KillSlopRouter `0.1.x` plans routes and may execute explicitly allowlisted,
-read-only adapters. It does not execute arbitrary commands from project
-profiles. Treat any adapter runner that accepts shell strings, remote
-prompts, credentials, browser sessions, production URLs, repository writes, or
-pull-request mutations as a separate privileged component.
+KillSlopRouter `0.3.x` plans routes, runs the explicitly allowlisted read-only
+`kill-ai-slop` scanner adapter, and ingests structured critic and evidence
+files. It does not execute arbitrary commands from project profiles. Treat any
+host adapter that accepts shell strings, remote prompts, credentials, browser
+sessions, production URLs, repository writes, or pull-request mutations as a
+separate privileged component.
+
+Audit hashes detect accidental or post-review changes; they are not digital
+signatures. A person with write access to the run and all evidence can replace
+the ledger. Reviewer and owner IDs are asserted provenance, not authenticated
+identities. Keep CI artifacts immutable when stronger provenance is required.
 
 Before sending artifacts to an external service:
 

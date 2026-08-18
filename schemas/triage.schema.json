@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/triage.schema.json",
+  "title": "KillSlopRouter Finding Triage",
+  "type": "object",
+  "required": ["triage_version", "decisions"],
+  "properties": {
+    "triage_version": {"const": 1},
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["finding_ref", "disposition", "rationale"],
+        "properties": {
+          "finding_ref": {"type": "string", "minLength": 3},
+          "disposition": {
+            "enum": ["fixed", "false-positive", "accepted-risk", "informational", "deferred"]
+          },
+          "rationale": {"type": "string", "minLength": 1},
+          "decided_by": {"type": ["string", "null"]},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["path", "kind"],
+              "properties": {
+                "path": {"type": "string", "minLength": 1},
+                "kind": {"type": "string", "minLength": 1},
+                "covers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+                "viewports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+                "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
