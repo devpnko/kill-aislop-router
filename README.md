@@ -42,14 +42,15 @@ npm run pack:check
 ## Codex plugin
 
 Install the skill-only Codex plugin once, then invoke the same bundled CLI from
-any project. During V1 branch review, the shortest install is one command:
+any project. The shortest install from the default branch is one command:
 
 ```bash
-npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install
+npx --yes github:devpnko/kill-aislop-router plugin install
 ```
 
-Pin the Git ref to a reviewed commit instead of the branch name in unattended
-installation. Start a new Codex thread in the target repository and say:
+For unattended installation, append an exact reviewed commit such as
+`#ad71826ba2c9b50d99d0f4c758b271d9a6fccfb0` to the package spec. Start a new
+Codex thread in the target repository and say:
 
 ```text
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.

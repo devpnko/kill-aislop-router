@@ -6,18 +6,18 @@ any repository. It contains no MCP server and requests no external app access.
 
 ## Install
 
-Install from the V1 review branch without a checkout:
+Install from the default branch without a checkout:
 
 ```bash
-npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install
+npx --yes github:devpnko/kill-aislop-router plugin install
 ```
 
-For unattended use, replace the branch with an exact reviewed commit. The same
-entrypoint supports a non-mutating preview and a marked-install refresh:
+For unattended use, append an exact reviewed commit to the package spec. The
+same entrypoint supports a non-mutating preview and a marked-install refresh:
 
 ```bash
-npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install --dry-run
-npx --yes github:devpnko/kill-aislop-router#feat/v1-automation plugin install --force
+npx --yes github:devpnko/kill-aislop-router plugin install --dry-run
+npx --yes github:devpnko/kill-aislop-router plugin install --force
 ```
 
 From an existing V1 checkout, the original script remains supported:
