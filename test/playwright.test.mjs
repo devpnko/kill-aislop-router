@@ -44,6 +44,7 @@ function bootstrapProject(directory) {
     "--root", directory,
     "--project-id", "playwright-fixture",
     "--locale", "en-US",
+    "--surface", "operator-product-ui",
     "--json"
   ], directory);
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -579,7 +580,7 @@ test("integrated automation resumes and retries the official Playwright stage be
       "run",
       "--profile", paths.profile,
       "--host-config", paths.host,
-      "--surface", "consumer-product-ui",
+      "--surface", "operator-product-ui",
       "--task", "audit",
       "--direction", "none",
       "--changes", "source,copy,style,layout,interaction,state",

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { hashArtifact } from "./integrity.mjs";
+import { canonicalDigest, hashArtifact } from "./integrity.mjs";
 import { resolvePlanningGate } from "./planning.mjs";
 
 export const VALID_SURFACES = new Set([
@@ -30,6 +30,13 @@ const FORBIDDEN_PROFILE_EXECUTION_FIELDS = new Set([
   "entrypoint",
   "executable"
 ]);
+const SURFACE_CONTRACT_KEYS = new Set([
+  "surface_contract_version",
+  "primary",
+  "allowed",
+  "artifact_bindings"
+]);
+const SURFACE_BINDING_KEYS = new Set(["root", "surface"]);
 
 export class RouterError extends Error {
   constructor(message, exitCode = 1) {
@@ -58,12 +65,86 @@ export function findProjectProfile(startDir = process.cwd()) {
   }
 }
 
+function normalizedBindingRoot(value, label) {
+  if (typeof value !== "string" || !value.trim() || value.includes("\0")) {
+    throw new RouterError(`${label}.root must be a non-empty relative path`, 2);
+  }
+  const portable = value.replaceAll("\\", "/");
+  if (path.isAbsolute(value) || /^[A-Za-z]:\//.test(portable) ||
+    portable.split("/").includes("..")) {
+    throw new RouterError(`${label}.root must stay inside the project root`, 2);
+  }
+  const normalized = path.normalize(value);
+  return normalized === "" ? "." : normalized;
+}
+
+export function validateSurfaceContract(profile) {
+  const contract = profile?.surface_contract;
+  if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
+    throw new RouterError(
+      "profile surface_contract is required; bind the project surface before routing",
+      2
+    );
+  }
+  for (const key of Object.keys(contract)) {
+    if (!SURFACE_CONTRACT_KEYS.has(key)) {
+      throw new RouterError(`profile surface_contract contains unsupported field: ${key}`, 2);
+    }
+  }
+  if (contract.surface_contract_version !== 1) {
+    throw new RouterError("profile surface_contract.surface_contract_version must be 1", 2);
+  }
+  if (!VALID_SURFACES.has(contract.primary)) {
+    throw new RouterError("profile surface_contract.primary must be a valid surface", 2);
+  }
+  if (!Array.isArray(contract.allowed) || contract.allowed.length === 0 ||
+    new Set(contract.allowed).size !== contract.allowed.length ||
+    contract.allowed.some((surface) => !VALID_SURFACES.has(surface))) {
+    throw new RouterError("profile surface_contract.allowed must contain unique valid surfaces", 2);
+  }
+  if (!contract.allowed.includes(contract.primary)) {
+    throw new RouterError("profile surface_contract.allowed must include primary", 2);
+  }
+  if (!Array.isArray(contract.artifact_bindings) || contract.artifact_bindings.length === 0) {
+    throw new RouterError("profile surface_contract.artifact_bindings must not be empty", 2);
+  }
+  const roots = new Set();
+  const boundSurfaces = new Set();
+  for (const [index, binding] of contract.artifact_bindings.entries()) {
+    const label = `profile surface_contract.artifact_bindings[${index}]`;
+    if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
+      throw new RouterError(`${label} must be an object`, 2);
+    }
+    for (const key of Object.keys(binding)) {
+      if (!SURFACE_BINDING_KEYS.has(key)) {
+        throw new RouterError(`${label} contains unsupported field: ${key}`, 2);
+      }
+    }
+    const normalizedRoot = normalizedBindingRoot(binding.root, label);
+    if (roots.has(normalizedRoot)) {
+      throw new RouterError(`profile surface_contract has duplicate artifact root: ${binding.root}`, 2);
+    }
+    roots.add(normalizedRoot);
+    if (!contract.allowed.includes(binding.surface)) {
+      throw new RouterError(`${label}.surface is not allowed by the surface contract`, 2);
+    }
+    boundSurfaces.add(binding.surface);
+  }
+  for (const surface of contract.allowed) {
+    if (!boundSurfaces.has(surface)) {
+      throw new RouterError(`profile surface_contract has no artifact binding for ${surface}`, 2);
+    }
+  }
+  return contract;
+}
+
 export function validateProfile(profile) {
   if (!profile) return;
   if (profile.profile_version !== 1) throw new RouterError("profile_version must be 1", 2);
   if (!profile.project_id || typeof profile.project_id !== "string") {
     throw new RouterError("profile project_id is required", 2);
   }
+  const surfaceContract = validateSurfaceContract(profile);
   if (typeof profile.approved_design_system !== "boolean") {
     throw new RouterError("profile approved_design_system must be boolean", 2);
   }
@@ -110,6 +191,12 @@ export function validateProfile(profile) {
         if (!VALID_SURFACES.has(surface) || typeof receiptPath !== "string" || !receiptPath) {
           throw new RouterError(`profile planning.surface_receipts.${surface} is invalid`, 2);
         }
+        if (!surfaceContract.allowed.includes(surface)) {
+          throw new RouterError(
+            `profile planning.surface_receipts.${surface} is outside surface_contract.allowed`,
+            2
+          );
+        }
       }
     }
   }
@@ -146,6 +233,11 @@ export function validateProfile(profile) {
       }
     }
   }
+  for (const surface of Object.keys(profile.surface_overrides || {})) {
+    if (!surfaceContract.allowed.includes(surface)) {
+      throw new RouterError(`profile surface_overrides.${surface} is outside surface_contract.allowed`, 2);
+    }
+  }
   for (const [missingActor, fallbacks] of Object.entries(profile.fallback_adapters || {})) {
     if (!Array.isArray(fallbacks)) {
       throw new RouterError(`fallback_adapters.${missingActor} must be an array`, 2);
@@ -166,6 +258,207 @@ export function validateProfile(profile) {
       }
     }
   }
+}
+
+function bindProfileSource(profile, profilePath) {
+  if (!profilePath) return { path: null, digest: null };
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+    throw new RouterError("profile_path must contain a project profile object", 2);
+  }
+  const absolute = path.resolve(profilePath);
+  let sourceProfile;
+  try {
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      throw new Error("profile source must be a regular non-symlink file");
+    }
+    sourceProfile = JSON.parse(fs.readFileSync(absolute, "utf8"));
+  } catch (error) {
+    throw new RouterError(`cannot bind routed project profile: ${error.message}`, 4);
+  }
+  if (canonicalDigest(sourceProfile) !== canonicalDigest(profile)) {
+    throw new RouterError("profile object does not match profile_path", 4);
+  }
+  return { path: absolute, digest: hashArtifact(absolute) };
+}
+
+function pathInside(candidate, parent) {
+  const relative = path.relative(parent, candidate);
+  return relative === "" || (
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+function assertNoSymlinkComponents(projectRoot, target, label, exitCode) {
+  const relative = path.relative(projectRoot, target);
+  if (!pathInside(target, projectRoot)) {
+    throw new RouterError(`${label} escapes the project root`, exitCode);
+  }
+  let current = projectRoot;
+  for (const segment of relative.split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    if (fs.lstatSync(current).isSymbolicLink()) {
+      throw new RouterError(`${label} contains a symlink: ${current}`, exitCode);
+    }
+  }
+}
+
+function realProjectRoot(root) {
+  const absolute = path.resolve(root || process.cwd());
+  if (!fs.existsSync(absolute) || !fs.lstatSync(absolute).isDirectory()) {
+    throw new RouterError(`surface contract project root is not a directory: ${absolute}`, 2);
+  }
+  if (fs.lstatSync(absolute).isSymbolicLink()) {
+    throw new RouterError("surface contract project root must not be a symlink", 2);
+  }
+  return fs.realpathSync(absolute);
+}
+
+function resolveBindingRoots(contract, projectRoot) {
+  return contract.artifact_bindings.map((binding, index) => {
+    const normalizedRoot = normalizedBindingRoot(
+      binding.root,
+      `profile surface_contract.artifact_bindings[${index}]`
+    );
+    const absolute = path.resolve(projectRoot, normalizedRoot);
+    if (!pathInside(absolute, projectRoot)) {
+      throw new RouterError(`surface binding escapes the project root: ${binding.root}`, 2);
+    }
+    if (!fs.existsSync(absolute)) {
+      throw new RouterError(`surface binding root does not exist: ${binding.root}`, 2);
+    }
+    assertNoSymlinkComponents(projectRoot, absolute, "surface binding path", 2);
+    const stat = fs.lstatSync(absolute);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new RouterError(`surface binding root must be a real directory: ${binding.root}`, 2);
+    }
+    const resolved = fs.realpathSync(absolute);
+    if (!pathInside(resolved, projectRoot)) {
+      throw new RouterError(`surface binding resolves outside the project root: ${binding.root}`, 2);
+    }
+    return {
+      root: normalizedRoot.split(path.sep).join("/"),
+      surface: binding.surface,
+      resolved,
+      specificity: normalizedRoot === "." ? 0 : normalizedRoot.split(path.sep).length
+    };
+  });
+}
+
+export function inspectSurfaceContract({ profile, root = process.cwd() }) {
+  if (!profile) return null;
+  const contract = validateSurfaceContract(profile);
+  const projectRoot = realProjectRoot(root);
+  const bindings = resolveBindingRoots(contract, projectRoot);
+  return {
+    status: "ready",
+    project_root: projectRoot,
+    primary_surface: contract.primary,
+    allowed_surfaces: [...contract.allowed],
+    contract_digest: canonicalDigest(contract),
+    artifact_bindings: bindings.map(({ root: bindingRoot, surface }) => ({
+      root: bindingRoot,
+      surface
+    }))
+  };
+}
+
+export function resolveSurfaceContract({
+  profile,
+  requestedSurface = null,
+  artifacts = [],
+  root = process.cwd()
+}) {
+  if (!profile) {
+    if (!VALID_SURFACES.has(requestedSurface)) throw new RouterError("provide a valid surface", 2);
+    return {
+      status: "unprofiled-explicit",
+      requested_surface: requestedSurface,
+      resolved_surface: requestedSurface,
+      contract_digest: null,
+      artifact_bindings: []
+    };
+  }
+
+  const contract = validateSurfaceContract(profile);
+  const projectRoot = realProjectRoot(root);
+  const bindings = resolveBindingRoots(contract, projectRoot);
+  const artifactList = Array.isArray(artifacts) ? artifacts : [];
+  const resolvedArtifacts = [];
+
+  if (artifactList.length === 0) {
+    if (contract.allowed.length > 1) {
+      throw new RouterError(
+        "surface contract allows multiple surfaces; provide --artifact so routing can resolve an exact binding",
+        3
+      );
+    }
+  } else {
+    for (const artifact of artifactList) {
+      const absolute = path.resolve(projectRoot, artifact);
+      if (!fs.existsSync(absolute)) throw new RouterError(`surface routing artifact not found: ${absolute}`, 3);
+      if (fs.lstatSync(absolute).isSymbolicLink()) {
+        throw new RouterError(`surface routing artifact must not be a symlink: ${artifact}`, 3);
+      }
+      const resolved = fs.realpathSync(absolute);
+      if (!pathInside(resolved, projectRoot)) {
+        throw new RouterError(`surface routing artifact resolves outside the project root: ${artifact}`, 3);
+      }
+      // macOS may expose the same temporary path through /var and /private/var.
+      // Inspect the lexical path when it is under the canonical root so nested
+      // project symlinks still fail, otherwise inspect the canonical equivalent.
+      assertNoSymlinkComponents(
+        projectRoot,
+        pathInside(absolute, projectRoot) ? absolute : resolved,
+        "surface routing artifact path",
+        3
+      );
+      const matches = bindings.filter((binding) => pathInside(resolved, binding.resolved));
+      if (matches.length === 0) {
+        throw new RouterError(`artifact has no surface binding: ${artifact}`, 3);
+      }
+      const maxSpecificity = Math.max(...matches.map((binding) => binding.specificity));
+      const strongest = matches.filter((binding) => binding.specificity === maxSpecificity);
+      const surfaces = [...new Set(strongest.map((binding) => binding.surface))];
+      if (surfaces.length !== 1) {
+        throw new RouterError(`artifact surface binding is ambiguous: ${artifact}`, 3);
+      }
+      resolvedArtifacts.push({
+        path: path.relative(projectRoot, resolved).split(path.sep).join("/") || ".",
+        binding_root: strongest[0].root,
+        surface: surfaces[0]
+      });
+    }
+  }
+
+  const artifactSurfaces = [...new Set(resolvedArtifacts.map((artifact) => artifact.surface))];
+  if (artifactSurfaces.length > 1) {
+    throw new RouterError(
+      `artifacts resolve to multiple surfaces (${artifactSurfaces.join(", ")}); split them into separate runs`,
+      3
+    );
+  }
+  const resolvedSurface = artifactSurfaces[0] || contract.primary;
+  if (!contract.allowed.includes(resolvedSurface)) {
+    throw new RouterError(`resolved surface is outside surface_contract.allowed: ${resolvedSurface}`, 3);
+  }
+  if (requestedSurface && requestedSurface !== resolvedSurface) {
+    throw new RouterError(
+      `surface mismatch: contract resolved ${resolvedSurface}, CLI requested ${requestedSurface}`,
+      3
+    );
+  }
+  return {
+    status: "locked",
+    requested_surface: requestedSurface || null,
+    resolved_surface: resolvedSurface,
+    primary_surface: contract.primary,
+    allowed_surfaces: [...contract.allowed],
+    contract_digest: canonicalDigest(contract),
+    artifact_bindings: resolvedArtifacts
+  };
 }
 
 export function normalizeInput(input) {
@@ -503,9 +796,24 @@ function requiredStages(router, input, profile) {
   return [...ids];
 }
 
-export function planRoute({ router, profile = null, input, routerPath = null, profilePath = null }) {
+export function planRoute({
+  router,
+  profile = null,
+  input,
+  routerPath = null,
+  profilePath = null,
+  artifacts = [],
+  root = process.cwd()
+}) {
   validateProfile(profile);
-  const normalized = normalizeInput(input);
+  const profileSource = bindProfileSource(profile, profilePath);
+  const surfaceResolution = resolveSurfaceContract({
+    profile,
+    requestedSurface: input.surface || null,
+    artifacts,
+    root
+  });
+  const normalized = normalizeInput({ ...input, surface: surfaceResolution.resolved_surface });
   const route = selectRoute(router, normalized);
   if (!route) throw new RouterError(`no route matches ${normalized.surface}/${normalized.task}`, 3);
 
@@ -520,7 +828,7 @@ export function planRoute({ router, profile = null, input, routerPath = null, pr
     .map((id) => `required stage or gate is not represented in selected route: ${id}`);
   unresolved.push(...missingRequired);
   const warnings = [];
-  const designSystem = resolveDesignSystem(profile, profilePath);
+  const designSystem = resolveDesignSystem(profile, profileSource.path);
 
   if (profile?.approved_design_system && !profile.design_system) {
     warnings.push(
@@ -539,7 +847,7 @@ export function planRoute({ router, profile = null, input, routerPath = null, pr
 
   const planningGate = resolvePlanningGate({
     profile,
-    profilePath,
+    profilePath: profileSource.path,
     input: normalized
   });
   unresolved.push(...planningGate.unresolved);
@@ -565,11 +873,13 @@ export function planRoute({ router, profile = null, input, routerPath = null, pr
     router_id: router.router_id,
     router_version: router.router_version,
     router_path: routerPath,
-    profile_path: profilePath,
+    profile_path: profileSource.path,
+    profile_digest: profileSource.digest,
     project_id: profile?.project_id || null,
     status: unresolved.length ? "blocked" : "planned",
     route_id: route.id,
     input: normalized,
+    surface_resolution: surfaceResolution,
     creator,
     stages,
     required_stage_ids: required,
@@ -591,6 +901,7 @@ export function formatReceipt(receipt) {
     `project: ${receipt.project_id || "unprofiled"}`,
     `creator: ${receipt.creator || "none"}`,
     `surface/task: ${receipt.input.surface} / ${receipt.input.task}`,
+    `surface contract: ${receipt.surface_resolution?.status || "unbound"} (${receipt.surface_resolution?.contract_digest || "none"})`,
     `direction/risk: ${receipt.input.direction} / ${receipt.input.risk}`,
     `scope: ${receipt.input.scope || "deferred"}`,
     `planning gate: ${receipt.planning_gate?.status || "not-configured"}`,

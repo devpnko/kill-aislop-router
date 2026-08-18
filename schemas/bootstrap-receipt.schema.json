@@ -20,6 +20,7 @@
     "status": {"const": "manual_adapter_setup_required"},
     "project_id": {"type": "string", "minLength": 1},
     "locale": {"type": "string", "minLength": 2},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "project_root": {"type": "string", "minLength": 1},
     "profile": {"$ref": "#/$defs/file"},
     "host_manifest": {
@@ -42,6 +43,7 @@
       ],
       "properties": {
         "approved_design_system": {"const": false},
+        "surface_contract_locked": {"const": true},
         "arbitrary_profile_commands": {"const": false},
         "executable_adapters_authorized": {"const": false},
         "missing_execution_remains_manual_pending": {"const": true}

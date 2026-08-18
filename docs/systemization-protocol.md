@@ -7,6 +7,7 @@ implementation contract. It is not a visual redesign pass.
 
 - G6T audit receipt and exact G7 owner approval
 - approved artifact digest and surface identity
+- the verified profile surface-contract digest and artifact binding
 - project object, state, authority, and terminology contracts
 - representative desktop and mobile states
 - current source inventory and runtime constraints

@@ -12,9 +12,65 @@ const routerPath = path.join(root, "router", "default-router.json");
 const profilePath = path.join(root, "examples", "project-profile.example.json");
 const router = readJson(routerPath, "router");
 const profile = readJson(profilePath, "profile");
+const routedProfileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-route-profiles-"));
+let routedProfileIndex = 0;
+process.on("exit", () => fs.rmSync(routedProfileDirectory, { recursive: true, force: true }));
 
-function plan(input, selectedProfile = profile) {
-  return planRoute({ router, profile: selectedProfile, input, routerPath, profilePath });
+function materializeProfileReferences(selectedProfile) {
+  if (!selectedProfile) return null;
+  const materialized = structuredClone(selectedProfile);
+  const profileBase = path.dirname(profilePath);
+  if (materialized.design_system?.authority_receipt &&
+    !path.isAbsolute(materialized.design_system.authority_receipt)) {
+    materialized.design_system.authority_receipt = path.resolve(
+      profileBase,
+      materialized.design_system.authority_receipt
+    );
+  }
+  if (materialized.planning?.receipt && !path.isAbsolute(materialized.planning.receipt)) {
+    materialized.planning.receipt = path.resolve(profileBase, materialized.planning.receipt);
+  }
+  for (const [surface, receipt] of Object.entries(materialized.planning?.surface_receipts || {})) {
+    if (!path.isAbsolute(receipt)) {
+      materialized.planning.surface_receipts[surface] = path.resolve(profileBase, receipt);
+    }
+  }
+  return materialized;
+}
+
+function bindProfileSurface(selectedProfile, surface) {
+  const rebound = structuredClone(selectedProfile);
+  rebound.surface_contract = {
+    surface_contract_version: 1,
+    primary: surface,
+    allowed: [surface],
+    artifact_bindings: [{ root: ".", surface }]
+  };
+  rebound.surface_overrides = rebound.surface_overrides?.[surface]
+    ? { [surface]: rebound.surface_overrides[surface] }
+    : {};
+  if (rebound.planning?.surface_receipts) {
+    const receipt = rebound.planning.surface_receipts[surface];
+    rebound.planning.surface_receipts = receipt ? { [surface]: receipt } : {};
+  }
+  return rebound;
+}
+
+function plan(input, selectedProfile) {
+  const selected = arguments.length < 2 ? bindProfileSurface(profile, input.surface) : selectedProfile;
+  const routedProfile = materializeProfileReferences(selected);
+  if (!routedProfile) {
+    return planRoute({ router, profile: null, input, routerPath, profilePath: null });
+  }
+  const routedProfilePath = path.join(routedProfileDirectory, `${routedProfileIndex += 1}.json`);
+  fs.writeFileSync(routedProfilePath, `${JSON.stringify(routedProfile, null, 2)}\n`);
+  return planRoute({
+    router,
+    profile: routedProfile,
+    input,
+    routerPath,
+    profilePath: routedProfilePath
+  });
 }
 
 const operator = plan({
@@ -90,12 +146,13 @@ assert.match(blockedSystemize.unresolved.join("\n"), /no planning receipt/);
 
 const planningRequiredProfile = structuredClone(profile);
 planningRequiredProfile.planning.required = true;
+const consumerPlanningProfile = bindProfileSurface(planningRequiredProfile, "consumer-product-ui");
 const consumerPlanningBlocked = plan({
   surface: "consumer-product-ui",
   task: "runtime-handoff",
   direction: "approved",
   changes: ["interaction"]
-}, planningRequiredProfile);
+}, consumerPlanningProfile);
 assert.equal(consumerPlanningBlocked.status, "blocked");
 assert.match(consumerPlanningBlocked.unresolved.join("\n"), /no planning receipt/);
 
@@ -285,7 +342,7 @@ const missingRequired = planRoute({
 assert.equal(missingRequired.status, "blocked");
 assert.match(missingRequired.unresolved.join("\n"), /browser-evidence/);
 
-const cli = spawnSync(process.execPath, [
+const rejectedCli = spawnSync(process.execPath, [
   path.join(root, "bin", "killsloprouter.mjs"),
   "plan",
   "--profile", profilePath,
@@ -293,8 +350,130 @@ const cli = spawnSync(process.execPath, [
   "--task", "audit",
   "--format", "json"
 ], { encoding: "utf8" });
-assert.equal(cli.status, 0, cli.stderr);
-assert.equal(JSON.parse(cli.stdout).route_id, "existing-ui-audit");
+assert.equal(rejectedCli.status, 3, rejectedCli.stderr);
+assert.match(rejectedCli.stderr, /surface mismatch/);
+
+const inferredCli = spawnSync(process.execPath, [
+  path.join(root, "bin", "killsloprouter.mjs"),
+  "plan",
+  "--profile", profilePath,
+  "--task", "audit",
+  "--format", "json"
+], { encoding: "utf8" });
+assert.equal(inferredCli.status, 0, inferredCli.stderr);
+assert.equal(JSON.parse(inferredCli.stdout).input.surface, "operator-product-ui");
+
+const surfaceFixture = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-surface-contract-"));
+try {
+  fs.mkdirSync(path.join(surfaceFixture, "apps", "erp"), { recursive: true });
+  fs.mkdirSync(path.join(surfaceFixture, "apps", "customer"), { recursive: true });
+  fs.mkdirSync(path.join(surfaceFixture, "..legit"), { recursive: true });
+  fs.writeFileSync(path.join(surfaceFixture, "apps", "erp", "screen.html"), "<p>ERP</p>\n");
+  fs.writeFileSync(path.join(surfaceFixture, "apps", "customer", "screen.html"), "<p>Portal</p>\n");
+  fs.writeFileSync(path.join(surfaceFixture, "..legit", "screen.html"), "<p>Legitimate path</p>\n");
+  const multiSurfaceProfile = structuredClone(profile);
+  multiSurfaceProfile.surface_contract = {
+    surface_contract_version: 1,
+    primary: "operator-product-ui",
+    allowed: ["operator-product-ui", "consumer-product-ui"],
+    artifact_bindings: [
+      { root: ".", surface: "operator-product-ui" },
+      { root: "apps/customer", surface: "consumer-product-ui" }
+    ]
+  };
+  multiSurfaceProfile.surface_overrides = {
+    "operator-product-ui": profile.surface_overrides["operator-product-ui"]
+  };
+
+  const portalPlan = planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: { task: "audit", direction: "none", changes: ["source"] },
+    artifacts: ["apps/customer/screen.html"],
+    root: surfaceFixture
+  });
+  assert.equal(portalPlan.input.surface, "consumer-product-ui");
+  assert.equal(portalPlan.surface_resolution.artifact_bindings[0].binding_root, "apps/customer");
+
+  const dottedPathPlan = planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: { task: "audit", direction: "none", changes: ["source"] },
+    artifacts: ["..legit/screen.html"],
+    root: surfaceFixture
+  });
+  assert.equal(dottedPathPlan.input.surface, "operator-product-ui");
+
+  assert.throws(() => planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: {
+      surface: "operator-product-ui",
+      task: "audit",
+      direction: "none",
+      changes: ["source"]
+    },
+    artifacts: ["apps/customer/screen.html"],
+    root: surfaceFixture
+  }), /surface mismatch: contract resolved consumer-product-ui/);
+
+  assert.throws(() => planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: { task: "audit", direction: "none", changes: ["source"] },
+    artifacts: ["apps/erp/screen.html", "apps/customer/screen.html"],
+    root: surfaceFixture
+  }), /artifacts resolve to multiple surfaces/);
+
+  assert.throws(() => planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: { task: "audit", direction: "none", changes: ["source"] },
+    root: surfaceFixture
+  }), /provide --artifact/);
+
+  const duplicateBindingProfile = structuredClone(multiSurfaceProfile);
+  duplicateBindingProfile.surface_contract.artifact_bindings.push({
+    root: "apps/customer",
+    surface: "operator-product-ui"
+  });
+  assert.throws(() => planRoute({
+    router,
+    profile: duplicateBindingProfile,
+    input: { task: "audit", direction: "none", changes: [] },
+    artifacts: ["apps/customer/screen.html"],
+    root: surfaceFixture
+  }), /duplicate artifact root/);
+
+  fs.symlinkSync("customer", path.join(surfaceFixture, "apps", "customer-link"), "dir");
+  assert.throws(() => planRoute({
+    router,
+    profile: multiSurfaceProfile,
+    input: { task: "audit", direction: "none", changes: ["source"] },
+    artifacts: ["apps/customer-link/screen.html"],
+    root: surfaceFixture
+  }), /surface routing artifact path contains a symlink/);
+} finally {
+  fs.rmSync(surfaceFixture, { recursive: true, force: true });
+}
+
+const legacyProfile = structuredClone(profile);
+delete legacyProfile.surface_contract;
+assert.throws(() => plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["layout"]
+}, legacyProfile), /surface_contract is required/);
+
+const mismatchedProfileObject = structuredClone(profile);
+mismatchedProfileObject.project_id = "not-the-profile-file";
+assert.throws(() => planRoute({
+  router,
+  profile: mismatchedProfileObject,
+  profilePath,
+  input: { task: "audit", direction: "none", changes: [] }
+}), /profile object does not match profile_path/);
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-adapter-test-"));
 try {

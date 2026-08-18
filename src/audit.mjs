@@ -166,6 +166,16 @@ export function initializeAudit({
   const planSource = planPath
     ? snapshotArtifact(path.resolve(planPath), { root: absoluteRoot })
     : null;
+  let profileSource = null;
+  if (plan.profile_path && plan.profile_digest) {
+    try {
+      profileSource = snapshotArtifact(path.resolve(plan.profile_path), { root: absoluteRoot });
+    } catch (error) {
+      throw new RouterError(`cannot snapshot routed project profile: ${error.message}`, 4);
+    }
+    requireValue(profileSource.digest === plan.profile_digest,
+      "project profile changed after route planning", 4);
+  }
   const packets = makePackets(plan, artifactSnapshots);
   const requiredStagesWithoutPackets = plan.stages
     .filter((stage) => !stage.optional && stage.id !== "approval")
@@ -203,6 +213,8 @@ export function initializeAudit({
       project_id: plan.project_id,
       plan_digest: canonicalDigest(plan),
       plan_source: planSource,
+      profile_source: profileSource,
+      surface_resolution: plan.surface_resolution || null,
       input: plan.input
     },
     planning_gate: planningGate,
@@ -598,6 +610,7 @@ function verifyIntegrity(run, approval) {
     checks.push({ label, path: publicSnapshot(snapshot).path, ...verification });
   };
   check("route-plan", run.route.plan_source);
+  check("route-profile", run.route.profile_source);
   for (const artifact of run.artifacts) check(`artifact:${artifact.path}`, artifact);
   for (const result of run.results) {
     check(`result:${result.packet_id}`, result.source);
@@ -822,8 +835,10 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
       route_id: run.route.route_id,
       project_id: run.route.project_id,
       input: run.route.input,
+      surface_resolution: run.route.surface_resolution || null,
       plan_digest: run.route.plan_digest,
-      plan_source: publicSnapshot(run.route.plan_source)
+      plan_source: publicSnapshot(run.route.plan_source),
+      profile_source: publicSnapshot(run.route.profile_source)
     },
     manifest_digest: run.manifest_digest,
     creator: run.creator,

@@ -12,12 +12,13 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 ## Start in a project
 
 1. Locate the project root and read its product, design, locale, privacy, and authority contracts.
-2. If `.killsloprouter/profile.json` is absent, determine a stable project ID and explicit locale. Ask only when either cannot be established from the repository.
+2. If `.killsloprouter/profile.json` is absent, determine a stable project ID, explicit locale, and semantic product surface. An ERP/admin/staff workflow is normally `operator-product-ui`; a customer product is `consumer-product-ui`; editorial acquisition content is `marketing-editorial`. Infer the surface only when repository evidence is unambiguous, report that inference, and stop for the owner when it is ambiguous.
 3. Run:
 
    ```text
    node <plugin-root>/bin/killsloprouter.mjs bootstrap \
-     --root <project-root> --project-id <id> --locale <locale> --json
+     --root <project-root> --project-id <id> --locale <locale> \
+     --surface <surface> --json
    ```
 
 4. Treat the generated host manifest as manual-only. Bind real project contracts in the profile. Replace a manual adapter only when its entrypoint, digest, permissions, strength, and complete capabilities are known.
@@ -50,13 +51,18 @@ currently eligible stage without asking the user to restate CLI flags.
    G7 approval for the unchanged artifact. Audit the extracted candidate design
    system independently; never promote it merely because extraction completed.
 
-Infer project ID, locale, surface, changed dimensions, and artifact paths from
-repository evidence when unambiguous. Report the inferred values before execution.
-Never infer an owner decision, adapter permission, reviewer identity, or evidence.
+Infer project ID, locale, changed dimensions, and artifact paths from repository
+evidence when unambiguous. Surface inference has an additional hard boundary:
+write it into the profile's artifact bindings before routing, never treat it as
+an aesthetic preset, and stop for the owner if the product audience or artifact
+root is ambiguous. Report every inferred value before execution. Never infer an
+owner decision, adapter permission, reviewer identity, or evidence.
 
 ## Rules
 
 - Select one creator per artifact.
+- Resolve surface from the profile and exact artifact roots before selecting that creator. Treat CLI `--surface` only as an assertion; never use it to override the contract.
+- Split artifacts into separate runs when they resolve to different surfaces.
 - Run overlapping tools as separate critics with different questions.
 - Replace unavailable or weak tools only with capability-complete fallbacks of
   equal or greater minimum strength.
@@ -76,7 +82,7 @@ Never infer an owner decision, adapter permission, reviewer identity, or evidenc
 
 ## Run contract
 
-1. Classify surface, task, direction, changed dimensions, scope, and risk from evidence.
+1. Resolve surface from the digest-bound project/artifact contract, then classify task, direction, changed dimensions, scope, and risk from evidence.
 2. Verify any external planning receipt and its exact evidence digests.
 3. Require every stage to be `ready_primary` or `ready_with_fallback` before execution.
 4. Execute only adapters accepted by the explicit host manifest.

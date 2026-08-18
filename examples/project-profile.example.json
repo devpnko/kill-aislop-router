@@ -2,6 +2,14 @@
   "profile_version": 1,
   "project_id": "example-product",
   "default_locale": "en-US",
+  "surface_contract": {
+    "surface_contract_version": 1,
+    "primary": "operator-product-ui",
+    "allowed": ["operator-product-ui"],
+    "artifact_bindings": [
+      {"root": ".", "surface": "operator-product-ui"}
+    ]
+  },
   "approved_design_system": true,
   "design_system": {
     "id": "example-product-ui",
@@ -67,10 +75,6 @@
     "operator-product-ui": {
       "creator": "project-design-system",
       "exclude_tools": ["taste-skill"]
-    },
-    "consumer-product-ui": {
-      "creator_by_direction": {"approved": "project-design-system"},
-      "exclude_tools": []
     }
   },
   "high_risk_gates": [

@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0+codex.20260818125553",
+  "version": "1.0.0+codex.20260818133420",
   "description": "Fail-closed anti-slop routing, Playwright evidence, reviewer execution, and digest-bound approval automation.",
   "author": {
     "name": "devpnko",
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "KillSlopRouter",
     "shortDescription": "Run fail-closed anti-slop audits across projects.",
-    "longDescription": "Bootstrap a project-specific route, dispatch independent reviewers through authorized adapters, collect served-artifact-bound Playwright evidence, enforce authority gates, resume pending work, and report digest-bound receipts without treating routable work as completed execution.",
+    "longDescription": "Lock artifacts to their semantic product surface before creator selection, bootstrap a project-specific route, dispatch independent reviewers through authorized adapters, collect served-artifact-bound Playwright evidence, enforce authority gates, resume pending work, and report digest-bound receipts without treating routable work as completed execution.",
     "developerName": "devpnko",
     "category": "Developer Tools",
     "capabilities": [
@@ -34,7 +34,7 @@
     "privacyPolicyURL": "https://github.com/devpnko/kill-aislop-router/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/devpnko/kill-aislop-router/blob/main/LICENSE",
     "defaultPrompt": [
-      "Use $killsloprouter:kill-slop-router to continue this project's gated journey from planning evidence through anti-slop audit and eligible systemization.",
+      "Use $killsloprouter:kill-slop-router to resolve this project's artifact surface contract and continue its gated journey from planning evidence through anti-slop audit and eligible systemization.",
       "Use $killsloprouter:kill-slop-router to resume this audit and report every receipt hash.",
       "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence.",
       "Use $killsloprouter:kill-slop-router to systemize this exact owner-approved artifact only if G6T and G7 evidence pass."

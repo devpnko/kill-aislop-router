@@ -151,7 +151,6 @@ killsloprouter run \
   --root "$PWD" \
   --profile .killsloprouter/profile.json \
   --host-config .killsloprouter/host-adapters.json \
-  --surface consumer-product-ui \
   --task audit \
   --direction none \
   --changes source,copy,style,layout,interaction,state \
@@ -159,6 +158,9 @@ killsloprouter run \
   --scope runtime \
   --json
 ```
+
+The artifact's surface comes from the profile binding. Add `--surface` only as
+an assertion when a script wants to fail on an unexpected contract value.
 
 Then start the resumable `run` with the same root, artifacts, and route input.
 The adapter records a distinct child PID; a routable or ready declaration is

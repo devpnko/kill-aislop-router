@@ -11,6 +11,7 @@ package or create a GitHub Release as part of the V1 work.
 ## What V1 does
 
 - Selects one creator per artifact and rejects creator self-review or approval.
+- Resolves the product surface from a digest-bound project/artifact contract before creator selection.
 - Preserves minimum reviewer strength and capability-union requirements.
 - Executes only provider IDs allowed by an explicit host adapter manifest.
 - Never executes `command`, `args`, `shell`, or an entrypoint from a project profile.
@@ -72,11 +73,13 @@ The explicit invocation is available when implicit skill discovery is disabled:
 Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-closed audit of ./src.
 ```
 
-The plugin determines the route from project evidence, creates a manual-only
-starter configuration when needed, runs `doctor` and `--dry-run`, then uses the
-integrated resumable ledger. A short `전체 여정` request resumes a matching run,
-advances only the currently eligible stage, and stops for missing planning or
-owner evidence. It does not ship an MCP server or gain remote authority. See
+The plugin determines the route from project evidence, but it does not guess an
+ambiguous product surface. It locks an unambiguous repository contract or stops
+for an explicit owner choice before creating a manual-only starter
+configuration. It then runs `doctor` and `--dry-run` and uses the integrated
+resumable ledger. A short `전체 여정` request resumes a matching run, advances
+only the currently eligible stage, and stops for missing planning or owner
+evidence. It does not ship an MCP server or gain remote authority. See
 [Codex plugin](docs/codex-plugin.md).
 
 The bootstrap command is also available directly:
@@ -86,11 +89,16 @@ killsloprouter bootstrap \
   --root . \
   --project-id my-product \
   --locale ko-KR \
+  --surface operator-product-ui \
   --json
 ```
 
 It refuses to overwrite existing configuration and creates a manual-only host
-manifest. Real adapters still require explicit allowlisting and digest locking.
+manifest. `--surface` is required at bootstrap: an ERP, admin console, or staff
+workflow is normally `operator-product-ui`; a customer-facing product is
+`consumer-product-ui`. This is a semantic contract, not a request to make one
+surface look like another. Real adapters still require explicit allowlisting
+and digest locking.
 
 For a UI artifact, the official browser setup is three explicit operations:
 
@@ -147,7 +155,6 @@ executing run.
 node bin/killsloprouter.mjs run \
   --profile .killsloprouter/profile.json \
   --host-config .killsloprouter/host-adapters.json \
-  --surface operator-product-ui \
   --task redesign \
   --direction approved \
   --changes source,copy,layout,interaction \
@@ -157,6 +164,10 @@ node bin/killsloprouter.mjs run \
   --out .killsloprouter/v1-run.json \
   --json
 ```
+
+The profile resolves `--artifact ./src` to a locked surface before route or
+creator selection. An optional `--surface` may assert the expected value; a
+mismatch blocks instead of overriding the project contract.
 
 `run` connects these gates:
 
@@ -220,6 +231,8 @@ Exit codes are stable for automation:
 
 - `0`: complete, or a valid dry-run report
 - `2`: invalid CLI or contract input
+- `3`: no eligible route, ambiguous/mixed surface, or surface mismatch
+- `4`: a tracked profile, artifact, result, or evidence boundary changed
 - `5`: blocked, rejected, tampered, or execution failure
 - `6`: exact manual input is still pending
 
@@ -255,6 +268,12 @@ Place the routing profile at `.killsloprouter/profile.json`, or pass it with
 `--profile`. The CLI searches upward for the default profile. Validate it
 against `schemas/project-profile.schema.json`.
 
+Every profile must contain a `surface_contract`. A single-surface project binds
+`.` to one surface. A repository with separate products uses more-specific
+artifact roots, and each run must stay within one resolved surface. The most
+specific binding wins; CLI input cannot override it. See
+[Surface contract](docs/surface-contract.md).
+
 Surfaces:
 
 - `operator-product-ui`
@@ -278,6 +297,8 @@ contracts instead of replacing them.
 ## Hard gates
 
 - A creator cannot review or approve its own artifact.
+- Surface identity is resolved from the project/artifact contract before creator
+  selection; ambiguous, mismatched, or mixed-surface runs block.
 - Fallbacks must meet minimum strength and cover the complete capability union.
 - Scanner findings are candidates until individually classified.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
@@ -295,12 +316,14 @@ and [Systemization protocol](docs/systemization-protocol.md).
 
 Route receipt version 1, audit run version 1, audit result version 1, triage
 version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
-receipt version 1, automation run version 1, and host adapter version 1. See
-[V1 migration notes](docs/migration-v1.md).
+receipt version 1, automation run version 1, and host adapter version 1.
+Profiles must now add the fail-closed `surface_contract`; receipt versions did
+not change. See [V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
+- [Surface contract](docs/surface-contract.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

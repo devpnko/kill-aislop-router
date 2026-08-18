@@ -3,6 +3,9 @@
 `killsloprouter run` is a resumable coordinator over the existing planner and
 audit ledger. It does not replace either receipt contract.
 
+Run `doctor` first. It validates the surface contract against the real project
+and binding directories; the plan phase then resolves the exact artifacts.
+
 ## State files
 
 `--out PATH` creates one automation state file and a sibling directory. The
@@ -30,7 +33,9 @@ that digest and the SHA-256 digest of the receipt file. See
 
 ## Phase behavior
 
-1. **Plan**: run the V1 router and stop if any route, capability, strength, or independence requirement is unresolved.
+1. **Plan**: resolve every artifact through the profile's surface contract
+   before creator selection, then stop if any route, capability, strength, or
+   independence requirement is unresolved.
 2. **Planning verification**: verify the external planning receipt and required evidence when the route enforces it.
 3. **Audit init**: snapshot the exact plan and artifacts, bind the creator identity, and calculate the owner approval scope.
 4. **Dispatch**: write one immutable packet per selected provider.
@@ -45,8 +50,10 @@ source pattern from being silently absorbed into a later aesthetic decision.
 
 ## Resume and retry
 
-`--resume STATE` verifies the automation digest, every phase receipt, and every
-tracked plan, audit, packet, and final receipt path before continuing.
+`--resume STATE` verifies the automation digest, the routed profile digest,
+every phase receipt, and every tracked plan, audit, packet, and final receipt
+path before continuing. Changing a surface contract after planning starts is a
+new route, not a resume; the old state blocks.
 
 A missing or manual adapter is retried automatically if a newly supplied host
 manifest makes it ready. A child execution error needs explicit authorization:

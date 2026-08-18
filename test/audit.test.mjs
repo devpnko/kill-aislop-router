@@ -165,11 +165,17 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
     fs.writeFileSync(artifact, "<!doctype html><main>fixture</main>\n");
     const guardedProfile = structuredClone(profile);
     guardedProfile.planning.required = true;
+    guardedProfile.planning.surface_receipts["operator-product-ui"] = path.resolve(
+      path.dirname(profilePath),
+      guardedProfile.planning.surface_receipts["operator-product-ui"]
+    );
+    const guardedProfilePath = path.join(directory, "profile.json");
+    writeJson(guardedProfilePath, guardedProfile);
     const plan = planRoute({
       router,
       profile: guardedProfile,
       routerPath,
-      profilePath,
+      profilePath: guardedProfilePath,
       input: {
         surface: "operator-product-ui",
         task: "audit",
@@ -232,11 +238,13 @@ test("planning evidence tamper after audit initialization blocks finalization", 
     });
     const guardedProfile = structuredClone(profile);
     guardedProfile.planning = { required: true, receipt: "planning.json" };
+    const guardedProfilePath = path.join(directory, "profile.json");
+    writeJson(guardedProfilePath, guardedProfile);
     const plan = planRoute({
       router,
       profile: guardedProfile,
       routerPath,
-      profilePath: path.join(directory, "profile.json"),
+      profilePath: guardedProfilePath,
       input: {
         surface: "operator-product-ui",
         task: "audit",
@@ -421,6 +429,56 @@ test("artifact or evidence changes after review invalidate the receipt", () => {
     assert.match(blocked.blockers.join("\n"), /integrity failure: evidence/);
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("surface profile changes after routing invalidate audit initialization and finalization", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-profile-tamper-"));
+  try {
+    const artifact = path.join(directory, "fixture.html");
+    const routedProfilePath = path.join(directory, "profile.json");
+    fs.writeFileSync(artifact, "<!doctype html><main>operator workflow</main>\n");
+    writeJson(routedProfilePath, profile);
+    const plan = planRoute({
+      router,
+      profile,
+      routerPath,
+      profilePath: routedProfilePath,
+      input: {
+        task: "audit",
+        direction: "none",
+        changes: ["source"],
+        risk: "standard"
+      },
+      artifacts: [artifact],
+      root: directory
+    });
+    assert.equal(plan.status, "planned");
+    assert.equal(plan.input.surface, "operator-product-ui");
+
+    fs.appendFileSync(routedProfilePath, "\n");
+    assert.throws(() => initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "runtime",
+      root: directory
+    }), /project profile changed after route planning/);
+
+    writeJson(routedProfilePath, profile);
+    const run = initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "runtime",
+      root: directory,
+      runId: "profile-tamper-run",
+      now: startedAt
+    });
+    fs.appendFileSync(routedProfilePath, "\n");
+    const receipt = finalizeAudit(run, { now: finishedAt });
+    assert.equal(receipt.status, "blocked");
+    assert.match(receipt.blockers.join("\n"), /integrity failure: route-profile/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 

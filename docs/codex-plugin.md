@@ -52,6 +52,12 @@ independent audit, and enter `systemize` only after exact G6T and G7 evidence.
 Missing creator integrations, reviews, browser evidence, or owner approval remain
 explicitly pending.
 
+Surface identity is resolved before route or creator selection. The skill may
+bind an unambiguous repository contract, but it must stop for the owner when the
+same artifact could reasonably be an operator, consumer, or editorial surface.
+An ERP or staff console is not converted into a consumer product merely because
+the requested task is a redesign.
+
 Use the namespaced invocation when an explicit skill reference is preferred:
 
 ```text
@@ -76,6 +82,7 @@ killsloprouter bootstrap \
   --root /absolute/project/path \
   --project-id stable-project-id \
   --locale ko-KR \
+  --surface operator-product-ui \
   --json
 ```
 
@@ -85,14 +92,18 @@ Bootstrap writes:
 - `.killsloprouter/host-adapters.json`
 - `.killsloprouter/bootstrap-receipt.json`
 
-The generated profile preserves all hard gates, does not claim an approved
-design system, and routes providers to explicit manual contracts. The host
-manifest contains only `manual-v1` declarations with no permissions. Therefore
-the first execution remains `manual_pending` until an operator supplies valid
-manual results or replaces declarations with digest-locked adapters.
+Bootstrap requires an explicit surface and generates a locked `.` artifact
+binding for it. The generated profile preserves all hard gates, does not claim
+an approved design system, and routes providers to explicit manual contracts.
+The host manifest contains only `manual-v1` declarations with no permissions.
+Therefore the first execution remains `manual_pending` until an operator
+supplies valid manual results or replaces declarations with digest-locked
+adapters.
 
 Bootstrap never overwrites any of these files. Existing projects must be
-inspected and migrated deliberately.
+inspected and migrated deliberately. Multi-product repositories should replace
+the single root binding with reviewed, non-overlapping product roots before the
+first run. See [Surface contract](surface-contract.md).
 
 When the artifact has a UI and the project exposes a reviewed local URL, use
 `browser attest` and `browser configure` to replace only the manual

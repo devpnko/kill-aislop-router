@@ -44,6 +44,46 @@ additive strengthening of browser evidence, not a receipt-version break.
 
 ## Required changes
 
+### Bind project surfaces before routing
+
+Every project profile now requires a fail-closed `surface_contract`. This is a
+profile security migration: route, audit, and approval receipt version numbers
+remain unchanged, but a legacy profile without this contract is rejected.
+
+For a single ERP, admin, or staff product, add:
+
+```json
+{
+  "surface_contract": {
+    "surface_contract_version": 1,
+    "primary": "operator-product-ui",
+    "allowed": ["operator-product-ui"],
+    "artifact_bindings": [
+      { "root": ".", "surface": "operator-product-ui" }
+    ]
+  }
+}
+```
+
+New bootstrap calls must also pass the explicit surface:
+
+```bash
+killsloprouter bootstrap \
+  --root . \
+  --project-id my-erp \
+  --locale ko-KR \
+  --surface operator-product-ui \
+  --json
+```
+
+For a multi-product repository, bind each product root. A `.` operator binding
+may be the fallback while a more-specific `apps/customer` binding selects
+`consumer-product-ui`. The router uses the most-specific matching root, rejects
+unbound or symlinked paths, and refuses one run containing artifacts from more
+than one surface. `--surface` is now only an optional consistency assertion; it
+cannot override the artifact contract. Start a new run after an intentional
+contract change because resume verifies the original profile digest.
+
 ### Node version
 
 V1 supports Node.js 20 and 22. Upgrade environments that still run Node 18.
@@ -80,7 +120,8 @@ the automation run is not complete until an exact owner approval is supplied.
 ## Recommended rollout
 
 1. Run the existing tests on Node 20 or 22.
-2. Run `killsloprouter run --dry-run` with the current profile and artifacts.
+2. Add and review the surface contract, then run
+   `killsloprouter run --dry-run` with the current profile and artifacts.
 3. Create manual host declarations for every selected provider.
 4. Replace one manual declaration at a time with a digest-locked adapter.
 5. Exercise scanner findings, browser evidence failure, conflict, retry, and owner approval in CI.

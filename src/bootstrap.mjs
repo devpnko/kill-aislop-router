@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { canonicalDigest, hashArtifact, writeJsonAtomic } from "./integrity.mjs";
-import { RouterError } from "./router.mjs";
+import { RouterError, VALID_SURFACES } from "./router.mjs";
 import { DEFAULT_PLAYWRIGHT_CHECKS, DEFAULT_PLAYWRIGHT_VIEWPORTS } from "./playwright.mjs";
 
 const LOCAL_PROVIDER_IDS = new Set([
@@ -37,6 +37,15 @@ function assertProjectId(value) {
 function assertLocale(value) {
   if (typeof value !== "string" || !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value)) {
     throw new RouterError("bootstrap requires an explicit BCP 47-like --locale such as ko-KR", 2);
+  }
+}
+
+function assertSurface(value) {
+  if (!VALID_SURFACES.has(value)) {
+    throw new RouterError(
+      "bootstrap requires --surface operator-product-ui, consumer-product-ui, or marketing-editorial",
+      2
+    );
   }
 }
 
@@ -77,7 +86,8 @@ function externalDeclaration(contract) {
   };
 }
 
-export function createBootstrapProfile({ router, projectId, locale }) {
+export function createBootstrapProfile({ router, projectId, locale, surface }) {
+  assertSurface(surface);
   const localAdapters = {};
   const externalAdapters = {};
   for (const [providerId, contract] of Object.entries(router.provider_capabilities || {})) {
@@ -91,6 +101,12 @@ export function createBootstrapProfile({ router, projectId, locale }) {
     profile_version: 1,
     project_id: projectId,
     default_locale: locale,
+    surface_contract: {
+      surface_contract_version: 1,
+      primary: surface,
+      allowed: [surface],
+      artifact_bindings: [{ root: ".", surface }]
+    },
     approved_design_system: false,
     local_adapters: localAdapters,
     external_adapters: externalAdapters,
@@ -135,9 +151,10 @@ function relativeToRoot(root, target) {
   return path.relative(root, target).split(path.sep).join("/");
 }
 
-export function bootstrapProject({ router, root, projectId, locale }) {
+export function bootstrapProject({ router, root, projectId, locale, surface }) {
   assertProjectId(projectId);
   assertLocale(locale);
+  assertSurface(surface);
   const projectRoot = assertProjectRoot(root);
   const paths = bootstrapPaths(projectRoot);
   if (fs.existsSync(paths.directory)) {
@@ -154,7 +171,7 @@ export function bootstrapProject({ router, root, projectId, locale }) {
     );
   }
 
-  const profile = createBootstrapProfile({ router, projectId, locale });
+  const profile = createBootstrapProfile({ router, projectId, locale, surface });
   const hostManifest = createManualHostManifest(router);
   writeJsonAtomic(paths.profile, profile);
   writeJsonAtomic(paths.hostManifest, hostManifest);
@@ -164,6 +181,7 @@ export function bootstrapProject({ router, root, projectId, locale }) {
     status: "manual_adapter_setup_required",
     project_id: projectId,
     locale,
+    surface,
     project_root: projectRoot,
     profile: {
       path: relativeToRoot(projectRoot, paths.profile),
@@ -176,6 +194,7 @@ export function bootstrapProject({ router, root, projectId, locale }) {
     },
     safety: {
       approved_design_system: false,
+      surface_contract_locked: true,
       arbitrary_profile_commands: false,
       executable_adapters_authorized: false,
       missing_execution_remains_manual_pending: true

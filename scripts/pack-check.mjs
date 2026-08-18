@@ -42,6 +42,7 @@ const required = [
   "schemas/playwright-setup-receipt.schema.json",
   "docs/adapter-authoring.md",
   "docs/codex-plugin.md",
+  "docs/surface-contract.md",
   "docs/playwright-browser.md",
   "docs/threat-model-and-permissions.md",
   "docs/migration-v1.md",

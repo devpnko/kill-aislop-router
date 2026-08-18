@@ -69,7 +69,11 @@ function stateDirectory(statePath) {
 
 function inside(candidate, parent) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return relative === "" || (
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 function validateStateArtifactSeparation(statePath, artifacts, root) {
@@ -140,6 +144,16 @@ export function readAutomationState(statePath) {
   const expected = state.state_digest;
   requireValue(canonicalDigest(stateManifest(state)) === expected,
     "automation state digest mismatch", 4);
+  if (state.request?.profile_path && state.request.profile_digest) {
+    try {
+      requireValue(fs.existsSync(state.request.profile_path), "automation profile is missing", 4);
+      requireValue(hashArtifact(state.request.profile_path) === state.request.profile_digest,
+        "automation profile changed after surface routing", 4);
+    } catch (error) {
+      if (error instanceof RouterError) throw error;
+      throw new RouterError(`cannot verify automation profile: ${error.message}`, 4);
+    }
+  }
   for (const [stepId, step] of Object.entries(state.steps || {})) verifyStepReceipt(stepId, step);
   for (const [key, snapshot] of Object.entries(state.paths || {})) {
     if (!snapshot) continue;
@@ -164,6 +178,7 @@ function newState({ statePath, routerPath, profilePath, input, artifacts, scope,
     request: {
       router_path: path.resolve(routerPath),
       profile_path: profilePath ? path.resolve(profilePath) : null,
+      profile_digest: profilePath ? profileDigest(path.resolve(profilePath)) : null,
       root: path.resolve(root),
       input,
       artifacts: artifacts.map((artifact) => path.resolve(root, artifact)),
@@ -179,6 +194,14 @@ function newState({ statePath, routerPath, profilePath, input, artifacts, scope,
     final_receipt_digest: null,
     state_digest: null
   });
+}
+
+function profileDigest(profilePath) {
+  try {
+    return hashArtifact(profilePath);
+  } catch (error) {
+    throw new RouterError(`cannot bind automation profile: ${error.message}`, 4);
+  }
 }
 
 function planPayload(plan, planPath = null) {
@@ -211,7 +234,15 @@ export function dryRunAutomation({
   hostManifest = null,
   root = process.cwd()
 }) {
-  const plan = planRoute({ router, profile, routerPath, profilePath, input });
+  const plan = planRoute({
+    router,
+    profile,
+    routerPath,
+    profilePath,
+    input,
+    artifacts,
+    root
+  });
   const report = {
     automation_dry_run_version: 1,
     status: plan.status === "planned" ? "dry_run" : "blocked",
@@ -698,10 +729,22 @@ export function startAutomation({
 
   let plan;
   try {
-    plan = planRoute({ router, profile, routerPath, profilePath, input });
+    plan = planRoute({
+      router,
+      profile,
+      routerPath,
+      profilePath,
+      input,
+      artifacts,
+      root
+    });
   } catch (error) {
     recordStep(state, "plan", "blocked", { error: error.message });
     return stop(state, "blocked", [error.message]);
+  }
+  if (state.request.profile_digest !== plan.profile_digest) {
+    recordStep(state, "plan", "blocked", { error: "profile changed while surface routing was being planned" });
+    return stop(state, "blocked", ["profile changed while surface routing was being planned"]);
   }
   const planPath = path.join(state.state_directory, "plan.json");
   writeJsonAtomic(planPath, plan);

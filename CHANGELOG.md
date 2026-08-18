@@ -7,6 +7,7 @@
 - Added a packed-CLI `plugin install` entrypoint for one-command GitHub installation.
 - Added a short default journey that resumes matching state and advances only eligible stages.
 - Added fail-closed project bootstrap with manual-only adapters and a digest-bound receipt.
+- Added required, digest-bound surface contracts that resolve artifact roots before creator selection and block ambiguous, mismatched, mixed-surface, or tampered routing.
 - Added the resumable `run` lifecycle with per-phase receipts and hashes.
 - Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.
 - Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.

@@ -15,6 +15,7 @@ import {
   RouterError,
   findProjectProfile,
   formatReceipt,
+  inspectSurfaceContract,
   planRoute,
   readJson,
   resolveDesignSystem,
@@ -99,9 +100,9 @@ Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
   killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
-  killsloprouter bootstrap --project-id ID --locale LOCALE [--root DIR] [--json]
-  killsloprouter plan --surface SURFACE --task TASK [options]
-  killsloprouter run --surface SURFACE --task TASK --artifact PATH --scope SCOPE --out FILE [options]
+  killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
+  killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
+  killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
   killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
   killsloprouter scan --adapter kill-ai-slop --adapter-root DIR --target PATH
   killsloprouter digest --target PATH [--json]
@@ -127,6 +128,7 @@ Audit scopes:
 Options:
   --project-id ID
   --locale LOCALE
+  --surface operator-product-ui|consumer-product-ui|marketing-editorial
   --root DIR
   --direction approved|missing|reference|none
   --changes source,copy,style,layout,interaction,state,data,authority
@@ -242,9 +244,21 @@ function loadContext(args) {
   };
 }
 
+function routingRoot(profilePath, requestedRoot = null) {
+  if (requestedRoot) return path.resolve(requestedRoot);
+  if (profilePath && path.basename(path.dirname(profilePath)) === ".killsloprouter") {
+    return path.dirname(path.dirname(profilePath));
+  }
+  return process.cwd();
+}
+
 function doctor(args) {
   const context = loadContext(args);
   validateProfile(context.profile);
+  const surfaceBoundary = inspectSurfaceContract({
+    profile: context.profile,
+    root: routingRoot(context.profilePath, args.root || null)
+  });
   const report = {
     status: "automation-ready",
     router_id: context.router.router_id,
@@ -252,6 +266,8 @@ function doctor(args) {
     router_path: context.routerPath,
     profile_path: context.profilePath,
     project_id: context.profile?.project_id || null,
+    surface_contract: context.profile?.surface_contract || null,
+    surface_boundary: surfaceBoundary,
     approved_design_system: context.profile?.approved_design_system ?? null,
     design_system: resolveDesignSystem(context.profile, context.profilePath),
     planning: context.profile?.planning || null,
@@ -265,6 +281,8 @@ function doctor(args) {
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
     `profile: ${report.project_id || "not found"}`,
+    `surface: ${report.surface_contract?.primary || "unbound"}`,
+    `surface bindings: ${report.surface_boundary?.artifact_bindings.length || 0}`,
     `planning bridge: ${report.planning ? "configured" : "not configured"}`,
     `design system: ${report.design_system ? `${report.design_system.id}@${report.design_system.version} (${report.design_system.status}; ${report.design_system.authority_status})` : "missing"}`,
     `local adapters: ${report.configured_local_adapters.length}`,
@@ -325,7 +343,8 @@ function bootstrapCommand(args) {
     router,
     root: args.root || process.cwd(),
     projectId: args["project-id"],
-    locale: args.locale
+    locale: args.locale,
+    surface: args.surface
   });
   if (args.json || args.format === "json") {
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
@@ -334,6 +353,7 @@ function bootstrapCommand(args) {
   process.stdout.write([
     "KillSlopRouter bootstrap",
     `status: ${receipt.status}`,
+    `surface: ${receipt.surface}`,
     `profile: ${receipt.profile.path} (${receipt.profile.digest})`,
     `host: ${receipt.host_manifest.path} (${receipt.host_manifest.execution_mode})`,
     `receipt: ${receipt.receipt_path}`,
@@ -358,6 +378,7 @@ function runCommand(args) {
   }
 
   const context = loadContext(args);
+  const projectRoot = routingRoot(context.profilePath, args.root || null);
   const request = {
     router: context.router,
     profile: context.profile,
@@ -375,7 +396,7 @@ function runCommand(args) {
     scope: args.scope,
     creatorActorId: args["creator-id"] || null,
     hostManifest,
-    root: args.root || process.cwd()
+    root: projectRoot
   };
   if (args["dry-run"]) {
     const report = dryRunAutomation(request);
@@ -553,6 +574,7 @@ export async function main(argv) {
   if (args.command !== "plan") throw new RouterError(`unknown command: ${args.command}`, 2);
 
   const context = loadContext(args);
+  const projectRoot = routingRoot(context.profilePath, args.root || null);
   const receipt = planRoute({
     router: context.router,
     profile: context.profile,
@@ -565,7 +587,9 @@ export async function main(argv) {
       changes: args.changes,
       risk: args.risk,
       scope: args.scope || null
-    }
+    },
+    artifacts: args.artifacts,
+    root: projectRoot
   });
   output(receipt, args, formatReceipt);
 }

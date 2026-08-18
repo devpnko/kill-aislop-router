@@ -1,4 +1,4 @@
 interface:
   display_name: "KillSlopRouter"
-  short_description: "Run gated anti-slop review with Playwright evidence"
-  default_prompt: "Use $kill-slop-router to continue the safest eligible KillSlopRouter stage, collect official Playwright evidence for UI work, and report exact receipts or pending evidence."
+  short_description: "Route anti-slop reviews by locked product surface"
+  default_prompt: "Use $kill-slop-router to lock this project artifact to its semantic product surface, continue the safest eligible audit stage, and report exact receipts or pending evidence."

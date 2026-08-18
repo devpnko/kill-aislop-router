@@ -23,6 +23,24 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+test("bootstrap requires an explicit project surface before writing configuration", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-bootstrap-surface-"));
+  try {
+    const result = runNode(cli, [
+      "bootstrap",
+      "--root", directory,
+      "--project-id", "missing-surface",
+      "--locale", "ko-KR",
+      "--json"
+    ], directory);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(result.stderr, /bootstrap requires --surface/);
+    assert.equal(fs.existsSync(path.join(directory, ".killsloprouter")), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("bootstrap creates a non-overwriting manual-only project boundary that dry-runs", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-bootstrap-"));
   try {
@@ -31,6 +49,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--root", directory,
       "--project-id", "sample-product",
       "--locale", "ko-KR",
+      "--surface", "operator-product-ui",
       "--json"
     ], directory);
     assert.equal(first.status, 0, first.stderr || first.stdout);
@@ -46,6 +65,13 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     const receipt = readJson(receiptPath);
     assert.equal(profile.approved_design_system, false);
     assert.equal(profile.default_locale, "ko-KR");
+    assert.equal(profile.surface_contract.primary, "operator-product-ui");
+    assert.deepEqual(profile.surface_contract.allowed, ["operator-product-ui"]);
+    assert.deepEqual(profile.surface_contract.artifact_bindings, [
+      { root: ".", surface: "operator-product-ui" }
+    ]);
+    assert.equal(receipt.surface, "operator-product-ui");
+    assert.equal(receipt.safety.surface_contract_locked, true);
     assert.ok(Object.values(profile.local_adapters).every((item) => item.executor === "manual-review"));
     assert.ok(Object.values(host.providers).every((item) => item.adapter === "manual-v1"));
     assert.deepEqual(host.granted_permissions, []);
@@ -60,6 +86,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--root", directory,
       "--project-id", "sample-product",
       "--locale", "ko-KR",
+      "--surface", "operator-product-ui",
       "--json"
     ], directory);
     assert.equal(repeated.status, 2, repeated.stderr || repeated.stdout);
@@ -73,6 +100,18 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
     assert.equal(JSON.parse(doctor.stdout).status, "automation-ready");
 
+    const invalidProfilePath = path.join(directory, "invalid-profile.json");
+    const invalidProfile = structuredClone(profile);
+    invalidProfile.surface_contract.artifact_bindings[0].root = "missing-product-root";
+    fs.writeFileSync(invalidProfilePath, `${JSON.stringify(invalidProfile, null, 2)}\n`);
+    const invalidDoctor = runNode(cli, [
+      "doctor",
+      "--profile", invalidProfilePath,
+      "--format", "json"
+    ], directory);
+    assert.equal(invalidDoctor.status, 2, invalidDoctor.stderr || invalidDoctor.stdout);
+    assert.match(invalidDoctor.stderr, /surface binding root does not exist/);
+
     const artifact = path.join(directory, "artifact.html");
     fs.writeFileSync(artifact, "<!doctype html><button>Save</button>\n");
     const dryRun = runNode(cli, [
@@ -80,7 +119,6 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--dry-run",
       "--profile", profilePath,
       "--host-config", hostPath,
-      "--surface", "operator-product-ui",
       "--task", "audit",
       "--direction", "none",
       "--changes", "source,copy,layout,interaction",
@@ -91,8 +129,58 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(dryRun.status, 0, dryRun.stderr || dryRun.stdout);
     const report = JSON.parse(dryRun.stdout);
     assert.equal(report.status, "dry_run");
+    assert.equal(report.plan.route_id, "existing-ui-audit");
     assert.ok(report.host_readiness.length > 0);
     assert.ok(report.host_readiness.every((item) => item.execution_status === "manual_pending"));
+
+    const mismatched = runNode(cli, [
+      "run",
+      "--dry-run",
+      "--profile", profilePath,
+      "--host-config", hostPath,
+      "--surface", "consumer-product-ui",
+      "--task", "audit",
+      "--direction", "none",
+      "--changes", "source",
+      "--artifact", artifact,
+      "--scope", "runtime",
+      "--json"
+    ], directory);
+    assert.equal(mismatched.status, 3, mismatched.stderr || mismatched.stdout);
+    assert.match(mismatched.stderr, /surface mismatch/);
+
+    const statePath = path.join(config, "surface-tamper-run.json");
+    const started = runNode(cli, [
+      "run",
+      "--profile", profilePath,
+      "--host-config", hostPath,
+      "--task", "audit",
+      "--direction", "none",
+      "--changes", "source",
+      "--artifact", artifact,
+      "--scope", "runtime",
+      "--out", statePath,
+      "--json"
+    ], directory);
+    assert.equal(started.status, 6, started.stderr || started.stdout);
+    assert.equal(readJson(statePath).status, "manual_pending");
+
+    const changedProfile = readJson(profilePath);
+    changedProfile.surface_contract = {
+      surface_contract_version: 1,
+      primary: "consumer-product-ui",
+      allowed: ["consumer-product-ui"],
+      artifact_bindings: [{ root: ".", surface: "consumer-product-ui" }]
+    };
+    fs.writeFileSync(profilePath, `${JSON.stringify(changedProfile, null, 2)}\n`);
+    const resumed = runNode(cli, [
+      "run",
+      "--resume", statePath,
+      "--host-config", hostPath,
+      "--json"
+    ], directory);
+    assert.equal(resumed.status, 4, resumed.stderr || resumed.stdout);
+    assert.match(resumed.stderr, /profile changed after surface routing/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -107,7 +195,8 @@ test("bootstrap rejects a symlinked configuration boundary", () => {
       "bootstrap",
       "--root", project,
       "--project-id", "symlink-test",
-      "--locale", "en-US"
+      "--locale", "en-US",
+      "--surface", "operator-product-ui"
     ], project);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.match(result.stderr, /must be a real directory/);

@@ -36,6 +36,14 @@ target metadata, versions, strengths, and capabilities. KillSlopRouter never
 executes a profile field. Execution-like fields such as `command`, `args`,
 `shell`, `entrypoint`, and `executable` are rejected.
 
+The profile also owns the product-surface contract. Artifact bindings are
+resolved from a real project root before route and creator selection. The
+optional CLI surface is an assertion, not an override. The plan snapshots the
+profile digest; audit initialization, finalization, and automation resume reject
+a later profile replacement. Library callers that provide both a parsed profile
+and `profilePath` must provide the same canonical JSON; object/file substitution
+is rejected before routing.
+
 ### Host adapter manifest
 
 The host manifest is executable authority. Passing it with `--host-config`
@@ -105,6 +113,8 @@ Browser execution cannot be disguised as a generic agent adapter.
 
 | Threat | Control |
 |---|---|
+| Operator/ERP artifact routed as a consumer product | Required artifact-root surface contract resolves before creator selection; ambiguity, CLI mismatch, and mixed-surface runs block |
+| Surface contract changed after planning | Plan records the profile digest; audit and resume re-hash the same profile source |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
 | Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
