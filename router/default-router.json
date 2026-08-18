@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "router_id": "kill-slop-router",
-  "router_version": "0.4.0",
+  "router_version": "1.0.0",
   "invariants": {
     "one_creator_per_artifact": true,
     "creator_cannot_self_approve": true,
@@ -11,7 +11,10 @@
     "browser_evidence_required_for_visual_approval": true,
     "project_contract_overrides_style_advice": true,
     "planning_authority_stays_external": true,
-    "design_system_release_requires_exact_owner_approval": true
+    "design_system_release_requires_exact_owner_approval": true,
+    "profile_commands_are_never_executed": true,
+    "routable_is_not_execution_evidence": true,
+    "locale_domain_privacy_browser_and_owner_gates_remain_hard": true
   },
   "provider_capabilities": {
     "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},

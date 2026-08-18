@@ -112,6 +112,7 @@ function makePackets(plan, artifacts) {
           resolved_to: actor.resolved_to || null
         },
         assigned_capabilities: assignedCapabilities,
+        minimum_strength: stage.minimum_strength || 1,
         reviewer_independence_required: Boolean(stage.requires_independent_critic),
         evidence_required: Boolean(stage.evidence_required),
         required_evidence_kinds: stage.required_evidence_kinds || [],
@@ -728,6 +729,17 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
     ...integrityFailures.map((failure) => `integrity failure: ${failure.label} (${failure.reason})`),
     ...stages.flatMap((stage) => stage.blocked_packet_ids.map((packet) => `blocking verdict: ${packet}`))
   ];
+  if (run.planning_gate) {
+    try {
+      verifyPlanningGateForAudit({
+        project_id: run.route.project_id,
+        input: run.route.input,
+        planning_gate: run.planning_gate
+      }, run.scope.kind);
+    } catch (error) {
+      blockers.push(`planning gate verification failed: ${error.message}`);
+    }
+  }
   const triage = applyTriage(run);
   const hardBlockers = new Set(run.hard_blockers);
   const findings = [];

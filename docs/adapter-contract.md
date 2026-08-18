@@ -1,8 +1,13 @@
 # Adapter Contract
 
 An adapter connects one external skill, scanner, browser harness, or local review
-gate to KillSlopRouter. The router may plan an unavailable adapter, but execution
-must report it as blocked.
+gate to KillSlopRouter. An unavailable routing provider blocks planning unless a
+capability-complete fallback exists. A planned provider without executable host
+authority remains `manual_pending`.
+
+V1 separates the routing declaration in the project profile from executable
+authority in a host adapter manifest. See `adapter-authoring.md` for the JSON
+child protocol and `threat-model-and-permissions.md` for its permission limits.
 
 Planning and execution are distinct. Profile status `routable` means a host can
 dispatch the provider through the named executor; it is never evidence that the
@@ -107,3 +112,7 @@ record the reason when dismissing or accepting it.
 - Bind every result and evidence file to the dispatch packet's artifact digests.
 - Redact PII and secrets before sending artifacts to external services.
 - Never claim an adapter ran when only its instructions were read.
+- Never execute `command`, `args`, `shell`, or entrypoint fields from a project profile.
+- Require an explicit host allowlist and an exact entrypoint digest before starting a child.
+- Keep returned evidence inside the per-attempt output directory.
+- Use `manual_pending` when a planned provider has no compatible host adapter.

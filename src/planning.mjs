@@ -277,6 +277,10 @@ export function verifyPlanningGateForAudit(plan, scope) {
     throw new Error(`planning gate verification failed: ${evaluated.errors.join("; ")}`);
   }
   return {
+    enabled: true,
+    policy_required: planning.policy_required === true,
+    enforced: true,
+    status: "ready",
     receipt_path: planning.receipt_path,
     receipt_digest: planning.receipt_digest,
     protocol: planning.protocol,

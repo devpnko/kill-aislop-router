@@ -1,7 +1,7 @@
 {
   "name": "killsloprouter",
-  "version": "0.4.0",
-  "description": "Project-aware routing for anti-AI-slop creators, critics, and proof gates",
+  "version": "1.0.0",
+  "description": "Fail-closed routing and resumable evidence automation for anti-AI-slop review",
   "type": "module",
   "license": "MIT",
   "bin": {
@@ -11,6 +11,8 @@
   "exports": {
     ".": "./src/router.mjs",
     "./audit": "./src/audit.mjs",
+    "./automation": "./src/automation.mjs",
+    "./execution": "./src/execution.mjs",
     "./integrity": "./src/integrity.mjs",
     "./planning": "./src/planning.mjs"
   },
@@ -26,15 +28,17 @@
     "LICENSE",
     "README.md",
     "SECURITY.md",
-    "THIRD_PARTY.md"
+    "THIRD_PARTY.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "npm test && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
-    "pack:check": "npm pack --dry-run"
+    "test:e2e": "node --test test/e2e.test.mjs",
+    "check": "npm test && node scripts/static-check.mjs && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
+    "pack:check": "node scripts/pack-check.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "keywords": [
     "ai-slop",

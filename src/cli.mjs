@@ -16,13 +16,22 @@ import {
   formatReceipt,
   planRoute,
   readJson,
-  resolveDesignSystem
+  resolveDesignSystem,
+  validateProfile
 } from "./router.mjs";
 import { runKillAiSlop } from "./adapters/kill-ai-slop.mjs";
+import {
+  automationExitCode,
+  dryRunAutomation,
+  resumeAutomation,
+  startAutomation
+} from "./automation.mjs";
+import { loadHostManifest } from "./execution.mjs";
+import { hashArtifact } from "./integrity.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
-const BOOLEAN_OPTIONS = new Set(["replace", "require-owner"]);
+const BOOLEAN_OPTIONS = new Set(["replace", "require-owner", "dry-run", "json"]);
 
 function parseArgs(argv) {
   const args = {
@@ -30,6 +39,7 @@ function parseArgs(argv) {
     subcommand: null,
     changes: [],
     artifacts: [],
+    results: [],
     risk: "standard",
     format: "text"
   };
@@ -61,6 +71,9 @@ function parseArgs(argv) {
       args.changes = value.split(",").map((item) => item.trim()).filter(Boolean);
     } else if (key === "artifact") {
       args.artifacts.push(value);
+    } else if (key === "result") {
+      args.results.push(value);
+      args.result = value;
     } else {
       args[key] = value;
     }
@@ -73,7 +86,10 @@ function help() {
 
 Usage:
   killsloprouter plan --surface SURFACE --task TASK [options]
+  killsloprouter run --surface SURFACE --task TASK --artifact PATH --scope SCOPE --out FILE [options]
+  killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
   killsloprouter scan --adapter kill-ai-slop --adapter-root DIR --target PATH
+  killsloprouter digest --target PATH [--json]
   killsloprouter doctor [--profile FILE] [--format text|json]
   killsloprouter audit init --plan FILE --artifact PATH --scope SCOPE --out FILE [options]
   killsloprouter audit dispatch --run FILE --out-dir DIR
@@ -101,6 +117,15 @@ Options:
   --profile /path/to/profile.json
   --router /path/to/router.json
   --creator-id ID
+  --host-config FILE
+  --dry-run
+  --resume FILE
+  --retry all|PACKET|PROVIDER|STAGE
+  --result FILE (repeatable manual audit result)
+  --triage FILE
+  --approval FILE
+  --json
+  --out FILE
   --packets-dir DIR
   --format text|json
 `;
@@ -119,8 +144,9 @@ function loadContext(args) {
 
 function doctor(args) {
   const context = loadContext(args);
+  validateProfile(context.profile);
   const report = {
-    status: "core-ready",
+    status: "automation-ready",
     router_id: context.router.router_id,
     router_version: context.router.router_version,
     router_path: context.routerPath,
@@ -133,7 +159,7 @@ function doctor(args) {
     declared_external_adapters: context.profile?.external_adapters || {},
     fallback_adapters: context.profile?.fallback_adapters || {},
     capability_contracts: Object.keys(context.router.stage_capability_contracts || {}),
-    execution_boundary: "structured-dispatch-and-evidence-ingestion-no-arbitrary-profile-commands"
+    execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands"
   };
   return args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
@@ -169,6 +195,84 @@ function defaultPacketsDir(runPath) {
   const extension = path.extname(absolute);
   const stem = extension ? absolute.slice(0, -extension.length) : absolute;
   return `${stem}.packets`;
+}
+
+function formatAutomationState(state) {
+  const lines = [
+    `KillSlopRouter automation ${state.run_id || "dry-run"}`,
+    `status: ${state.status}`
+  ];
+  if (state.final_audit_status) lines.push(`audit: ${state.final_audit_status}`);
+  if (state.final_receipt_digest) lines.push(`receipt: ${state.final_receipt_digest}`);
+  for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+  for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
+  if (state.state_path) lines.push(`state: ${state.state_path}`);
+  if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function automationOutput(value, args) {
+  if (args.json || args.format === "json") {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  } else {
+    process.stdout.write(formatAutomationState(value));
+  }
+}
+
+function runCommand(args) {
+  const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
+  if (args.resume) {
+    if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    const state = resumeAutomation(args.resume, {
+      hostManifest,
+      resultPaths: args.results,
+      triagePath: args.triage || null,
+      approvalPath: args.approval || null,
+      retry: args.retry || null
+    });
+    automationOutput(state, args);
+    process.exitCode = automationExitCode(state);
+    return;
+  }
+
+  const context = loadContext(args);
+  const request = {
+    router: context.router,
+    profile: context.profile,
+    routerPath: context.routerPath,
+    profilePath: context.profilePath,
+    input: {
+      surface: args.surface,
+      task: args.task,
+      direction: args.direction,
+      changes: args.changes,
+      risk: args.risk,
+      scope: args.scope || null
+    },
+    artifacts: args.artifacts,
+    scope: args.scope,
+    creatorActorId: args["creator-id"] || null,
+    hostManifest,
+    root: args.root || process.cwd()
+  };
+  if (args["dry-run"]) {
+    const report = dryRunAutomation(request);
+    if (args.out) writeJsonAtomic(args.out, report);
+    automationOutput(report, args);
+    process.exitCode = report.status === "blocked" ? 5 : 0;
+    return;
+  }
+  if (!args.out) throw new RouterError("run requires --out for its resumable automation state", 2);
+  const state = startAutomation({
+    ...request,
+    statePath: args.out,
+    resultPaths: args.results,
+    triagePath: args.triage || null,
+    approvalPath: args.approval || null,
+    retry: args.retry || null
+  });
+  automationOutput(state, args);
+  process.exitCode = automationExitCode(state);
 }
 
 function auditCommand(args) {
@@ -262,6 +366,7 @@ function auditCommand(args) {
 
 export async function main(argv) {
   const args = parseArgs(argv);
+  if (args.json) args.format = "json";
   if (args.help) {
     process.stdout.write(help());
     return;
@@ -270,8 +375,21 @@ export async function main(argv) {
     auditCommand(args);
     return;
   }
+  if (args.command === "run") {
+    runCommand(args);
+    return;
+  }
   if (args.command === "doctor") {
     process.stdout.write(doctor(args));
+    return;
+  }
+  if (args.command === "digest") {
+    if (!args.target) throw new RouterError("digest requires --target", 2);
+    const target = path.resolve(args.target);
+    const receipt = { target, digest: hashArtifact(target) };
+    if (args.out) writeJsonAtomic(args.out, receipt);
+    if (args.format === "json") process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+    else process.stdout.write(`${receipt.digest}  ${receipt.target}\n`);
     return;
   }
   if (args.command === "scan") {

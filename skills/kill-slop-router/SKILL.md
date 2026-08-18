@@ -38,6 +38,11 @@ Use the `killsloprouter` CLI as the deterministic route authority.
 9. Record scanner dispositions with `audit triage` and resolve critic conflicts in the adjudication result.
 10. Run `audit finalize`; report its exact status, hashes, blockers, and approval owner.
 
+For a configured V1 host, `killsloprouter run` performs steps 3 through 10 as a
+resumable fail-closed state machine. Pass the executable authority separately
+with `--host-config`; never place commands in the project profile. A missing or
+partial host adapter must remain `manual_pending`.
+
 For a design-system extraction, route `--task systemize`. Preserve the approved
 artifact's semantics, distinguish shared primitives from surface-specific
 patterns, and produce tokens, component contracts, states, responsive profiles,

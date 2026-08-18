@@ -1,0 +1,100 @@
+# Threat Model and Permissions
+
+KillSlopRouter protects the transition from a route proposal to an evidence-backed
+approval. It is designed to fail closed when execution authority, reviewer
+independence, required proof, or artifact integrity is missing.
+
+## Protected assets
+
+- project source and private artifacts;
+- route, planning, audit, triage, and approval receipts;
+- reviewer and owner provenance;
+- screenshots, browser traces, and test reports;
+- the distinction between dispatchable work and completed work.
+
+## Trust boundaries
+
+### Project profile
+
+The profile is routing data. It may declare availability, an executor label,
+target metadata, versions, strengths, and capabilities. KillSlopRouter never
+executes a profile field. Execution-like fields such as `command`, `args`,
+`shell`, `entrypoint`, and `executable` are rejected.
+
+### Host adapter manifest
+
+The host manifest is executable authority. Passing it with `--host-config`
+means the operator trusts the allowlisted provider IDs and the exact
+digest-locked entrypoints. The manifest cannot lower the route's capability or
+strength requirements.
+
+### Adapter child
+
+The child is trusted code running with the operating-system privileges of the
+KillSlopRouter process. The host fixes the Node executable, disables shell
+interpretation, removes profile arguments, reduces the environment, enforces a
+timeout, and confines accepted evidence paths. It does not provide an OS or
+network sandbox. Run third-party adapters in a container, VM, or restricted CI
+worker when the entrypoint itself is not fully trusted.
+
+### Reviewer and owner identity
+
+Actor IDs are asserted provenance, not authenticated human identities. Owner
+approval is bound to an exact scope digest and cannot come from the creator,
+but V1 does not cryptographically sign identities. Use signed CI attestations
+or an identity service when impersonation is in scope.
+
+## Permission scopes
+
+| Scope | Meaning | Notes |
+|---|---|---|
+| `artifact:read` | Adapter may receive local artifact paths and review them | Required by executable adapters |
+| `evidence:write` | Adapter may create files in its assigned evidence directory | Accepted evidence cannot escape that directory |
+| `browser:control` | Adapter may drive a browser harness | Required only by `browser-json-v1` |
+| `network:external` | Operator acknowledges that the adapter may send data outside the machine | Declaration only; enforce isolation outside this process |
+
+Provider permissions must be a subset of the manifest's granted permissions.
+Browser execution cannot be disguised as a generic agent adapter.
+
+## Fail-closed controls
+
+| Threat | Control |
+|---|---|
+| Profile command injection | Execution fields are rejected; the executor never reads a profile command |
+| Unapproved provider execution | Provider ID must be in the explicit host allowlist |
+| Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
+| Shell injection | Fixed Node executable, fixed single entrypoint argument, `shell:false` |
+| Capability downgrade | Runtime declaration must cover the packet assignment and minimum strength |
+| Creator self-review | Provider and actor identity checks during audit ingestion |
+| `routable` reported as `ran` | Only an ingested result gets execution status `ran`; otherwise `manual_pending` or blocked |
+| Scanner false verdict | Findings remain candidates until explicit triage |
+| Reviewer averaging | Conflicting finding references require an adjudication resolution |
+| Fake browser proof | Viewport screenshots and non-screenshot check coverage are validated separately |
+| Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
+| Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
+| Approval reuse | Approval must match the run ID and exact approval-scope digest |
+| Privacy or authority bypass | Required locale, domain, privacy, browser, and owner packets remain required |
+
+## Integrity limitations
+
+SHA-256 snapshots detect a changed file relative to the ledger. They are not
+digital signatures. A writer who can replace the artifact, all evidence, every
+receipt, and the ledger can construct a new internally consistent run. Store CI
+evidence immutably and sign final receipts when that attacker is in scope.
+
+Directory artifacts ignore `.git`, `node_modules`, and `.killsloprouter` by
+default. Symlink artifacts and adapter entrypoints are rejected so changing a
+link target cannot silently change the reviewed bytes.
+
+## Privacy guidance
+
+Before granting `artifact:read` or `network:external`:
+
+- remove credentials, secrets, payment data, personal data, and unrelated private source;
+- verify the adapter version, license, data retention, and destination;
+- use a privacy-authority stage for high-risk routes;
+- keep external network access off unless the review genuinely requires it;
+- do not place credentials in the profile, host manifest, adapter settings, or result JSON.
+
+Repository writes, pull-request mutation, publishing, deployment, production
+access, and credential use are outside the V1 host adapter permission model.

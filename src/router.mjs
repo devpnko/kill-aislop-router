@@ -22,6 +22,14 @@ export const VALID_TASKS = new Set([
 export const VALID_DIRECTIONS = new Set(["approved", "missing", "reference", "none"]);
 export const VALID_RISKS = new Set(["standard", "high"]);
 export const VALID_SCOPES = new Set(["mockup", "runtime", "source", "document"]);
+const FORBIDDEN_PROFILE_EXECUTION_FIELDS = new Set([
+  "command",
+  "cmd",
+  "args",
+  "shell",
+  "entrypoint",
+  "executable"
+]);
 
 export class RouterError extends Error {
   constructor(message, exitCode = 1) {
@@ -108,6 +116,23 @@ export function validateProfile(profile) {
   if (!profile.local_adapters || typeof profile.local_adapters !== "object") {
     throw new RouterError("profile local_adapters is required", 2);
   }
+  const assertRoutingDeclarationOnly = (declaration, label) => {
+    if (!declaration || typeof declaration !== "object" || Array.isArray(declaration)) return;
+    for (const field of Object.keys(declaration)) {
+      if (FORBIDDEN_PROFILE_EXECUTION_FIELDS.has(field)) {
+        throw new RouterError(
+          `${label}.${field} is forbidden; executable configuration belongs in an explicit host adapter manifest`,
+          2
+        );
+      }
+    }
+  };
+  for (const [providerId, declaration] of Object.entries(profile.local_adapters || {})) {
+    assertRoutingDeclarationOnly(declaration, `local_adapters.${providerId}`);
+  }
+  for (const [providerId, declaration] of Object.entries(profile.external_adapters || {})) {
+    assertRoutingDeclarationOnly(declaration, `external_adapters.${providerId}`);
+  }
   if (profile.fallback_adapters && typeof profile.fallback_adapters !== "object") {
     throw new RouterError("profile fallback_adapters must be an object", 2);
   }
@@ -126,6 +151,7 @@ export function validateProfile(profile) {
       throw new RouterError(`fallback_adapters.${missingActor} must be an array`, 2);
     }
     for (const fallback of fallbacks) {
+      assertRoutingDeclarationOnly(fallback, `fallback_adapters.${missingActor}.${fallback.id || "unknown"}`);
       if (!fallback.id || !fallback.status || !Number.isInteger(fallback.strength)) {
         throw new RouterError(`fallback_adapters.${missingActor} has an invalid provider`, 2);
       }

@@ -13,6 +13,7 @@ import {
   recordTriage
 } from "../src/audit.mjs";
 import { planRoute, readJson } from "../src/router.mjs";
+import { hashArtifact } from "../src/integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const routerPath = path.join(root, "router", "default-router.json");
@@ -201,6 +202,63 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
       }),
       /planning receipt changed/
     );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("planning evidence tamper after audit initialization blocks finalization", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-planning-tamper-"));
+  try {
+    const mockup = path.join(directory, "mockup.html");
+    const artifact = path.join(directory, "artifact.html");
+    const planningPath = path.join(directory, "planning.json");
+    fs.writeFileSync(mockup, "<!doctype html><main>approved mockup</main>\n");
+    fs.writeFileSync(artifact, "<!doctype html><main>review artifact</main>\n");
+    writeJson(planningPath, {
+      planning_gate_version: 1,
+      protocol: { id: "fixture-planning", version: "1", authority: "fixture-owner" },
+      project_id: profile.project_id,
+      surface: "operator-product-ui",
+      scope_id: "fixture-scope",
+      phase: "phase_2",
+      gates: {
+        G6: {
+          status: "passed",
+          evidence: [{ kind: "mockup", path: "mockup.html", digest: hashArtifact(mockup) }]
+        }
+      },
+      updated_at: startedAt
+    });
+    const guardedProfile = structuredClone(profile);
+    guardedProfile.planning = { required: true, receipt: "planning.json" };
+    const plan = planRoute({
+      router,
+      profile: guardedProfile,
+      routerPath,
+      profilePath: path.join(directory, "profile.json"),
+      input: {
+        surface: "operator-product-ui",
+        task: "audit",
+        direction: "none",
+        changes: ["source"],
+        risk: "standard",
+        scope: "mockup"
+      }
+    });
+    assert.equal(plan.status, "planned");
+    const run = initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "mockup",
+      root: directory,
+      runId: "planning-tamper-run",
+      now: startedAt
+    });
+    fs.appendFileSync(mockup, "<!-- changed after audit init -->\n");
+    const receipt = finalizeAudit(run, { now: finishedAt });
+    assert.equal(receipt.status, "blocked");
+    assert.match(receipt.blockers.join("\n"), /planning gate verification failed.*evidence digest changed/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

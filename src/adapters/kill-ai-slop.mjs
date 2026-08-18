@@ -16,15 +16,33 @@ function prepareScanTarget(target) {
   };
 }
 
-export function runKillAiSlop({ adapterRoot, target, version = null }) {
+export function findKillAiSlopScanner(adapterRoot) {
   const absoluteRoot = path.resolve(adapterRoot);
-  const absoluteTarget = path.resolve(target);
-  const scanner = [
+  return [
     path.join(absoluteRoot, "skill", "scripts", "scan.mjs"),
     path.join(absoluteRoot, "scripts", "scan.mjs")
   ].find((candidate) => fs.existsSync(candidate));
+}
+
+export function runKillAiSlop({
+  adapterRoot,
+  target,
+  version = null,
+  scannerPath = null,
+  environment = null
+}) {
+  const absoluteRoot = path.resolve(adapterRoot);
+  const absoluteTarget = path.resolve(target);
+  const scanner = scannerPath ? path.resolve(scannerPath) : findKillAiSlopScanner(absoluteRoot);
   if (!scanner) {
     throw new RouterError(`kill-ai-slop scanner not found under: ${absoluteRoot}`, 4);
+  }
+  if (!fs.existsSync(scanner)) {
+    throw new RouterError(`kill-ai-slop scanner is not a file: ${scanner}`, 4);
+  }
+  const scannerStat = fs.lstatSync(scanner);
+  if (!scannerStat.isFile() || scannerStat.isSymbolicLink()) {
+    throw new RouterError(`kill-ai-slop scanner must be a regular non-symlink file: ${scanner}`, 4);
   }
   if (!fs.existsSync(absoluteTarget)) {
     throw new RouterError(`scan target not found: ${absoluteTarget}`, 4);
@@ -37,6 +55,8 @@ export function runKillAiSlop({ adapterRoot, target, version = null }) {
   try {
     result = spawnSync(process.execPath, [scanner, prepared.scanTarget, "--json"], {
       encoding: "utf8",
+      env: environment || process.env,
+      shell: false,
       maxBuffer: 32 * 1024 * 1024
     });
   } finally {
@@ -68,6 +88,9 @@ export function runKillAiSlop({ adapterRoot, target, version = null }) {
     throw new RouterError(`kill-ai-slop emitted invalid JSON: ${error.message}`, 4);
   }
 
+  if (!Array.isArray(raw.findings)) {
+    throw new RouterError("kill-ai-slop JSON requires a findings array", 4);
+  }
   const findings = raw.findings.flatMap((group) =>
     group.hits.map((hit, index) => ({
       id: `${group.id}-${index + 1}`,

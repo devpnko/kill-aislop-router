@@ -1,0 +1,30 @@
+{
+  "host_adapter_version": 1,
+  "allowed_providers": [
+    "project-contract",
+    "kill-ai-slop",
+    "anti-slop",
+    "independent-rendered-craft-agent",
+    "independent-copy-agent",
+    "locale-copy-review",
+    "browser-evidence",
+    "domain-authority-review",
+    "privacy-authority-review",
+    "design-system-contract-review",
+    "peakoss-anti-slop"
+  ],
+  "granted_permissions": [],
+  "providers": {
+    "project-contract": {"adapter": "manual-v1", "strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"], "permissions": []},
+    "kill-ai-slop": {"adapter": "manual-v1", "strength": 2, "capabilities": ["source-pattern-detection"], "permissions": []},
+    "anti-slop": {"adapter": "manual-v1", "strength": 3, "capabilities": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"], "permissions": []},
+    "independent-rendered-craft-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"], "permissions": []},
+    "independent-copy-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["copy-specificity", "copy-honesty", "copy-concision"], "permissions": []},
+    "locale-copy-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["locale-domain-copy"], "permissions": []},
+    "browser-evidence": {"adapter": "manual-v1", "strength": 3, "capabilities": ["responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence", "contrast-evidence", "zoom-evidence"], "permissions": []},
+    "domain-authority-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["domain-authority"], "permissions": []},
+    "privacy-authority-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["privacy-authority"], "permissions": []},
+    "design-system-contract-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["token-contract", "component-boundaries", "variant-state-contract", "responsive-density-contract", "surface-profile-contract", "migration-map", "drift-control"], "permissions": []},
+    "peakoss-anti-slop": {"adapter": "manual-v1", "strength": 3, "capabilities": ["pr-contribution-hygiene"], "permissions": []}
+  }
+}

@@ -139,6 +139,15 @@ assert.equal(
 );
 assert.match(noFallback.unresolved.join("\n"), /functional-human-review blocked/);
 
+const commandProfile = structuredClone(profile);
+commandProfile.external_adapters["anti-slop"].command = "touch /tmp/must-not-run";
+assert.throws(() => plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["layout"]
+}, commandProfile), /command is forbidden/);
+
 const changedDesignAuthorityProfile = structuredClone(profile);
 changedDesignAuthorityProfile.design_system.authority_digest = `sha256:${"0".repeat(64)}`;
 const changedDesignAuthority = plan({

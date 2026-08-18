@@ -21,6 +21,10 @@ triage, and owner approval. A route plan is not execution evidence.
 9. The owner approves or rejects the exact `approval_scope_digest`; approval is
    never inferred from critic success.
 
+The integrated `run` command persists this lifecycle as nine separately hashed
+phase receipts. It executes non-adjudication critics first, stops for scanner
+triage, then executes adjudication and finalization. See `automation-run.md`.
+
 ## Result Contract
 
 Each dispatch packet includes a valid result template. The provider must keep

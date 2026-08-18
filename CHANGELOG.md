@@ -1,0 +1,15 @@
+# Changelog
+
+## 1.0.0 - 2026-08-18
+
+- Added the resumable `run` lifecycle with per-phase receipts and hashes.
+- Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.
+- Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.
+- Preserved route and audit receipt version 1 compatibility.
+- Added child-process E2E coverage for success and required fail-closed gates.
+- Added adapter authoring, permission, threat-model, migration, and release documentation.
+- Raised the supported Node.js floor to 20 and verified Node 20/22 CI.
+
+## 0.4.0 - 2026-08-17
+
+- Added capability-complete fallback routing, audit evidence integrity, planning receipt verification, and owner-scoped approval.
