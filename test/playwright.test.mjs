@@ -509,6 +509,36 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
     assert.ok(report.executions.every((entry) => entry.assertions.every((assertion) => assertion.status === "passed")));
     run = recordAuditResult(run, second.result, path.join(secondOutput, "browser-report.json"), { replace: true });
     assert.equal(run.results[0].normalized.verdict, "pass_with_findings");
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
+        id: "details-open",
+        path: "/changed",
+        actions: [{ type: "click", locator: "#toggle" }],
+        assertions: [
+          { type: "visible", locator: "#details" },
+          { type: "text", locator: "#details", value: "Verified state" }
+        ]
+      }]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    manifest = loadHostManifest(paths.host);
+    const changedOutput = path.join(directory, "evidence-material-change");
+    const changed = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: changedOutput });
+    assert.equal(changed.execution_status, "ran", changed.error);
+    assert.equal(changed.result.verdict, "block");
+    assert.ok(changed.result.findings.some((item) => item.category === "visual-regression"));
+    assert.ok(changed.result.evidence.some((item) => item.kind === "visual-diff"));
+    const changedReport = readJson(path.join(changedOutput, "browser-report.json"));
+    assert.ok(changedReport.executions.some((entry) => entry.visual_regression.status === "changed"));
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });

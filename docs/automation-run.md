@@ -71,10 +71,12 @@ results. Naming an already successful provider or stage explicitly replaces
 that result and invalidates its prior scanner triage decisions.
 
 The official Playwright adapter uses the same mechanism for baseline approval.
-An absent or changed pixel baseline returns an ingested `block` result. Review
-the candidate screenshots, place only approved files in the configured
-baseline directory, and rerun `browser configure` so the host manifest binds
-the new directory digest. Then replace the blocked result:
+An absent baseline or any pixel difference remaining after Playwright's
+antialias-aware comparison returns an ingested `block` result and, for a
+changed image, a diff PNG. Review the candidate screenshots, place only
+approved files in the configured baseline directory, and rerun
+`browser configure` so the host manifest binds the new directory digest. Then
+replace the blocked result:
 
 ```bash
 killsloprouter run \

@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0+codex.20260818124415",
+  "version": "1.0.0+codex.20260818125553",
   "description": "Fail-closed anti-slop routing, Playwright evidence, reviewer execution, and digest-bound approval automation.",
   "author": {
     "name": "devpnko",

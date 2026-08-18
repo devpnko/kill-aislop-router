@@ -11,6 +11,11 @@ const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
 const ASSERTION_KEYS = new Set(["type", "locator", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const VISUAL_COMPARISON = Object.freeze({
+  comparator: "pixelmatch",
+  threshold: 0.2,
+  maxDiffPixels: 0
+});
 
 function requireValue(condition, message) {
   if (!condition) throw new Error(message);
@@ -115,8 +120,11 @@ function findingFactory() {
 function loadRuntime(runtimeRoot) {
   const runtimeRequire = createRequire(path.join(runtimeRoot, "package.json"));
   const playwright = runtimeRequire("playwright-core");
+  const coreBundle = runtimeRequire("playwright-core/lib/coreBundle");
   const axeSource = fs.readFileSync(runtimeRequire.resolve("axe-core/axe.min.js"), "utf8");
-  return { playwright, axeSource };
+  const comparePng = coreBundle.utils?.getComparator?.("image/png");
+  requireValue(typeof comparePng === "function", "Playwright runtime does not expose its PNG comparator");
+  return { playwright, axeSource, comparePng };
 }
 
 async function performAction(page, action, timeout) {
@@ -265,6 +273,21 @@ async function runAxe(page, axeSource) {
   }));
 }
 
+async function stabilizeVisualCapture(page) {
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) await document.fonts.ready;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+
+  // The first rasterization warms Chromium's font and paint caches. Discarding it
+  // keeps exact-byte baselines deterministic across fresh browser processes.
+  await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide", scale: "css" });
+  await page.evaluate(() => new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))));
+}
+
 function browserLaunchOptions(channel) {
   const options = { headless: true };
   if (channel !== "bundled") options.channel = channel;
@@ -338,7 +361,7 @@ async function run(request) {
   requireValue(sameDigestMap(attestation.artifact_digests, packet.artifact_digests),
     "served artifact attestation does not match the audit packet digests");
 
-  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource, comparePng } = loadRuntime(settings.runtime_root);
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const { findings, add } = findingFactory();
@@ -354,6 +377,12 @@ async function run(request) {
     allowed_origins: settings.allowed_origins,
     required_viewports: requiredViewports,
     required_checks: requiredChecks,
+    visual_comparison: {
+      comparator: "playwright-pixelmatch",
+      threshold: VISUAL_COMPARISON.threshold,
+      max_diff_pixels: VISUAL_COMPARISON.maxDiffPixels,
+      antialiasing: "ignored"
+    },
     screen_reader_scope: "automated-aria-and-axe-semantic-proxy-not-real-assistive-technology",
     artifact_attestation: {
       url: attestationUrl.toString(),
@@ -554,7 +583,14 @@ async function run(request) {
             });
 
             const screenshotPath = path.join(outputDirectory, screenshotName);
-            await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
+            await stabilizeVisualCapture(page);
+            await page.screenshot({
+              path: screenshotPath,
+              fullPage: true,
+              animations: "disabled",
+              caret: "hide",
+              scale: "css"
+            });
             evidence.push({
               path: screenshotName,
               kind: "screenshot",
@@ -572,13 +608,35 @@ async function run(request) {
                 suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
               });
             } else {
-              const matches = fs.readFileSync(baselinePath).equals(fs.readFileSync(screenshotPath));
-              execution.visual_regression = { status: matches ? "matched" : "changed", baseline: baselinePath };
+              const baseline = fs.readFileSync(baselinePath);
+              const actual = fs.readFileSync(screenshotPath);
+              const exact = baseline.equals(actual);
+              const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
+              const matches = comparison === null;
+              execution.visual_regression = {
+                status: matches ? "matched" : "changed",
+                baseline: baselinePath,
+                comparison: exact ? "exact-bytes" : "playwright-pixelmatch",
+                threshold: VISUAL_COMPARISON.threshold,
+                max_diff_pixels: VISUAL_COMPARISON.maxDiffPixels,
+                difference: comparison?.errorMessage || null
+              };
               if (!matches) {
+                const diffName = `${executionId}.diff.png`;
+                if (comparison.diff) {
+                  fs.writeFileSync(path.join(outputDirectory, diffName), comparison.diff);
+                  evidence.push({
+                    path: diffName,
+                    kind: "visual-diff",
+                    covers: packet.assigned_capabilities,
+                    viewports: [viewportName],
+                    checks: ["visual-regression"]
+                  });
+                }
                 add({
                   category: "visual-regression",
                   claim: `Rendered pixels changed from the approved baseline for ${executionId}`,
-                  evidence: `${screenshotName} differs from ${baselinePath}`,
+                  evidence: `${screenshotName} differs from ${baselinePath}: ${comparison.errorMessage}`,
                   suggestedFix: "Review the visual change and approve a new digest-bound baseline only when intentional."
                 });
               }

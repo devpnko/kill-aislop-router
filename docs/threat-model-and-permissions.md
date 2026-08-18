@@ -68,11 +68,20 @@ set, redirects are subject to the same restriction, and service workers are
 disabled for the evidence context.
 
 Before browser launch, the server must return the exact audit packet artifact
-digest map from `/.well-known/killsloprouter-artifact.json`. This prevents a
-passing browser report from being attached to a different build or server. The
-adapter entrypoint, complete npm runtime package directories, scenario file,
-and visual baseline directory are independently digest-locked. A mismatch
-blocks before evidence ingestion.
+digest map from `/.well-known/killsloprouter-artifact.json`. This binds the
+server's build attestation to the packet and blocks accidental or stale-build
+mixups. It does not cryptographically prove that an actively malicious server
+derived every response byte from that artifact; use a signed build attestation
+when that attacker is in scope. The adapter entrypoint, complete npm runtime
+package directories, scenario file, and visual baseline directory are
+independently digest-locked. A mismatch blocks before evidence ingestion.
+
+Visual baselines are compared byte-for-byte first. A byte mismatch then uses
+Playwright's antialias-aware pixelmatch comparator with its standard `0.2`
+threshold and zero allowed remaining pixels. This removes cross-process font
+raster noise without accepting a detected layout, copy, state, or color change.
+Material changes block and produce a diff PNG; owner review is still required
+before replacing and digest-locking any baseline.
 
 Playwright's ARIA snapshot and axe checks are automated semantic proxies. They
 are not evidence that VoiceOver, NVDA, JAWS, TalkBack, or another real
@@ -108,6 +117,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Fake browser proof | Viewport screenshots and non-screenshot check coverage are validated separately |
 | Browser points at another build | Served endpoint must attest the packet's exact artifact digest map before launch |
 | Browser runtime or scenario substitution | Bundled entrypoint, runtime packages, scenario file, and baseline directory are digest-locked |
+| Material visual baseline change | Playwright comparator permits zero non-antialiased differing pixels and writes a reviewable diff PNG |
 | Browser data exfiltration | Loopback default, explicit external-network authority, and per-request origin blocking |
 | Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |

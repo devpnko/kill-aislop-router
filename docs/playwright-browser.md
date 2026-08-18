@@ -185,15 +185,19 @@ intentional.
      --json
    ```
 
-A missing or byte-different screenshot blocks. Baselines are not updated
-automatically.
+A missing screenshot blocks. A byte-different PNG is evaluated by Playwright's
+pixelmatch comparator with its standard `0.2` color threshold and zero allowed
+non-antialiased pixel differences. Any remaining changed pixel blocks and emits
+a `.diff.png` artifact. Baselines are never updated automatically.
 
 ## Evidence produced
 
 For every scenario, required viewport, and configured color scheme, the adapter
 records:
 
-- full-page screenshot and exact baseline comparison;
+- full-page screenshot and zero-tolerance, antialias-aware Playwright baseline
+  comparison;
+- visual diff PNG when the approved rendering materially changes;
 - Playwright trace;
 - scenario action and assertion outcomes;
 - ARIA snapshot;

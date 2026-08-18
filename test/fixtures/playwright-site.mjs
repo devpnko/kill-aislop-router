@@ -52,9 +52,11 @@ const server = http.createServer((request, response) => {
     }));
     return;
   }
-  if (request.url === "/" || request.url === "/index.html") {
+  if (["/", "/index.html", "/changed"].includes(request.url)) {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-    response.end(html);
+    response.end(request.url === "/changed"
+      ? html.replace("<h1>Evidence fixture</h1>", "<h1>Materially changed evidence fixture</h1>")
+      : html);
     return;
   }
   response.writeHead(404, { "content-type": "text/plain" });
