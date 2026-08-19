@@ -14,6 +14,8 @@ jobs:
     env:
       KSR_PLAYWRIGHT_CHANNEL: bundled
     strategy:
+      fail-fast: false
+      max-parallel: 1
       matrix:
         node: [20, 22]
     steps:
