@@ -97,7 +97,43 @@ configuration if the project needs stateful coverage:
 
 Supported actions are `click`, `fill`, `press`, `check`, `uncheck`, `select`,
 `hover`, and `wait-for`. Supported assertions are `visible`, `hidden`, `text`,
-`value`, `checked`, `url`, and `count`. Locators use Playwright locator syntax.
+`value`, `checked`, `url`, `count`, `no-overlap`, `no-clipping`, and
+`computed-style`. Locators use Playwright locator syntax. `no-overlap` compares
+the visible elements selected by the locator and requires at least two. `no-clipping` checks
+selected elements and their descendants for hidden or clamped text overflow
+and requires at least one visible match. Use an exact `count` assertion to lock
+project-specific copy repetition, such as a time label that should appear only
+once. `computed-style` compares one normalized `getComputedStyle()` property on
+every visible match. It lets a project lock an approved visual invariant without
+adding executable JavaScript to the profile or scenario:
+
+```json
+{
+  "assertions": [
+    {"type": "count", "locator": ".ranking-window-label", "value": 1},
+    {"type": "no-overlap", "locator": ".ranking-item > .rank, .ranking-item > .title, .ranking-item > .metric"},
+    {"type": "no-clipping", "locator": ".ranking-item .title"},
+    {"type": "computed-style", "locator": ".sponsor-slot", "property": "border-top-style", "value": "dashed"},
+    {"type": "computed-style", "locator": ".sponsor-slot", "property": "border-top-width", "value": "2px"},
+    {"type": "computed-style", "locator": ".sponsor-slot", "property": "background-color", "value": "rgb(255, 255, 255)"}
+  ]
+}
+```
+
+The built-in overflow gate also checks direct children of visible flex and grid
+containers for geometric overlap, and headings and interactive controls for
+actual text clipping. Intentional truncation must be explicit on the clipping
+element or an ancestor:
+
+```html
+<span data-killsloprouter-clipping="allow">Intentionally truncated label</span>
+```
+
+Intentional layout overlays can use `data-killsloprouter-overlap="allow"` on
+their container. These markers are reviewable exceptions, not automatic proof
+that the design is acceptable. Standard visually hidden assistive text using a
+one-pixel `clip` or `clip-path` pattern is excluded from visible clipping
+findings; it remains covered by the ARIA and axe evidence.
 The complete shape is in `schemas/playwright-scenarios.schema.json`.
 Because the default browser contract requires state evidence, configuration
 also requires at least one explicit assertion. The generated root scenario
@@ -106,6 +142,9 @@ project's real critical states.
 
 The scenario file is digest-locked. Reconfigure after an intentional scenario
 change; an unacknowledged change blocks host-manifest loading.
+Start from the [scenario example](../examples/playwright-scenarios.example.json)
+when a product needs layout, repetition, or visual-property invariants in
+addition to interaction states.
 
 ## 3. Configure the official provider
 
@@ -205,7 +244,7 @@ records:
 - ARIA snapshot;
 - axe WCAG violations and incomplete checks;
 - keyboard focus traversal;
-- document and element overflow inspection;
+- document overflow, flex/grid child overlap, and required-text clipping inspection;
 - a half-width 200% zoom/reflow proxy;
 - console errors, page errors, failed responses, and blocked requests;
 - browser engine, channel, version, origin policy, and served-artifact attestation.
@@ -213,6 +252,12 @@ records:
 The consolidated `browser-report.json` is the non-screenshot proof covering the
 packet's required checks. The audit ledger still verifies its artifact digest,
 evidence location, capability set, viewports, and check coverage.
+
+A `manual-v1` browser provider remains a reviewer attestation: KillSlopRouter
+does not claim that it executed or semantically interpreted that project's
+custom report. Use the official digest-locked adapter and scenario assertions
+when overlap, clipping, repetition, or computed styles must be machine-enforced
+through the child-process boundary.
 
 ## Screen-reader scope
 

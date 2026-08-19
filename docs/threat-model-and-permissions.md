@@ -108,6 +108,13 @@ raster noise without accepting a detected layout, copy, state, or color change.
 Material changes block and produce a diff PNG; owner review is still required
 before replacing and digest-locking any baseline.
 
+The built-in overflow gate measures viewport escape, direct flex/grid child
+overlap, and required-text clipping. Typed, digest-locked scenario assertions
+can further bind component overlap, required text fit, exact repetition counts,
+and computed CSS properties. Intentional overlap or truncation needs an explicit
+reviewable opt-out marker. A manual browser result remains an asserted review,
+not proof that the official child adapter executed or interpreted its report.
+
 Playwright's ARIA snapshot and axe checks are automated semantic proxies. They
 are not evidence that VoiceOver, NVDA, JAWS, TalkBack, or another real
 assistive technology was operated by a person. The report states this scope

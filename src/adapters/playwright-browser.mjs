@@ -8,10 +8,13 @@ import { pathToFileURL } from "node:url";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
-const ASSERTION_TYPES = new Set(["visible", "hidden", "text", "value", "checked", "url", "count"]);
+const ASSERTION_TYPES = new Set([
+  "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
+  "computed-style"
+]);
 const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
-const ASSERTION_KEYS = new Set(["type", "locator", "value"]);
+const ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const VISUAL_COMPARISON = Object.freeze({
   comparator: "pixelmatch",
@@ -83,9 +86,14 @@ function validateScenarioDocument(value) {
           assertion.locator.length <= 1000,
         `Playwright assertion ${assertion.type} requires locator`);
       }
-      if (["text", "value", "url"].includes(assertion.type)) {
+      if (["text", "value", "url", "computed-style"].includes(assertion.type)) {
         requireValue(typeof assertion.value === "string",
           `Playwright assertion ${assertion.type} requires a string value`);
+      }
+      if (assertion.type === "computed-style") {
+        requireValue(typeof assertion.property === "string" &&
+          /^(?:--)?[a-z][a-z0-9-]{0,100}$/.test(assertion.property),
+        "Playwright computed-style assertion requires a safe CSS property");
       }
       if (assertion.type === "count") {
         requireValue(Number.isInteger(assertion.value) && assertion.value >= 0,
@@ -163,13 +171,171 @@ async function performAssertion(page, assertion, timeout) {
   } else if (assertion.type === "count") {
     const actual = await locator.count();
     if (actual !== assertion.value) throw new Error(`${assertion.locator} count ${actual} does not match ${assertion.value}`);
+  } else if (assertion.type === "no-overlap") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectSelectedOverlap(locator);
+    if (result.visible_count < 2) {
+      throw new Error(`${assertion.locator} must match at least two visible elements for no-overlap`);
+    }
+    if (result.overlaps.length > 0) {
+      throw new Error(`${assertion.locator} contains overlapping elements: ${JSON.stringify(result.overlaps)}`);
+    }
+  } else if (assertion.type === "no-clipping") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectSelectedClipping(locator);
+    if (result.visible_count < 1) {
+      throw new Error(`${assertion.locator} must match at least one visible element for no-clipping`);
+    }
+    if (result.clipped_text.length > 0) {
+      throw new Error(`${assertion.locator} contains clipped text: ${JSON.stringify(result.clipped_text)}`);
+    }
+  } else if (assertion.type === "computed-style") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectComputedStyle(locator, assertion.property, assertion.value);
+    if (result.visible_count < 1) {
+      throw new Error(`${assertion.locator} must match at least one visible element for computed-style`);
+    }
+    if (result.mismatches.length > 0) {
+      throw new Error(`${assertion.locator} computed ${assertion.property} does not match ${assertion.value}: ${JSON.stringify(result.mismatches)}`);
+    }
   }
+}
+
+async function inspectComputedStyle(locator, property, expected) {
+  return locator.evaluateAll((elements, options) => {
+    const mismatches = [];
+    let visibleCount = 0;
+    for (let index = 0; index < elements.length; index += 1) {
+      const element = elements[index];
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) continue;
+      visibleCount += 1;
+      const actual = style.getPropertyValue(options.property).trim();
+      if (actual === options.expected) continue;
+      mismatches.push({ index, actual });
+      if (mismatches.length >= 25) break;
+    }
+    return { visible_count: visibleCount, property: options.property, expected: options.expected, mismatches };
+  }, { property, expected });
+}
+
+async function inspectSelectedOverlap(locator) {
+  return locator.evaluateAll((elements) => {
+    const visible = elements.flatMap((element, index) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
+      return [{ element, index, rect }];
+    });
+    const overlaps = [];
+    for (let leftIndex = 0; leftIndex < visible.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < visible.length; rightIndex += 1) {
+        const left = visible[leftIndex];
+        const right = visible[rightIndex];
+        if (left.element.contains(right.element) || right.element.contains(left.element)) continue;
+        const width = Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+        const height = Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+        if (width <= 1 || height <= 1) continue;
+        overlaps.push({
+          left_index: left.index,
+          right_index: right.index,
+          width: Math.round(width),
+          height: Math.round(height)
+        });
+        if (overlaps.length >= 25) break;
+      }
+      if (overlaps.length >= 25) break;
+    }
+    return { visible_count: visible.length, overlaps };
+  });
+}
+
+async function inspectSelectedClipping(locator) {
+  return locator.evaluateAll((elements) => {
+    const clippedText = [];
+    let visibleCount = 0;
+    const selectorFor = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const className = typeof element.className === "string"
+        ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${CSS.escape(name)}`).join("")
+        : "";
+      return `${element.tagName.toLowerCase()}${className}`;
+    };
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isVisuallyHidden = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const clipped = (style.clip && style.clip !== "auto") ||
+        (style.clipPath && style.clipPath !== "none");
+      return clipped && rect.width <= 2 && rect.height <= 2;
+    };
+    const clippingFor = (root) => {
+      const candidates = [root, ...root.querySelectorAll("*")];
+      for (const element of candidates) {
+        if (!(element instanceof HTMLElement) || !isVisible(element) || isVisuallyHidden(element)) continue;
+        if (element.closest('[data-killsloprouter-clipping="allow"]')) continue;
+        const text = element.textContent?.replace(/\s+/g, " ").trim() || "";
+        if (!text) continue;
+        const style = getComputedStyle(element);
+        const clipsX = ["hidden", "clip"].includes(style.overflowX) &&
+          element.scrollWidth > element.clientWidth + 1;
+        const clipsY = ["hidden", "clip"].includes(style.overflowY) &&
+          element.scrollHeight > element.clientHeight + 1;
+        const lineClamp = Number.parseInt(style.webkitLineClamp, 10);
+        const clamped = Number.isFinite(lineClamp) && lineClamp > 0 &&
+          element.scrollHeight > element.clientHeight + 1;
+        if (!clipsX && !clipsY && !clamped) continue;
+        clippedText.push({
+          selector: selectorFor(element),
+          text: text.slice(0, 120),
+          horizontal: clipsX,
+          vertical: clipsY || clamped,
+          client: [element.clientWidth, element.clientHeight],
+          scroll: [element.scrollWidth, element.scrollHeight]
+        });
+        if (clippedText.length >= 25) break;
+      }
+    };
+    for (const element of elements) {
+      if (!(element instanceof HTMLElement) || !isVisible(element)) continue;
+      visibleCount += 1;
+      clippingFor(element);
+      if (clippedText.length >= 25) break;
+    }
+    return { visible_count: visibleCount, clipped_text: clippedText };
+  });
 }
 
 async function inspectOverflow(page) {
   return page.evaluate(() => {
     const documentOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
     const offenders = [];
+    const overlaps = [];
+    const clippedText = [];
+    const selectorFor = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const className = typeof element.className === "string"
+        ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${CSS.escape(name)}`).join("")
+        : "";
+      return `${element.tagName.toLowerCase()}${className}`;
+    };
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isVisuallyHidden = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const clipped = (style.clip && style.clip !== "auto") ||
+        (style.clipPath && style.clipPath !== "none");
+      return clipped && rect.width <= 2 && rect.height <= 2;
+    };
     for (const element of document.querySelectorAll("body *")) {
       const style = getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") continue;
@@ -190,11 +356,77 @@ async function inspectOverflow(page) {
       }
       if (offenders.length >= 25) break;
     }
+    for (const parent of document.querySelectorAll("body *")) {
+      if (!(parent instanceof HTMLElement) || !isVisible(parent)) continue;
+      if (parent.closest('[data-killsloprouter-overlap="allow"]')) continue;
+      const parentStyle = getComputedStyle(parent);
+      if (!parentStyle.display.includes("flex") && !parentStyle.display.includes("grid")) continue;
+      const children = [...parent.children].flatMap((element) => {
+        if (!(element instanceof HTMLElement) || !isVisible(element)) return [];
+        const style = getComputedStyle(element);
+        if (["absolute", "fixed", "sticky"].includes(style.position)) return [];
+        return [{ element, rect: element.getBoundingClientRect() }];
+      });
+      for (let leftIndex = 0; leftIndex < children.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < children.length; rightIndex += 1) {
+          const left = children[leftIndex];
+          const right = children[rightIndex];
+          const width = Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+          const height = Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+          if (width <= 1 || height <= 1) continue;
+          overlaps.push({
+            parent: selectorFor(parent),
+            left: selectorFor(left.element),
+            right: selectorFor(right.element),
+            width: Math.round(width),
+            height: Math.round(height)
+          });
+          if (overlaps.length >= 25) break;
+        }
+        if (overlaps.length >= 25) break;
+      }
+      if (overlaps.length >= 25) break;
+    }
+    const textFitRoots = document.querySelectorAll([
+      "h1", "h2", "h3", "h4", "h5", "h6", "button", "a[href]", "[role=button]", "[role=link]",
+      '[data-killsloprouter-text-fit="required"]'
+    ].join(","));
+    const visited = new Set();
+    for (const root of textFitRoots) {
+      for (const element of [root, ...root.querySelectorAll("*")]) {
+        if (!(element instanceof HTMLElement) || visited.has(element) || !isVisible(element) || isVisuallyHidden(element)) continue;
+        visited.add(element);
+        if (element.closest('[data-killsloprouter-clipping="allow"]')) continue;
+        const text = element.textContent?.replace(/\s+/g, " ").trim() || "";
+        if (!text) continue;
+        const style = getComputedStyle(element);
+        const clipsX = ["hidden", "clip"].includes(style.overflowX) &&
+          element.scrollWidth > element.clientWidth + 1;
+        const clipsY = ["hidden", "clip"].includes(style.overflowY) &&
+          element.scrollHeight > element.clientHeight + 1;
+        const lineClamp = Number.parseInt(style.webkitLineClamp, 10);
+        const clamped = Number.isFinite(lineClamp) && lineClamp > 0 &&
+          element.scrollHeight > element.clientHeight + 1;
+        if (!clipsX && !clipsY && !clamped) continue;
+        clippedText.push({
+          selector: selectorFor(element),
+          text: text.slice(0, 120),
+          horizontal: clipsX,
+          vertical: clipsY || clamped,
+          client: [element.clientWidth, element.clientHeight],
+          scroll: [element.scrollWidth, element.scrollHeight]
+        });
+        if (clippedText.length >= 25) break;
+      }
+      if (clippedText.length >= 25) break;
+    }
     return {
       document_overflow: documentOverflow,
       scroll_width: document.documentElement.scrollWidth,
       client_width: document.documentElement.clientWidth,
-      offenders
+      offenders,
+      overlaps,
+      clipped_text: clippedText
     };
   });
 }
@@ -427,7 +659,10 @@ async function runDesignBrowser(request) {
         aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
 
         execution.overflow = await inspectOverflow(page);
-        aggregate.overflow &&= !execution.overflow.document_overflow && execution.overflow.offenders.length === 0;
+        aggregate.overflow &&= !execution.overflow.document_overflow &&
+          execution.overflow.offenders.length === 0 &&
+          execution.overflow.overlaps.length === 0 &&
+          execution.overflow.clipped_text.length === 0;
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
         aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
 
@@ -437,7 +672,10 @@ async function runDesignBrowser(request) {
           height: originalViewport.height
         });
         execution.zoom_200 = await inspectOverflow(page);
-        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow && execution.zoom_200.offenders.length === 0;
+        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+          execution.zoom_200.offenders.length === 0 &&
+          execution.zoom_200.overlaps.length === 0 &&
+          execution.zoom_200.clipped_text.length === 0;
         await page.setViewportSize(originalViewport);
 
         execution.axe = await runAxe(page, axeSource);
@@ -696,29 +934,49 @@ async function run(request) {
             for (const assertion of scenario.assertions || []) {
               try {
                 await performAssertion(page, assertion, settings.navigation_timeout_ms);
-                execution.assertions.push({ type: assertion.type, locator: assertion.locator || null, status: "passed" });
+                execution.assertions.push({
+                  type: assertion.type,
+                  locator: assertion.locator || null,
+                  property: assertion.property || null,
+                  expected: assertion.value ?? null,
+                  status: "passed"
+                });
               } catch (error) {
                 execution.assertions.push({
-                  type: assertion.type, locator: assertion.locator || null, status: "failed", error: error.message
+                  type: assertion.type,
+                  locator: assertion.locator || null,
+                  property: assertion.property || null,
+                  expected: assertion.value ?? null,
+                  status: "failed",
+                  error: error.message
                 });
+                const layoutAssertion = ["no-overlap", "no-clipping"].includes(assertion.type);
+                const visualAssertion = assertion.type === "computed-style";
                 add({
-                  category: "state-assertion-failure",
-                  ruleId: "missing-required-state",
+                  category: layoutAssertion ? "overflow" : visualAssertion ? "visual-intent" : "state-assertion-failure",
+                  ruleId: layoutAssertion
+                    ? "overflow-overlap-or-clipping"
+                    : visualAssertion ? "visual-intent-contract-violation" : "missing-required-state",
                   claim: `Scenario ${scenario.id} assertion ${assertion.type} failed at ${viewportName}`,
                   evidence: `${executionId}: ${error.message}`,
-                  suggestedFix: "Restore the required state behavior before approval."
+                  suggestedFix: layoutAssertion
+                    ? "Repair the scoped layout or declare intentional clipping with the documented opt-out marker."
+                    : visualAssertion
+                      ? "Restore the digest-locked project visual invariant before approval."
+                      : "Restore the required state behavior before approval."
                 });
               }
             }
 
             execution.overflow = await inspectOverflow(page);
-            if (execution.overflow.document_overflow || execution.overflow.offenders.length) {
+            if (execution.overflow.document_overflow || execution.overflow.offenders.length ||
+              execution.overflow.overlaps.length || execution.overflow.clipped_text.length) {
               add({
                 category: "overflow",
                 ruleId: "overflow-overlap-or-clipping",
-                claim: `Horizontal overflow was detected in ${executionId}`,
+                claim: `Unintended overflow, overlap, or text clipping was detected in ${executionId}`,
                 evidence: `${executionId}: ${JSON.stringify(execution.overflow)}`,
-                suggestedFix: "Fix unintended overflow without hiding required content."
+                suggestedFix: "Fix the responsive layout without hiding required content; mark only approved intentional clipping."
               });
             }
 
@@ -741,11 +999,12 @@ async function run(request) {
             await page.setViewportSize(zoomViewport);
             execution.zoom_200 = { viewport: zoomViewport, overflow: await inspectOverflow(page) };
             await page.setViewportSize(originalViewport);
-            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length) {
+            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length ||
+              execution.zoom_200.overflow.overlaps.length || execution.zoom_200.overflow.clipped_text.length) {
               add({
                 category: "zoom-200",
                 ruleId: "overflow-overlap-or-clipping",
-                claim: `The 200% zoom/reflow proxy overflowed in ${executionId}`,
+                claim: `The 200% zoom/reflow proxy overflowed, overlapped, or clipped text in ${executionId}`,
                 evidence: `${executionId}: ${JSON.stringify(execution.zoom_200)}`,
                 suggestedFix: "Support reflow at half the CSS viewport width without clipping required content."
               });

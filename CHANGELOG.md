@@ -35,6 +35,9 @@
   traces, and digest-locked visual baselines.
 - Added `browser attest` and `browser configure` commands, exact pinned
   `playwright-core`/`axe-core` runtimes, and real-browser resume/retry E2E coverage.
+- Strengthened browser `overflow` evidence with flex/grid overlap and required-text
+  clipping detection plus typed `no-overlap`, `no-clipping`, `count`, and
+  `computed-style` project assertions.
 - Added adapter authoring, permission, threat-model, migration, and release documentation.
 - Raised the supported Node.js floor to 20 and verified Node 20/22 CI.
 

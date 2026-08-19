@@ -158,6 +158,11 @@ hard gates in the integrated run. Implement the selected evidence with one
 explicit project creator. A build/redesign route still requires a separately
 approved design system or an explicit project surface creator.
 
+Its browser gate detects viewport escape, flex/grid child overlap, and required
+text clipping. Digest-locked scenarios can add `no-overlap`, `no-clipping`,
+exact `count`, and `computed-style` assertions for project-specific rules such
+as one shared time label or an approved sponsor-slot treatment.
+
 For a UI artifact, the official browser setup is three explicit operations:
 
 ```bash

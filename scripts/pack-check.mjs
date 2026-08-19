@@ -68,6 +68,7 @@ const required = [
   "skills/kill-slop-router/agents/openai.yaml",
   "examples/planning-evidence/visual-signature-approval.json",
   "examples/design-brief.example.json",
+  "examples/playwright-scenarios.example.json",
   "README.md",
   "LICENSE"
 ];

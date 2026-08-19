@@ -1,0 +1,19 @@
+{
+  "playwright_scenario_version": 1,
+  "scenarios": [
+    {
+      "id": "critical-home-layout",
+      "path": "/",
+      "actions": [],
+      "assertions": [
+        {"type": "visible", "locator": "main"},
+        {"type": "count", "locator": ".ranking-window-label", "value": 1},
+        {"type": "no-overlap", "locator": ".ranking-item > .rank, .ranking-item > .title, .ranking-item > .metric"},
+        {"type": "no-clipping", "locator": ".ranking-item .title"},
+        {"type": "computed-style", "locator": ".sponsor-slot", "property": "border-top-style", "value": "dashed"},
+        {"type": "computed-style", "locator": ".sponsor-slot", "property": "border-top-width", "value": "2px"},
+        {"type": "computed-style", "locator": ".sponsor-slot", "property": "background-color", "value": "rgb(255, 255, 255)"}
+      ]
+    }
+  ]
+}

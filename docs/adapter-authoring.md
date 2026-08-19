@@ -232,6 +232,12 @@ capabilities, viewports, and checks it actually covers. A smoke-test label does
 not satisfy keyboard, state, overflow, contrast, zoom, visual regression, or
 screen-reader requirements.
 
+`manual-v1` records an explicit reviewer attestation; it does not make a custom
+report machine-verifiable or claim that KillSlopRouter ran the browser. Prefer
+the official adapter when a technical pass must prove layout geometry through
+the child-process boundary. Project-specific requirements belong in the
+digest-locked scenario as typed assertions, not arbitrary profile commands.
+
 ### Official Playwright adapter
 
 Prefer the bundled adapter for normal UI audits. Configure it through the CLI;

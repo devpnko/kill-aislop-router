@@ -374,6 +374,26 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
+        id: "unsafe-style-property",
+        path: "/",
+        actions: [],
+        assertions: [{
+          type: "computed-style", locator: "body", property: "color;background", value: "red"
+        }]
+      }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /safe CSS property/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
         id: "external-explicit",
         path: "/",
         actions: [],
@@ -576,6 +596,38 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       new Set(["mobile", "desktop"])
     );
 
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
+<body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const layoutPacket = structuredClone(packet);
+    layoutPacket.packet_id = "browser-design-layout-defect";
+    layoutPacket.packet_digest = `sha256:${"4".repeat(64)}`;
+    layoutPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const layoutBlocked = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-layout-run",
+        packets: [layoutPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: layoutPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "layout-blocked-design-evidence")
+    });
+    assert.equal(layoutBlocked.execution_status, "ran", layoutBlocked.error);
+    assert.equal(layoutBlocked.result.checks.overflow, false);
+    assert.equal(layoutBlocked.result.checks["zoom-200"], false);
+    const layoutBlockedReport = readJson(
+      layoutBlocked.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.overlaps.length > 0));
+    assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
+
     fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
     fs.writeFileSync(prototype, `<!doctype html>
 <html lang="en-US"><head><meta charset="utf-8"><title>Unbound resource</title>
@@ -646,8 +698,8 @@ test("served artifact attestation mismatch fails closed across the child boundar
   }
 });
 
-test("official Playwright adapter crosses a real child boundary, blocks missing baselines, and passes after digest-locked retry", {
-  timeout: 120_000
+test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
+  timeout: 150_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-e2e-"));
   let server = null;
@@ -666,7 +718,13 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
         actions: [{ type: "click", locator: "#toggle" }],
         assertions: [
           { type: "visible", locator: "#details" },
-          { type: "text", locator: "#details", value: "Verified state" }
+          { type: "text", locator: "#details", value: "Verified state" },
+          { type: "no-overlap", locator: "#details > *" },
+          { type: "no-clipping", locator: "#toggle, #details-heading" },
+          { type: "count", locator: ".window-label", value: 1 },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-style", value: "dashed" },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-width", value: "2px" },
+          { type: "computed-style", locator: ".sponsor-slot", property: "background-color", value: "rgb(255, 255, 255)" }
         ]
       }]
     });
@@ -730,6 +788,49 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
+        id: "layout-readability",
+        path: "/layout-bad",
+        actions: [],
+        assertions: [
+          { type: "no-overlap", locator: "#collision > span" },
+          { type: "no-clipping", locator: "#clipped-title" },
+          { type: "count", locator: ".window-label", value: 1 },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-style", value: "dashed" }
+        ]
+      }]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    manifest = loadHostManifest(paths.host);
+    const layoutOutput = path.join(directory, "evidence-layout-defects");
+    const layout = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: layoutOutput });
+    assert.equal(layout.execution_status, "ran", layout.error);
+    assert.equal(layout.result.verdict, "block");
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "overflow" && item.rule_id === "overflow-overlap-or-clipping"));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "overflow" && item.claim.startsWith("Unintended overflow, overlap, or text clipping")));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "state-assertion-failure" && item.rule_id === "missing-required-state"));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "visual-intent" && item.rule_id === "visual-intent-contract-violation"));
+    const layoutReport = readJson(path.join(layoutOutput, "browser-report.json"));
+    assert.ok(layoutReport.executions.every((entry) => entry.overflow.overlaps.length > 0));
+    assert.ok(layoutReport.executions.every((entry) => entry.overflow.clipped_text.length > 0));
+    assert.ok(layoutReport.executions.every((entry) =>
+      entry.assertions.filter((assertion) =>
+        ["no-overlap", "no-clipping", "computed-style"].includes(assertion.type))
+        .every((assertion) => assertion.status === "failed")));
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
         id: "details-open",
         path: "/changed",
         actions: [{ type: "click", locator: "#toggle" }],
@@ -749,7 +850,7 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
     });
     manifest = loadHostManifest(paths.host);
     const changedOutput = path.join(directory, "evidence-material-change");
-    const changed = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: changedOutput });
+    const changed = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: changedOutput });
     assert.equal(changed.execution_status, "ran", changed.error);
     assert.equal(changed.result.verdict, "block");
     assert.ok(changed.result.findings.some((item) => item.category === "visual-regression"));

@@ -60,6 +60,14 @@ The official adapter adds a served-artifact attestation gate and an approved
 pixel baseline. A missing baseline is a deliberate first-run block. This is an
 additive strengthening of browser evidence, not a receipt-version break.
 
+The `overflow` check now includes unintended direct flex/grid child overlap and
+required-text clipping. Existing scenario version 1 files remain valid and may
+add `no-overlap`, `no-clipping`, and `computed-style` assertions; existing
+`count` assertions can bind repetition limits. Projects with intentional
+overlays or truncation should add the documented reviewable data marker before
+upgrading. A newly blocked artifact indicates a previously unmeasured layout
+failure, not a receipt-format incompatibility.
+
 ### Missing direction no longer selects a generic taste creator
 
 The prior `consumer-product-ui` and `marketing-editorial` route cases selected
