@@ -61,8 +61,50 @@ assert.ok(fs.existsSync(path.join(root, "scripts", "install-codex-plugin.mjs")),
 assert.equal(router.invariants.surface_is_not_a_visual_style_preset, true);
 assert.equal(router.invariants.editorial_treatment_requires_verified_visual_intent, true);
 assert.equal(router.invariants.scanner_zero_hits_is_not_design_approval, true);
+assert.equal(router.invariants.visual_signature_authority_is_digest_bound, true);
+assert.equal(router.invariants.palette_frequency_is_not_style_authority, true);
+assert.equal(router.invariants.critic_preferences_cannot_override_visual_signature, true);
+for (const invariant of [
+  "creator_cannot_self_approve",
+  "browser_evidence_required_for_visual_approval",
+  "profile_commands_are_never_executed",
+  "routable_is_not_execution_evidence",
+  "locale_domain_privacy_browser_and_owner_gates_remain_hard"
+]) {
+  assert.equal(router.invariants[invariant], true, `${invariant} must remain a hard invariant`);
+}
+for (const blocker of [
+  "authority-or-privacy-leak",
+  "missing-required-state",
+  "keyboard-failure",
+  "contrast-failure",
+  "overflow-overlap-or-clipping",
+  "visual-intent-contract-violation",
+  "visual-signature-contract-violation",
+  "brand-token-substitution",
+  "unapproved-style-normalization"
+]) {
+  assert.ok(router.adjudication.hard_blockers.includes(blocker),
+    `${blocker} must remain a hard blocker`);
+}
 assert.ok(router.provider_capabilities["visual-intent-review"]?.independent_from_creator);
 assert.ok(router.stage_capability_contracts["visual-intent-review"]?.requires_independent_critic);
+const signatureCapabilities = [
+  "palette-fidelity",
+  "typography-fidelity",
+  "density-fidelity",
+  "shape-fidelity",
+  "elevation-fidelity",
+  "imagery-fidelity",
+  "motion-fidelity",
+  "transformation-boundary"
+];
+for (const capability of signatureCapabilities) {
+  assert.ok(router.provider_capabilities["visual-intent-review"].capabilities.includes(capability),
+    `visual-intent-review provider must declare ${capability}`);
+  assert.ok(router.stage_capability_contracts["visual-intent-review"].required.includes(capability),
+    `visual-intent-review stage must require ${capability}`);
+}
 for (const routeId of [
   "existing-ui-audit",
   "design-system-extraction",
@@ -97,6 +139,51 @@ for (const evidence of intentReceipt.evidence) {
   assert.equal(hashArtifact(evidencePath), evidence.digest,
     `example visual-intent evidence digest must match: ${evidence.path}`);
 }
+const exampleSignature = exampleProfile.visual_signatures?.[exampleProfile.surface_contract.primary];
+assert.equal(exampleSignature?.status, "approved", "example visual signature must be approved");
+const signatureReceiptPath = path.resolve(
+  path.dirname(path.join(root, "examples", "project-profile.example.json")),
+  exampleSignature.authority_receipt
+);
+assert.equal(hashArtifact(signatureReceiptPath), exampleSignature.authority_digest,
+  "example visual-signature receipt digest must match the profile");
+const signatureReceipt = JSON.parse(fs.readFileSync(signatureReceiptPath, "utf8"));
+const signatureBody = {
+  palette: exampleSignature.palette,
+  typography: exampleSignature.typography,
+  density: exampleSignature.density,
+  shape: exampleSignature.shape,
+  elevation: exampleSignature.elevation,
+  imagery: exampleSignature.imagery,
+  motion: exampleSignature.motion,
+  style_keywords: exampleSignature.style_keywords,
+  forbidden_transformations: exampleSignature.forbidden_transformations
+};
+assert.deepEqual(signatureReceipt.signature, signatureBody,
+  "example visual-signature receipt must repeat the exact profile contract");
+const signatureEvidencePaths = new Set();
+for (const evidence of signatureReceipt.evidence) {
+  const evidencePath = path.resolve(path.dirname(signatureReceiptPath), evidence.path);
+  assert.equal(hashArtifact(evidencePath), evidence.digest,
+    `example visual-signature evidence digest must match: ${evidence.path}`);
+  signatureEvidencePaths.add(evidence.path);
+}
+const expectedSignatureAspects = new Set([
+  "palette",
+  "typography",
+  "density",
+  "shape",
+  "elevation",
+  "imagery",
+  "motion",
+  "style_keywords",
+  "forbidden_transformations"
+]);
+assert.deepEqual(new Set(signatureReceipt.coverage.map((item) => item.aspect)), expectedSignatureAspects,
+  "example visual-signature receipt must cover every aspect exactly once");
+const coveredEvidencePaths = new Set(signatureReceipt.coverage.flatMap((item) => item.evidence_paths));
+assert.deepEqual(coveredEvidencePaths, signatureEvidencePaths,
+  "example visual-signature evidence must be assigned to coverage");
 assert.equal(packageJson.engines.node, ">=20", "V1 Node engine floor must remain explicit");
 assert.equal(packageLock.lockfileVersion, 3, "npm lockfile version must remain explicit");
 assert.equal(packageLock.packages[""].dependencies["playwright-core"], "1.62.1");

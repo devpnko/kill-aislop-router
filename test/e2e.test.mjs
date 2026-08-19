@@ -23,7 +23,21 @@ const PROVIDERS = {
   "visual-intent-review": {
     adapter: "agent-json-v1",
     strength: 4,
-    capabilities: ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation"]
+    capabilities: [
+      "visual-intent-fidelity",
+      "editorial-boundary",
+      "character-preservation",
+      "energy-preservation",
+      "depth-preservation",
+      "palette-fidelity",
+      "typography-fidelity",
+      "density-fidelity",
+      "shape-fidelity",
+      "elevation-fidelity",
+      "imagery-fidelity",
+      "motion-fidelity",
+      "transformation-boundary"
+    ]
   },
   "anti-slop": {
     adapter: "skill-json-v1",
@@ -171,7 +185,18 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     );
     assert.equal(visualIntentAttempt.execution_status, "ran");
     assert.notEqual(visualIntentAttempt.child_pid, process.pid);
+    assert.match(visualIntentAttempt.metadata.observed_visual_signature_digest, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(visualIntentAttempt.metadata.observed_primary_color, "#175CD3");
     const preApprovalAudit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    const signaturePacket = preApprovalAudit.packets.find((item) =>
+      item.provider.id === "visual-intent-review"
+    );
+    assert.equal(signaturePacket.visual_signature_contract.authority_status, "verified");
+    assert.deepEqual(signaturePacket.visual_signature_contract.palette.primary, [
+      {value: "#175CD3", token: "--color-brand-600", usage: "primary actions and active selection"}
+    ]);
+    assert.equal(signaturePacket.visual_signature_contract.density.mode, "compact");
+    assert.equal("path" in signaturePacket.visual_signature_contract.sources[0], false);
     const scannerResult = preApprovalAudit.results.find((item) =>
       item.normalized.stage_id === "static-discovery"
     );
@@ -296,6 +321,27 @@ test("partial host capability cannot satisfy a planned provider contract", () =>
     const attempt = state.attempts.find((item) => item.provider_id === "anti-slop");
     assert.equal(attempt.execution_status, "manual_pending");
     assert.match(attempt.reason, /lacks assigned capabilities: interaction-review/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("partial visual-signature capability cannot satisfy the independent reviewer contract", () => {
+  const fixture = makeFixture({
+    capabilities: {
+      "visual-intent-review": PROVIDERS["visual-intent-review"].capabilities.filter((capability) =>
+        capability !== "transformation-boundary"
+      )
+    }
+  });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 6, result.stderr || result.stdout);
+    const state = readState(fixture);
+    const attempt = state.attempts.find((item) => item.provider_id === "visual-intent-review");
+    assert.equal(attempt.execution_status, "manual_pending");
+    assert.match(attempt.reason, /lacks assigned capabilities: transformation-boundary/);
+    assert.equal(state.final_audit_status, null);
   } finally {
     cleanup(fixture);
   }
@@ -536,6 +582,10 @@ test("dry-run reports adapter readiness without creating automation state", () =
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(result.stdout);
     assert.equal(report.status, "dry_run");
+    assert.equal(report.plan.visual_signature.primary, "#175CD3");
+    assert.equal(report.plan.visual_signature.typography_family, "Inter");
+    assert.equal(report.plan.visual_signature.density, "compact");
+    assert.equal(report.plan.visual_signature.elevation, "layered");
     assert.ok(report.host_readiness.every((item) => item.execution_status === "ready"));
     assert.equal(fs.existsSync(fixture.state), false);
   } finally {

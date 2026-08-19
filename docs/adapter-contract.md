@@ -80,7 +80,7 @@ Allowed result status values:
 An advisory adapter cannot emit the final artifact verdict. Final disposition is
 owned by project adjudication and approval stages.
 Likewise, a scanner `pass` with zero findings is not design approval; required
-visual-intent, craft, browser, locale/domain/privacy, adjudication, and owner
+visual-intent/signature, craft, browser, locale/domain/privacy, adjudication, and owner
 packets remain independent.
 
 For audit ingestion, non-scanner providers use
@@ -90,10 +90,12 @@ and evidence requirements. `audit record` rejects a different provider,
 creator self-review, incomplete capability coverage, stale artifact hashes, or
 missing browser proof.
 
-Visual routes include `packet.visual_intent_contract`. The strength-4
-`visual-intent-review` provider must independently check fidelity, editorial
-scope, character, energy, and depth. It must use the verified contract rather
-than infer a house style from anti-slop rules or the semantic surface name.
+Visual routes include `packet.visual_intent_contract` and
+`packet.visual_signature_contract`. The strength-4 `visual-intent-review`
+provider must independently check direction plus palette, typography, density,
+shape, elevation, imagery, motion, and forbidden transformations. It must use
+the verified contracts rather than infer a house style or main color from
+anti-slop rules, frequency, or the semantic surface name.
 
 Scanner receipts may be ingested directly when the audit has one root artifact.
 For several independent artifacts, aggregate their scans into one standard

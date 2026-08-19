@@ -17,6 +17,7 @@ import {
   formatReceipt,
   inspectSurfaceContract,
   inspectVisualIntents,
+  inspectVisualSignatures,
   planRoute,
   readJson,
   resolveDesignSystem,
@@ -267,8 +268,17 @@ function doctor(args) {
   const visualIntentsReady = visualIntents.length > 0 && visualIntents.every((intent) =>
     intent.status === "approved" && intent.authority_status === "verified"
   );
+  const visualSignatures = inspectVisualSignatures({
+    profile: context.profile,
+    profilePath: context.profilePath
+  });
+  const visualSignaturesReady = visualSignatures.length > 0 && visualSignatures.every((signature) =>
+    signature.status === "approved" && signature.authority_status === "verified"
+  );
   const report = {
-    status: visualIntentsReady ? "automation-ready" : "configuration_required",
+    status: visualIntentsReady && visualSignaturesReady
+      ? "automation-ready"
+      : "configuration_required",
     router_id: context.router.router_id,
     router_version: context.router.router_version,
     router_path: context.routerPath,
@@ -277,6 +287,7 @@ function doctor(args) {
     surface_contract: context.profile?.surface_contract || null,
     surface_boundary: surfaceBoundary,
     visual_intents: visualIntents,
+    visual_signatures: visualSignatures,
     approved_design_system: context.profile?.approved_design_system ?? null,
     design_system: resolveDesignSystem(context.profile, context.profilePath),
     planning: context.profile?.planning || null,
@@ -293,6 +304,12 @@ function doctor(args) {
     `surface: ${report.surface_contract?.primary || "unbound"}`,
     `surface bindings: ${report.surface_boundary?.artifact_bindings.length || 0}`,
     `visual intents: ${report.visual_intents.filter((intent) => intent.authority_status === "verified").length}/${report.visual_intents.length} verified`,
+    `visual signatures: ${report.visual_signatures.filter((signature) => signature.authority_status === "verified").length}/${report.visual_signatures.length} verified`,
+    ...report.visual_signatures.map((signature) =>
+      `signature ${signature.surface}: primary ${signature.palette?.primary?.[0]?.value || "unresolved"}; ` +
+      `type ${signature.typography?.families?.[0]?.family || "unresolved"}; ` +
+      `density ${signature.density?.mode || "unresolved"}; elevation ${signature.elevation?.strategy || "unresolved"}`
+    ),
     `planning bridge: ${report.planning ? "configured" : "not configured"}`,
     `design system: ${report.design_system ? `${report.design_system.id}@${report.design_system.version} (${report.design_system.status}; ${report.design_system.authority_status})` : "missing"}`,
     `local adapters: ${report.configured_local_adapters.length}`,

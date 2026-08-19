@@ -5,6 +5,7 @@ import {
   RouterError,
   readJson,
   resolveVisualIntent,
+  resolveVisualSignature,
   visualIntentRequired
 } from "./router.mjs";
 import {
@@ -74,6 +75,8 @@ function auditManifest(run) {
     planning_gate: run.planning_gate,
     visual_intent: run.visual_intent,
     visual_intent_sources: run.visual_intent_sources,
+    visual_signature: run.visual_signature,
+    visual_signature_sources: run.visual_signature_sources,
     creator: run.creator,
     artifacts: run.artifacts,
     evidence_contract: run.evidence_contract,
@@ -125,6 +128,7 @@ function makePackets(plan, artifacts) {
         required_evidence_kinds: stage.required_evidence_kinds || [],
         evidence_contract: stage.id === "browser-evidence" ? plan.evidence_contract || null : null,
         visual_intent_contract: publicVisualIntent(plan.visual_intent),
+        visual_signature_contract: publicVisualSignature(plan.visual_signature),
         artifact_digests: artifactDigests
       };
       packet.packet_digest = canonicalDigest(packet);
@@ -157,6 +161,14 @@ export function initializeAudit({
       Array.isArray(plan.visual_intent?.sources) &&
       plan.visual_intent.sources.length > 0,
       "visual work requires a verified, digest-bound visual-intent contract",
+      3
+    );
+    requireValue(
+      plan.visual_signature?.status === "approved" &&
+      plan.visual_signature?.authority_status === "verified" &&
+      Array.isArray(plan.visual_signature?.sources) &&
+      plan.visual_signature.sources.length > 0,
+      "visual work requires a verified, digest-bound visual-signature contract",
       3
     );
   }
@@ -196,7 +208,7 @@ export function initializeAudit({
   }
   if (visualIntentRequired(plan.input)) {
     requireValue(plan.profile_path && profileSource,
-      "visual-intent verification requires a digest-bound project profile", 3);
+      "visual-contract verification requires a digest-bound project profile", 3);
     const verifiedIntent = resolveVisualIntent(
       readJson(plan.profile_path, "routed project profile"),
       plan.profile_path,
@@ -209,6 +221,18 @@ export function initializeAudit({
     );
     requireValue(canonicalDigest(verifiedIntent) === canonicalDigest(plan.visual_intent),
       "visual-intent contract does not match the digest-bound project profile", 4);
+    const verifiedSignature = resolveVisualSignature(
+      readJson(plan.profile_path, "routed project profile"),
+      plan.profile_path,
+      plan.input.surface
+    );
+    requireValue(
+      verifiedSignature.status === "approved" && verifiedSignature.authority_status === "verified",
+      `visual-signature authority cannot be reverified: ${verifiedSignature.issues.join("; ")}`,
+      4
+    );
+    requireValue(canonicalDigest(verifiedSignature) === canonicalDigest(plan.visual_signature),
+      "visual-signature contract does not match the digest-bound project profile", 4);
   }
   let visualIntentSources = [];
   try {
@@ -221,6 +245,18 @@ export function initializeAudit({
   } catch (error) {
     if (error instanceof RouterError) throw error;
     throw new RouterError(`cannot snapshot visual-intent authority: ${error.message}`, 4);
+  }
+  let visualSignatureSources = [];
+  try {
+    visualSignatureSources = (plan.visual_signature?.sources || []).map((source) => {
+      const snapshot = snapshotArtifact(source.path, { root: absoluteRoot });
+      requireValue(snapshot.digest === source.digest,
+        `visual-signature authority changed after route planning: ${source.path}`, 4);
+      return { ...snapshot, authority_kind: source.kind };
+    });
+  } catch (error) {
+    if (error instanceof RouterError) throw error;
+    throw new RouterError(`cannot snapshot visual-signature authority: ${error.message}`, 4);
   }
   const packets = makePackets(plan, artifactSnapshots);
   const requiredStagesWithoutPackets = plan.stages
@@ -241,6 +277,8 @@ export function initializeAudit({
     planning_gate: planningGate,
     visual_intent: plan.visual_intent || null,
     visual_intent_sources: visualIntentSources.map((source) => source.digest),
+    visual_signature: plan.visual_signature || null,
+    visual_signature_sources: visualSignatureSources.map((source) => source.digest),
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactDigestMap(artifactSnapshots),
     packets: packets.map((packet) => packet.packet_digest)
@@ -268,6 +306,8 @@ export function initializeAudit({
     planning_gate: planningGate,
     visual_intent: plan.visual_intent || null,
     visual_intent_sources: visualIntentSources,
+    visual_signature: plan.visual_signature || null,
+    visual_signature_sources: visualSignatureSources,
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactSnapshots,
     evidence_contract: plan.evidence_contract || null,
@@ -664,6 +704,9 @@ function verifyIntegrity(run, approval) {
   for (const source of run.visual_intent_sources || []) {
     check(`visual-intent:${source.authority_kind || source.path}`, source);
   }
+  for (const source of run.visual_signature_sources || []) {
+    check(`visual-signature:${source.authority_kind || source.path}`, source);
+  }
   for (const artifact of run.artifacts) check(`artifact:${artifact.path}`, artifact);
   for (const result of run.results) {
     check(`result:${result.packet_id}`, result.source);
@@ -745,6 +788,30 @@ function publicVisualIntent(intent) {
       evidence: (authority.evidence || []).map((item) => ({
         kind: item.kind,
         digest: item.digest
+      }))
+    } : null,
+    sources: sources.map((source) => ({ kind: source.kind, digest: source.digest }))
+  };
+}
+
+function publicVisualSignature(signature) {
+  if (!signature) return null;
+  const { sources = [], authority = null, ...contract } = signature;
+  return {
+    ...contract,
+    authority: authority ? {
+      kind: authority.kind,
+      authority_id: authority.authority_id,
+      basis: authority.basis,
+      decided_at: authority.decided_at,
+      receipt_digest: authority.receipt_digest,
+      evidence: (authority.evidence || []).map((item) => ({
+        kind: item.kind,
+        digest: item.digest
+      })),
+      coverage: (authority.coverage || []).map((item) => ({
+        aspect: item.aspect,
+        evidence: item.evidence.map((evidence) => ({ ...evidence }))
       }))
     } : null,
     sources: sources.map((source) => ({ kind: source.kind, digest: source.digest }))
@@ -911,6 +978,8 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
       surface_resolution: run.route.surface_resolution || null,
       visual_intent: publicVisualIntent(run.visual_intent),
       visual_intent_sources: (run.visual_intent_sources || []).map(publicSnapshot),
+      visual_signature: publicVisualSignature(run.visual_signature),
+      visual_signature_sources: (run.visual_signature_sources || []).map(publicSnapshot),
       plan_digest: run.route.plan_digest,
       plan_source: publicSnapshot(run.route.plan_source),
       profile_source: publicSnapshot(run.route.profile_source)
@@ -955,6 +1024,8 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
       "scanner-zero-hits-is-not-design-approval",
       "surface-is-not-a-visual-style-preset",
       "editorial-treatment-requires-verified-visual-intent",
+      "visual-signature-is-evidence-bound",
+      "palette-frequency-is-not-style-authority",
       "external-review-results-are-provenance-not-project-authority",
       "owner-approval-is-explicit-and-never-inferred"
     ]

@@ -130,6 +130,39 @@ export function createBootstrapProfile({ router, projectId, locale, surface }) {
         ]
       }
     },
+    visual_signatures: {
+      [surface]: {
+        visual_signature_version: 1,
+        status: "unresolved",
+        palette: {
+          primary: [],
+          accent: [],
+          background: [],
+          surface: [],
+          text: [],
+          semantic: []
+        },
+        typography: {
+          families: [],
+          scale: "preserve",
+          weights: [],
+          treatments: []
+        },
+        density: { mode: "preserve", characteristics: [] },
+        shape: { radii: [], geometry: [], strokes: [] },
+        elevation: { strategy: "preserve", shadows: [], separation: [] },
+        imagery: { strategy: "preserve", characteristics: [] },
+        motion: { intensity: "preserve", characteristics: [] },
+        style_keywords: [],
+        forbidden_transformations: [
+          "unapproved palette or main-color replacement",
+          "unapproved typography replacement",
+          "unapproved density normalization",
+          "paper-like neutralization",
+          "universal flattening or shadow removal"
+        ]
+      }
+    },
     approved_design_system: false,
     local_adapters: localAdapters,
     external_adapters: externalAdapters,
@@ -219,13 +252,16 @@ export function bootstrapProject({ router, root, projectId, locale, surface }) {
       approved_design_system: false,
       surface_contract_locked: true,
       visual_intent_resolved: false,
+      visual_signature_resolved: false,
       editorial_default_allowed: false,
+      style_defaults_allowed: false,
       arbitrary_profile_commands: false,
       executable_adapters_authorized: false,
       missing_execution_remains_manual_pending: true
     },
     next_actions: [
       "bind a digest-locked visual-intent authority receipt from project, brand, reference, or owner evidence",
+      "bind a digest-locked visual-signature receipt for palette, typography, density, shape, elevation, imagery, and motion",
       "bind project contracts and any approved design-system authority",
       "replace manual host adapters only with allowlisted digest-locked entrypoints",
       "run doctor and an integrated dry-run before execution"

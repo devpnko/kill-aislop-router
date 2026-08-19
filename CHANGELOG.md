@@ -11,6 +11,8 @@
 - Added per-surface visual-intent contracts that separate product semantics from aesthetics and make editorial treatment evidence-gated instead of a default.
 - Added a digest-bound visual-intent authority/evidence chain and an independent strength-4 intent-preservation review stage.
 - Made unresolved intent, unapproved editorial treatment, authority tamper, and scanner-zero-as-approval fail closed without changing receipt version 1.
+- Added per-surface visual-signature contracts for exact palette roles and tokens, typography, density, shape, elevation, imagery, motion, style keywords, and forbidden transformations.
+- Added full per-aspect evidence coverage, signature/intent compatibility checks, child-packet propagation, and signature authority tamper detection without changing existing receipt versions.
 - Added the resumable `run` lifecycle with per-phase receipts and hashes.
 - Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.
 - Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.

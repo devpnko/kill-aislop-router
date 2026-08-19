@@ -13,7 +13,9 @@ Planning, product, brand, reference, or owner evidence must also establish the
 visual-intent receipt consumed by KillSlopRouter. The router does not invent
 that direction from anti-slop rules. Surface classification and visual style
 remain separate, so a planning receipt for `marketing-editorial` alone does not
-authorize editorial treatment.
+authorize editorial treatment. The same authority boundary must establish a
+separate exact visual signature; a planning artifact's most frequent color is
+not automatically its primary token.
 
 | Planning gate | Planning meaning | KillSlopRouter action |
 |---|---|---|
@@ -57,6 +59,11 @@ An approved `visual_intents` entry needs its own authority receipt and digest.
 That receipt repeats the exact intent and binds the underlying planning,
 project, brand, reference, artifact, or owner evidence. See
 [Visual intent contract](visual-intent-contract.md).
+
+An approved `visual_signatures` entry needs its own authority receipt, digest,
+and evidence coverage for palette, typography, density, shape, elevation,
+imagery, motion, style keywords, and forbidden transformations. See
+[Visual signature contract](visual-signature-contract.md).
 
 If `planning.required` is `false`, findings are reported as warnings for normal
 tasks. `systemize` always requires G6T and exact G7 evidence, regardless of that

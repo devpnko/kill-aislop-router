@@ -13,6 +13,7 @@ package or create a GitHub Release as part of the V1 work.
 - Selects one creator per artifact and rejects creator self-review or approval.
 - Resolves the product surface from a digest-bound project/artifact contract before creator selection.
 - Resolves a separate, evidence-bound visual-intent contract; a surface name never acts as a style preset.
+- Binds the exact per-surface visual signature: palette roles and tokens, typography, density, shape, elevation, imagery, motion, style keywords, and forbidden transformations.
 - Allows editorial treatment only when the visual-intent authority explicitly marks it `bounded` or `required`.
 - Preserves minimum reviewer strength and capability-union requirements.
 - Executes only provider IDs allowed by an explicit host adapter manifest.
@@ -77,10 +78,11 @@ Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-cl
 ```
 
 The plugin determines the route from project evidence, but it does not guess an
-ambiguous product surface or visual direction. It locks unambiguous repository
-contracts or stops for an explicit project or owner decision. Bootstrap creates
-a manual-only starter configuration with an unresolved visual intent; `doctor`
-stays non-zero until the intent is backed by a digest-locked authority receipt.
+ambiguous product surface, visual direction, main color, or house style. It
+locks unambiguous repository contracts or stops for an explicit project or
+owner decision. Bootstrap creates a manual-only starter configuration with an
+unresolved visual intent and visual signature; `doctor` stays non-zero until
+both are backed by digest-locked authority receipts.
 The plugin then runs `--dry-run` and uses the integrated resumable ledger. A
 short `전체 여정` request resumes a matching run, advances only the currently
 eligible stage, and stops for missing planning or owner evidence. It does not
@@ -105,13 +107,15 @@ workflow is normally `operator-product-ui`; a customer-facing product is
 surface look like another. Real adapters still require explicit allowlisting
 and digest locking.
 
-Before `doctor`, replace the generated unresolved `visual_intents` entry with a
-contract derived from project, brand, approved-reference, or owner evidence.
-Bind its authority receipt and every evidence file by SHA-256. In particular,
-`marketing-editorial` does not permit a paper/editorial visual treatment by
-itself. See [Visual intent contract](docs/visual-intent-contract.md) and the
-working fixture at
-`examples/planning-evidence/visual-intent-approval.json`.
+Before `doctor`, replace the generated unresolved `visual_intents` and
+`visual_signatures` entries with contracts derived from project, brand,
+design-system, approved-reference, or owner evidence. Bind each authority
+receipt and evidence file by SHA-256. In particular, `marketing-editorial` does
+not permit a paper/editorial treatment by itself, and a frequently occurring or
+logo color is not automatically the UI primary. See
+[Visual intent contract](docs/visual-intent-contract.md),
+[Visual signature contract](docs/visual-signature-contract.md), and the working
+fixtures in `examples/planning-evidence/`.
 
 For a UI artifact, the official browser setup is three explicit operations:
 
@@ -293,6 +297,15 @@ depth, and the project-specific qualities to preserve or avoid. Legacy profiles
 remain structurally readable, but visual tasks fail closed until this additive
 contract is configured. See [Visual intent contract](docs/visual-intent-contract.md).
 
+The same route needs one approved `visual_signatures` entry. Its separate
+receipt locks exact color roles and tokens, typography, density, shape,
+elevation, imagery, motion, style keywords, and forbidden transformations, with
+evidence coverage for every aspect. Missing or contradictory evidence remains
+unresolved; the router never selects a neutral, editorial, flat, or other
+default style. `doctor` prints the primary color, first type family, density,
+and elevation summary for each surface, while JSON output retains the full
+contract. See [Visual signature contract](docs/visual-signature-contract.md).
+
 Surfaces:
 
 - `operator-product-ui`
@@ -320,11 +333,13 @@ contracts instead of replacing them.
   selection; ambiguous, mismatched, or mixed-surface runs block.
 - Visual intent is resolved independently from surface identity; unresolved,
   changed, or mismatched authority blocks all visual routes.
+- The exact visual signature is resolved independently from intent; guessed
+  palettes, uncovered aspects, token substitution, or evidence tamper block.
 - Editorial treatment is forbidden unless the verified contract explicitly
   allows a bounded scope or requires editorial mode.
 - Fallbacks must meet minimum strength and cover the complete capability union.
 - Scanner findings are candidates until individually classified; zero hits do
-  not satisfy visual-intent, craft, browser, or owner gates.
+  not satisfy visual-intent, visual-signature, craft, browser, or owner gates.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
 - Required locale, domain, privacy, browser, and owner stages cannot be skipped.
 - Browser packets need viewport screenshots and non-screenshot proof for every required check.
@@ -342,8 +357,9 @@ Route receipt version 1, audit run version 1, audit result version 1, triage
 version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
 Profiles must add the fail-closed `surface_contract`. Visual tasks also require
-an approved `visual_intents` contract; profiles without it remain readable for
-non-visual compatibility but visual plans block. Receipt versions did not
+approved `visual_intents` and `visual_signatures` contracts; profiles without
+them remain readable for non-visual compatibility but visual plans block.
+Dispatch packets gained additive contract fields; receipt versions did not
 change. See [V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
@@ -351,6 +367,7 @@ change. See [V1 migration notes](docs/migration-v1.md).
 - [Automation lifecycle](docs/automation-run.md)
 - [Surface contract](docs/surface-contract.md)
 - [Visual intent contract](docs/visual-intent-contract.md)
+- [Visual signature contract](docs/visual-signature-contract.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

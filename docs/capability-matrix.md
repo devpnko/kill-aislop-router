@@ -28,15 +28,15 @@ Project-local authority and evidence providers are outside the upstream table:
 
 | Provider | Minimum strength | Required capabilities |
 |---|:---:|---|
-| `visual-intent-review` | 4 | visual-intent fidelity, editorial boundary, character, energy, and depth preservation |
+| `visual-intent-review` | 4 | visual-intent fidelity; editorial, character, energy, and depth preservation; palette, typography, density, shape, elevation, imagery, motion fidelity; transformation boundary |
 | `project-contract` | 4 | task contract, object model, and state authority |
 | `domain-authority-review` | 4 | domain authority and conflict adjudication |
 | `browser-evidence` | 3 | responsive, keyboard, state, overflow, contrast, and zoom evidence |
 
 The visual-intent reviewer is independent from the creator. It evaluates the
-verified project contract rather than choosing a preferred aesthetic. Missing
-capabilities cannot be borrowed from the scanner or inferred from a craft
-score.
+verified intent and exact signature rather than choosing a preferred aesthetic.
+Missing capabilities cannot be borrowed from the scanner or inferred from a
+craft score.
 
 Design-system extraction is deliberately outside this upstream-tool matrix.
 It is a project-local creator contract, because no generic visual skill can
@@ -73,9 +73,10 @@ cannot prove interaction behavior.
 Here, restraint means avoiding unjustified effects relative to the approved
 direction. It does not mean gray, flat, paper-like, shadowless, or low-energy.
 None of these critics may convert its anti-pattern list into creator direction.
-The visual-intent contract decides whether the artifact is quiet, expressive,
-editorial, layered, or otherwise specific. Zero scanner hits satisfy none of
-the independent visual-intent, craft, browser, or owner gates.
+The visual-intent contract decides the direction and editorial boundary; the
+visual-signature contract fixes the actual palette, type, density, shape,
+elevation, imagery, and motion. Zero scanner hits satisfy none of the
+independent visual-contract, craft, browser, or owner gates.
 
 If one provider is unavailable, route by the missing capability contract. Do
 not substitute a source scanner for rendered craft or a browser smoke test for

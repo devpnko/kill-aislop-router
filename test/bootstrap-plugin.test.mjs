@@ -64,6 +64,86 @@ function approveVisualIntent(profilePath, artifactPath) {
   writeJson(profilePath, profile);
 }
 
+function approveVisualSignature(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-signature-approval.json");
+  const signature = {
+    palette: {
+      primary: [{ value: "#175CD3", token: "--brand", usage: "primary actions" }],
+      accent: [],
+      background: [{ value: "#F8FAFC", usage: "application canvas" }],
+      surface: [{ value: "#FFFFFF", usage: "panels" }],
+      text: [{ value: "#101828", usage: "labels and data" }],
+      semantic: []
+    },
+    typography: {
+      families: [{ family: "Inter", role: "operator interface" }],
+      scale: "compact operator hierarchy",
+      weights: ["400", "600"],
+      treatments: ["tabular numerals"]
+    },
+    density: { mode: "compact", characteristics: ["same-screen comparison"] },
+    shape: {
+      radii: ["4px controls"],
+      geometry: ["restrained rectangles"],
+      strokes: ["1px panel strokes"]
+    },
+    elevation: {
+      strategy: "layered",
+      shadows: ["low overlay shadow"],
+      separation: ["surface contrast"]
+    },
+    imagery: { strategy: "functional", characteristics: ["status imagery only"] },
+    motion: { intensity: "restrained", characteristics: ["state confirmation"] },
+    style_keywords: ["operational", "data-dense"],
+    forbidden_transformations: [
+      "paper-like neutralization",
+      "consumer-card spacing",
+      "global depth removal"
+    ]
+  };
+  const relativeArtifact = path.relative(path.dirname(receiptPath), artifactPath);
+  const aspects = [
+    "palette",
+    "typography",
+    "density",
+    "shape",
+    "elevation",
+    "imagery",
+    "motion",
+    "style_keywords",
+    "forbidden_transformations"
+  ];
+  writeJson(receiptPath, {
+    visual_signature_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    signature,
+    authority: {
+      kind: "approved-reference",
+      authority_id: "bootstrap-fixture-owner",
+      basis: "The fixture binds a compact operator signature for routing tests.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{
+      kind: "approved-artifact",
+      path: relativeArtifact,
+      digest: hashArtifact(artifactPath)
+    }],
+    coverage: aspects.map((aspect) => ({ aspect, evidence_paths: [relativeArtifact] }))
+  });
+  profile.visual_signatures[surface] = {
+    visual_signature_version: 1,
+    status: "approved",
+    ...signature,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -118,9 +198,13 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(receipt.surface, "operator-product-ui");
     assert.equal(receipt.safety.surface_contract_locked, true);
     assert.equal(receipt.safety.visual_intent_resolved, false);
+    assert.equal(receipt.safety.visual_signature_resolved, false);
     assert.equal(receipt.safety.editorial_default_allowed, false);
+    assert.equal(receipt.safety.style_defaults_allowed, false);
     assert.equal(profile.visual_intents["operator-product-ui"].status, "unresolved");
     assert.equal(profile.visual_intents["operator-product-ui"].editorial_treatment, "forbidden");
+    assert.equal(profile.visual_signatures["operator-product-ui"].status, "unresolved");
+    assert.deepEqual(profile.visual_signatures["operator-product-ui"].palette.primary, []);
     assert.ok(Object.values(profile.local_adapters).every((item) => item.executor === "manual-review"));
     assert.ok(Object.values(host.providers).every((item) => item.adapter === "manual-v1"));
     assert.deepEqual(host.granted_permissions, []);
@@ -179,6 +263,10 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.match(JSON.parse(blockedDryRun.stdout).blockers.join("\n"), /visual intent contract is unresolved/);
 
     approveVisualIntent(profilePath, artifact);
+    const intentOnlyDoctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
+    assert.equal(intentOnlyDoctor.status, 5, intentOnlyDoctor.stderr || intentOnlyDoctor.stdout);
+    assert.equal(JSON.parse(intentOnlyDoctor.stdout).visual_signatures[0].status, "unresolved");
+    approveVisualSignature(profilePath, artifact);
     const readyDoctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
     assert.equal(readyDoctor.status, 0, readyDoctor.stderr || readyDoctor.stdout);
     assert.equal(JSON.parse(readyDoctor.stdout).status, "automation-ready");

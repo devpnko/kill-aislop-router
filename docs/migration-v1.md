@@ -11,13 +11,14 @@ V1 keeps the existing route and audit contracts and adds an execution layer.
 - Existing audit final statuses and their meanings remain unchanged.
 
 `doctor` reports `automation-ready` instead of `core-ready` only when the
-runtime profile boundary and every visual-intent authority are verified. It
+runtime profile boundary and every visual-intent and visual-signature authority
+are verified. It
 reports `configuration_required` with exit code 5 for a fresh unresolved
 bootstrap profile.
 
-Dispatch packets add `minimum_strength` and `visual_intent_contract`. Consumers
-that allow additive fields need no change. Consumers that reject unknown fields
-should permit both fields.
+Dispatch packets add `minimum_strength`, `visual_intent_contract`, and
+`visual_signature_contract`. Consumers that allow additive fields need no
+change. Consumers that reject unknown fields should permit all three fields.
 
 ## New contracts
 
@@ -41,10 +42,16 @@ Playwright as the preferred browser. Existing profiles and generic
 replaced. Run `killsloprouter browser configure` to opt into the official
 digest-locked adapter. It creates backups of the profile and host manifest.
 
-Bootstrap also writes one conservative, unresolved `visual_intents` entry per
-surface. It preserves existing character and energy and forbids editorial
-treatment until project or owner evidence resolves the contract. This prevents
-bootstrap itself from selecting a generic house style.
+Bootstrap also writes one conservative, unresolved `visual_intents` entry and
+one unresolved `visual_signatures` entry per surface. The intent preserves
+existing character and energy and forbids editorial treatment. The signature
+contains no guessed palette or style values and keeps `preserve` sentinels
+until authority evidence resolves it. This prevents bootstrap itself from
+selecting a generic house style.
+
+New bootstrap receipts add `visual_signature_resolved: false` and
+`style_defaults_allowed: false` to `safety`. They are additive: the version-1
+schema still accepts earlier receipts that do not contain those two fields.
 
 The official adapter adds a served-artifact attestation gate and an approved
 pixel baseline. A missing baseline is a deliberate first-run block. This is an
@@ -134,6 +141,34 @@ strength 4. Add that provider to routing declarations and host manifests with
 the complete capability set documented in `capability-matrix.md`. Until then,
 the stage remains `manual_pending`; it is never treated as executed.
 
+### Bind the concrete visual signature
+
+Existing `profile_version: 1` files also remain structurally readable when
+`visual_signatures` is absent. Copy-only and PR-hygiene routes remain
+compatible, while `build`, `redesign`, `systemize`, `runtime-handoff`, and
+`audit` fail closed until the routed surface has a verified signature.
+
+Add one signature entry per allowed surface and bind a separate
+[visual-signature receipt](../schemas/visual-signature-receipt.schema.json). The receipt must repeat the
+exact palette roles and tokens, typography, density, shape, elevation, imagery,
+motion, style keywords, and forbidden transformations. Its `coverage` must map
+all nine aspects to declared digest-locked evidence. Do not infer the UI primary
+from a logo, source frequency, or a different product surface.
+
+The existing strength-4 `visual-intent-review` provider now requires these
+additional capabilities:
+
+```text
+palette-fidelity, typography-fidelity, density-fidelity, shape-fidelity,
+elevation-fidelity, imagery-fidelity, motion-fidelity,
+transformation-boundary
+```
+
+Host adapters declaring only the earlier intent capabilities become
+`manual_pending` because their capability union is incomplete. This is an
+intentional fail-closed strengthening, not evidence that the adapter ran. See
+[Visual signature contract](visual-signature-contract.md).
+
 ### Node version
 
 V1 supports Node.js 20 and 22. Upgrade environments that still run Node 18.
@@ -170,7 +205,7 @@ the automation run is not complete until an exact owner approval is supplied.
 ## Recommended rollout
 
 1. Run the existing tests on Node 20 or 22.
-2. Add and review the surface and visual-intent contracts, then run
+2. Add and review the surface, visual-intent, and visual-signature contracts, then run
    `killsloprouter run --dry-run` with the current profile and artifacts.
 3. Create manual host declarations for every selected provider.
 4. Replace one manual declaration at a time with a digest-locked adapter.

@@ -97,6 +97,63 @@ function approveFixtureVisualIntent(profilePath, artifactPath) {
   writeJson(profilePath, profile);
 }
 
+function approveFixtureVisualSignature(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-signature-approval.json");
+  const signature = {
+    palette: {
+      primary: [{ value: "#175CD3", usage: "primary actions" }],
+      accent: [],
+      background: [{ value: "#F8FAFC", usage: "canvas" }],
+      surface: [{ value: "#FFFFFF", usage: "panels" }],
+      text: [{ value: "#101828", usage: "labels" }],
+      semantic: []
+    },
+    typography: {
+      families: [{ family: "Inter", role: "operator interface" }],
+      scale: "compact operator hierarchy",
+      weights: ["400", "600"],
+      treatments: ["tabular numerals"]
+    },
+    density: { mode: "compact", characteristics: ["same-screen comparison"] },
+    shape: { radii: ["4px controls"], geometry: ["rectangular panels"], strokes: ["1px strokes"] },
+    elevation: { strategy: "layered", shadows: ["low overlay shadow"], separation: ["surface contrast"] },
+    imagery: { strategy: "functional", characteristics: ["state evidence only"] },
+    motion: { intensity: "restrained", characteristics: ["state transitions"] },
+    style_keywords: ["operational", "high-clarity"],
+    forbidden_transformations: ["paper-like neutralization", "global flattening"]
+  };
+  const relativeArtifact = path.relative(path.dirname(receiptPath), artifactPath);
+  const aspects = [
+    "palette", "typography", "density", "shape", "elevation", "imagery", "motion",
+    "style_keywords", "forbidden_transformations"
+  ];
+  writeJson(receiptPath, {
+    visual_signature_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    signature,
+    authority: {
+      kind: "approved-reference",
+      authority_id: "playwright-fixture-owner",
+      basis: "The browser fixture binds an exact product-native visual signature.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{ kind: "approved-artifact", path: relativeArtifact, digest: hashArtifact(artifactPath) }],
+    coverage: aspects.map((aspect) => ({ aspect, evidence_paths: [relativeArtifact] }))
+  });
+  profile.visual_signatures[surface] = {
+    visual_signature_version: 1,
+    status: "approved",
+    ...signature,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
 function startServer(artifactDigests) {
   const child = spawn(process.execPath, [serverEntrypoint], {
     cwd: root,
@@ -600,6 +657,7 @@ test("integrated automation resumes and retries the official Playwright stage be
     server = await startServer({ [snapshot.path]: snapshot.digest });
     const paths = bootstrapProject(directory);
     approveFixtureVisualIntent(paths.profile, artifact);
+    approveFixtureVisualSignature(paths.profile, artifact);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{

@@ -128,6 +128,8 @@ process.stdout.write(JSON.stringify({
   result,
   metadata: {
     child_pid: process.pid,
-    transport: "node-json-stdio-fixture"
+    transport: "node-json-stdio-fixture",
+    observed_visual_signature_digest: packet.visual_signature_contract?.contract_digest || null,
+    observed_primary_color: packet.visual_signature_contract?.palette?.primary?.[0]?.value || null
   }
 }));

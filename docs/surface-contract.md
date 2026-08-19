@@ -11,7 +11,8 @@ creator selection.
 `marketing-editorial` describes the artifact's purpose; it does not authorize
 an editorial-looking or paper-like treatment. `operator-product-ui` likewise
 does not prescribe a gray dashboard. Visual character is controlled separately
-by the [visual-intent contract](visual-intent-contract.md).
+by the [visual-intent contract](visual-intent-contract.md), while concrete
+appearance is bound by the [visual-signature contract](visual-signature-contract.md).
 
 ## Single-surface project
 
@@ -45,9 +46,9 @@ After that lock, `plan` and `run` can omit `--surface`. Supplying it asserts the
 expected value; it never overrides the profile.
 
 `killsloprouter doctor` verifies that the project root and every binding root
-exist as real directories. It also verifies every surface's visual-intent
-authority; a valid surface boundary with unresolved visual intent reports
-`configuration_required`, not automation readiness.
+exist as real directories. It also verifies every surface's visual-intent and
+visual-signature authority; a valid surface boundary with either contract
+unresolved reports `configuration_required`, not automation readiness.
 
 ## Multi-surface repository
 

@@ -1,8 +1,10 @@
 # Visual Intent Contract
 
 The surface contract answers **what kind of product artifact this is**. The
-visual-intent contract answers **which approved character the artifact must
-preserve**. They are separate security boundaries.
+visual-intent contract answers **which approved direction and editorial
+boundary apply**. The separate [visual-signature contract](visual-signature-contract.md)
+binds the actual palette, typography, density, shape, elevation, imagery, and
+motion. These are separate security boundaries.
 
 `marketing-editorial` is a semantic surface for public acquisition or content.
 It does not authorize a paper canvas, editorial typography, muted neutrals,
@@ -131,9 +133,11 @@ For `build`, `redesign`, `systemize`, `runtime-handoff`, and `audit`:
 
 1. Resolve the artifact surface.
 2. Verify the surface's visual-intent authority chain.
-3. Put the exact contract in the plan and every dispatch packet.
-4. Require an independent `visual-intent-review` provider at strength 4.
-5. Treat `visual-intent-contract-violation` and
+3. Verify the surface's visual-signature authority and compatibility.
+4. Put both exact contracts in the plan and every dispatch packet.
+5. Require an independent `visual-intent-review` provider at strength 4 with
+   the complete intent and signature capability union.
+6. Treat `visual-intent-contract-violation` and
    `unapproved-editorial-treatment` as hard blockers.
 
 The creator receives the contract as direction. Anti-slop tools remain
@@ -145,3 +149,5 @@ approval.
 When evidence is ambiguous, keep the contract unresolved and request a real
 project or owner decision. Do not infer editorial treatment from the word
 "editorial", from an anti-slop score, or from a critic's preference.
+Do not infer palette roles or a complete style from color frequency; bind those
+facts through the visual-signature contract.

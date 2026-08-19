@@ -9,6 +9,7 @@ independence, required proof, or artifact integrity is missing.
 - project source and private artifacts;
 - route, planning, audit, triage, and approval receipts;
 - visual-intent authority receipts and their project, brand, reference, or owner evidence;
+- visual-signature receipts, per-aspect coverage, and exact palette/type/density/elevation evidence;
 - reviewer and owner provenance;
 - screenshots, browser traces, and test reports;
 - the distinction between dispatchable work and completed work.
@@ -52,6 +53,13 @@ intent and bind at least one evidence file. The plan and every dispatch packet
 carry the verified contract, and audit initialization snapshots the authority
 chain for final integrity checks. An unresolved bootstrap contract forbids
 editorial treatment and blocks visual work.
+
+The profile's visual-signature map is another boundary. It binds concrete
+palette roles, typography, density, shape, elevation, imagery, motion, style
+keywords, and forbidden transformations. Every aspect requires declared
+evidence coverage. Color frequency, logo presence, semantic surface, scanner
+output, and critic preference are not authority. The complete signature chain
+is included in dispatch and approval scope and re-hashed at finalization.
 
 ### Host adapter manifest
 
@@ -127,6 +135,10 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Anti-slop critique laundered into a paper/editorial house style | Surface and visual intent are separate; editorial treatment requires a verified `bounded` or `required` contract and an independent intent review |
 | `marketing-editorial` misread as visual permission | Surface is semantic only; the visual-intent contract defaults to no permission and must explicitly authorize editorial treatment |
 | Visual-intent receipt or basis replaced | Profile locks the receipt digest; the receipt locks evidence digests; audit snapshots and rechecks the complete chain |
+| Main color or style guessed from source frequency | Visual-signature roles require matching digest-bound evidence and per-aspect coverage; frequency is discovery only |
+| Critic replaces approved tokens or globally flattens depth | Exact signature reaches every packet; token substitution and unapproved normalization are hard blockers |
+| Marketing palette leaks into an operator product | Signatures are keyed and verified per routed surface; cross-surface evidence is not merged implicitly |
+| Visual-signature receipt or evidence replaced | Profile, audit, approval scope, and final receipt bind and re-hash the complete signature chain |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
 | Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
@@ -153,9 +165,10 @@ digital signatures. A writer who can replace the artifact, all evidence, every
 receipt, and the ledger can construct a new internally consistent run. Store CI
 evidence immutably and sign final receipts when that attacker is in scope.
 
-The visual-intent authority ID is asserted provenance under the same limit. A
-digest proves that the reviewed project, brand, reference, or owner evidence did
-not change within the run; it does not authenticate who authored that evidence.
+Visual-intent and visual-signature authority IDs are asserted provenance under
+the same limit. A digest proves that the reviewed project, brand, design-system,
+reference, or owner evidence did not change within the run; it does not
+authenticate who authored that evidence.
 
 Directory artifacts ignore `.git`, `node_modules`, and `.killsloprouter` by
 default. Symlink artifacts and adapter entrypoints are rejected so changing a

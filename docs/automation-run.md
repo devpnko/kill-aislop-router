@@ -4,10 +4,10 @@
 audit ledger. It does not replace either receipt contract.
 
 Run `doctor` first. It validates the surface contract against the real project
-and binding directories and verifies each visual-intent authority chain. A
-fresh bootstrap intentionally reports `configuration_required` until that
-intent is approved and digest-bound; the plan phase then resolves the exact
-artifacts.
+and binding directories and verifies each visual-intent and visual-signature
+authority chain. A fresh bootstrap intentionally reports
+`configuration_required` until both are approved and digest-bound; the plan
+phase then resolves the exact artifacts.
 
 ## State files
 
@@ -37,12 +37,12 @@ that digest and the SHA-256 digest of the receipt file. See
 ## Phase behavior
 
 1. **Plan**: resolve every artifact through the profile's surface contract,
-   verify the separate visual-intent receipt and its evidence, and only then
+   verify the separate visual-intent and visual-signature receipts and evidence, and only then
    select a creator. Stop if any authority, route, capability, strength, or
    independence requirement is unresolved.
 2. **Planning verification**: verify the external planning receipt and required evidence when the route enforces it.
-3. **Audit init**: snapshot the exact plan, visual-intent authority chain, and artifacts, bind the creator identity, and calculate the owner approval scope.
-4. **Dispatch**: write one immutable packet per selected provider. Every packet carries the exact visual-intent contract.
+3. **Audit init**: snapshot the exact plan, both visual authority chains, and artifacts, bind the creator identity, and calculate the owner approval scope.
+4. **Dispatch**: write one immutable packet per selected provider. Every packet carries the exact visual-intent and visual-signature contracts.
 5. **Execution**: inspect the host allowlist and execute only a compatible adapter. Missing or manual adapters stay pending.
 6. **Result ingest**: apply existing provider, identity, capability, artifact digest, evidence, and timestamp validation.
 7. **Scanner triage**: stop until every scanner candidate has a non-open decision and rationale.
@@ -52,7 +52,7 @@ that digest and the SHA-256 digest of the receipt file. See
 Adjudication deliberately runs after scanner triage. This keeps an unclassified
 source pattern from being silently absorbed into a later aesthetic decision.
 A zero-hit scanner result is still only discovery output. It cannot satisfy the
-independent visual-intent review or any later visual, browser, or owner gate.
+independent visual-intent/signature review or any later visual, browser, or owner gate.
 
 ## Resume and retry
 
@@ -61,7 +61,7 @@ every phase receipt, and every tracked plan, audit, packet, and final receipt
 path before continuing. Changing a surface contract after planning starts is a
 new route, not a resume; the old state blocks.
 
-Changing the visual-intent receipt or any bound evidence is also a new route.
+Changing either visual authority receipt or any bound evidence is also a new route.
 The old run blocks at audit initialization or finalization rather than silently
 accepting a new aesthetic direction.
 

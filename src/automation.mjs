@@ -216,6 +216,17 @@ function planPayload(plan, planPath = null) {
       authority_status: plan.visual_intent.authority_status,
       contract_digest: plan.visual_intent.contract_digest
     } : null,
+    visual_signature: plan.visual_signature ? {
+      status: plan.visual_signature.status,
+      authority_status: plan.visual_signature.authority_status,
+      primary: plan.visual_signature.palette?.primary?.[0]?.value || null,
+      typography_family: plan.visual_signature.typography?.families?.[0]?.family || null,
+      density: plan.visual_signature.density?.mode || null,
+      elevation: plan.visual_signature.elevation?.strategy || null,
+      imagery: plan.visual_signature.imagery?.strategy || null,
+      motion: plan.visual_signature.motion?.intensity || null,
+      contract_digest: plan.visual_signature.contract_digest
+    } : null,
     unresolved: plan.unresolved,
     warnings: plan.warnings,
     plan_path: planPath,

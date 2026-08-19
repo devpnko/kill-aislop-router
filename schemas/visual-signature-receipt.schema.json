@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/visual-signature-receipt.schema.json",
+  "title": "KillSlopRouter Visual Signature Authority Receipt",
+  "type": "object",
+  "required": [
+    "visual_signature_receipt_version",
+    "project_id",
+    "surface",
+    "status",
+    "signature",
+    "authority",
+    "evidence",
+    "coverage"
+  ],
+  "properties": {
+    "visual_signature_receipt_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "status": {"const": "approved"},
+    "signature": {"$ref": "#/$defs/signature"},
+    "authority": {
+      "type": "object",
+      "required": ["kind", "authority_id", "basis", "decided_at"],
+      "properties": {
+        "kind": {"enum": ["project-contract", "brand-system", "design-system", "owner-direction", "approved-reference"]},
+        "authority_id": {"type": "string", "minLength": 1},
+        "basis": {"type": "string", "minLength": 1},
+        "decided_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/evidence"}
+    },
+    "coverage": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["aspect", "evidence_paths"],
+        "properties": {
+          "aspect": {"enum": ["palette", "typography", "density", "shape", "elevation", "imagery", "motion", "style_keywords", "forbidden_transformations"]},
+          "evidence_paths": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "color-reference": {
+      "type": "object",
+      "required": ["value", "usage"],
+      "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "token": {"type": "string", "minLength": 1},
+        "usage": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "semantic-color-reference": {
+      "type": "object",
+      "required": ["role", "value", "usage"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1},
+        "token": {"type": "string", "minLength": 1},
+        "usage": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "font-reference": {
+      "type": "object",
+      "required": ["family", "role"],
+      "properties": {
+        "family": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["kind", "path", "digest"],
+      "properties": {
+        "kind": {"enum": ["project-contract", "brand-system", "design-system", "design-tokens", "owner-direction", "approved-reference", "approved-artifact", "owner-approval"]},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "signature": {
+      "type": "object",
+      "required": ["palette", "typography", "density", "shape", "elevation", "imagery", "motion", "style_keywords", "forbidden_transformations"],
+      "properties": {
+        "palette": {
+          "type": "object",
+          "required": ["primary", "accent", "background", "surface", "text", "semantic"],
+          "properties": {
+            "primary": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/color-reference"}},
+            "accent": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/color-reference"}},
+            "background": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/color-reference"}},
+            "surface": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/color-reference"}},
+            "text": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/color-reference"}},
+            "semantic": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/semantic-color-reference"}}
+          },
+          "additionalProperties": false
+        },
+        "typography": {
+          "type": "object",
+          "required": ["families", "scale", "weights", "treatments"],
+          "properties": {
+            "families": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/font-reference"}},
+            "scale": {"type": "string", "minLength": 1, "not": {"const": "preserve"}},
+            "weights": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "treatments": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "density": {
+          "type": "object",
+          "required": ["mode", "characteristics"],
+          "properties": {
+            "mode": {"enum": ["compact", "balanced", "spacious", "mixed"]},
+            "characteristics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "shape": {
+          "type": "object",
+          "required": ["radii", "geometry", "strokes"],
+          "properties": {
+            "radii": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "geometry": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "strokes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "elevation": {
+          "type": "object",
+          "required": ["strategy", "shadows", "separation"],
+          "properties": {
+            "strategy": {"enum": ["flat", "border-led", "layered", "immersive", "mixed"]},
+            "shadows": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "separation": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "imagery": {
+          "type": "object",
+          "required": ["strategy", "characteristics"],
+          "properties": {
+            "strategy": {"enum": ["none", "functional", "brand", "editorial", "campaign", "mixed"]},
+            "characteristics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "motion": {
+          "type": "object",
+          "required": ["intensity", "characteristics"],
+          "properties": {
+            "intensity": {"enum": ["none", "restrained", "balanced", "expressive"]},
+            "characteristics": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+          },
+          "additionalProperties": false
+        },
+        "style_keywords": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "forbidden_transformations": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

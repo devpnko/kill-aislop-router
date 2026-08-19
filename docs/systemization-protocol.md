@@ -9,6 +9,7 @@ implementation contract. It is not a visual redesign pass.
 - approved artifact digest and surface identity
 - the verified profile surface-contract digest and artifact binding
 - the verified visual-intent receipt, contract digest, and evidence chain
+- the verified visual-signature receipt, exact aspect coverage, and evidence chain
 - project object, state, authority, and terminology contracts
 - representative desktop and mobile states
 - current source inventory and runtime constraints
@@ -24,8 +25,9 @@ implementation contract. It is not a visual redesign pass.
    accessibility behavior, and prohibited uses for each shared component.
 4. **Surface profiles**: explicit differences between operator, consumer, and
    editorial products. Shared primitives must not flatten their task density or
-   trust model. Preserve each surface's approved character, energy, depth, and
-   editorial boundary.
+   trust model. Preserve each surface's approved character, energy, depth,
+   editorial boundary, palette roles, typography, density, shape, elevation,
+   imagery, and motion.
 5. **Reference implementation**: framework-level primitives and a rendered
    fixture that exercises every supported variant and state.
 6. **Migration map**: old selector or component to new primitive, ordered by
@@ -40,6 +42,7 @@ implementation contract. It is not a visual redesign pass.
 - forcing operator and consumer surfaces into one presentation profile;
 - converting anti-slop restraint into a universal gray, flat, paper/editorial style;
 - introducing editorial treatment where the verified visual-intent contract forbids it;
+- replacing approved signature values with systemizer-preferred neutral tokens;
 - removing purposeful exceptions merely to reduce line count;
 - claiming runtime parity before G9 evidence.
 

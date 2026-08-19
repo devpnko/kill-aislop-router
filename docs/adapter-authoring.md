@@ -77,7 +77,7 @@ are `schemas/host-adapter-request.schema.json` and
 
 - `host_adapter_request_version`: currently `1`
 - `run_id` and `attempt`
-- `packet`: provider identity, stage question, capability assignment, visual-intent contract, evidence contract, and artifact digests
+- `packet`: provider identity, stage question, capability assignment, visual-intent and visual-signature contracts, evidence contract, and artifact digests
 - `packets`: the complete dispatch set, useful to form conflict references
 - `creator`: creator provider and actor identity
 - `scope`
@@ -100,13 +100,24 @@ manual provider at strength 4. It must cover:
 - `character-preservation`
 - `energy-preservation`
 - `depth-preservation`
+- `palette-fidelity`
+- `typography-fidelity`
+- `density-fidelity`
+- `shape-fidelity`
+- `elevation-fidelity`
+- `imagery-fidelity`
+- `motion-fidelity`
+- `transformation-boundary`
 
-Read `packet.visual_intent_contract` as authority. Compare the rendered
-artifact with its mode, editorial scope, energy, depth, `preserve`, and `avoid`
-claims. Report `visual-intent-contract-violation` or
-`unapproved-editorial-treatment` as a blocker. Do not choose a quieter style,
-turn craft restraint into flatness, or approve merely because the scanner found
-nothing. The reviewer actor and provider must remain distinct from the creator.
+Read `packet.visual_intent_contract` and
+`packet.visual_signature_contract` as authority. Compare the rendered artifact
+with its direction and every exact signature aspect. Report
+`visual-intent-contract-violation`, `visual-signature-contract-violation`,
+`brand-token-substitution`, `unapproved-style-normalization`, or
+`unapproved-editorial-treatment` as applicable. Do not choose a quieter style,
+derive a primary color from frequency, turn craft restraint into flatness, or
+approve merely because the scanner found nothing. The reviewer actor and
+provider must remain distinct from the creator.
 
 ## Response protocol
 

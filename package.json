@@ -1,7 +1,7 @@
 {
   "name": "killsloprouter",
   "version": "1.0.0",
-  "description": "Fail-closed visual-intent routing and resumable evidence automation for anti-AI-slop review",
+  "description": "Fail-closed visual-intent and exact visual-signature routing with resumable evidence automation",
   "type": "module",
   "license": "MIT",
   "bin": {

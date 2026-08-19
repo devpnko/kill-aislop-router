@@ -34,6 +34,11 @@ function materializeExampleVisualIntent(selectedProfile) {
       contract.authority_receipt = path.resolve(path.dirname(profilePath), contract.authority_receipt);
     }
   }
+  for (const contract of Object.values(materialized.visual_signatures || {})) {
+    if (contract.authority_receipt && !path.isAbsolute(contract.authority_receipt)) {
+      contract.authority_receipt = path.resolve(path.dirname(profilePath), contract.authority_receipt);
+    }
+  }
   return materialized;
 }
 
@@ -143,6 +148,16 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
     assert.match(intentPacket.visual_intent_contract.contract_digest, /^sha256:[a-f0-9]{64}$/);
     assert.ok(fixture.run.packets.every((packet) =>
       packet.visual_intent_contract.contract_digest === intentPacket.visual_intent_contract.contract_digest
+    ));
+    assert.equal(intentPacket.visual_signature_contract.authority_status, "verified");
+    assert.equal(intentPacket.visual_signature_contract.palette.primary[0].value, "#175CD3");
+    assert.equal(intentPacket.visual_signature_contract.palette.primary[0].token, "--color-brand-600");
+    assert.equal(intentPacket.visual_signature_contract.density.mode, "compact");
+    assert.equal(intentPacket.visual_signature_contract.authority.coverage.length, 9);
+    assert.ok(intentPacket.visual_signature_contract.sources.every((source) => !("path" in source)));
+    assert.ok(fixture.run.packets.every((packet) =>
+      packet.visual_signature_contract.contract_digest ===
+        intentPacket.visual_signature_contract.contract_digest
     ));
 
     const incomplete = finalizeAudit(fixture.run, { now: finishedAt });
@@ -370,6 +385,77 @@ test("visual-intent authority and its evidence remain integrity-bound through fi
   }
 });
 
+test("visual-signature authority and exact style evidence remain integrity-bound", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-signature-tamper-"));
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    const signatureEvidence = path.join(directory, "visual-style-contract.json");
+    const ownerEvidence = path.join(directory, "visual-signature-owner-approval.json");
+    const signatureReceiptPath = path.join(directory, "visual-signature.json");
+    const routedProfilePath = path.join(directory, "profile.json");
+    fs.writeFileSync(artifact, "<!doctype html><main>operator artifact</main>\n");
+    fs.copyFileSync(
+      path.join(root, "examples", "planning-evidence", "visual-style-contract.json"),
+      signatureEvidence
+    );
+    fs.copyFileSync(
+      path.join(root, "examples", "planning-evidence", "visual-signature-owner-approval.json"),
+      ownerEvidence
+    );
+    const sourceReceipt = readJson(
+      path.join(root, "examples", "planning-evidence", "visual-signature-approval.json"),
+      "visual signature receipt"
+    );
+    sourceReceipt.evidence = sourceReceipt.evidence.map((item) => ({
+      ...item,
+      path: path.basename(item.path)
+    }));
+    sourceReceipt.coverage = sourceReceipt.coverage.map((item) => ({
+      ...item,
+      evidence_paths: item.evidence_paths.map((evidencePath) => path.basename(evidencePath))
+    }));
+    writeJson(signatureReceiptPath, sourceReceipt);
+    const routedProfile = materializeExampleVisualIntent(profile);
+    routedProfile.visual_signatures["operator-product-ui"].authority_receipt =
+      path.basename(signatureReceiptPath);
+    routedProfile.visual_signatures["operator-product-ui"].authority_digest =
+      hashArtifact(signatureReceiptPath);
+    writeJson(routedProfilePath, routedProfile);
+    const plan = planRoute({
+      router,
+      profile: routedProfile,
+      routerPath,
+      profilePath: routedProfilePath,
+      input: {
+        task: "audit",
+        direction: "none",
+        changes: ["style", "layout"],
+        risk: "standard"
+      },
+      artifacts: [artifact],
+      root: directory
+    });
+    assert.equal(plan.status, "planned");
+    assert.equal(plan.visual_signature.palette.primary[0].value, "#175CD3");
+    const run = initializeAudit({
+      plan,
+      artifacts: [artifact],
+      scope: "runtime",
+      root: directory,
+      runId: "visual-signature-tamper-run",
+      now: startedAt
+    });
+    fs.appendFileSync(signatureReceiptPath, "\n");
+    fs.appendFileSync(signatureEvidence, "\n");
+    const receipt = finalizeAudit(run, { now: finishedAt });
+    assert.equal(receipt.status, "blocked");
+    assert.match(receipt.blockers.join("\n"), /integrity failure: visual-signature:signature-authority-receipt/);
+    assert.match(receipt.blockers.join("\n"), /integrity failure: visual-signature:signature-authority-evidence:design-tokens/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("audit initialization rejects a forged visual-intent plan claim", () => {
   const fixture = createFixture();
   try {
@@ -382,6 +468,23 @@ test("audit initialization rejects a forged visual-intent plan claim", () => {
       creatorActorId: "creator-agent-1",
       root: fixture.directory
     }), /visual-intent contract does not match the digest-bound project profile/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("audit initialization rejects a forged visual-signature plan claim", () => {
+  const fixture = createFixture();
+  try {
+    const forged = structuredClone(fixture.plan);
+    forged.visual_signature.palette.primary[0].value = "#F4F5F2";
+    assert.throws(() => initializeAudit({
+      plan: forged,
+      artifacts: [fixture.artifact],
+      scope: "mockup",
+      creatorActorId: "creator-agent-1",
+      root: fixture.directory
+    }), /visual-signature contract does not match the digest-bound project profile/);
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
   }

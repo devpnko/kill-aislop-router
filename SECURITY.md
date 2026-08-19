@@ -34,6 +34,9 @@ Visual intent is resolved separately from the product surface. Approved intent
 must match a digest-locked authority receipt and evidence chain; unresolved
 intent or unapproved editorial treatment blocks visual work. These digests
 protect integrity, not the real-world identity of the asserted authority.
+Concrete visual signature values are separately evidence-bound per surface.
+Palette frequency, logo color, scanner output, and critic preference cannot
+authorize token substitution or global style normalization.
 
 Before sending artifacts to an external service:
 
