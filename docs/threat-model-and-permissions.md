@@ -75,7 +75,9 @@ permission and receives no publication or release authority. Dependency
 installation uses the committed lockfile with lifecycle scripts disabled.
 Official GitHub Actions are pinned to reviewed full commit SHAs so a moved tag
 cannot substitute checkout or Node setup code. The explicitly pinned Playwright
-package then installs the bundled Chromium build used by browser tests.
+package then installs the bundled Chromium build used by browser tests. Feature
+branches run through the pull-request event only, and concurrency cancellation
+prevents superseded commits from duplicating browser installs.
 
 ### Adapter child
 
