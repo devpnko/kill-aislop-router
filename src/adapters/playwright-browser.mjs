@@ -2,7 +2,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
@@ -316,6 +318,201 @@ function sameDigestMap(left, right) {
     leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
 }
 
+function hashFile(file) {
+  return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
+}
+
+async function designMarkers(page, locales, states) {
+  return page.evaluate(({ requiredLocales, requiredStates }) => {
+    const localeFound = Object.fromEntries(requiredLocales.map((locale) => [locale,
+      document.documentElement.lang === locale || [...document.querySelectorAll("[data-killsloprouter-locale]")]
+        .some((element) => element.getAttribute("data-killsloprouter-locale") === locale)
+    ]));
+    const stateFound = Object.fromEntries(requiredStates.map((state) => [state,
+      [...document.querySelectorAll("[data-killsloprouter-state]")]
+        .some((element) => element.getAttribute("data-killsloprouter-state") === state)
+    ]));
+    return { localeFound, stateFound };
+  }, { requiredLocales: locales, requiredStates: states });
+}
+
+async function runDesignBrowser(request) {
+  const { packet, settings = {}, output_directory: outputDirectory } = request;
+  const task = packet.design_task;
+  requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
+  requireValue(task.subject_kind === "direction-candidate" || task.subject_kind === "color-candidate",
+    "design Playwright subject kind is invalid");
+  requireValue(Array.isArray(task.prototypes) && task.prototypes.length === 1,
+    "official design Playwright requires exactly one digest-bound HTML prototype");
+  const prototype = task.prototypes[0];
+  requireValue(typeof prototype.path === "string" && DIGEST_PATTERN.test(prototype.digest || ""),
+    "design prototype requires path and digest");
+  const prototypePath = path.resolve(prototype.path);
+  requireValue(fs.existsSync(prototypePath), `design prototype is missing: ${prototypePath}`);
+  const prototypeStat = fs.lstatSync(prototypePath);
+  requireValue(prototypeStat.isFile() && !prototypeStat.isSymbolicLink(),
+    "design prototype must be a regular non-symlink file");
+  requireValue(path.extname(prototypePath).toLowerCase() === ".html",
+    "official design Playwright accepts a static HTML prototype");
+  requireValue(hashFile(prototypePath) === prototype.digest, "design prototype digest mismatch");
+  const target = pathToFileURL(fs.realpathSync(prototypePath)).toString();
+  const requiredViewports = packet.evidence_contract?.required_viewports || [];
+  const requiredChecks = packet.evidence_contract?.required_checks || [];
+  const requiredLocales = task.locales || [];
+  const requiredStates = task.required_states || [];
+  requireValue(requiredViewports.length > 0, "design Playwright requires viewports");
+  for (const viewport of requiredViewports) {
+    requireValue(settings.viewports?.[viewport], `missing configured viewport: ${viewport}`);
+  }
+  fs.mkdirSync(outputDirectory, { recursive: true });
+
+  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
+  const browserVersion = browser.version();
+  const evidence = [];
+  const executions = [];
+  const aggregate = {
+    keyboard: true,
+    state: true,
+    overflow: true,
+    contrast: true,
+    "zoom-200": true,
+    "visual-regression": false,
+    "screen-reader": false,
+    "aria-semantics": true,
+    console: true,
+    network: true
+  };
+  const localesFound = new Set();
+  const statesFound = new Set();
+  try {
+    for (const viewportName of requiredViewports) {
+      const viewport = settings.viewports[viewportName];
+      const context = await browser.newContext({
+        viewport,
+        colorScheme: settings.color_schemes?.[0] || "light",
+        locale: requiredLocales[0] || settings.locale,
+        reducedMotion: "reduce",
+        serviceWorkers: "block"
+      });
+      const execution = {
+        viewport: viewportName,
+        console_errors: [],
+        page_errors: [],
+        request_failures: [],
+        blocked_requests: []
+      };
+      executions.push(execution);
+      const page = await context.newPage();
+      page.setDefaultTimeout(settings.navigation_timeout_ms);
+      page.on("console", (message) => {
+        if (message.type() === "error") execution.console_errors.push(message.text());
+      });
+      page.on("pageerror", (error) => execution.page_errors.push(error.message));
+      page.on("requestfailed", (failed) => execution.request_failures.push({
+        url: failed.url(), error: failed.failure()?.errorText || "unknown"
+      }));
+      await context.route("**/*", async (route) => {
+        const url = route.request().url();
+        if (url === target) return route.continue();
+        if (requestProtocolAllowed(url)) return route.continue();
+        execution.blocked_requests.push({ url, origin: normalizedNetworkOrigin(url) });
+        return route.abort("blockedbyclient");
+      });
+      try {
+        await page.goto(target, { waitUntil: "domcontentloaded", timeout: settings.navigation_timeout_ms });
+        const markers = await designMarkers(page, requiredLocales, requiredStates);
+        for (const [locale, found] of Object.entries(markers.localeFound)) if (found) localesFound.add(locale);
+        for (const [state, found] of Object.entries(markers.stateFound)) if (found) statesFound.add(state);
+        aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
+
+        execution.overflow = await inspectOverflow(page);
+        aggregate.overflow &&= !execution.overflow.document_overflow && execution.overflow.offenders.length === 0;
+        execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
+        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+
+        const originalViewport = page.viewportSize();
+        await page.setViewportSize({
+          width: Math.max(320, Math.floor(originalViewport.width / 2)),
+          height: originalViewport.height
+        });
+        execution.zoom_200 = await inspectOverflow(page);
+        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow && execution.zoom_200.offenders.length === 0;
+        await page.setViewportSize(originalViewport);
+
+        execution.axe = await runAxe(page, axeSource);
+        aggregate.contrast &&= !execution.axe.violations.some((item) => item.id === "color-contrast");
+        aggregate["aria-semantics"] &&= !execution.axe.violations.some((item) => item.id !== "color-contrast");
+        const ariaSnapshot = await page.locator("body").ariaSnapshot();
+        aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
+        aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
+        aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
+
+        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        await stabilizeVisualCapture(page);
+        await page.screenshot({
+          path: path.join(outputDirectory, screenshotName),
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          scale: "css"
+        });
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  aggregate.state &&= requiredLocales.every((locale) => localesFound.has(locale)) &&
+    requiredStates.every((state) => statesFound.has(state));
+  const checks = Object.fromEntries(requiredChecks.map((check) => [check, aggregate[check] === true]));
+  const reportName = `${safeId(task.subject_id)}--playwright-report.json`;
+  const report = {
+    design_playwright_report_version: 1,
+    run_id: request.run_id,
+    packet_id: packet.packet_id,
+    subject_id: task.subject_id,
+    subject_result_digest: task.subject_result_digest,
+    prototype: { path: prototypePath, digest: prototype.digest },
+    browser: { engine: "playwright", implementation: "chromium", version: browserVersion },
+    checks,
+    locales_found: [...localesFound],
+    states_found: [...statesFound],
+    executions
+  };
+  fs.writeFileSync(path.join(outputDirectory, reportName), `${JSON.stringify(report, null, 2)}\n`);
+  evidence.push({ kind: "test-report", path: reportName, checks: requiredChecks });
+  return {
+    host_adapter_response_version: 1,
+    result: {
+      design_result_version: 1,
+      kind: "browser-evidence",
+      packet_id: packet.packet_id,
+      provider_id: packet.provider.id,
+      actor: { actor_id: `playwright:official-v1:${process.pid}`, kind: "agent" },
+      status: "completed",
+      packet_digest: packet.packet_digest,
+      candidate_id: task.subject_id,
+      subject_kind: task.subject_kind,
+      subject_id: task.subject_id,
+      subject_result_digest: task.subject_result_digest,
+      browser_engine: "playwright",
+      browser_engine_version: browserVersion,
+      checks,
+      locales_tested: [...localesFound],
+      states_tested: [...statesFound],
+      evidence
+    },
+    metadata: {
+      child_pid: process.pid,
+      transport: "official-playwright-design-json-v1",
+      browser_version: browserVersion
+    }
+  };
+}
+
 async function run(request) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   requireValue(packet?.stage_id === "browser-evidence", "official Playwright adapter accepts browser-evidence only");
@@ -326,6 +523,10 @@ async function run(request) {
   requireValue(typeof outputDirectory === "string" && outputDirectory.length > 0,
     "output_directory is required");
   fs.mkdirSync(outputDirectory, { recursive: true });
+
+  if (packet.design_task?.kind === "browser-evidence") {
+    return runDesignBrowser(request);
+  }
 
   const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
   const requiredViewports = packet.evidence_contract?.required_viewports || [];

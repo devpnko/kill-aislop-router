@@ -90,6 +90,78 @@ are `schemas/host-adapter-request.schema.json` and
 The adapter must perform the review described by `packet.stage_question`. It
 must not emit `pass` merely because the transport succeeded.
 
+### Design exploration adapters
+
+The additive `design run` workflow uses the same stdin/stdout transport and
+host allowlist. Its packets conform to
+[`design-packet.schema.json`](../schemas/design-packet.schema.json), carry
+`design_packet_version: 1`, and use `design_task.kind` instead of an audit
+question. Results conform to
+[`design-result.schema.json`](../schemas/design-result.schema.json).
+
+| `design_task.kind` | Adapter type | Minimum strength | Permissions |
+|---|---|---:|---|
+| `direction-candidate` | `agent-json-v1` or `skill-json-v1` | 3 | `artifact:read`, `evidence:write` |
+| `direction-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write` |
+| `color-candidate` | `agent-json-v1` or `skill-json-v1` | 3 | `artifact:read`, `evidence:write` |
+| `color-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write` |
+| `browser-evidence` | `browser-json-v1` | 3 | `artifact:read`, `evidence:write`, `browser:control` |
+
+A direction creator returns exactly one prototype, exactly one `font-report`,
+an exact visual-intent body, an exact visual-signature body, baseline digest,
+packet digest, and stable actor ID. The font report records availability,
+required-locale glyph coverage, fallbacks, and license/use constraints. The
+creator must implement the packet's named thesis and redesign depth while
+retaining every `baseline_policy.preserve` and `baseline_policy.forbid` item.
+It cannot expand the editorial boundary.
+The exact font report structure is
+[`design-font-report.schema.json`](../schemas/design-font-report.schema.json);
+the runtime also checks it against the signature families and brief locales.
+
+A color creator returns exactly one prototype, exactly one `token-spec`, the
+source direction digest, an exact palette, and a role system. The token
+specification maps every emitted semantic role to implementation tokens. The
+role system includes normalized sRGB values, tone scales, OKLCH or HCT method
+metadata, harmony strategy, gamut targets, and `color_only_meaning: false`.
+The router recomputes contrast; adapter-provided ratio claims are ignored.
+The exact implementation evidence structure is
+[`design-token-spec.schema.json`](../schemas/design-token-spec.schema.json),
+and the runtime compares every role value, tone scale, and gamut target with
+the returned color system.
+
+Review adapters score every dispatched candidate against the criteria carried
+in the packet, provide an exact ranking, mark explicit hard blockers, and write
+a review report. Direction review includes typography fit; a font report does
+not by itself prove that the typography suits the product. Reviewer providers
+and returned actors must be independent from all candidate creators in that
+comparison.
+Comparison packets carry both compatibility `result_digests` maps and complete
+candidate/browser bindings with source, evidence, host-manifest, and adapter
+entrypoint digests. Review the bound files; do not substitute a same-path file
+or treat the short digest map as the whole evidence contract.
+
+The browser adapter must actually use Playwright and return
+`browser_engine: "playwright"`, its version, a true result for every requested
+check, all locales and states tested, one screenshot per viewport, and a test
+report. A generic screenshot process cannot use `agent-json-v1` to satisfy this
+packet. Browser evidence must come from a different actor than the candidate
+creator.
+
+The bundled official adapter can perform this contract for one digest-bound,
+self-contained static HTML prototype. CSS and scripts must be inline; images
+and fonts must use inline data or `data:`/`blob:` URLs. Creators using it annotate locale examples with
+`data-killsloprouter-locale` and real states with
+`data-killsloprouter-state`. A custom browser adapter may instead serve
+candidate-specific URLs, but it must retain the packet digest, subject digest,
+Playwright, evidence, locale, state, network, and actor boundaries.
+The official static-design path does not claim `screen-reader` or
+`visual-regression`; requesting either leaves that packet `manual_pending` for
+a separately allowlisted capable adapter. Its automated accessibility result
+is `aria-semantics`, not a renamed screen-reader test.
+
+The complete lifecycle, matrices, color roles, and owner files are documented
+in [Project-aware design exploration](design-exploration.md).
+
 ### Visual-intent reviewer
 
 Implement `visual-intent-review` as an independent `agent-json-v1` or explicit

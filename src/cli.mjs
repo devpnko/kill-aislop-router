@@ -34,6 +34,14 @@ import { loadHostManifest } from "./execution.mjs";
 import { hashArtifact } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
 import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
+import {
+  designExitCode,
+  dispatchDesignPackets,
+  dryRunDesignExploration,
+  readDesignState,
+  resumeDesignExploration,
+  startDesignExploration
+} from "./design.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -62,7 +70,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -102,6 +110,10 @@ Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
   killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
+  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
+  killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
+  killsloprouter design status --run FILE [--json]
+  killsloprouter design dispatch --run FILE --out-dir DIR
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -140,6 +152,9 @@ Options:
   --router /path/to/router.json
   --creator-id ID
   --host-config FILE
+  --brief FILE
+  --baseline PATH
+  --shortlist FILE
   --base-url URL
   --channel chrome|msedge|chromium|bundled
   --scenario FILE
@@ -149,11 +164,12 @@ Options:
   --dry-run
   --resume FILE
   --retry all|PACKET|PROVIDER|STAGE
-  --result FILE (repeatable manual audit result)
+  --result FILE (repeatable manual audit or design result)
   --triage FILE
   --approval FILE
   --json
   --out FILE
+  --out-dir DIR
   --packets-dir DIR
   --format text|json
 `;
@@ -446,6 +462,88 @@ function runCommand(args) {
   process.exitCode = automationExitCode(state);
 }
 
+function formatDesignState(state) {
+  const lines = [
+    `KillSlopRouter design exploration ${state.run_id || "dry-run"}`,
+    `status: ${state.status}`
+  ];
+  if (state.phase) lines.push(`phase: ${state.phase}`);
+  if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
+  if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
+  for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+  for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
+  if (state.state_path) lines.push(`state: ${state.state_path}`);
+  if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  for (const [name, snapshot] of Object.entries(state.outputs || {})) {
+    lines.push(`${name}: ${snapshot.resolved_path || snapshot.path} (${snapshot.digest})`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function designOutput(value, args) {
+  if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  else process.stdout.write(formatDesignState(value));
+}
+
+function designCommand(args) {
+  const command = args.subcommand;
+  if (!command || !["run", "status", "dispatch"].includes(command)) {
+    throw new RouterError("design requires run, status, or dispatch", 2);
+  }
+  if (command === "status" || command === "dispatch") {
+    if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
+    const state = readDesignState(args.run);
+    if (command === "status") {
+      designOutput(state, args);
+      return;
+    }
+    if (!args["out-dir"]) throw new RouterError("design dispatch requires --out-dir", 2);
+    output(dispatchDesignPackets(state, args["out-dir"]), args);
+    return;
+  }
+
+  const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
+  if (args.resume) {
+    if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    const state = resumeDesignExploration(args.resume, {
+      hostManifest,
+      resultPaths: args.results,
+      shortlistPath: args.shortlist || null,
+      approvalPath: args.approval || null,
+      retry: args.retry || null
+    });
+    designOutput(state, args);
+    process.exitCode = designExitCode(state);
+    return;
+  }
+  if (!args.brief || !args.baseline) {
+    throw new RouterError("design run requires --brief and --baseline", 2);
+  }
+  const request = {
+    briefPath: args.brief,
+    baselinePath: args.baseline,
+    hostManifest,
+    root: args.root || process.cwd()
+  };
+  if (args["dry-run"]) {
+    const report = dryRunDesignExploration(request);
+    designOutput(report, args);
+    process.exitCode = designExitCode(report);
+    return;
+  }
+  if (!args.out) throw new RouterError("design run requires --out for resumable state", 2);
+  const state = startDesignExploration({
+    ...request,
+    statePath: args.out,
+    resultPaths: args.results,
+    shortlistPath: args.shortlist || null,
+    approvalPath: args.approval || null,
+    retry: args.retry || null
+  });
+  designOutput(state, args);
+  process.exitCode = designExitCode(state);
+}
+
 function auditCommand(args) {
   const command = args.subcommand;
   if (!command) throw new RouterError("audit requires init, dispatch, record, triage, status, or finalize", 2);
@@ -552,6 +650,10 @@ export async function main(argv) {
   }
   if (args.command === "browser") {
     browserCommand(args);
+    return;
+  }
+  if (args.command === "design") {
+    designCommand(args);
     return;
   }
   if (args.command === "audit") {

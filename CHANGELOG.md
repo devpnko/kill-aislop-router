@@ -2,6 +2,18 @@
 
 ## 1.0.0 - 2026-08-18
 
+- Added owner-gated design exploration with three project-specific theses ×
+  three redesign depths, an owner shortlist of three, and three color
+  strategies per shortlisted direction.
+- Added separate Playwright evidence packets for every direction and color
+  candidate, independent strength-4 comparisons, computed semantic-role
+  contrast, resumable scope digests, and compiled visual intent/signature
+  receipts.
+- Bound self-contained candidate prototypes, structured locale/license-aware
+  font reports, exact implementation token specs, and fail-closed matrix
+  diversity checks.
+- Removed the missing-direction fallback to a generic taste creator; visual
+  work now requires verified authority or the fail-closed exploration.
 - Added a validated Codex plugin manifest with the bundled KillSlopRouter skill.
 - Added a safe personal-marketplace installer and cross-project invocation prompt.
 - Added a packed-CLI `plugin install` entrypoint for one-command GitHub installation.

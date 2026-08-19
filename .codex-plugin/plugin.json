@@ -1,7 +1,7 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0+codex.20260819001204",
-  "description": "Fail-closed anti-slop routing with evidence-bound visual intent and exact visual signatures, Playwright proof, reviewer execution, and approval automation.",
+  "version": "1.0.0+codex.20260819114324",
+  "description": "Fail-closed design exploration and anti-slop routing with visual contracts, Playwright proof, independent review, and owner approval.",
   "author": {
     "name": "devpnko",
     "url": "https://github.com/devpnko"
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "KillSlopRouter",
     "shortDescription": "Run fail-closed anti-slop audits across projects.",
-    "longDescription": "Lock artifacts to their semantic product surface, separately verified visual intent, and exact evidence-covered visual signature before creator selection; dispatch independent reviewers through authorized adapters, collect served-artifact-bound Playwright evidence, enforce authority gates, resume pending work, and report digest-bound receipts without treating routable work or scanner zero hits as approval.",
+    "longDescription": "Lock artifacts to their semantic product surface, resolve missing direction through project-specific 3x3 design and color exploration, bind owner-approved visual intent and signature, dispatch independent reviewers through authorized adapters, collect Playwright evidence, enforce authority gates, resume pending work, and report digest-bound receipts without treating routable work or scanner zero hits as approval.",
     "developerName": "devpnko",
     "category": "Developer Tools",
     "capabilities": [
@@ -28,6 +28,7 @@
       "Local CLI",
       "Evidence Audit",
       "Playwright Evidence",
+      "Design Exploration",
       "Resumable Review"
     ],
     "websiteURL": "https://github.com/devpnko/kill-aislop-router",
@@ -35,6 +36,7 @@
     "termsOfServiceURL": "https://github.com/devpnko/kill-aislop-router/blob/main/LICENSE",
     "defaultPrompt": [
       "Use $killsloprouter:kill-slop-router to resolve this project's artifact surface, visual intent, and exact visual signature, then continue its gated journey from planning evidence through anti-slop audit and eligible systemization.",
+      "Use $killsloprouter:kill-slop-router to resolve missing visual direction with the owner-gated 3x3 direction and color exploration without imposing a house style.",
       "Use $killsloprouter:kill-slop-router to resume this audit and report every receipt hash.",
       "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence.",
       "Use $killsloprouter:kill-slop-router to systemize this exact owner-approved artifact only if G6T and G7 evidence pass."

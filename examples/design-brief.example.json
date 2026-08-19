@@ -1,0 +1,132 @@
+{
+  "design_brief_version": 1,
+  "project_id": "acme-operations-console",
+  "surface": "operator-product-ui",
+  "screen_id": "exception-review",
+  "locales": ["ko-KR", "en-US"],
+  "product": {
+    "primary_user": "operations analyst",
+    "user_job": "resolve high-risk order exceptions without losing context",
+    "screen_family": "dense authenticated workbench",
+    "main_object": "order exception",
+    "core_task": "compare evidence, decide, and leave an auditable resolution",
+    "trust_risk": "high",
+    "density": "high",
+    "required_states": ["default", "selected", "loading", "empty", "error", "permission-denied"],
+    "success_metric": "faster correct resolutions with fewer context switches"
+  },
+  "baseline_policy": {
+    "preserve": [
+      "authenticated operator workflow",
+      "table-first information density",
+      "existing product terminology",
+      "auditable decision hierarchy"
+    ],
+    "may_change": ["visual hierarchy", "spacing rhythm", "type scale", "color roles", "depth cues"],
+    "forbid": [
+      "turning the operator console into a storefront or landing page",
+      "paper-texture neutralization",
+      "removing operational density to look minimal",
+      "inventing consumer calls to action"
+    ]
+  },
+  "editorial_boundary": {
+    "treatment": "forbidden",
+    "scope": []
+  },
+  "directions": [
+    {
+      "id": "signal-desk",
+      "name": "Signal Desk",
+      "thesis": "Make exceptions read like a precise live signal desk while preserving the existing table workflow.",
+      "subject_world": ["operations control rooms", "instrument panels", "risk signals"],
+      "dominant_influence": "technical control-room clarity",
+      "supporting_influence": "Swiss information discipline",
+      "signature_element": "a continuous evidence-to-decision signal rail",
+      "aesthetic_sources": ["local awesome-design technical catalog", "project screenshots", "existing brand assets"],
+      "anti_references": ["generic SaaS dashboard", "paper editorial", "neon cyberpunk"],
+      "allowed_energy": ["balanced", "high"],
+      "allowed_depth": ["layered", "immersive"],
+      "creator_provider_id": "design-direction-agent"
+    },
+    {
+      "id": "object-workbench",
+      "name": "Object Workbench",
+      "thesis": "Center the exception as a manipulable work object and make supporting evidence feel deliberately attached to it.",
+      "subject_world": ["professional workbenches", "case files", "inspection stations"],
+      "dominant_influence": "object-centered professional software",
+      "supporting_influence": "industrial product geometry",
+      "signature_element": "an anchored object spine shared by list, evidence, and decision",
+      "aesthetic_sources": ["existing task flow", "domain tools", "project component inventory"],
+      "anti_references": ["marketing hero layout", "floating card soup", "monochrome paper sheet"],
+      "allowed_energy": ["quiet", "balanced"],
+      "allowed_depth": ["flat", "layered"],
+      "creator_provider_id": "design-direction-agent"
+    },
+    {
+      "id": "brand-command",
+      "name": "Brand Command",
+      "thesis": "Use the product's strongest brand cues as operational signals rather than decoration.",
+      "subject_world": ["brand wayfinding", "status orchestration", "high-trust command software"],
+      "dominant_influence": "brand-native command interface",
+      "supporting_influence": "data visualization restraint",
+      "signature_element": "brand color appears only where authority or system attention changes",
+      "aesthetic_sources": ["approved brand tokens", "existing interface", "domain semantics"],
+      "anti_references": ["rainbow dashboard", "consumer checkout", "muted editorial template"],
+      "allowed_energy": ["balanced", "high"],
+      "allowed_depth": ["flat", "layered"],
+      "creator_provider_id": "design-direction-agent"
+    }
+  ],
+  "color_strategies": [
+    {
+      "id": "brand-analogous",
+      "name": "Brand-Anchored Analogous",
+      "color_space": "oklch",
+      "harmony_strategy": "brand seed with bounded analogous support and independent semantic hues",
+      "seed_sources": ["approved brand primary", "existing product neutrals"],
+      "role_intent": ["brand for authority", "cool neutrals for dense work", "semantic colors for state only"],
+      "anti_patterns": ["single accent everywhere", "low-contrast gray text", "decorative gradients"],
+      "creator_provider_id": "color-system-agent"
+    },
+    {
+      "id": "trust-complement",
+      "name": "Trust Complement",
+      "color_space": "hct",
+      "harmony_strategy": "trust hue with a restrained complementary attention channel",
+      "seed_sources": ["domain trust cues", "brand primary"],
+      "role_intent": ["stable canvas", "clear action channel", "separate warning from brand"],
+      "anti_patterns": ["equal visual weight for every hue", "color-only meaning", "washed paper canvas"],
+      "creator_provider_id": "color-system-agent"
+    },
+    {
+      "id": "semantic-triad",
+      "name": "Semantic Triad",
+      "color_space": "oklch",
+      "harmony_strategy": "neutral backbone with a low-chroma split triad for action, evidence, and exceptions",
+      "seed_sources": ["workflow semantics", "current UI capture"],
+      "role_intent": ["action and exception never collide", "strong focus visibility", "consistent tone ladders"],
+      "anti_patterns": ["rainbow status chips", "brand substitution", "near-white borders"],
+      "creator_provider_id": "color-system-agent"
+    }
+  ],
+  "providers": {
+    "direction_reviewer": "design-direction-critic",
+    "color_reviewer": "color-system-critic",
+    "browser_evidence": "browser-evidence"
+  },
+  "evidence": {
+    "required_viewports": ["mobile", "tablet", "desktop"],
+    "required_checks": [
+      "keyboard",
+      "state",
+      "overflow",
+      "contrast",
+      "zoom-200",
+      "aria-semantics",
+      "console",
+      "network"
+    ],
+    "required_states": ["default", "selected", "loading", "empty", "error", "permission-denied"]
+  }
+}

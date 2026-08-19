@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-packet.schema.json",
+  "title": "KillSlopRouter design dispatch packet",
+  "type": "object",
+  "required": [
+    "design_packet_version", "packet_id", "run_id", "stage_id", "provider",
+    "assigned_capabilities", "minimum_strength", "required_permissions",
+    "evidence_contract", "design_task", "packet_digest"
+  ],
+  "properties": {
+    "design_packet_version": {"const": 1},
+    "packet_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "stage_id": {"type": "string", "minLength": 1},
+    "provider": {
+      "type": "object",
+      "required": ["id", "kind", "version"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1},
+        "version": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "assigned_capabilities": {"$ref": "#/$defs/strings"},
+    "minimum_strength": {"type": "integer", "minimum": 1, "maximum": 4},
+    "required_permissions": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["artifact:read", "evidence:write", "browser:control", "network:external"]}
+    },
+    "evidence_contract": {
+      "type": "object",
+      "required": ["required_viewports", "required_checks"],
+      "properties": {
+        "required_viewports": {"$ref": "#/$defs/optional-strings"},
+        "required_checks": {"$ref": "#/$defs/optional-strings"}
+      },
+      "additionalProperties": false
+    },
+    "design_task": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]}
+      },
+      "additionalProperties": true
+    },
+    "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "optional-strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

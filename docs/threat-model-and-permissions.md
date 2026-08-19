@@ -137,6 +137,11 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Visual-intent receipt or basis replaced | Profile locks the receipt digest; the receipt locks evidence digests; audit snapshots and rechecks the complete chain |
 | Main color or style guessed from source frequency | Visual-signature roles require matching digest-bound evidence and per-aspect coverage; frequency is discovery only |
 | Critic replaces approved tokens or globally flattens depth | Exact signature reaches every packet; token substitution and unapproved normalization are hard blockers |
+| Missing direction silently becomes one fashionable house style | Missing direction has no creator fallback; the design workflow requires three project-specific theses across three redesign depths and an owner shortlist |
+| Nine candidates are cosmetic variants of one template | The brief binds distinct theses, subject worlds, signature elements, anti-references, and baseline rules; the independent comparison scores distinctiveness and project fit |
+| Design creator supplies its own screenshots or review | Candidate, browser, comparison, and owner actor identities are checked separately; self-review and self-approval block |
+| Color generator asserts fabricated accessibility ratios | The router recomputes contrast from normalized sRGB roles and requires non-color meaning before color review or approval |
+| Palette harmony is treated as owner approval | OKLCH/HCT and harmony metadata are generation evidence only; independent color review and exact owner approval remain required |
 | Marketing palette leaks into an operator product | Signatures are keyed and verified per routed surface; cross-surface evidence is not merged implicitly |
 | Visual-signature receipt or evidence replaced | Profile, audit, approval scope, and final receipt bind and re-hash the complete signature chain |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
@@ -150,9 +155,11 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Reviewer averaging | Conflicting finding references require an adjudication resolution |
 | Fake browser proof | Viewport screenshots and non-screenshot check coverage are validated separately |
 | Browser points at another build | Served endpoint must attest the packet's exact artifact digest map before launch |
+| Design prototype or candidate evidence is replaced between shortlist and approval | Every candidate result, prototype, Playwright screenshot/report, shortlist scope, color scope, and final owner decision is digest-bound and rechecked on resume |
 | Browser runtime or scenario substitution | Bundled entrypoint, runtime packages, scenario file, and baseline directory are digest-locked |
 | Material visual baseline change | Playwright comparator permits zero non-antialiased differing pixels and writes a reviewable diff PNG |
 | Browser data exfiltration | Loopback default, explicit external-network authority, and per-request origin blocking |
+| Static design prototype reads mutable or unrelated resources | Official design Playwright requires one self-contained digest-bound HTML file; only that exact `file:` URL plus `data:`, `blob:`, and `about:` are allowed, while all other local and network requests are blocked |
 | Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
 | Approval reuse | Approval must match the run ID and exact approval-scope digest |

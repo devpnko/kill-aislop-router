@@ -31,6 +31,9 @@ change. Consumers that reject unknown fields should permit all three fields.
 - package exports `./automation`, `./bootstrap`, and `./execution`
 - package export `./playwright`, official Playwright adapter contract version 1,
   browser attestation version 1, scenario version 1, and setup receipt version 1
+- package export `./design`, `killsloprouter design` commands, design brief and
+  result version 1, resumable design exploration run version 1, shortlist
+  version 1, and owner design decision version 1
 
 `bootstrap` is additive and refuses to replace an existing project profile,
 host manifest, or bootstrap receipt. It starts with manual-only adapters and an
@@ -56,6 +59,21 @@ schema still accepts earlier receipts that do not contain those two fields.
 The official adapter adds a served-artifact attestation gate and an approved
 pixel baseline. A missing baseline is a deliberate first-run block. This is an
 additive strengthening of browser evidence, not a receipt-version break.
+
+### Missing direction no longer selects a generic taste creator
+
+The prior `consumer-product-ui` and `marketing-editorial` route cases selected
+`taste-skill` when `direction: missing`. V1 now leaves the creator unresolved
+and reports that approved direction authority or `killsloprouter design run` is
+required. This is an intentional fail-closed behavior change: generic taste is
+not project authority, and repeatedly selecting it caused unrelated products
+to converge on one familiar aesthetic.
+
+Clients that intentionally depended on the old fallback must either provide a
+verified visual-intent and visual-signature contract and route with
+`direction: approved`, use a digest-bound approved reference, or complete the
+owner-gated design exploration. Existing route and audit receipt versions do
+not change.
 
 ## Required changes
 

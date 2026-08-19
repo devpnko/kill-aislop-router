@@ -492,6 +492,123 @@ test("official Playwright runtime, scenario, and baseline tamper fail before chi
   }
 });
 
+test("official Playwright adapter verifies a digest-bound static design prototype", {
+  timeout: 60_000
+}, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
+  try {
+    const paths = bootstrapProject(directory);
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome"
+    });
+    const prototype = path.join(directory, "candidate.html");
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Design candidate</title>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
+<body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const capabilities = [
+      "responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence",
+      "contrast-evidence", "zoom-evidence"
+    ];
+    const packet = {
+      design_packet_version: 1,
+      packet_id: "browser-design-fixture",
+      run_id: "official-design-browser-run",
+      stage_id: "browser-evidence",
+      provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
+      assigned_capabilities: capabilities,
+      minimum_strength: 3,
+      required_permissions: ["artifact:read", "evidence:write", "browser:control"],
+      evidence_contract: {
+        required_viewports: ["mobile", "desktop"],
+        required_checks: ["keyboard", "state", "overflow", "contrast", "zoom-200"]
+      },
+      design_task: {
+        kind: "browser-evidence",
+        subject_kind: "direction-candidate",
+        subject_id: "signal-desk--refine",
+        subject_result_digest: `sha256:${"2".repeat(64)}`,
+        prototype_paths: [prototype],
+        prototypes: [{ path: prototype, digest: hashArtifact(prototype) }],
+        locales: ["en-US", "ko-KR"],
+        required_states: ["default", "error"]
+      },
+      packet_digest: `sha256:${"1".repeat(64)}`
+    };
+    const manifest = loadHostManifest(paths.host);
+    const unsupportedPacket = structuredClone(packet);
+    unsupportedPacket.evidence_contract.required_checks.push("screen-reader", "visual-regression");
+    const unsupported = inspectPacketAdapter(unsupportedPacket, manifest);
+    assert.equal(unsupported.execution_status, "manual_pending");
+    assert.match(unsupported.reason, /screen-reader, visual-regression/);
+    assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
+    const run = {
+      run_id: packet.run_id,
+      packets: [packet],
+      creator: { provider_id: "design-direction-agent", actor_id: "creator:direction" },
+      scope: { kind: "design-exploration" },
+      artifacts: [snapshotArtifact(prototype, { root: directory })],
+      results: []
+    };
+    const result = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "design-evidence")
+    });
+    assert.equal(result.execution_status, "ran", result.error);
+    assert.notEqual(result.child_pid, process.pid);
+    assert.equal(result.result.kind, "browser-evidence");
+    assert.equal(result.result.browser_engine, "playwright");
+    assert.ok(Object.values(result.result.checks).every(Boolean));
+    assert.deepEqual(new Set(result.result.locales_tested), new Set(["en-US", "ko-KR"]));
+    assert.deepEqual(new Set(result.result.states_tested), new Set(["default", "error"]));
+    assert.deepEqual(
+      new Set(result.result.evidence.filter((item) => item.kind === "screenshot").map((item) => item.viewport)),
+      new Set(["mobile", "desktop"])
+    );
+
+    fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Unbound resource</title>
+<link rel="stylesheet" href="./unbound.css">
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
+<body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const blockedPacket = structuredClone(packet);
+    blockedPacket.packet_id = "browser-design-unbound-resource";
+    blockedPacket.packet_digest = `sha256:${"3".repeat(64)}`;
+    blockedPacket.evidence_contract.required_checks.push("network");
+    blockedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const blocked = executeAuditPacket({
+      run: { ...run, run_id: "official-design-browser-block-run", packets: [blockedPacket] },
+      packet: blockedPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "blocked-design-evidence")
+    });
+    assert.equal(blocked.execution_status, "ran", blocked.error);
+    assert.equal(blocked.result.checks.network, false);
+    const blockedReportPath = blocked.result.evidence.find((item) => item.kind === "test-report").path;
+    const blockedReport = readJson(blockedReportPath);
+    assert.ok(blockedReport.executions.every((execution) =>
+      execution.blocked_requests.some((item) => item.url.endsWith("/unbound.css"))));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("served artifact attestation mismatch fails closed across the child boundary", {
   timeout: 30_000
 }, async () => {

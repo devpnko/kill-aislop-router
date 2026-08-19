@@ -22,6 +22,9 @@
     "visual_signature_authority_is_digest_bound": true,
     "palette_frequency_is_not_style_authority": true,
     "critic_preferences_cannot_override_visual_signature": true,
+    "missing_direction_requires_design_exploration": true,
+    "design_candidates_require_playwright_evidence": true,
+    "design_shortlist_and_palette_require_owner_selection": true,
     "locale_domain_privacy_browser_and_owner_gates_remain_hard": true
   },
   "provider_capabilities": {
@@ -134,7 +137,7 @@
         "type": "by-direction",
         "cases": [
           {"direction": "approved", "tool": "project-design-system", "requires_profile_flag": "approved_design_system"},
-          {"direction": "missing", "tool": "taste-skill"},
+          {"direction": "missing", "requires_design_exploration": true},
           {"direction": "reference", "tool": "hallmark"}
         ]
       },
@@ -158,7 +161,7 @@
         "type": "by-direction",
         "cases": [
           {"direction": "approved", "tool": "project-design-system", "requires_profile_flag": "approved_design_system"},
-          {"direction": "missing", "tool": "taste-skill"},
+          {"direction": "missing", "requires_design_exploration": true},
           {"direction": "reference", "tool": "hallmark"}
         ]
       },

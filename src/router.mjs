@@ -311,7 +311,7 @@ function requireUniqueStrings(value, label, { allowEmpty = false } = {}) {
   }
 }
 
-function visualIntentBody(contract) {
+export function visualIntentBody(contract) {
   return {
     mode: contract.mode,
     editorial_treatment: contract.editorial_treatment,
@@ -323,7 +323,7 @@ function visualIntentBody(contract) {
   };
 }
 
-function validateVisualIntentContract(contract, label) {
+export function validateVisualIntentContract(contract, label = "visual intent contract") {
   if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
     throw new RouterError(`${label} must be an object`, 2);
   }
@@ -446,7 +446,7 @@ function validateColorReferences(value, label, { allowEmpty = false, semantic = 
   }
 }
 
-function visualSignatureBody(contract) {
+export function visualSignatureBody(contract) {
   return {
     palette: {
       primary: (contract.palette?.primary || []).map((item) => ({ ...item })),
@@ -489,7 +489,7 @@ function visualSignatureBody(contract) {
   };
 }
 
-function validateVisualSignatureContract(contract, label) {
+export function validateVisualSignatureContract(contract, label = "visual signature contract") {
   if (!contract || typeof contract !== "object" || Array.isArray(contract)) {
     throw new RouterError(`${label} must be an object`, 2);
   }
@@ -1432,7 +1432,9 @@ function resolveCreator(route, input, profile, override, unresolved) {
   }
   if (policy.type === "fixed") {
     if (policy.requires_profile_flag && !hasProfileFlag(profile, policy.requires_profile_flag)) {
-      unresolved.push(`creator requires project profile flag: ${policy.requires_profile_flag}`);
+      unresolved.push(policy.requires_profile_flag === "approved_design_system"
+        ? "creator requires an approved project design system or an explicit project surface creator; `killsloprouter design run` resolves direction but does not confer design-system authority"
+        : `creator requires project profile flag: ${policy.requires_profile_flag}`);
       return null;
     }
     if (policy.requires_profile_adapter && !hasProfileAdapter(profile, policy.requires_profile_adapter)) {
@@ -1448,11 +1450,19 @@ function resolveCreator(route, input, profile, override, unresolved) {
       return null;
     }
     if (selected.requires_profile_flag && !hasProfileFlag(profile, selected.requires_profile_flag)) {
-      unresolved.push(`creator requires project profile flag: ${selected.requires_profile_flag}`);
+      unresolved.push(selected.requires_profile_flag === "approved_design_system"
+        ? "creator requires an approved project design system or an explicit project surface creator; `killsloprouter design run` resolves direction but does not confer design-system authority"
+        : `creator requires project profile flag: ${selected.requires_profile_flag}`);
       return null;
     }
     if (selected.requires_profile_adapter && !hasProfileAdapter(profile, selected.requires_profile_adapter)) {
       unresolved.push(`creator requires routable project adapter: ${selected.requires_profile_adapter}`);
+      return null;
+    }
+    if (selected.requires_design_exploration) {
+      unresolved.push(
+        "visual direction is missing; complete `killsloprouter design run` and bind its approved receipts"
+      );
       return null;
     }
     return selected.tool;

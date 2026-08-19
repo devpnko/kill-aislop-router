@@ -25,6 +25,7 @@ package or create a GitHub Release as part of the V1 work.
 - Re-hashes plans, artifacts, results, evidence, triage, approval, step receipts, and automation state.
 - Resumes interrupted runs and retries a failed packet, provider, or stage without discarding completed evidence.
 - Ships an official Playwright adapter for real responsive, interaction, accessibility-proxy, trace, and pixel-baseline evidence.
+- Resolves missing direction through a resumable 3-thesis × 3-depth exploration, owner shortlist, 3-strategy color matrix, and exact owner-approved receipts.
 
 ## Requirements
 
@@ -117,6 +118,46 @@ logo color is not automatically the UI primary. See
 [Visual signature contract](docs/visual-signature-contract.md), and the working
 fixtures in `examples/planning-evidence/`.
 
+When those contracts are genuinely undecided, use design exploration instead
+of selecting a generic creator or guessing a style:
+
+```bash
+cp examples/design-brief.example.json .killsloprouter/design-brief.json
+
+killsloprouter design run \
+  --brief .killsloprouter/design-brief.json \
+  --baseline . \
+  --host-config .killsloprouter/host-adapters.json \
+  --dry-run \
+  --json
+
+killsloprouter design run \
+  --brief .killsloprouter/design-brief.json \
+  --baseline . \
+  --host-config .killsloprouter/host-adapters.json \
+  --out .killsloprouter/design-direction.json \
+  --json
+```
+
+Edit the example first: its product evidence and theses are illustrative, not a
+style preset. The workflow compares three project-specific theses at `refine`,
+`evolve`, and `reimagine` depth, requires separate Playwright evidence for all
+nine candidates, stops for an owner shortlist of three, then evaluates three
+declared color strategies for each shortlisted direction. It never treats
+`editorial`, neutral gray, or one main color as a default. See
+[Project-aware design exploration](docs/design-exploration.md).
+
+The bundled official Playwright adapter can inspect digest-bound,
+self-contained static HTML candidate prototypes as well as the final served
+application. Candidate HTML marks its demonstrated locales and states
+explicitly; unbound local and network resources are blocked. Exploration
+captures do not bypass the final audit's served-artifact attestation or
+approved pixel baseline. Design receipts authorize direction, not domain,
+privacy, runtime, release approval, or a reusable design system; those remain
+hard gates in the integrated run. Implement the selected evidence with one
+explicit project creator. A build/redesign route still requires a separately
+approved design system or an explicit project surface creator.
+
 For a UI artifact, the official browser setup is three explicit operations:
 
 ```bash
@@ -161,7 +202,7 @@ node bin/killsloprouter.mjs run \
   --json
 ```
 
-The example host manifest is deliberately manual. The dry run succeeds and
+The example host manifest is deliberately manual. The dry run exits `6` and
 reports every provider as `manual_pending`; it never fabricates a completed
 review. Replace those declarations with real, digest-locked adapters before an
 executing run.
@@ -342,6 +383,9 @@ contracts instead of replacing them.
   not satisfy visual-intent, visual-signature, craft, browser, or owner gates.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
 - Required locale, domain, privacy, browser, and owner stages cannot be skipped.
+- Missing visual direction cannot fall through to a universal taste creator; it needs approved authority or owner-gated design exploration.
+- Every direction and color candidate in design exploration needs independent Playwright evidence before comparison.
+- Color harmony metadata does not replace computed semantic-role contrast or owner selection.
 - Browser packets need viewport screenshots and non-screenshot proof for every required check.
 - The official browser adapter requires served-artifact attestation and locks its runtime, scenarios, and baseline directory by digest.
 - Owner approval is bound to the exact run and approval-scope digest.
@@ -356,6 +400,8 @@ and [Systemization protocol](docs/systemization-protocol.md).
 Route receipt version 1, audit run version 1, audit result version 1, triage
 version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
+The additive design workflow uses design exploration run version 1, design
+result version 1, shortlist version 1, and owner decision version 1.
 Profiles must add the fail-closed `surface_contract`. Visual tasks also require
 approved `visual_intents` and `visual_signatures` contracts; profiles without
 them remain readable for non-visual compatibility but visual plans block.
@@ -368,6 +414,7 @@ change. See [V1 migration notes](docs/migration-v1.md).
 - [Surface contract](docs/surface-contract.md)
 - [Visual intent contract](docs/visual-intent-contract.md)
 - [Visual signature contract](docs/visual-signature-contract.md)
+- [Project-aware design exploration](docs/design-exploration.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

@@ -174,8 +174,9 @@ const consumer = plan({
   direction: "missing",
   changes: ["source", "copy", "layout"]
 }, null);
-assert.equal(consumer.creator, "taste-skill");
+assert.equal(consumer.creator, null);
 assert.equal(consumer.status, "blocked");
+assert.ok(consumer.unresolved.some((item) => item.includes("killsloprouter design run")));
 assert.equal(consumer.stages.some((stage) => stage.id === "rendered-craft-review"), true);
 
 const reference = plan({

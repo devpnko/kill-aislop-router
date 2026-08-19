@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-owner-decision.schema.json",
+  "title": "KillSlopRouter owner design decision",
+  "type": "object",
+  "required": [
+    "design_owner_decision_version", "run_id", "approval_scope_digest", "owner_id", "status",
+    "selected_design_candidate_id", "selected_color_candidate_id", "note", "decided_at"
+  ],
+  "properties": {
+    "design_owner_decision_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "approval_scope_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["approved", "rejected"]},
+    "selected_design_candidate_id": {"type": "string", "minLength": 1},
+    "selected_color_candidate_id": {"type": "string", "minLength": 1},
+    "note": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

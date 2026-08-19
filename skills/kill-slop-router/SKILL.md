@@ -23,13 +23,14 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
 4. Treat the generated host manifest as manual-only. Bind real project contracts in the profile. Replace a manual adapter only when its entrypoint, digest, permissions, strength, and complete capabilities are known.
 5. Resolve the generated `visual_intents` entry from project, brand, approved-reference, or explicit owner evidence. Surface is semantic, not aesthetic: `marketing-editorial` does not authorize a paper/editorial look, and `operator-product-ui` does not prescribe a gray dashboard. Never use scanner output or anti-slop rules as visual direction.
-6. Keep visual intent unresolved when evidence is ambiguous. When evidence is exact, create the authority receipt described in `<plugin-root>/docs/visual-intent-contract.md`, bind every evidence digest, and copy the exact mode, editorial boundary, energy, depth, `preserve`, and `avoid` values into the profile. Use editorial mode only when the evidence explicitly requires it; use `bounded` only with named scopes.
-7. Resolve `visual_signatures` separately. Inspect approved design tokens, CSS variables, theme configuration, brand mappings, fonts, type hierarchy, density, radii, geometry, strokes, shadows, separation, imagery, and motion for the routed surface. A value's frequency or presence in a logo is discovery evidence only, never proof of its UI role. Do not combine signatures from other product surfaces.
-8. If every aspect is authoritative, create the receipt described in `<plugin-root>/docs/visual-signature-contract.md`, map all nine aspects to digest-locked evidence, and copy the exact signature into the profile. If any role or source conflict is material, keep the signature unresolved and stop before creation. Never fill unresolved fields with an editorial, neutral, flat, or trend-based default.
-9. For a UI artifact, use the official Playwright adapter only when the project's reviewed server URL is already running or the user explicitly starts it. Run `browser attest` for the exact artifacts and make the project serve that JSON at `/.well-known/killsloprouter-artifact.json`, then run `browser configure`. Never infer or execute a dev-server command.
-10. Run `doctor`, then an integrated `run --dry-run`. Treat `configuration_required` as a blocker. Do not edit the artifact while the route is blocked.
-11. Start `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID.
-12. Resume the same state until it is complete or an exact external action is required.
+6. Keep visual intent unresolved when evidence is ambiguous. When direction already has exact project authority, create the receipt described in `<plugin-root>/docs/visual-intent-contract.md`, bind every evidence digest, and copy the exact mode, editorial boundary, energy, depth, `preserve`, and `avoid` values into the profile. Use editorial mode only when the evidence explicitly requires it; use `bounded` only with named scopes.
+7. If direction is genuinely undecided and the task needs visual creation, use `<plugin-root>/docs/design-exploration.md`. Build a brief from product and repository evidence with exactly three distinct project-specific theses, not three renamed style presets. Run the 3×3 direction matrix through authorized creators and separate Playwright packets using self-contained digest-bound prototypes, stop for the real owner to shortlist three, run the 3×3 color matrix, and stop again for exact owner approval. Missing adapters remain `manual_pending`; never author the owner files yourself.
+8. Resolve `visual_signatures` separately. Inspect approved design tokens, CSS variables, theme configuration, brand mappings, fonts, type hierarchy, density, radii, geometry, strokes, shadows, separation, imagery, and motion for the routed surface. A value's frequency or presence in a logo is discovery evidence only, never proof of its UI role. Do not combine signatures from other product surfaces.
+9. If every aspect is authoritative, create the receipt described in `<plugin-root>/docs/visual-signature-contract.md`, map all nine aspects to digest-locked evidence, and copy the exact signature into the profile. If design exploration completed, use only its compiled `profile-bindings.json`; do not reinterpret the selected palette or style. If any role or source conflict is material, keep the signature unresolved and stop before creation. Never fill unresolved fields with an editorial, neutral, flat, or trend-based default.
+10. For a UI artifact, use the official Playwright adapter only when the project's reviewed server URL is already running or the user explicitly starts it. Run `browser attest` for the exact artifacts and make the project serve that JSON at `/.well-known/killsloprouter-artifact.json`, then run `browser configure`. Never infer or execute a dev-server command.
+11. Run `doctor`, then an integrated `run --dry-run`. Treat `configuration_required` as a blocker. Do not edit the artifact while the route is blocked.
+12. Start `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID.
+13. Resume the same state until it is complete or an exact external action is required.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.
@@ -47,6 +48,9 @@ currently eligible stage without asking the user to restate CLI flags.
    artifact scope, visual character, exact signature, editorial boundary, or the required
    planning receipt is absent, stop with the exact missing evidence. Do not
    synthesize PRD, UAC, IA, data authority, visual authority, or owner decisions.
+   When product evidence is sufficient but visual direction is not, offer or
+   resume the design exploration instead of routing directly to a generic taste
+   creator. Preserve all owner stops.
 3. For a requested improvement, plan before changes and hand the exact artifact
    plus both verified visual contracts to the single selected creator. Do
    not include critic anti-pattern lists as a replacement design brief. If that
@@ -91,6 +95,10 @@ editorial may describe evidence but never choose concrete values by themselves.
 - Preserve approved palette roles and tokens, typography, density, shape,
   elevation, imagery, and motion. Treat every `forbidden_transformations` entry
   as a hard creation and review boundary.
+- When direction is missing, require the 3×3 direction matrix, independent
+  Playwright evidence per artifact, owner shortlist of three, 3×3 color matrix,
+  computed color-role contrast, and exact owner approval before binding intent
+  or signature receipts.
 - Permit editorial treatment only when the verified contract says `bounded` or `required`, and never outside `editorial_scope`.
 - Run overlapping tools as separate critics with different questions.
 - Replace unavailable or weak tools only with capability-complete fallbacks of

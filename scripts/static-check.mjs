@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AXE_CORE_VERSION, PLAYWRIGHT_CORE_VERSION } from "../src/playwright.mjs";
 import { hashArtifact } from "../src/integrity.mjs";
+import { validateDesignBrief } from "../src/design.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -41,6 +42,11 @@ const exampleProfile = JSON.parse(fs.readFileSync(
   path.join(root, "examples", "project-profile.example.json"),
   "utf8"
 ));
+const exampleDesignBrief = JSON.parse(fs.readFileSync(
+  path.join(root, "examples", "design-brief.example.json"),
+  "utf8"
+));
+validateDesignBrief(exampleDesignBrief);
 assert.equal(packageJson.version, router.router_version, "package and router versions must agree");
 const pluginBaseVersion = pluginJson.version.replace(/\+codex\.[0-9A-Za-z.-]+$/, "");
 assert.equal(packageJson.version, pluginBaseVersion, "package and plugin base versions must agree");
@@ -64,6 +70,22 @@ assert.equal(router.invariants.scanner_zero_hits_is_not_design_approval, true);
 assert.equal(router.invariants.visual_signature_authority_is_digest_bound, true);
 assert.equal(router.invariants.palette_frequency_is_not_style_authority, true);
 assert.equal(router.invariants.critic_preferences_cannot_override_visual_signature, true);
+assert.equal(router.invariants.missing_direction_requires_design_exploration, true);
+assert.equal(router.invariants.design_candidates_require_playwright_evidence, true);
+assert.equal(router.invariants.design_shortlist_and_palette_require_owner_selection, true);
+assert.equal(packageJson.exports["./design"], "./src/design.mjs");
+assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
+  "design child-process coverage must remain in the E2E script");
+assert.equal(exampleDesignBrief.directions.length, 3);
+assert.equal(exampleDesignBrief.color_strategies.length, 3);
+for (const routeId of ["consumer-product-ui", "marketing-editorial"]) {
+  const route = router.routes.find((item) => item.id === routeId);
+  const missing = route.creator_policy.cases.find((item) => item.direction === "missing");
+  assert.equal(missing.requires_design_exploration, true,
+    `${routeId} missing direction must require exploration`);
+  assert.equal("tool" in missing, false,
+    `${routeId} missing direction must not select a universal creator`);
+}
 for (const invariant of [
   "creator_cannot_self_approve",
   "browser_evidence_required_for_visual_approval",
