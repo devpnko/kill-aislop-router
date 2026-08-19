@@ -68,6 +68,15 @@ means the operator trusts the allowlisted provider IDs and the exact
 digest-locked entrypoints. The manifest cannot lower the route's capability or
 strength requirements.
 
+### CI workflow
+
+Pull-request code executes in CI, but the workflow has read-only repository
+permission and receives no publication or release authority. Dependency
+installation uses the committed lockfile with lifecycle scripts disabled.
+Official GitHub Actions are pinned to reviewed full commit SHAs so a moved tag
+cannot substitute checkout or Node setup code. The explicitly pinned Playwright
+package then installs the bundled Chromium build used by browser tests.
+
 ### Adapter child
 
 The child is trusted code running with the operating-system privileges of the
@@ -152,6 +161,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Marketing palette leaks into an operator product | Signatures are keyed and verified per routed surface; cross-surface evidence is not merged implicitly |
 | Visual-signature receipt or evidence replaced | Profile, audit, approval scope, and final receipt bind and re-hash the complete signature chain |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
+| CI action tag substitution | Checkout and Node setup actions use immutable full commit SHAs under read-only workflow permissions |
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
 | Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
 | Shell injection | Fixed Node executable, fixed single entrypoint argument, `shell:false` |

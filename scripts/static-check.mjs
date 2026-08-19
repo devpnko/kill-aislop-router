@@ -243,6 +243,10 @@ for (const file of markdownFiles) {
 const ci = fs.readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
 assert.match(ci, /node:\s*\[20, 22\]/, "CI must test Node 20 and 22");
 assert.match(ci, /contents:\s*read/, "CI repository permission must remain read-only");
+for (const action of ["actions/checkout", "actions/setup-node"]) {
+  assert.match(ci, new RegExp(`${action}@[0-9a-f]{40}`),
+    `CI action ${action} must use an immutable commit SHA`);
+}
 assert.match(ci, /npm ci --ignore-scripts/, "CI must install from the exact lockfile");
 assert.match(ci, /playwright-core install --with-deps chromium/,
   "CI must install its browser explicitly");

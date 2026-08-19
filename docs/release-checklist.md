@@ -33,6 +33,7 @@ GitHub Release.
 - [ ] Scanner-zero E2E proves a clean scan cannot replace the independent
       visual-intent/signature reviewer, browser evidence, or owner approval.
 - [ ] CI covers Node.js 20 and 22 with read-only repository permissions.
+- [ ] CI action dependencies use reviewed, immutable full commit SHAs.
 - [ ] CI installs the pinned Chromium build explicitly and uses `KSR_PLAYWRIGHT_CHANNEL=bundled`.
 - [ ] README commands were executed from a clean checkout or equivalent worktree.
 - [ ] The packed tarball installs in a clean consumer and its installed CLI
