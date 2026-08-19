@@ -283,7 +283,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--scope", "runtime",
       "--json"
     ], directory);
-    assert.equal(dryRun.status, 0, dryRun.stderr || dryRun.stdout);
+    assert.equal(dryRun.status, 6, dryRun.stderr || dryRun.stdout);
     const report = JSON.parse(dryRun.stdout);
     assert.equal(report.status, "dry_run");
     assert.equal(report.plan.route_id, "existing-ui-audit");

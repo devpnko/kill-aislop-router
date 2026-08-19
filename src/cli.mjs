@@ -446,7 +446,7 @@ function runCommand(args) {
     const report = dryRunAutomation(request);
     if (args.out) writeJsonAtomic(args.out, report);
     automationOutput(report, args);
-    process.exitCode = report.status === "blocked" ? 5 : 0;
+    process.exitCode = automationExitCode(report);
     return;
   }
   if (!args.out) throw new RouterError("run requires --out for its resumable automation state", 2);

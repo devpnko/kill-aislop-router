@@ -222,6 +222,10 @@ must handle exit code 6 and inspect the `pending` list. Add an allowlisted host
 adapter or complete the dispatch result template, then resume the same state
 with `--result FILE`.
 
+This applies to integrated `run --dry-run` as well: its version-1 JSON status
+remains `dry_run`, but any non-executable planned adapter makes the process exit
+`6`. A fully ready dry-run exits `0`, and a blocked dry-run exits `5`.
+
 ### Owner approval in integrated runs
 
 Standalone `audit finalize` keeps its prior `--require-owner` behavior for

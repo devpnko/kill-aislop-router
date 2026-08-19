@@ -114,6 +114,10 @@ owner and reached `critic_pass`. `manual_pending` means a precise external
 action is required. `blocked` means a hard gate, integrity check, adapter
 execution, rejection, or conflict prevents approval.
 
+Integrated dry-run keeps the JSON status `dry_run` for receipt compatibility,
+but returns `6` when `pending` contains a non-executable adapter, `0` when every
+planned adapter is ready, and `5` when planning or verification is blocked.
+
 The integrated command never treats `routable`, process exit zero, or a child
 JSON response by itself as a completed review. The result becomes `ran` only
 after audit ingestion accepts the provider identity, capabilities, artifact

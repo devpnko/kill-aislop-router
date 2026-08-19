@@ -836,7 +836,10 @@ export function resumeAutomation(statePath, options = {}) {
 }
 
 export function automationExitCode(state) {
-  if (state.status === "complete") return 0;
+  if (state.status === "complete" || (
+    state.status === "dry_run" && !(state.pending || []).length
+  )) return 0;
+  if (state.status === "dry_run" && (state.pending || []).length) return 6;
   if (state.status === "manual_pending") return 6;
   return 5;
 }

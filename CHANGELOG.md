@@ -28,6 +28,12 @@
 - Added the resumable `run` lifecycle with per-phase receipts and hashes.
 - Added allowlisted, digest-locked host adapters for scanners, agents, skills, and browser evidence.
 - Added explicit `manual_pending`, retry, dry-run, JSON, and state output behavior.
+- Fixed integrated dry-run exit semantics so any non-executable planned adapter
+  returns `6` while preserving the version-1 `dry_run` JSON status.
+- Added clean-consumer tarball installation checks and child timeout, malformed
+  JSON, oversized output, evidence escape, state tamper, and crash-resume E2E.
+- Added distinct ERP/operator, B2C/consumer, and ko-KR high-risk dogfood routes
+  to prevent cross-surface palette, density, typography, and privacy collapse.
 - Preserved route and audit receipt version 1 compatibility.
 - Added child-process E2E coverage for success and required fail-closed gates.
 - Added the official Playwright browser adapter with served-artifact attestation,

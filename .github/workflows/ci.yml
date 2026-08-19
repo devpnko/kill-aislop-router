@@ -10,6 +10,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       KSR_PLAYWRIGHT_CHANNEL: bundled
     strategy:
@@ -22,5 +23,6 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts
       - run: npx playwright-core install --with-deps chromium
+        timeout-minutes: 10
       - run: npm run check
       - run: npm run pack:check

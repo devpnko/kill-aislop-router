@@ -35,6 +35,10 @@ GitHub Release.
 - [ ] CI covers Node.js 20 and 22 with read-only repository permissions.
 - [ ] CI installs the pinned Chromium build explicitly and uses `KSR_PLAYWRIGHT_CHANNEL=bundled`.
 - [ ] README commands were executed from a clean checkout or equivalent worktree.
+- [ ] The packed tarball installs in a clean consumer and its installed CLI
+      passes help, doctor, and manual-pending dry-run exit semantics.
+- [ ] ERP/operator, B2C/consumer, and ko-KR high-risk dogfood fixtures preserve
+      their distinct intent/signature contracts and keep privacy gates closed.
 - [ ] Migration notes describe the required surface, visual-intent, and visual-signature contracts, missing-direction behavior change, Node 20 floor, and rejected profile execution fields.
 - [ ] Threat model names the host child and identity limitations.
 - [ ] Browser runtime, scenario, baseline, origin, and served-artifact boundaries are documented and digest-locked.
