@@ -31,5 +31,6 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright-core install --with-deps chromium
         timeout-minutes: 10
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run check
       - run: npm run pack:check

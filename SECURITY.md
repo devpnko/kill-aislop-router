@@ -51,3 +51,12 @@ access, and pull-request mutation are outside the V1 host adapter contract.
 
 Report suspected vulnerabilities privately to the repository owner before
 opening a public issue containing exploit details.
+
+## Dependency Monitoring
+
+GitHub security updates and the committed Dependabot configuration monitor npm
+and GitHub Actions dependencies. Pull requests from automation are proposals,
+not approvals: they must pass the same pinned-browser Node 20/22 CI and the same
+independent review policy as contributor changes. CI also blocks high-severity
+production dependency advisories with `npm audit --omit=dev --audit-level=high`.
+No dependency bot has merge, publication, or release authority.

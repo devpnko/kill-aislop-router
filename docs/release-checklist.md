@@ -36,6 +36,7 @@ GitHub Release.
 - [ ] Feature branches produce one PR run, and superseded runs are cancelled.
 - [ ] CI action dependencies use reviewed, immutable full commit SHAs.
 - [ ] CI installs the pinned Chromium build explicitly and uses `KSR_PLAYWRIGHT_CHANNEL=bundled`.
+- [ ] CI rejects high-severity production dependency advisories, and Dependabot covers npm and GitHub Actions without auto-merge authority.
 - [ ] README commands were executed from a clean checkout or equivalent worktree.
 - [ ] The packed tarball installs in a clean consumer and its installed CLI
       passes help, doctor, and manual-pending dry-run exit semantics.
