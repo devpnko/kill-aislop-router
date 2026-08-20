@@ -53,17 +53,18 @@
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": {"enum": ["visible", "hidden", "text", "value", "checked", "url", "count"]},
+        "type": {"enum": ["visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping", "computed-style"]},
         "locator": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "property": {"type": "string", "pattern": "^(--)?[a-z][a-z0-9-]{0,100}$"},
         "value": {"type": ["string", "integer"]}
       },
       "allOf": [
         {
-          "if": {"properties": {"type": {"enum": ["visible", "hidden", "text", "value", "checked", "count"]}}},
+          "if": {"properties": {"type": {"enum": ["visible", "hidden", "text", "value", "checked", "count", "no-overlap", "no-clipping", "computed-style"]}}},
           "then": {"required": ["locator"]}
         },
         {
-          "if": {"properties": {"type": {"enum": ["text", "value", "url"]}}},
+          "if": {"properties": {"type": {"enum": ["text", "value", "url", "computed-style"]}}},
           "then": {
             "required": ["value"],
             "properties": {"value": {"type": "string"}}
@@ -75,6 +76,10 @@
             "required": ["value"],
             "properties": {"value": {"type": "integer", "minimum": 0}}
           }
+        },
+        {
+          "if": {"properties": {"type": {"const": "computed-style"}}},
+          "then": {"required": ["property"]}
         }
       ],
       "additionalProperties": false

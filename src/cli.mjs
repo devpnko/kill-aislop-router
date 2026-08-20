@@ -16,6 +16,8 @@ import {
   findProjectProfile,
   formatReceipt,
   inspectSurfaceContract,
+  inspectVisualIntents,
+  inspectVisualSignatures,
   planRoute,
   readJson,
   resolveDesignSystem,
@@ -32,6 +34,14 @@ import { loadHostManifest } from "./execution.mjs";
 import { hashArtifact } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
 import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
+import {
+  designExitCode,
+  dispatchDesignPackets,
+  dryRunDesignExploration,
+  readDesignState,
+  resumeDesignExploration,
+  startDesignExploration
+} from "./design.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -60,7 +70,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -100,6 +110,10 @@ Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
   killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
+  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
+  killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
+  killsloprouter design status --run FILE [--json]
+  killsloprouter design dispatch --run FILE --out-dir DIR
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -138,6 +152,9 @@ Options:
   --router /path/to/router.json
   --creator-id ID
   --host-config FILE
+  --brief FILE
+  --baseline PATH
+  --shortlist FILE
   --base-url URL
   --channel chrome|msedge|chromium|bundled
   --scenario FILE
@@ -147,11 +164,12 @@ Options:
   --dry-run
   --resume FILE
   --retry all|PACKET|PROVIDER|STAGE
-  --result FILE (repeatable manual audit result)
+  --result FILE (repeatable manual audit or design result)
   --triage FILE
   --approval FILE
   --json
   --out FILE
+  --out-dir DIR
   --packets-dir DIR
   --format text|json
 `;
@@ -259,8 +277,24 @@ function doctor(args) {
     profile: context.profile,
     root: routingRoot(context.profilePath, args.root || null)
   });
+  const visualIntents = inspectVisualIntents({
+    profile: context.profile,
+    profilePath: context.profilePath
+  });
+  const visualIntentsReady = visualIntents.length > 0 && visualIntents.every((intent) =>
+    intent.status === "approved" && intent.authority_status === "verified"
+  );
+  const visualSignatures = inspectVisualSignatures({
+    profile: context.profile,
+    profilePath: context.profilePath
+  });
+  const visualSignaturesReady = visualSignatures.length > 0 && visualSignatures.every((signature) =>
+    signature.status === "approved" && signature.authority_status === "verified"
+  );
   const report = {
-    status: "automation-ready",
+    status: visualIntentsReady && visualSignaturesReady
+      ? "automation-ready"
+      : "configuration_required",
     router_id: context.router.router_id,
     router_version: context.router.router_version,
     router_path: context.routerPath,
@@ -268,6 +302,8 @@ function doctor(args) {
     project_id: context.profile?.project_id || null,
     surface_contract: context.profile?.surface_contract || null,
     surface_boundary: surfaceBoundary,
+    visual_intents: visualIntents,
+    visual_signatures: visualSignatures,
     approved_design_system: context.profile?.approved_design_system ?? null,
     design_system: resolveDesignSystem(context.profile, context.profilePath),
     planning: context.profile?.planning || null,
@@ -277,12 +313,19 @@ function doctor(args) {
     capability_contracts: Object.keys(context.router.stage_capability_contracts || {}),
     execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands"
   };
-  return args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
+  const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
     `profile: ${report.project_id || "not found"}`,
     `surface: ${report.surface_contract?.primary || "unbound"}`,
     `surface bindings: ${report.surface_boundary?.artifact_bindings.length || 0}`,
+    `visual intents: ${report.visual_intents.filter((intent) => intent.authority_status === "verified").length}/${report.visual_intents.length} verified`,
+    `visual signatures: ${report.visual_signatures.filter((signature) => signature.authority_status === "verified").length}/${report.visual_signatures.length} verified`,
+    ...report.visual_signatures.map((signature) =>
+      `signature ${signature.surface}: primary ${signature.palette?.primary?.[0]?.value || "unresolved"}; ` +
+      `type ${signature.typography?.families?.[0]?.family || "unresolved"}; ` +
+      `density ${signature.density?.mode || "unresolved"}; elevation ${signature.elevation?.strategy || "unresolved"}`
+    ),
     `planning bridge: ${report.planning ? "configured" : "not configured"}`,
     `design system: ${report.design_system ? `${report.design_system.id}@${report.design_system.version} (${report.design_system.status}; ${report.design_system.authority_status})` : "missing"}`,
     `local adapters: ${report.configured_local_adapters.length}`,
@@ -291,6 +334,7 @@ function doctor(args) {
     `capability contracts: ${report.capability_contracts.length}`,
     `boundary: ${report.execution_boundary}`
   ].join("\n") + "\n";
+  return { status: report.status, output: rendered };
 }
 
 function output(value, args, textFormatter = null) {
@@ -402,7 +446,7 @@ function runCommand(args) {
     const report = dryRunAutomation(request);
     if (args.out) writeJsonAtomic(args.out, report);
     automationOutput(report, args);
-    process.exitCode = report.status === "blocked" ? 5 : 0;
+    process.exitCode = automationExitCode(report);
     return;
   }
   if (!args.out) throw new RouterError("run requires --out for its resumable automation state", 2);
@@ -416,6 +460,88 @@ function runCommand(args) {
   });
   automationOutput(state, args);
   process.exitCode = automationExitCode(state);
+}
+
+function formatDesignState(state) {
+  const lines = [
+    `KillSlopRouter design exploration ${state.run_id || "dry-run"}`,
+    `status: ${state.status}`
+  ];
+  if (state.phase) lines.push(`phase: ${state.phase}`);
+  if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
+  if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
+  for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+  for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
+  if (state.state_path) lines.push(`state: ${state.state_path}`);
+  if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  for (const [name, snapshot] of Object.entries(state.outputs || {})) {
+    lines.push(`${name}: ${snapshot.resolved_path || snapshot.path} (${snapshot.digest})`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function designOutput(value, args) {
+  if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  else process.stdout.write(formatDesignState(value));
+}
+
+function designCommand(args) {
+  const command = args.subcommand;
+  if (!command || !["run", "status", "dispatch"].includes(command)) {
+    throw new RouterError("design requires run, status, or dispatch", 2);
+  }
+  if (command === "status" || command === "dispatch") {
+    if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
+    const state = readDesignState(args.run);
+    if (command === "status") {
+      designOutput(state, args);
+      return;
+    }
+    if (!args["out-dir"]) throw new RouterError("design dispatch requires --out-dir", 2);
+    output(dispatchDesignPackets(state, args["out-dir"]), args);
+    return;
+  }
+
+  const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
+  if (args.resume) {
+    if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    const state = resumeDesignExploration(args.resume, {
+      hostManifest,
+      resultPaths: args.results,
+      shortlistPath: args.shortlist || null,
+      approvalPath: args.approval || null,
+      retry: args.retry || null
+    });
+    designOutput(state, args);
+    process.exitCode = designExitCode(state);
+    return;
+  }
+  if (!args.brief || !args.baseline) {
+    throw new RouterError("design run requires --brief and --baseline", 2);
+  }
+  const request = {
+    briefPath: args.brief,
+    baselinePath: args.baseline,
+    hostManifest,
+    root: args.root || process.cwd()
+  };
+  if (args["dry-run"]) {
+    const report = dryRunDesignExploration(request);
+    designOutput(report, args);
+    process.exitCode = designExitCode(report);
+    return;
+  }
+  if (!args.out) throw new RouterError("design run requires --out for resumable state", 2);
+  const state = startDesignExploration({
+    ...request,
+    statePath: args.out,
+    resultPaths: args.results,
+    shortlistPath: args.shortlist || null,
+    approvalPath: args.approval || null,
+    retry: args.retry || null
+  });
+  designOutput(state, args);
+  process.exitCode = designExitCode(state);
 }
 
 function auditCommand(args) {
@@ -526,6 +652,10 @@ export async function main(argv) {
     browserCommand(args);
     return;
   }
+  if (args.command === "design") {
+    designCommand(args);
+    return;
+  }
   if (args.command === "audit") {
     auditCommand(args);
     return;
@@ -535,7 +665,9 @@ export async function main(argv) {
     return;
   }
   if (args.command === "doctor") {
-    process.stdout.write(doctor(args));
+    const result = doctor(args);
+    process.stdout.write(result.output);
+    if (result.status === "configuration_required") process.exitCode = 5;
     return;
   }
   if (args.command === "digest") {

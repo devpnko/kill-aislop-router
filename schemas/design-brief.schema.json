@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-brief.schema.json",
+  "title": "KillSlopRouter design exploration brief",
+  "type": "object",
+  "required": [
+    "design_brief_version", "project_id", "surface", "screen_id", "locales", "product",
+    "baseline_policy", "editorial_boundary", "directions", "color_strategies", "providers", "evidence"
+  ],
+  "properties": {
+    "design_brief_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "screen_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "locales": {"$ref": "#/$defs/strings"},
+    "product": {
+      "type": "object",
+      "required": ["primary_user", "user_job", "screen_family", "main_object", "core_task", "trust_risk", "density", "required_states", "success_metric"],
+      "properties": {
+        "primary_user": {"type": "string", "minLength": 1},
+        "user_job": {"type": "string", "minLength": 1},
+        "screen_family": {"type": "string", "minLength": 1},
+        "main_object": {"type": "string", "minLength": 1},
+        "core_task": {"type": "string", "minLength": 1},
+        "trust_risk": {"enum": ["standard", "high"]},
+        "density": {"enum": ["low", "medium", "high"]},
+        "required_states": {"$ref": "#/$defs/strings"},
+        "success_metric": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "baseline_policy": {
+      "type": "object",
+      "required": ["preserve", "may_change", "forbid"],
+      "properties": {
+        "preserve": {"$ref": "#/$defs/strings"},
+        "may_change": {"$ref": "#/$defs/optional-strings"},
+        "forbid": {"$ref": "#/$defs/strings"}
+      },
+      "additionalProperties": false
+    },
+    "editorial_boundary": {
+      "type": "object",
+      "required": ["treatment", "scope"],
+      "properties": {
+        "treatment": {"enum": ["forbidden", "bounded", "required"]},
+        "scope": {"$ref": "#/$defs/optional-strings"}
+      },
+      "additionalProperties": false
+    },
+    "directions": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"$ref": "#/$defs/direction"}
+    },
+    "color_strategies": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {"$ref": "#/$defs/color-strategy"}
+    },
+    "providers": {
+      "type": "object",
+      "required": ["direction_reviewer", "color_reviewer", "browser_evidence"],
+      "properties": {
+        "direction_reviewer": {"type": "string", "minLength": 1},
+        "color_reviewer": {"type": "string", "minLength": 1},
+        "browser_evidence": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["required_viewports", "required_checks", "required_states"],
+      "properties": {
+        "required_viewports": {"allOf": [{"$ref": "#/$defs/strings"}, {"minItems": 2}]},
+        "required_checks": {"$ref": "#/$defs/strings"},
+        "required_states": {"$ref": "#/$defs/strings"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "optional-strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "direction": {
+      "type": "object",
+      "required": ["id", "name", "thesis", "subject_world", "dominant_influence", "signature_element", "aesthetic_sources", "anti_references", "allowed_energy", "allowed_depth", "creator_provider_id"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(?!.*--)[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "name": {"type": "string", "minLength": 1},
+        "thesis": {"type": "string", "minLength": 1},
+        "subject_world": {"$ref": "#/$defs/strings"},
+        "dominant_influence": {"type": "string", "minLength": 1},
+        "supporting_influence": {"type": "string", "minLength": 1},
+        "signature_element": {"type": "string", "minLength": 1},
+        "aesthetic_sources": {"$ref": "#/$defs/strings"},
+        "anti_references": {"$ref": "#/$defs/strings"},
+        "allowed_energy": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["quiet", "balanced", "high"]}},
+        "allowed_depth": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["flat", "layered", "immersive"]}},
+        "creator_provider_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "color-strategy": {
+      "type": "object",
+      "required": ["id", "name", "color_space", "harmony_strategy", "seed_sources", "role_intent", "anti_patterns", "creator_provider_id"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(?!.*--)[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "name": {"type": "string", "minLength": 1},
+        "color_space": {"enum": ["oklch", "hct"]},
+        "harmony_strategy": {"type": "string", "minLength": 1},
+        "seed_sources": {"$ref": "#/$defs/strings"},
+        "role_intent": {"$ref": "#/$defs/strings"},
+        "anti_patterns": {"$ref": "#/$defs/strings"},
+        "creator_provider_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

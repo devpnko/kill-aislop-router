@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-result.schema.json",
+  "title": "KillSlopRouter design adapter result",
+  "type": "object",
+  "required": [
+    "design_result_version", "kind", "packet_id", "provider_id", "actor",
+    "status", "packet_digest", "evidence"
+  ],
+  "properties": {
+    "design_result_version": {"const": 1},
+    "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
+    "packet_id": {"type": "string", "minLength": 1},
+    "provider_id": {"type": "string", "minLength": 1},
+    "actor": {
+      "type": "object",
+      "required": ["actor_id", "kind"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["agent", "skill", "human"]}
+      },
+      "additionalProperties": false
+    },
+    "status": {"const": "completed"},
+    "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "baseline_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "intent": {"type": "object"},
+    "signature": {"type": "object"},
+    "rationale": {"type": "string", "minLength": 1},
+    "subject_kind": {"enum": ["direction-candidate", "color-candidate"]},
+    "subject_id": {"type": "string", "minLength": 1},
+    "subject_result_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "browser_engine": {"const": "playwright"},
+    "browser_engine_version": {"type": "string", "minLength": 1},
+    "checks": {"type": "object", "additionalProperties": {"type": "boolean"}},
+    "locales_tested": {"$ref": "#/$defs/strings"},
+    "states_tested": {"$ref": "#/$defs/strings"},
+    "scores": {"type": "array", "items": {"type": "object"}},
+    "ranking": {"$ref": "#/$defs/strings"},
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "design_candidate_id": {"type": "string", "minLength": 1},
+    "color_strategy_id": {"type": "string", "minLength": 1},
+    "source_design_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "palette": {"type": "object"},
+    "color_system": {"type": "object"},
+    "evidence": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["kind", "path"],
+        "properties": {
+          "kind": {"enum": ["prototype", "screenshot", "test-report", "review-report", "token-spec", "font-report"]},
+          "path": {"type": "string", "minLength": 1},
+          "viewport": {"type": "string", "minLength": 1},
+          "state": {"type": "string", "minLength": 1},
+          "checks": {"$ref": "#/$defs/optional-strings"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "optional-strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

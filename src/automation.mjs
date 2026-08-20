@@ -209,6 +209,24 @@ function planPayload(plan, planPath = null) {
     status: plan.status,
     route_id: plan.route_id,
     creator: plan.creator,
+    visual_intent: plan.visual_intent ? {
+      status: plan.visual_intent.status,
+      mode: plan.visual_intent.mode || null,
+      editorial_treatment: plan.visual_intent.editorial_treatment || null,
+      authority_status: plan.visual_intent.authority_status,
+      contract_digest: plan.visual_intent.contract_digest
+    } : null,
+    visual_signature: plan.visual_signature ? {
+      status: plan.visual_signature.status,
+      authority_status: plan.visual_signature.authority_status,
+      primary: plan.visual_signature.palette?.primary?.[0]?.value || null,
+      typography_family: plan.visual_signature.typography?.families?.[0]?.family || null,
+      density: plan.visual_signature.density?.mode || null,
+      elevation: plan.visual_signature.elevation?.strategy || null,
+      imagery: plan.visual_signature.imagery?.strategy || null,
+      motion: plan.visual_signature.motion?.intensity || null,
+      contract_digest: plan.visual_signature.contract_digest
+    } : null,
     unresolved: plan.unresolved,
     warnings: plan.warnings,
     plan_path: planPath,
@@ -818,7 +836,10 @@ export function resumeAutomation(statePath, options = {}) {
 }
 
 export function automationExitCode(state) {
-  if (state.status === "complete") return 0;
+  if (state.status === "complete" || (
+    state.status === "dry_run" && !(state.pending || []).length
+  )) return 0;
+  if (state.status === "dry_run" && (state.pending || []).length) return 6;
   if (state.status === "manual_pending") return 6;
   return 5;
 }

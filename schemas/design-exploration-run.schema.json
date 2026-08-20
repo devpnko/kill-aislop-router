@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-exploration-run.schema.json",
+  "title": "KillSlopRouter resumable design exploration run",
+  "type": "object",
+  "required": [
+    "design_exploration_run_version", "run_id", "status", "phase", "state_path",
+    "state_directory", "brief", "brief_source", "baseline", "packets", "packet_files",
+    "results", "attempts", "outputs", "blockers", "pending", "state_digest"
+  ],
+  "properties": {
+    "design_exploration_run_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["running", "manual_pending", "blocked", "complete"]},
+    "phase": {"type": "string", "minLength": 1},
+    "state_path": {"type": "string", "minLength": 1},
+    "state_directory": {"type": "string", "minLength": 1},
+    "brief": {"type": "object"},
+    "brief_source": {"$ref": "#/$defs/snapshot"},
+    "baseline": {"$ref": "#/$defs/snapshot"},
+    "packets": {"type": "array", "items": {"type": "object"}},
+    "packet_files": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
+    "results": {"type": "array", "items": {"type": "object"}},
+    "attempts": {"type": "array", "items": {"type": "object"}},
+    "shortlist": {"type": ["object", "null"]},
+    "approval": {"type": ["object", "null"]},
+    "selection_scope_digest": {"type": ["string", "null"]},
+    "approval_scope_digest": {"type": ["string", "null"]},
+    "outputs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "pending": {"type": "array", "items": {"type": "string"}},
+    "state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "required": ["path", "resolved_path", "kind", "digest"],
+      "properties": {
+        "path": {"type": "string"},
+        "resolved_path": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["file", "directory"]},
+        "bytes": {"type": ["integer", "null"]},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

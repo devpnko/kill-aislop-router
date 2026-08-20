@@ -12,15 +12,20 @@ package or create a GitHub Release as part of the V1 work.
 
 - Selects one creator per artifact and rejects creator self-review or approval.
 - Resolves the product surface from a digest-bound project/artifact contract before creator selection.
+- Resolves a separate, evidence-bound visual-intent contract; a surface name never acts as a style preset.
+- Binds the exact per-surface visual signature: palette roles and tokens, typography, density, shape, elevation, imagery, motion, style keywords, and forbidden transformations.
+- Allows editorial treatment only when the visual-intent authority explicitly marks it `bounded` or `required`.
 - Preserves minimum reviewer strength and capability-union requirements.
 - Executes only provider IDs allowed by an explicit host adapter manifest.
 - Never executes `command`, `args`, `shell`, or an entrypoint from a project profile.
 - Runs JSON agent, skill, browser, and `kill-ai-slop` adapters across a real child-process boundary.
 - Leaves missing, manual, weak, or partial adapters as `manual_pending`. A `routable` plan is not execution evidence.
 - Requires explicit scanner triage, conflict adjudication, browser proof, and owner approval where the route requires them.
+- Treats scanner zero hits as discovery output, never as design approval.
 - Re-hashes plans, artifacts, results, evidence, triage, approval, step receipts, and automation state.
 - Resumes interrupted runs and retries a failed packet, provider, or stage without discarding completed evidence.
 - Ships an official Playwright adapter for real responsive, interaction, accessibility-proxy, trace, and pixel-baseline evidence.
+- Resolves missing direction through a resumable 3-thesis × 3-depth exploration, owner shortlist, 3-strategy color matrix, and exact owner-approved receipts.
 
 ## Requirements
 
@@ -74,12 +79,15 @@ Use $killsloprouter:kill-slop-router to bootstrap this project and run a fail-cl
 ```
 
 The plugin determines the route from project evidence, but it does not guess an
-ambiguous product surface. It locks an unambiguous repository contract or stops
-for an explicit owner choice before creating a manual-only starter
-configuration. It then runs `doctor` and `--dry-run` and uses the integrated
-resumable ledger. A short `전체 여정` request resumes a matching run, advances
-only the currently eligible stage, and stops for missing planning or owner
-evidence. It does not ship an MCP server or gain remote authority. See
+ambiguous product surface, visual direction, main color, or house style. It
+locks unambiguous repository contracts or stops for an explicit project or
+owner decision. Bootstrap creates a manual-only starter configuration with an
+unresolved visual intent and visual signature; `doctor` stays non-zero until
+both are backed by digest-locked authority receipts.
+The plugin then runs `--dry-run` and uses the integrated resumable ledger. A
+short `전체 여정` request resumes a matching run, advances only the currently
+eligible stage, and stops for missing planning or owner evidence. It does not
+ship an MCP server or gain remote authority. See
 [Codex plugin](docs/codex-plugin.md).
 
 The bootstrap command is also available directly:
@@ -99,6 +107,61 @@ workflow is normally `operator-product-ui`; a customer-facing product is
 `consumer-product-ui`. This is a semantic contract, not a request to make one
 surface look like another. Real adapters still require explicit allowlisting
 and digest locking.
+
+Before `doctor`, replace the generated unresolved `visual_intents` and
+`visual_signatures` entries with contracts derived from project, brand,
+design-system, approved-reference, or owner evidence. Bind each authority
+receipt and evidence file by SHA-256. In particular, `marketing-editorial` does
+not permit a paper/editorial treatment by itself, and a frequently occurring or
+logo color is not automatically the UI primary. See
+[Visual intent contract](docs/visual-intent-contract.md),
+[Visual signature contract](docs/visual-signature-contract.md), and the working
+fixtures in `examples/planning-evidence/`.
+
+When those contracts are genuinely undecided, use design exploration instead
+of selecting a generic creator or guessing a style:
+
+```bash
+cp examples/design-brief.example.json .killsloprouter/design-brief.json
+
+killsloprouter design run \
+  --brief .killsloprouter/design-brief.json \
+  --baseline . \
+  --host-config .killsloprouter/host-adapters.json \
+  --dry-run \
+  --json
+
+killsloprouter design run \
+  --brief .killsloprouter/design-brief.json \
+  --baseline . \
+  --host-config .killsloprouter/host-adapters.json \
+  --out .killsloprouter/design-direction.json \
+  --json
+```
+
+Edit the example first: its product evidence and theses are illustrative, not a
+style preset. The workflow compares three project-specific theses at `refine`,
+`evolve`, and `reimagine` depth, requires separate Playwright evidence for all
+nine candidates, stops for an owner shortlist of three, then evaluates three
+declared color strategies for each shortlisted direction. It never treats
+`editorial`, neutral gray, or one main color as a default. See
+[Project-aware design exploration](docs/design-exploration.md).
+
+The bundled official Playwright adapter can inspect digest-bound,
+self-contained static HTML candidate prototypes as well as the final served
+application. Candidate HTML marks its demonstrated locales and states
+explicitly; unbound local and network resources are blocked. Exploration
+captures do not bypass the final audit's served-artifact attestation or
+approved pixel baseline. Design receipts authorize direction, not domain,
+privacy, runtime, release approval, or a reusable design system; those remain
+hard gates in the integrated run. Implement the selected evidence with one
+explicit project creator. A build/redesign route still requires a separately
+approved design system or an explicit project surface creator.
+
+Its browser gate detects viewport escape, flex/grid child overlap, and required
+text clipping. Digest-locked scenarios can add `no-overlap`, `no-clipping`,
+exact `count`, and `computed-style` assertions for project-specific rules such
+as one shared time label or an approved sponsor-slot treatment.
 
 For a UI artifact, the official browser setup is three explicit operations:
 
@@ -144,7 +207,7 @@ node bin/killsloprouter.mjs run \
   --json
 ```
 
-The example host manifest is deliberately manual. The dry run succeeds and
+The example host manifest is deliberately manual. The dry run exits `6` and
 reports every provider as `manual_pending`; it never fabricates a completed
 review. Replace those declarations with real, digest-locked adapters before an
 executing run.
@@ -274,6 +337,21 @@ artifact roots, and each run must stay within one resolved surface. The most
 specific binding wins; CLI input cannot override it. See
 [Surface contract](docs/surface-contract.md).
 
+Every visual route also needs one approved `visual_intents` entry for the
+resolved surface. The authority receipt locks mode, editorial boundary, energy,
+depth, and the project-specific qualities to preserve or avoid. Legacy profiles
+remain structurally readable, but visual tasks fail closed until this additive
+contract is configured. See [Visual intent contract](docs/visual-intent-contract.md).
+
+The same route needs one approved `visual_signatures` entry. Its separate
+receipt locks exact color roles and tokens, typography, density, shape,
+elevation, imagery, motion, style keywords, and forbidden transformations, with
+evidence coverage for every aspect. Missing or contradictory evidence remains
+unresolved; the router never selects a neutral, editorial, flat, or other
+default style. `doctor` prints the primary color, first type family, density,
+and elevation summary for each surface, while JSON output retains the full
+contract. See [Visual signature contract](docs/visual-signature-contract.md).
+
 Surfaces:
 
 - `operator-product-ui`
@@ -299,10 +377,20 @@ contracts instead of replacing them.
 - A creator cannot review or approve its own artifact.
 - Surface identity is resolved from the project/artifact contract before creator
   selection; ambiguous, mismatched, or mixed-surface runs block.
+- Visual intent is resolved independently from surface identity; unresolved,
+  changed, or mismatched authority blocks all visual routes.
+- The exact visual signature is resolved independently from intent; guessed
+  palettes, uncovered aspects, token substitution, or evidence tamper block.
+- Editorial treatment is forbidden unless the verified contract explicitly
+  allows a bounded scope or requires editorial mode.
 - Fallbacks must meet minimum strength and cover the complete capability union.
-- Scanner findings are candidates until individually classified.
+- Scanner findings are candidates until individually classified; zero hits do
+  not satisfy visual-intent, visual-signature, craft, browser, or owner gates.
 - Reviewer conflicts require a recorded adjudication; scores are not averaged.
 - Required locale, domain, privacy, browser, and owner stages cannot be skipped.
+- Missing visual direction cannot fall through to a universal taste creator; it needs approved authority or owner-gated design exploration.
+- Every direction and color candidate in design exploration needs independent Playwright evidence before comparison.
+- Color harmony metadata does not replace computed semantic-role contrast or owner selection.
 - Browser packets need viewport screenshots and non-screenshot proof for every required check.
 - The official browser adapter requires served-artifact attestation and locks its runtime, scenarios, and baseline directory by digest.
 - Owner approval is bound to the exact run and approval-scope digest.
@@ -317,13 +405,21 @@ and [Systemization protocol](docs/systemization-protocol.md).
 Route receipt version 1, audit run version 1, audit result version 1, triage
 version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
-Profiles must now add the fail-closed `surface_contract`; receipt versions did
-not change. See [V1 migration notes](docs/migration-v1.md).
+The additive design workflow uses design exploration run version 1, design
+result version 1, shortlist version 1, and owner decision version 1.
+Profiles must add the fail-closed `surface_contract`. Visual tasks also require
+approved `visual_intents` and `visual_signatures` contracts; profiles without
+them remain readable for non-visual compatibility but visual plans block.
+Dispatch packets gained additive contract fields; receipt versions did not
+change. See [V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
 - [Surface contract](docs/surface-contract.md)
+- [Visual intent contract](docs/visual-intent-contract.md)
+- [Visual signature contract](docs/visual-signature-contract.md)
+- [Project-aware design exploration](docs/design-exploration.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

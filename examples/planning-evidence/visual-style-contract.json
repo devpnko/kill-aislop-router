@@ -1,0 +1,31 @@
+{
+  "fixture": true,
+  "surface": "operator-product-ui",
+  "source": "approved owner direction and product tokens",
+  "palette": {
+    "primary": "#175CD3",
+    "accent": "#F04438",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "text": ["#101828", "#475467"],
+    "semantic": {
+      "success": "#079455",
+      "warning": "#DC6803",
+      "danger": "#D92D20"
+    }
+  },
+  "typography": "Inter for operator labels, data, and controls; tabular numerals for metrics",
+  "density": "compact operator workspace with same-screen comparison",
+  "shape": "4px controls, 8px panels, restrained geometry, 1px neutral strokes",
+  "elevation": "layered panels with one low-elevation overlay shadow and contrast separation",
+  "imagery": "functional status and data imagery only",
+  "motion": "restrained state confirmation and focus transitions",
+  "style_keywords": ["operational", "data-dense", "high-clarity", "brand-blue"],
+  "forbidden_transformations": [
+    "replace brand blue with neutral gray or paper beige",
+    "replace compact operator density with spacious consumer cards",
+    "remove all depth or shadows globally",
+    "introduce editorial texture or magazine composition",
+    "derive a new palette from color frequency alone"
+  ]
+}

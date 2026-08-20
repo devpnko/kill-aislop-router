@@ -5,11 +5,12 @@ triage, and owner approval. A route plan is not execution evidence.
 
 ## Lifecycle
 
-1. `plan` selects the creator and capability-complete providers.
+1. `plan` resolves the surface, verifies its digest-bound visual intent and exact visual signature, and
+   then selects the creator and capability-complete providers.
 2. If configured, the service-planning bridge verifies the required gate,
    receipt digest, and evidence digests for the requested task and scope.
-3. `audit init` snapshots the plan and artifacts and emits one packet per
-   selected provider.
+3. `audit init` snapshots the plan, both visual authority receipts and evidence, and
+   artifacts, then emits one packet per selected provider.
 4. The host runs each provider independently and writes an
    `audit-result.schema.json` result.
 5. `audit record` validates provider identity, reviewer independence,
@@ -35,6 +36,12 @@ these values unchanged:
 - `artifact_digests`
 - the assigned capability set
 
+Every visual packet also includes the exact `visual_intent_contract` and
+`visual_signature_contract`. An independent strength-4 reviewer must check
+character, energy, depth, editorial boundary, palette, typography, density,
+shape, elevation, imagery, motion, and forbidden transformations. A clean
+scanner result does not satisfy that packet.
+
 The reviewer supplies a stable actor identity, verdict, findings, evidence,
 and timestamps. A stage that needs multiple fallback providers passes only
 when the union of recorded results covers the stage contract.
@@ -57,14 +64,15 @@ Valid dispositions are:
 - `deferred`: unresolved work; blocks finalization.
 
 Truth, privacy, authority, required-state, keyboard, contrast, clipping, dead
-control, and fake-runtime findings are hard blockers. They cannot be cleared as
-accepted risk.
+control, fake-runtime, visual-intent or visual-signature violation, brand-token
+substitution, unapproved style normalization, and unapproved editorial
+treatment findings are hard blockers. They cannot be cleared as accepted risk.
 
 ## Integrity Boundary
 
-The run stores SHA-256 snapshots of artifacts, route plans, critic result
-files, screenshots, test reports, triage files, and owner approval. Any change
-after recording blocks the receipt.
+The run stores SHA-256 snapshots of artifacts, route plans, visual-intent and
+visual-signature authority and evidence, critic result files, screenshots, test reports, triage
+files, and owner approval. Any change after recording blocks the receipt.
 
 When a planning bridge is enforced, `audit init` also re-hashes its external
 receipt and required evidence. A changed planning receipt cannot silently

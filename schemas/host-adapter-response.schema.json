@@ -6,7 +6,12 @@
   "required": ["host_adapter_response_version", "result"],
   "properties": {
     "host_adapter_response_version": {"const": 1},
-    "result": {"$ref": "./audit-result.schema.json"},
+    "result": {
+      "oneOf": [
+        {"$ref": "./audit-result.schema.json"},
+        {"$ref": "./design-result.schema.json"}
+      ]
+    },
     "metadata": {
       "type": "object",
       "properties": {

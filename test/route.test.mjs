@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { planRoute, readJson } from "../src/router.mjs";
 import { runKillAiSlop } from "../src/adapters/kill-ai-slop.mjs";
+import { hashArtifact } from "../src/integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const routerPath = path.join(root, "router", "default-router.json");
@@ -16,7 +17,7 @@ const routedProfileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "killslopro
 let routedProfileIndex = 0;
 process.on("exit", () => fs.rmSync(routedProfileDirectory, { recursive: true, force: true }));
 
-function materializeProfileReferences(selectedProfile) {
+function materializeProfileReferences(selectedProfile, fixtureIndex) {
   if (!selectedProfile) return null;
   const materialized = structuredClone(selectedProfile);
   const profileBase = path.dirname(profilePath);
@@ -35,6 +36,69 @@ function materializeProfileReferences(selectedProfile) {
       materialized.planning.surface_receipts[surface] = path.resolve(profileBase, receipt);
     }
   }
+  for (const [surface, contract] of Object.entries(materialized.visual_intents || {})) {
+    const configured = contract.authority_receipt;
+    if (!configured) continue;
+    const sourcePath = path.isAbsolute(configured) ? configured : path.resolve(profileBase, configured);
+    const receipt = readJson(sourcePath, "visual intent authority receipt");
+    receipt.project_id = materialized.project_id;
+    receipt.surface = surface;
+    receipt.intent = {
+      mode: contract.mode,
+      editorial_treatment: contract.editorial_treatment,
+      editorial_scope: [...(contract.editorial_scope || [])],
+      energy: contract.energy,
+      depth: contract.depth,
+      preserve: [...contract.preserve],
+      avoid: [...contract.avoid]
+    };
+    receipt.evidence = receipt.evidence.map((item) => ({
+      ...item,
+      path: path.isAbsolute(item.path) ? item.path : path.resolve(path.dirname(sourcePath), item.path)
+    }));
+    const target = path.join(routedProfileDirectory, `${fixtureIndex}.${surface}.visual-intent.json`);
+    fs.writeFileSync(target, `${JSON.stringify(receipt, null, 2)}\n`);
+    contract.authority_receipt = target;
+    contract.authority_digest = hashArtifact(target);
+  }
+  for (const [surface, contract] of Object.entries(materialized.visual_signatures || {})) {
+    const configured = contract.authority_receipt;
+    if (!configured) continue;
+    const sourcePath = path.isAbsolute(configured) ? configured : path.resolve(profileBase, configured);
+    const receipt = readJson(sourcePath, "visual signature authority receipt");
+    receipt.project_id = materialized.project_id;
+    receipt.surface = surface;
+    receipt.signature = {
+      palette: structuredClone(contract.palette),
+      typography: structuredClone(contract.typography),
+      density: structuredClone(contract.density),
+      shape: structuredClone(contract.shape),
+      elevation: structuredClone(contract.elevation),
+      imagery: structuredClone(contract.imagery),
+      motion: structuredClone(contract.motion),
+      style_keywords: [...contract.style_keywords],
+      forbidden_transformations: [...contract.forbidden_transformations]
+    };
+    receipt.evidence = receipt.evidence.map((item) => ({
+      ...item,
+      path: path.isAbsolute(item.path) ? item.path : path.resolve(path.dirname(sourcePath), item.path)
+    }));
+    const absoluteEvidenceByBasename = new Map(receipt.evidence.map((item) => [
+      path.basename(item.path),
+      item.path
+    ]));
+    receipt.coverage = receipt.coverage.map((item) => ({
+      ...item,
+      evidence_paths: item.evidence_paths.map((evidencePath) =>
+        path.isAbsolute(evidencePath)
+          ? evidencePath
+          : absoluteEvidenceByBasename.get(path.basename(evidencePath)) || evidencePath)
+    }));
+    const target = path.join(routedProfileDirectory, `${fixtureIndex}.${surface}.visual-signature.json`);
+    fs.writeFileSync(target, `${JSON.stringify(receipt, null, 2)}\n`);
+    contract.authority_receipt = target;
+    contract.authority_digest = hashArtifact(target);
+  }
   return materialized;
 }
 
@@ -49,6 +113,13 @@ function bindProfileSurface(selectedProfile, surface) {
   rebound.surface_overrides = rebound.surface_overrides?.[surface]
     ? { [surface]: rebound.surface_overrides[surface] }
     : {};
+  const visualIntent = rebound.visual_intents?.[surface] || Object.values(rebound.visual_intents || {})[0];
+  rebound.visual_intents = visualIntent ? { [surface]: structuredClone(visualIntent) } : {};
+  const visualSignature = rebound.visual_signatures?.[surface] ||
+    Object.values(rebound.visual_signatures || {})[0];
+  rebound.visual_signatures = visualSignature
+    ? { [surface]: structuredClone(visualSignature) }
+    : {};
   if (rebound.planning?.surface_receipts) {
     const receipt = rebound.planning.surface_receipts[surface];
     rebound.planning.surface_receipts = receipt ? { [surface]: receipt } : {};
@@ -58,11 +129,12 @@ function bindProfileSurface(selectedProfile, surface) {
 
 function plan(input, selectedProfile) {
   const selected = arguments.length < 2 ? bindProfileSurface(profile, input.surface) : selectedProfile;
-  const routedProfile = materializeProfileReferences(selected);
+  const fixtureIndex = routedProfileIndex += 1;
+  const routedProfile = materializeProfileReferences(selected, fixtureIndex);
   if (!routedProfile) {
     return planRoute({ router, profile: null, input, routerPath, profilePath: null });
   }
-  const routedProfilePath = path.join(routedProfileDirectory, `${routedProfileIndex += 1}.json`);
+  const routedProfilePath = path.join(routedProfileDirectory, `${fixtureIndex}.json`);
   fs.writeFileSync(routedProfilePath, `${JSON.stringify(routedProfile, null, 2)}\n`);
   return planRoute({
     router,
@@ -81,6 +153,11 @@ const operator = plan({
 });
 assert.equal(operator.status, "planned");
 assert.equal(operator.creator, "project-design-system");
+assert.equal(operator.visual_signature.status, "approved");
+assert.equal(operator.visual_signature.authority_status, "verified");
+assert.equal(operator.visual_signature.palette.primary[0].value, "#175CD3");
+assert.equal(operator.visual_signature.palette.primary[0].token, "--color-brand-600");
+assert.equal(operator.visual_signature.density.mode, "compact");
 assert.equal(JSON.stringify(operator.stages).includes("taste-skill"), false);
 assert.equal(
   operator.stages.find((stage) => stage.id === "rendered-craft-review").routing_status,
@@ -97,8 +174,9 @@ const consumer = plan({
   direction: "missing",
   changes: ["source", "copy", "layout"]
 }, null);
-assert.equal(consumer.creator, "taste-skill");
+assert.equal(consumer.creator, null);
 assert.equal(consumer.status, "blocked");
+assert.ok(consumer.unresolved.some((item) => item.includes("killsloprouter design run")));
 assert.equal(consumer.stages.some((stage) => stage.id === "rendered-craft-review"), true);
 
 const reference = plan({
@@ -110,6 +188,256 @@ const reference = plan({
 assert.equal(reference.creator, "hallmark");
 assert.equal(reference.stages.some((stage) => stage.id === "rendered-craft-review"), false);
 assert.equal(reference.stages.some((stage) => stage.id === "direction-coherence-review"), true);
+
+const marketingProductNative = plan({
+  surface: "marketing-editorial",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style", "layout"]
+});
+assert.equal(marketingProductNative.status, "planned");
+assert.equal(marketingProductNative.visual_intent.mode, "product-native");
+assert.equal(marketingProductNative.visual_intent.editorial_treatment, "forbidden");
+assert.equal(marketingProductNative.visual_intent.authority_status, "verified");
+
+const editorialProfile = bindProfileSurface(profile, "marketing-editorial");
+Object.assign(editorialProfile.visual_intents["marketing-editorial"], {
+  mode: "editorial",
+  editorial_treatment: "required",
+  editorial_scope: ["full campaign composition"],
+  energy: "high",
+  depth: "layered",
+  preserve: ["brand typography", "campaign pacing", "visual energy"],
+  avoid: ["generic paper template", "unbranded neutralization"]
+});
+const approvedEditorial = plan({
+  surface: "marketing-editorial",
+  task: "build",
+  direction: "approved",
+  changes: ["style", "layout"]
+}, editorialProfile);
+assert.equal(approvedEditorial.status, "planned");
+assert.equal(approvedEditorial.visual_intent.mode, "editorial");
+assert.equal(approvedEditorial.visual_intent.editorial_treatment, "required");
+assert.deepEqual(approvedEditorial.visual_intent.editorial_scope, ["full campaign composition"]);
+
+const unresolvedIntentProfile = bindProfileSurface(profile, "operator-product-ui");
+unresolvedIntentProfile.visual_intents["operator-product-ui"] = {
+  visual_intent_version: 1,
+  status: "unresolved",
+  mode: "unresolved",
+  editorial_treatment: "forbidden",
+  editorial_scope: [],
+  energy: "preserve",
+  depth: "preserve",
+  preserve: ["existing product semantics", "task density", "visual energy"],
+  avoid: ["unapproved editorial treatment", "paper-like neutralization"]
+};
+const unresolvedIntent = plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["layout"]
+}, unresolvedIntentProfile);
+assert.equal(unresolvedIntent.status, "blocked");
+assert.match(unresolvedIntent.unresolved.join("\n"), /visual intent contract is unresolved/);
+
+const legacyIntentProfile = bindProfileSurface(profile, "operator-product-ui");
+delete legacyIntentProfile.visual_intents;
+const missingIntent = plan({
+  surface: "operator-product-ui",
+  task: "audit",
+  direction: "none",
+  changes: ["source"]
+}, legacyIntentProfile);
+assert.equal(missingIntent.status, "blocked");
+assert.match(missingIntent.unresolved.join("\n"), /visual intent contract is missing/);
+const legacyCopy = plan({
+  surface: "operator-product-ui",
+  task: "copy",
+  direction: "none",
+  changes: ["copy"]
+}, legacyIntentProfile);
+assert.equal(legacyCopy.status, "planned");
+assert.equal(legacyCopy.stages.some((stage) => stage.id === "visual-intent-review"), false);
+
+const legacySignatureProfile = bindProfileSurface(profile, "operator-product-ui");
+delete legacySignatureProfile.visual_signatures;
+const missingSignature = plan({
+  surface: "operator-product-ui",
+  task: "audit",
+  direction: "none",
+  changes: ["source"]
+}, legacySignatureProfile);
+assert.equal(missingSignature.status, "blocked");
+assert.match(missingSignature.unresolved.join("\n"), /visual signature contract is missing/);
+const signatureCompatibleCopy = plan({
+  surface: "operator-product-ui",
+  task: "copy",
+  direction: "none",
+  changes: ["copy"]
+}, legacySignatureProfile);
+assert.equal(signatureCompatibleCopy.status, "planned");
+
+const unresolvedSignatureProfile = bindProfileSurface(profile, "operator-product-ui");
+unresolvedSignatureProfile.visual_signatures["operator-product-ui"] = {
+  visual_signature_version: 1,
+  status: "unresolved",
+  palette: { primary: [], accent: [], background: [], surface: [], text: [], semantic: [] },
+  typography: { families: [], scale: "preserve", weights: [], treatments: [] },
+  density: { mode: "preserve", characteristics: [] },
+  shape: { radii: [], geometry: [], strokes: [] },
+  elevation: { strategy: "preserve", shadows: [], separation: [] },
+  imagery: { strategy: "preserve", characteristics: [] },
+  motion: { intensity: "preserve", characteristics: [] },
+  style_keywords: [],
+  forbidden_transformations: ["do not guess a style or main color"]
+};
+const unresolvedSignature = plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, unresolvedSignatureProfile);
+assert.equal(unresolvedSignature.status, "blocked");
+assert.match(unresolvedSignature.unresolved.join("\n"), /visual signature contract is unresolved/);
+assert.deepEqual(unresolvedSignature.visual_signature.palette.primary, []);
+
+const guessedUnresolvedSignatureProfile = structuredClone(unresolvedSignatureProfile);
+guessedUnresolvedSignatureProfile.visual_signatures["operator-product-ui"].palette.primary = [{
+  value: "#F4F5F2",
+  usage: "guessed neutral primary"
+}];
+assert.throws(() => plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, guessedUnresolvedSignatureProfile), /unresolved signatures must preserve existing values without guessed style tokens/);
+
+const editorialImageryProfile = bindProfileSurface(profile, "operator-product-ui");
+editorialImageryProfile.visual_signatures["operator-product-ui"].imagery = {
+  strategy: "editorial",
+  characteristics: ["magazine photography treatment"]
+};
+const editorialImageryConflict = plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, editorialImageryProfile);
+assert.equal(editorialImageryConflict.status, "blocked");
+assert.match(editorialImageryConflict.unresolved.join("\n"), /editorial imagery.*forbids editorial treatment/);
+
+const flattenedSignatureProfile = bindProfileSurface(profile, "operator-product-ui");
+flattenedSignatureProfile.visual_signatures["operator-product-ui"].elevation = {
+  strategy: "flat",
+  shadows: ["no component shadows"],
+  separation: ["borders only"]
+};
+const depthSignatureConflict = plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, flattenedSignatureProfile);
+assert.equal(depthSignatureConflict.status, "blocked");
+assert.match(depthSignatureConflict.unresolved.join("\n"), /elevation flat conflicts with visual intent depth layered/);
+
+const invalidEditorialProfile = bindProfileSurface(profile, "operator-product-ui");
+invalidEditorialProfile.visual_intents["operator-product-ui"].editorial_treatment = "required";
+assert.throws(() => plan({
+  surface: "operator-product-ui",
+  task: "redesign",
+  direction: "approved",
+  changes: ["style"]
+}, invalidEditorialProfile), /required editorial treatment requires editorial mode/);
+
+const tamperedIntentIndex = routedProfileIndex += 1;
+const tamperedIntentProfile = materializeProfileReferences(
+  bindProfileSurface(profile, "operator-product-ui"),
+  tamperedIntentIndex
+);
+fs.appendFileSync(
+  tamperedIntentProfile.visual_intents["operator-product-ui"].authority_receipt,
+  "\n"
+);
+const tamperedIntentProfilePath = path.join(routedProfileDirectory, `${tamperedIntentIndex}.tampered.json`);
+fs.writeFileSync(tamperedIntentProfilePath, `${JSON.stringify(tamperedIntentProfile, null, 2)}\n`);
+const tamperedIntent = planRoute({
+  router,
+  profile: tamperedIntentProfile,
+  profilePath: tamperedIntentProfilePath,
+  input: {
+    surface: "operator-product-ui",
+    task: "redesign",
+    direction: "approved",
+    changes: ["style"]
+  }
+});
+assert.equal(tamperedIntent.status, "blocked");
+assert.match(tamperedIntent.unresolved.join("\n"), /visual intent authority receipt digest changed/);
+
+const tamperedSignatureIndex = routedProfileIndex += 1;
+const tamperedSignatureProfile = materializeProfileReferences(
+  bindProfileSurface(profile, "operator-product-ui"),
+  tamperedSignatureIndex
+);
+fs.appendFileSync(
+  tamperedSignatureProfile.visual_signatures["operator-product-ui"].authority_receipt,
+  "\n"
+);
+const tamperedSignatureProfilePath = path.join(
+  routedProfileDirectory,
+  `${tamperedSignatureIndex}.signature-tampered.json`
+);
+fs.writeFileSync(tamperedSignatureProfilePath, `${JSON.stringify(tamperedSignatureProfile, null, 2)}\n`);
+const tamperedSignature = planRoute({
+  router,
+  profile: tamperedSignatureProfile,
+  profilePath: tamperedSignatureProfilePath,
+  input: {
+    surface: "operator-product-ui",
+    task: "redesign",
+    direction: "approved",
+    changes: ["style"]
+  }
+});
+assert.equal(tamperedSignature.status, "blocked");
+assert.match(tamperedSignature.unresolved.join("\n"), /visual signature authority receipt digest changed/);
+
+const incompleteCoverageIndex = routedProfileIndex += 1;
+const incompleteCoverageProfile = materializeProfileReferences(
+  bindProfileSurface(profile, "operator-product-ui"),
+  incompleteCoverageIndex
+);
+const incompleteCoverageReceiptPath =
+  incompleteCoverageProfile.visual_signatures["operator-product-ui"].authority_receipt;
+const incompleteCoverageReceipt = readJson(incompleteCoverageReceiptPath, "visual signature authority receipt");
+incompleteCoverageReceipt.coverage = incompleteCoverageReceipt.coverage.filter((item) =>
+  item.aspect !== "motion"
+);
+fs.writeFileSync(incompleteCoverageReceiptPath, `${JSON.stringify(incompleteCoverageReceipt, null, 2)}\n`);
+incompleteCoverageProfile.visual_signatures["operator-product-ui"].authority_digest =
+  hashArtifact(incompleteCoverageReceiptPath);
+const incompleteCoverageProfilePath = path.join(
+  routedProfileDirectory,
+  `${incompleteCoverageIndex}.signature-incomplete.json`
+);
+fs.writeFileSync(incompleteCoverageProfilePath, `${JSON.stringify(incompleteCoverageProfile, null, 2)}\n`);
+const incompleteCoverage = planRoute({
+  router,
+  profile: incompleteCoverageProfile,
+  profilePath: incompleteCoverageProfilePath,
+  input: {
+    surface: "operator-product-ui",
+    task: "redesign",
+    direction: "approved",
+    changes: ["style"]
+  }
+});
+assert.equal(incompleteCoverage.status, "blocked");
+assert.match(incompleteCoverage.unresolved.join("\n"), /coverage is missing: motion/);
 
 const audit = plan({
   surface: "operator-product-ui",
@@ -371,7 +699,7 @@ try {
   fs.writeFileSync(path.join(surfaceFixture, "apps", "erp", "screen.html"), "<p>ERP</p>\n");
   fs.writeFileSync(path.join(surfaceFixture, "apps", "customer", "screen.html"), "<p>Portal</p>\n");
   fs.writeFileSync(path.join(surfaceFixture, "..legit", "screen.html"), "<p>Legitimate path</p>\n");
-  const multiSurfaceProfile = structuredClone(profile);
+  let multiSurfaceProfile = structuredClone(profile);
   multiSurfaceProfile.surface_contract = {
     surface_contract_version: 1,
     primary: "operator-product-ui",
@@ -384,6 +712,16 @@ try {
   multiSurfaceProfile.surface_overrides = {
     "operator-product-ui": profile.surface_overrides["operator-product-ui"]
   };
+  multiSurfaceProfile.visual_intents["consumer-product-ui"] = structuredClone(
+    multiSurfaceProfile.visual_intents["operator-product-ui"]
+  );
+  multiSurfaceProfile.visual_signatures["consumer-product-ui"] = structuredClone(
+    multiSurfaceProfile.visual_signatures["operator-product-ui"]
+  );
+  multiSurfaceProfile = materializeProfileReferences(
+    multiSurfaceProfile,
+    routedProfileIndex += 1
+  );
 
   const portalPlan = planRoute({
     router,
@@ -394,6 +732,8 @@ try {
   });
   assert.equal(portalPlan.input.surface, "consumer-product-ui");
   assert.equal(portalPlan.surface_resolution.artifact_bindings[0].binding_root, "apps/customer");
+  assert.equal(portalPlan.visual_signature.surface, "consumer-product-ui");
+  assert.equal(portalPlan.visual_signature.palette.primary[0].value, "#175CD3");
 
   const dottedPathPlan = planRoute({
     router,

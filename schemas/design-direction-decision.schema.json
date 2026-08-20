@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-direction-decision.schema.json",
+  "title": "KillSlopRouter approved design direction decision",
+  "type": "object",
+  "required": [
+    "design_direction_decision_version", "run_id", "project_id", "surface", "screen_id", "status",
+    "selected_design_candidate_id", "selected_color_candidate_id", "source_digests",
+    "source_bindings", "intent", "signature", "color_system", "authority", "decision_digest"
+  ],
+  "properties": {
+    "design_direction_decision_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "screen_id": {"type": "string", "minLength": 1},
+    "status": {"const": "approved"},
+    "selected_design_candidate_id": {"type": "string", "minLength": 1},
+    "selected_color_candidate_id": {"type": "string", "minLength": 1},
+    "source_digests": {
+      "type": "object",
+      "minProperties": 11,
+      "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+    },
+    "source_bindings": {
+      "type": "object",
+      "required": [
+        "direction_candidate", "direction_browser", "direction_review",
+        "color_candidate", "color_browser", "color_review"
+      ],
+      "properties": {
+        "direction_candidate": {"$ref": "#/$defs/binding"},
+        "direction_browser": {"$ref": "#/$defs/binding"},
+        "direction_review": {"$ref": "#/$defs/binding"},
+        "color_candidate": {"$ref": "#/$defs/binding"},
+        "color_browser": {"$ref": "#/$defs/binding"},
+        "color_review": {"$ref": "#/$defs/binding"}
+      },
+      "additionalProperties": false
+    },
+    "intent": {"type": "object"},
+    "signature": {"type": "object"},
+    "color_system": {"type": "object"},
+    "authority": {
+      "type": "object",
+      "required": ["kind", "authority_id", "basis", "decided_at"],
+      "properties": {
+        "kind": {"const": "owner-direction"},
+        "authority_id": {"type": "string", "minLength": 1},
+        "basis": {"type": "string", "minLength": 1},
+        "decided_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "decision_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "nullable-digest": {
+      "anyOf": [
+        {"$ref": "#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "binding": {
+      "type": "object",
+      "required": ["provider_id", "actor_id", "packet_digest", "result_digest", "result_source_digest", "evidence", "execution"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "actor_id": {"type": "string", "minLength": 1},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "result_digest": {"$ref": "#/$defs/digest"},
+        "result_source_digest": {"$ref": "#/$defs/digest"},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["kind", "digest", "viewport", "state"],
+            "properties": {
+              "kind": {"type": "string", "minLength": 1},
+              "digest": {"$ref": "#/$defs/digest"},
+              "viewport": {"type": ["string", "null"]},
+              "state": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "execution": {
+          "type": "object",
+          "required": [
+            "adapter", "attempt", "execution_status", "strength", "capabilities",
+            "permission_scopes", "host_manifest_digest", "adapter_entrypoint_digest"
+          ],
+          "properties": {
+            "adapter": {"type": "string", "minLength": 1},
+            "attempt": {"type": "integer", "minimum": 1},
+            "execution_status": {"enum": ["ran", "manual_recorded"]},
+            "strength": {"type": ["integer", "null"], "minimum": 1, "maximum": 4},
+            "capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "permission_scopes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "host_manifest_digest": {"$ref": "#/$defs/nullable-digest"},
+            "adapter_entrypoint_digest": {"$ref": "#/$defs/nullable-digest"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

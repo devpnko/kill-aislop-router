@@ -44,11 +44,12 @@ const PLAYWRIGHT_ACTION_TYPES = new Set([
   "click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"
 ]);
 const PLAYWRIGHT_ASSERTION_TYPES = new Set([
-  "visible", "hidden", "text", "value", "checked", "url", "count"
+  "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
+  "computed-style"
 ]);
 const PLAYWRIGHT_SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
 const PLAYWRIGHT_ACTION_KEYS = new Set(["type", "locator", "value"]);
-const PLAYWRIGHT_ASSERTION_KEYS = new Set(["type", "locator", "value"]);
+const PLAYWRIGHT_ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 
 const SETTINGS_KEYS = new Set([
   "contract",
@@ -319,9 +320,14 @@ export function validatePlaywrightScenarioDocument(value) {
           assertion.locator.length <= 1000,
         `Playwright assertion ${assertion.type} requires locator`);
       }
-      if (["text", "value", "url"].includes(assertion.type)) {
+      if (["text", "value", "url", "computed-style"].includes(assertion.type)) {
         requireValue(typeof assertion.value === "string",
           `Playwright assertion ${assertion.type} requires a string value`);
+      }
+      if (assertion.type === "computed-style") {
+        requireValue(typeof assertion.property === "string" &&
+          /^(?:--)?[a-z][a-z0-9-]{0,100}$/.test(assertion.property),
+        "Playwright assertion computed-style requires a safe CSS property");
       }
       if (assertion.type === "count") {
         requireValue(Number.isInteger(assertion.value) && assertion.value >= 0,

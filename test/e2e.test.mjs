@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { hashArtifact } from "../src/integrity.mjs";
@@ -19,6 +20,25 @@ const PROVIDERS = {
     adapter: "agent-json-v1",
     strength: 4,
     capabilities: ["task-contract", "object-model", "state-authority"]
+  },
+  "visual-intent-review": {
+    adapter: "agent-json-v1",
+    strength: 4,
+    capabilities: [
+      "visual-intent-fidelity",
+      "editorial-boundary",
+      "character-preservation",
+      "energy-preservation",
+      "depth-preservation",
+      "palette-fidelity",
+      "typography-fidelity",
+      "density-fidelity",
+      "shape-fidelity",
+      "elevation-fidelity",
+      "imagery-fidelity",
+      "motion-fidelity",
+      "transformation-boundary"
+    ]
   },
   "anti-slop": {
     adapter: "skill-json-v1",
@@ -61,7 +81,13 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function makeFixture({ artifactText = "<!doctype html><button>Save</button>\n", omit = [], settings = {}, capabilities = {} } = {}) {
+function makeFixture({
+  artifactText = "<!doctype html><button>Save</button>\n",
+  omit = [],
+  settings = {},
+  capabilities = {},
+  timeouts = {}
+} = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-e2e-"));
   const artifact = path.join(directory, "artifact.html");
   const state = path.join(directory, "automation.json");
@@ -76,7 +102,8 @@ function makeFixture({ artifactText = "<!doctype html><button>Save</button>\n", 
       permissions: source.adapter === "browser-json-v1"
         ? ["artifact:read", "evidence:write", "browser:control"]
         : ["artifact:read"],
-      settings: settings[providerId] || {}
+      settings: settings[providerId] || {},
+      ...(timeouts[providerId] ? { timeout_ms: timeouts[providerId] } : {})
     };
     if (source.adapter === "kill-ai-slop-v1") {
       declaration.adapter_root = scannerRoot;
@@ -145,6 +172,15 @@ function cleanup(fixture) {
   fs.rmSync(fixture.directory, { recursive: true, force: true });
 }
 
+async function waitForPath(filePath, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(filePath)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`timed out waiting for ${filePath}`);
+}
+
 test("integrated run executes allowlisted child adapters, resumes for owner approval, and completes", () => {
   const fixture = makeFixture();
   try {
@@ -161,6 +197,29 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     const childAttempts = state.attempts.filter((attempt) => attempt.child_pid);
     assert.ok(childAttempts.length > 0);
     assert.ok(childAttempts.every((attempt) => attempt.child_pid !== process.pid));
+    const visualIntentAttempt = state.attempts.find((attempt) =>
+      attempt.provider_id === "visual-intent-review"
+    );
+    assert.equal(visualIntentAttempt.execution_status, "ran");
+    assert.notEqual(visualIntentAttempt.child_pid, process.pid);
+    assert.match(visualIntentAttempt.metadata.observed_visual_signature_digest, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(visualIntentAttempt.metadata.observed_primary_color, "#175CD3");
+    const preApprovalAudit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    const signaturePacket = preApprovalAudit.packets.find((item) =>
+      item.provider.id === "visual-intent-review"
+    );
+    assert.equal(signaturePacket.visual_signature_contract.authority_status, "verified");
+    assert.deepEqual(signaturePacket.visual_signature_contract.palette.primary, [
+      {value: "#175CD3", token: "--color-brand-600", usage: "primary actions and active selection"}
+    ]);
+    assert.equal(signaturePacket.visual_signature_contract.density.mode, "compact");
+    assert.equal("path" in signaturePacket.visual_signature_contract.sources[0], false);
+    const scannerResult = preApprovalAudit.results.find((item) =>
+      item.normalized.stage_id === "static-discovery"
+    );
+    assert.equal(scannerResult.normalized.verdict, "pass");
+    assert.equal(scannerResult.normalized.findings.length, 0);
+    assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
 
     const approval = writeApproval(fixture);
     const resumed = runCli([
@@ -240,6 +299,32 @@ test("missing host adapter remains manual_pending and is never reported as ran",
   }
 });
 
+test("scanner zero hits cannot approve when the visual-intent reviewer is unavailable", () => {
+  const fixture = makeFixture({ omit: ["visual-intent-review"] });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 6, result.stderr || result.stdout);
+    const state = readState(fixture);
+    assert.equal(state.status, "manual_pending");
+    const visualAttempt = state.attempts.find((item) =>
+      item.provider_id === "visual-intent-review"
+    );
+    assert.equal(visualAttempt.execution_status, "manual_pending");
+    assert.match(visualAttempt.reason, /not allowlisted/);
+    const scannerAttempt = state.attempts.find((item) => item.provider_id === "kill-ai-slop");
+    assert.equal(scannerAttempt.execution_status, "ran");
+    const audit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    const scannerResult = audit.results.find((item) =>
+      item.normalized.stage_id === "static-discovery"
+    );
+    assert.equal(scannerResult.normalized.verdict, "pass");
+    assert.equal(scannerResult.normalized.findings.length, 0);
+    assert.equal(state.final_audit_status, null);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
 test("partial host capability cannot satisfy a planned provider contract", () => {
   const fixture = makeFixture({
     capabilities: {
@@ -253,6 +338,27 @@ test("partial host capability cannot satisfy a planned provider contract", () =>
     const attempt = state.attempts.find((item) => item.provider_id === "anti-slop");
     assert.equal(attempt.execution_status, "manual_pending");
     assert.match(attempt.reason, /lacks assigned capabilities: interaction-review/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("partial visual-signature capability cannot satisfy the independent reviewer contract", () => {
+  const fixture = makeFixture({
+    capabilities: {
+      "visual-intent-review": PROVIDERS["visual-intent-review"].capabilities.filter((capability) =>
+        capability !== "transformation-boundary"
+      )
+    }
+  });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 6, result.stderr || result.stdout);
+    const state = readState(fixture);
+    const attempt = state.attempts.find((item) => item.provider_id === "visual-intent-review");
+    assert.equal(attempt.execution_status, "manual_pending");
+    assert.match(attempt.reason, /lacks assigned capabilities: transformation-boundary/);
+    assert.equal(state.final_audit_status, null);
   } finally {
     cleanup(fixture);
   }
@@ -482,6 +588,175 @@ test("failed child execution stays non-zero, then resumes with an explicit retry
   }
 });
 
+test("child timeout fails closed and recovers only after an explicit retry", () => {
+  const fixture = makeFixture({
+    settings: { "anti-slop": { delay_ms: 500 } },
+    timeouts: { "anti-slop": 100 }
+  });
+  try {
+    const first = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(first.status, 5, first.stderr || first.stdout);
+    let state = readState(fixture);
+    const failed = state.attempts.find((item) => item.provider_id === "anti-slop");
+    assert.equal(failed.execution_status, "blocked_execution_error");
+    assert.match(failed.error, /ETIMEDOUT|timed out/i);
+
+    const host = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
+    host.providers["anti-slop"].settings = {};
+    host.providers["anti-slop"].timeout_ms = 1_000;
+    writeJson(fixture.host, host);
+    const resumed = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--retry", "anti-slop",
+      "--json"
+    ], fixture.directory);
+    assert.equal(resumed.status, 6, resumed.stderr || resumed.stdout);
+    state = readState(fixture);
+    assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
+    const attempts = state.attempts.filter((item) => item.provider_id === "anti-slop");
+    assert.deepEqual(attempts.map((item) => item.execution_status), [
+      "blocked_execution_error",
+      "ran"
+    ]);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("invalid child JSON fails closed before result ingestion", () => {
+  const fixture = makeFixture({ settings: { "anti-slop": { invalid_json: true } } });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 5, result.stderr || result.stdout);
+    const state = readState(fixture);
+    const attempt = state.attempts.find((item) => item.provider_id === "anti-slop");
+    assert.equal(attempt.execution_status, "blocked_execution_error");
+    assert.equal(attempt.ingest_status, "not-recorded");
+    assert.match(attempt.error, /emitted invalid JSON/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("oversized child output fails closed at the process buffer boundary", () => {
+  const fixture = makeFixture({
+    settings: { "anti-slop": { oversized_stdout_bytes: 32 * 1024 * 1024 } }
+  });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 5, result.stderr || result.stdout);
+    const state = readState(fixture);
+    const attempt = state.attempts.find((item) => item.provider_id === "anti-slop");
+    assert.equal(attempt.execution_status, "blocked_execution_error");
+    assert.equal(attempt.ingest_status, "not-recorded");
+    assert.match(attempt.error, /ENOBUFS|maxBuffer/i);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("returned evidence cannot escape its granted output directory", () => {
+  const fixture = makeFixture({
+    settings: { "browser-evidence": { evidence_escape: true } }
+  });
+  try {
+    const result = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(result.status, 5, result.stderr || result.stdout);
+    const state = readState(fixture);
+    const attempt = state.attempts.find((item) => item.provider_id === "browser-evidence");
+    assert.equal(attempt.execution_status, "blocked_execution_error");
+    assert.equal(attempt.ingest_status, "not-recorded");
+    assert.match(attempt.error, /evidence escapes the granted output directory/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("a terminated orchestrator resumes from its last sealed child-process checkpoint", {
+  skip: process.platform === "win32"
+}, async () => {
+  const fixture = makeFixture({
+    settings: { "anti-slop": { delay_ms: 10_000, write_started_marker: true } },
+    timeouts: { "anti-slop": 20_000 }
+  });
+  let running = null;
+  try {
+    running = spawn(process.execPath, [cli, ...startArgs(fixture)], {
+      cwd: fixture.directory,
+      detached: true,
+      stdio: "ignore"
+    });
+    const marker = path.join(
+      fixture.directory,
+      "automation.d",
+      "evidence",
+      "functional-human-review--anti-slop--1",
+      "attempt-1",
+      "started.marker"
+    );
+    await waitForPath(marker);
+    const exited = once(running, "exit");
+    process.kill(-running.pid, "SIGTERM");
+    const [, signal] = await exited;
+    assert.equal(signal, "SIGTERM");
+    running = null;
+
+    let state = readState(fixture);
+    assert.equal(state.status, "running");
+    assert.equal(state.attempts.some((item) => item.provider_id === "anti-slop"), false);
+    assert.ok(state.attempts.some((item) => item.provider_id === "visual-intent-review"));
+
+    const host = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
+    host.providers["anti-slop"].settings = {};
+    host.providers["anti-slop"].timeout_ms = 1_000;
+    writeJson(fixture.host, host);
+    const resumed = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(resumed.status, 6, resumed.stderr || resumed.stdout);
+    state = readState(fixture);
+    assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
+    assert.equal(
+      state.attempts.filter((item) => item.provider_id === "anti-slop" && item.execution_status === "ran").length,
+      1
+    );
+  } finally {
+    if (running?.pid) {
+      try {
+        process.kill(-running.pid, "SIGKILL");
+      } catch {
+        // The process group already exited.
+      }
+    }
+    cleanup(fixture);
+  }
+});
+
+test("automation state tamper blocks resume before another child runs", () => {
+  const fixture = makeFixture();
+  try {
+    const first = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(first.status, 6, first.stderr || first.stdout);
+    const state = readState(fixture);
+    const attemptsBefore = state.attempts.length;
+    state.status = "complete";
+    writeJson(fixture.state, state);
+    const resumed = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(resumed.status, 4, resumed.stderr || resumed.stdout);
+    assert.match(resumed.stderr, /automation state digest mismatch/);
+    assert.equal(JSON.parse(fs.readFileSync(fixture.state, "utf8")).attempts.length, attemptsBefore);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
 test("dry-run reports adapter readiness without creating automation state", () => {
   const fixture = makeFixture();
   try {
@@ -493,7 +768,29 @@ test("dry-run reports adapter readiness without creating automation state", () =
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(result.stdout);
     assert.equal(report.status, "dry_run");
+    assert.equal(report.plan.visual_signature.primary, "#175CD3");
+    assert.equal(report.plan.visual_signature.typography_family, "Inter");
+    assert.equal(report.plan.visual_signature.density, "compact");
+    assert.equal(report.plan.visual_signature.elevation, "layered");
     assert.ok(report.host_readiness.every((item) => item.execution_status === "ready"));
+    assert.equal(fs.existsSync(fixture.state), false);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("dry-run exits manual_pending when any planned adapter is not executable", () => {
+  const fixture = makeFixture({ omit: ["anti-slop"] });
+  try {
+    const result = runCli([
+      ...startArgs(fixture).filter((value, index, values) =>
+        value !== "--out" && values[index - 1] !== "--out"),
+      "--dry-run"
+    ], fixture.directory);
+    assert.equal(result.status, 6, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.status, "dry_run");
+    assert.match(report.pending.join("\n"), /anti-slop.*not allowlisted/);
     assert.equal(fs.existsSync(fixture.state), false);
   } finally {
     cleanup(fixture);

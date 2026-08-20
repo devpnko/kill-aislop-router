@@ -261,6 +261,23 @@ export function inspectPacketAdapter(packet, manifest) {
       return manualPending(packet,
         `official Playwright adapter cannot prove checks: ${unsupportedChecks.join(", ")}`, manifest);
     }
+    const unsupportedDesignChecks = packet.design_task?.kind === "browser-evidence"
+      ? (packet.evidence_contract?.required_checks || [])
+        .filter((check) => ["screen-reader", "visual-regression"].includes(check))
+      : [];
+    if (unsupportedDesignChecks.length) {
+      return manualPending(packet,
+        `official static-design Playwright adapter cannot prove checks: ${unsupportedDesignChecks.join(", ")}`,
+        manifest);
+    }
+  }
+  const missingPermissions = (packet.required_permissions || []).filter(
+    (permission) => !declaration.permissions.includes(permission)
+  );
+  if (missingPermissions.length) {
+    return manualPending(packet,
+      `host adapter lacks required permissions: ${missingPermissions.join(", ")}`,
+      manifest);
   }
   if (declaration.strength < (packet.minimum_strength || 1)) {
     return manualPending(packet,

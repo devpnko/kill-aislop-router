@@ -2,14 +2,19 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
-const ASSERTION_TYPES = new Set(["visible", "hidden", "text", "value", "checked", "url", "count"]);
+const ASSERTION_TYPES = new Set([
+  "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
+  "computed-style"
+]);
 const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
-const ASSERTION_KEYS = new Set(["type", "locator", "value"]);
+const ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const VISUAL_COMPARISON = Object.freeze({
   comparator: "pixelmatch",
@@ -81,9 +86,14 @@ function validateScenarioDocument(value) {
           assertion.locator.length <= 1000,
         `Playwright assertion ${assertion.type} requires locator`);
       }
-      if (["text", "value", "url"].includes(assertion.type)) {
+      if (["text", "value", "url", "computed-style"].includes(assertion.type)) {
         requireValue(typeof assertion.value === "string",
           `Playwright assertion ${assertion.type} requires a string value`);
+      }
+      if (assertion.type === "computed-style") {
+        requireValue(typeof assertion.property === "string" &&
+          /^(?:--)?[a-z][a-z0-9-]{0,100}$/.test(assertion.property),
+        "Playwright computed-style assertion requires a safe CSS property");
       }
       if (assertion.type === "count") {
         requireValue(Number.isInteger(assertion.value) && assertion.value >= 0,
@@ -161,13 +171,171 @@ async function performAssertion(page, assertion, timeout) {
   } else if (assertion.type === "count") {
     const actual = await locator.count();
     if (actual !== assertion.value) throw new Error(`${assertion.locator} count ${actual} does not match ${assertion.value}`);
+  } else if (assertion.type === "no-overlap") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectSelectedOverlap(locator);
+    if (result.visible_count < 2) {
+      throw new Error(`${assertion.locator} must match at least two visible elements for no-overlap`);
+    }
+    if (result.overlaps.length > 0) {
+      throw new Error(`${assertion.locator} contains overlapping elements: ${JSON.stringify(result.overlaps)}`);
+    }
+  } else if (assertion.type === "no-clipping") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectSelectedClipping(locator);
+    if (result.visible_count < 1) {
+      throw new Error(`${assertion.locator} must match at least one visible element for no-clipping`);
+    }
+    if (result.clipped_text.length > 0) {
+      throw new Error(`${assertion.locator} contains clipped text: ${JSON.stringify(result.clipped_text)}`);
+    }
+  } else if (assertion.type === "computed-style") {
+    await locator.first().waitFor({ state: "visible", timeout });
+    const result = await inspectComputedStyle(locator, assertion.property, assertion.value);
+    if (result.visible_count < 1) {
+      throw new Error(`${assertion.locator} must match at least one visible element for computed-style`);
+    }
+    if (result.mismatches.length > 0) {
+      throw new Error(`${assertion.locator} computed ${assertion.property} does not match ${assertion.value}: ${JSON.stringify(result.mismatches)}`);
+    }
   }
+}
+
+async function inspectComputedStyle(locator, property, expected) {
+  return locator.evaluateAll((elements, options) => {
+    const mismatches = [];
+    let visibleCount = 0;
+    for (let index = 0; index < elements.length; index += 1) {
+      const element = elements[index];
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) continue;
+      visibleCount += 1;
+      const actual = style.getPropertyValue(options.property).trim();
+      if (actual === options.expected) continue;
+      mismatches.push({ index, actual });
+      if (mismatches.length >= 25) break;
+    }
+    return { visible_count: visibleCount, property: options.property, expected: options.expected, mismatches };
+  }, { property, expected });
+}
+
+async function inspectSelectedOverlap(locator) {
+  return locator.evaluateAll((elements) => {
+    const visible = elements.flatMap((element, index) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
+      return [{ element, index, rect }];
+    });
+    const overlaps = [];
+    for (let leftIndex = 0; leftIndex < visible.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < visible.length; rightIndex += 1) {
+        const left = visible[leftIndex];
+        const right = visible[rightIndex];
+        if (left.element.contains(right.element) || right.element.contains(left.element)) continue;
+        const width = Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+        const height = Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+        if (width <= 1 || height <= 1) continue;
+        overlaps.push({
+          left_index: left.index,
+          right_index: right.index,
+          width: Math.round(width),
+          height: Math.round(height)
+        });
+        if (overlaps.length >= 25) break;
+      }
+      if (overlaps.length >= 25) break;
+    }
+    return { visible_count: visible.length, overlaps };
+  });
+}
+
+async function inspectSelectedClipping(locator) {
+  return locator.evaluateAll((elements) => {
+    const clippedText = [];
+    let visibleCount = 0;
+    const selectorFor = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const className = typeof element.className === "string"
+        ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${CSS.escape(name)}`).join("")
+        : "";
+      return `${element.tagName.toLowerCase()}${className}`;
+    };
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isVisuallyHidden = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const clipped = (style.clip && style.clip !== "auto") ||
+        (style.clipPath && style.clipPath !== "none");
+      return clipped && rect.width <= 2 && rect.height <= 2;
+    };
+    const clippingFor = (root) => {
+      const candidates = [root, ...root.querySelectorAll("*")];
+      for (const element of candidates) {
+        if (!(element instanceof HTMLElement) || !isVisible(element) || isVisuallyHidden(element)) continue;
+        if (element.closest('[data-killsloprouter-clipping="allow"]')) continue;
+        const text = element.textContent?.replace(/\s+/g, " ").trim() || "";
+        if (!text) continue;
+        const style = getComputedStyle(element);
+        const clipsX = ["hidden", "clip"].includes(style.overflowX) &&
+          element.scrollWidth > element.clientWidth + 1;
+        const clipsY = ["hidden", "clip"].includes(style.overflowY) &&
+          element.scrollHeight > element.clientHeight + 1;
+        const lineClamp = Number.parseInt(style.webkitLineClamp, 10);
+        const clamped = Number.isFinite(lineClamp) && lineClamp > 0 &&
+          element.scrollHeight > element.clientHeight + 1;
+        if (!clipsX && !clipsY && !clamped) continue;
+        clippedText.push({
+          selector: selectorFor(element),
+          text: text.slice(0, 120),
+          horizontal: clipsX,
+          vertical: clipsY || clamped,
+          client: [element.clientWidth, element.clientHeight],
+          scroll: [element.scrollWidth, element.scrollHeight]
+        });
+        if (clippedText.length >= 25) break;
+      }
+    };
+    for (const element of elements) {
+      if (!(element instanceof HTMLElement) || !isVisible(element)) continue;
+      visibleCount += 1;
+      clippingFor(element);
+      if (clippedText.length >= 25) break;
+    }
+    return { visible_count: visibleCount, clipped_text: clippedText };
+  });
 }
 
 async function inspectOverflow(page) {
   return page.evaluate(() => {
     const documentOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
     const offenders = [];
+    const overlaps = [];
+    const clippedText = [];
+    const selectorFor = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const className = typeof element.className === "string"
+        ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map((name) => `.${CSS.escape(name)}`).join("")
+        : "";
+      return `${element.tagName.toLowerCase()}${className}`;
+    };
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isVisuallyHidden = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const clipped = (style.clip && style.clip !== "auto") ||
+        (style.clipPath && style.clipPath !== "none");
+      return clipped && rect.width <= 2 && rect.height <= 2;
+    };
     for (const element of document.querySelectorAll("body *")) {
       const style = getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") continue;
@@ -188,11 +356,77 @@ async function inspectOverflow(page) {
       }
       if (offenders.length >= 25) break;
     }
+    for (const parent of document.querySelectorAll("body *")) {
+      if (!(parent instanceof HTMLElement) || !isVisible(parent)) continue;
+      if (parent.closest('[data-killsloprouter-overlap="allow"]')) continue;
+      const parentStyle = getComputedStyle(parent);
+      if (!parentStyle.display.includes("flex") && !parentStyle.display.includes("grid")) continue;
+      const children = [...parent.children].flatMap((element) => {
+        if (!(element instanceof HTMLElement) || !isVisible(element)) return [];
+        const style = getComputedStyle(element);
+        if (["absolute", "fixed", "sticky"].includes(style.position)) return [];
+        return [{ element, rect: element.getBoundingClientRect() }];
+      });
+      for (let leftIndex = 0; leftIndex < children.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < children.length; rightIndex += 1) {
+          const left = children[leftIndex];
+          const right = children[rightIndex];
+          const width = Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+          const height = Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+          if (width <= 1 || height <= 1) continue;
+          overlaps.push({
+            parent: selectorFor(parent),
+            left: selectorFor(left.element),
+            right: selectorFor(right.element),
+            width: Math.round(width),
+            height: Math.round(height)
+          });
+          if (overlaps.length >= 25) break;
+        }
+        if (overlaps.length >= 25) break;
+      }
+      if (overlaps.length >= 25) break;
+    }
+    const textFitRoots = document.querySelectorAll([
+      "h1", "h2", "h3", "h4", "h5", "h6", "button", "a[href]", "[role=button]", "[role=link]",
+      '[data-killsloprouter-text-fit="required"]'
+    ].join(","));
+    const visited = new Set();
+    for (const root of textFitRoots) {
+      for (const element of [root, ...root.querySelectorAll("*")]) {
+        if (!(element instanceof HTMLElement) || visited.has(element) || !isVisible(element) || isVisuallyHidden(element)) continue;
+        visited.add(element);
+        if (element.closest('[data-killsloprouter-clipping="allow"]')) continue;
+        const text = element.textContent?.replace(/\s+/g, " ").trim() || "";
+        if (!text) continue;
+        const style = getComputedStyle(element);
+        const clipsX = ["hidden", "clip"].includes(style.overflowX) &&
+          element.scrollWidth > element.clientWidth + 1;
+        const clipsY = ["hidden", "clip"].includes(style.overflowY) &&
+          element.scrollHeight > element.clientHeight + 1;
+        const lineClamp = Number.parseInt(style.webkitLineClamp, 10);
+        const clamped = Number.isFinite(lineClamp) && lineClamp > 0 &&
+          element.scrollHeight > element.clientHeight + 1;
+        if (!clipsX && !clipsY && !clamped) continue;
+        clippedText.push({
+          selector: selectorFor(element),
+          text: text.slice(0, 120),
+          horizontal: clipsX,
+          vertical: clipsY || clamped,
+          client: [element.clientWidth, element.clientHeight],
+          scroll: [element.scrollWidth, element.scrollHeight]
+        });
+        if (clippedText.length >= 25) break;
+      }
+      if (clippedText.length >= 25) break;
+    }
     return {
       document_overflow: documentOverflow,
       scroll_width: document.documentElement.scrollWidth,
       client_width: document.documentElement.clientWidth,
-      offenders
+      offenders,
+      overlaps,
+      clipped_text: clippedText
     };
   });
 }
@@ -316,6 +550,207 @@ function sameDigestMap(left, right) {
     leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key]);
 }
 
+function hashFile(file) {
+  return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
+}
+
+async function designMarkers(page, locales, states) {
+  return page.evaluate(({ requiredLocales, requiredStates }) => {
+    const localeFound = Object.fromEntries(requiredLocales.map((locale) => [locale,
+      document.documentElement.lang === locale || [...document.querySelectorAll("[data-killsloprouter-locale]")]
+        .some((element) => element.getAttribute("data-killsloprouter-locale") === locale)
+    ]));
+    const stateFound = Object.fromEntries(requiredStates.map((state) => [state,
+      [...document.querySelectorAll("[data-killsloprouter-state]")]
+        .some((element) => element.getAttribute("data-killsloprouter-state") === state)
+    ]));
+    return { localeFound, stateFound };
+  }, { requiredLocales: locales, requiredStates: states });
+}
+
+async function runDesignBrowser(request) {
+  const { packet, settings = {}, output_directory: outputDirectory } = request;
+  const task = packet.design_task;
+  requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
+  requireValue(task.subject_kind === "direction-candidate" || task.subject_kind === "color-candidate",
+    "design Playwright subject kind is invalid");
+  requireValue(Array.isArray(task.prototypes) && task.prototypes.length === 1,
+    "official design Playwright requires exactly one digest-bound HTML prototype");
+  const prototype = task.prototypes[0];
+  requireValue(typeof prototype.path === "string" && DIGEST_PATTERN.test(prototype.digest || ""),
+    "design prototype requires path and digest");
+  const prototypePath = path.resolve(prototype.path);
+  requireValue(fs.existsSync(prototypePath), `design prototype is missing: ${prototypePath}`);
+  const prototypeStat = fs.lstatSync(prototypePath);
+  requireValue(prototypeStat.isFile() && !prototypeStat.isSymbolicLink(),
+    "design prototype must be a regular non-symlink file");
+  requireValue(path.extname(prototypePath).toLowerCase() === ".html",
+    "official design Playwright accepts a static HTML prototype");
+  requireValue(hashFile(prototypePath) === prototype.digest, "design prototype digest mismatch");
+  const target = pathToFileURL(fs.realpathSync(prototypePath)).toString();
+  const requiredViewports = packet.evidence_contract?.required_viewports || [];
+  const requiredChecks = packet.evidence_contract?.required_checks || [];
+  const requiredLocales = task.locales || [];
+  const requiredStates = task.required_states || [];
+  requireValue(requiredViewports.length > 0, "design Playwright requires viewports");
+  for (const viewport of requiredViewports) {
+    requireValue(settings.viewports?.[viewport], `missing configured viewport: ${viewport}`);
+  }
+  fs.mkdirSync(outputDirectory, { recursive: true });
+
+  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
+  const browserVersion = browser.version();
+  const evidence = [];
+  const executions = [];
+  const aggregate = {
+    keyboard: true,
+    state: true,
+    overflow: true,
+    contrast: true,
+    "zoom-200": true,
+    "visual-regression": false,
+    "screen-reader": false,
+    "aria-semantics": true,
+    console: true,
+    network: true
+  };
+  const localesFound = new Set();
+  const statesFound = new Set();
+  try {
+    for (const viewportName of requiredViewports) {
+      const viewport = settings.viewports[viewportName];
+      const context = await browser.newContext({
+        viewport,
+        colorScheme: settings.color_schemes?.[0] || "light",
+        locale: requiredLocales[0] || settings.locale,
+        reducedMotion: "reduce",
+        serviceWorkers: "block"
+      });
+      const execution = {
+        viewport: viewportName,
+        console_errors: [],
+        page_errors: [],
+        request_failures: [],
+        blocked_requests: []
+      };
+      executions.push(execution);
+      const page = await context.newPage();
+      page.setDefaultTimeout(settings.navigation_timeout_ms);
+      page.on("console", (message) => {
+        if (message.type() === "error") execution.console_errors.push(message.text());
+      });
+      page.on("pageerror", (error) => execution.page_errors.push(error.message));
+      page.on("requestfailed", (failed) => execution.request_failures.push({
+        url: failed.url(), error: failed.failure()?.errorText || "unknown"
+      }));
+      await context.route("**/*", async (route) => {
+        const url = route.request().url();
+        if (url === target) return route.continue();
+        if (requestProtocolAllowed(url)) return route.continue();
+        execution.blocked_requests.push({ url, origin: normalizedNetworkOrigin(url) });
+        return route.abort("blockedbyclient");
+      });
+      try {
+        await page.goto(target, { waitUntil: "domcontentloaded", timeout: settings.navigation_timeout_ms });
+        const markers = await designMarkers(page, requiredLocales, requiredStates);
+        for (const [locale, found] of Object.entries(markers.localeFound)) if (found) localesFound.add(locale);
+        for (const [state, found] of Object.entries(markers.stateFound)) if (found) statesFound.add(state);
+        aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
+
+        execution.overflow = await inspectOverflow(page);
+        aggregate.overflow &&= !execution.overflow.document_overflow &&
+          execution.overflow.offenders.length === 0 &&
+          execution.overflow.overlaps.length === 0 &&
+          execution.overflow.clipped_text.length === 0;
+        execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
+        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+
+        const originalViewport = page.viewportSize();
+        await page.setViewportSize({
+          width: Math.max(320, Math.floor(originalViewport.width / 2)),
+          height: originalViewport.height
+        });
+        execution.zoom_200 = await inspectOverflow(page);
+        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+          execution.zoom_200.offenders.length === 0 &&
+          execution.zoom_200.overlaps.length === 0 &&
+          execution.zoom_200.clipped_text.length === 0;
+        await page.setViewportSize(originalViewport);
+
+        execution.axe = await runAxe(page, axeSource);
+        aggregate.contrast &&= !execution.axe.violations.some((item) => item.id === "color-contrast");
+        aggregate["aria-semantics"] &&= !execution.axe.violations.some((item) => item.id !== "color-contrast");
+        const ariaSnapshot = await page.locator("body").ariaSnapshot();
+        aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
+        aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
+        aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
+
+        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        await stabilizeVisualCapture(page);
+        await page.screenshot({
+          path: path.join(outputDirectory, screenshotName),
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          scale: "css"
+        });
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  aggregate.state &&= requiredLocales.every((locale) => localesFound.has(locale)) &&
+    requiredStates.every((state) => statesFound.has(state));
+  const checks = Object.fromEntries(requiredChecks.map((check) => [check, aggregate[check] === true]));
+  const reportName = `${safeId(task.subject_id)}--playwright-report.json`;
+  const report = {
+    design_playwright_report_version: 1,
+    run_id: request.run_id,
+    packet_id: packet.packet_id,
+    subject_id: task.subject_id,
+    subject_result_digest: task.subject_result_digest,
+    prototype: { path: prototypePath, digest: prototype.digest },
+    browser: { engine: "playwright", implementation: "chromium", version: browserVersion },
+    checks,
+    locales_found: [...localesFound],
+    states_found: [...statesFound],
+    executions
+  };
+  fs.writeFileSync(path.join(outputDirectory, reportName), `${JSON.stringify(report, null, 2)}\n`);
+  evidence.push({ kind: "test-report", path: reportName, checks: requiredChecks });
+  return {
+    host_adapter_response_version: 1,
+    result: {
+      design_result_version: 1,
+      kind: "browser-evidence",
+      packet_id: packet.packet_id,
+      provider_id: packet.provider.id,
+      actor: { actor_id: `playwright:official-v1:${process.pid}`, kind: "agent" },
+      status: "completed",
+      packet_digest: packet.packet_digest,
+      candidate_id: task.subject_id,
+      subject_kind: task.subject_kind,
+      subject_id: task.subject_id,
+      subject_result_digest: task.subject_result_digest,
+      browser_engine: "playwright",
+      browser_engine_version: browserVersion,
+      checks,
+      locales_tested: [...localesFound],
+      states_tested: [...statesFound],
+      evidence
+    },
+    metadata: {
+      child_pid: process.pid,
+      transport: "official-playwright-design-json-v1",
+      browser_version: browserVersion
+    }
+  };
+}
+
 async function run(request) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   requireValue(packet?.stage_id === "browser-evidence", "official Playwright adapter accepts browser-evidence only");
@@ -326,6 +761,10 @@ async function run(request) {
   requireValue(typeof outputDirectory === "string" && outputDirectory.length > 0,
     "output_directory is required");
   fs.mkdirSync(outputDirectory, { recursive: true });
+
+  if (packet.design_task?.kind === "browser-evidence") {
+    return runDesignBrowser(request);
+  }
 
   const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
@@ -495,29 +934,49 @@ async function run(request) {
             for (const assertion of scenario.assertions || []) {
               try {
                 await performAssertion(page, assertion, settings.navigation_timeout_ms);
-                execution.assertions.push({ type: assertion.type, locator: assertion.locator || null, status: "passed" });
+                execution.assertions.push({
+                  type: assertion.type,
+                  locator: assertion.locator || null,
+                  property: assertion.property || null,
+                  expected: assertion.value ?? null,
+                  status: "passed"
+                });
               } catch (error) {
                 execution.assertions.push({
-                  type: assertion.type, locator: assertion.locator || null, status: "failed", error: error.message
+                  type: assertion.type,
+                  locator: assertion.locator || null,
+                  property: assertion.property || null,
+                  expected: assertion.value ?? null,
+                  status: "failed",
+                  error: error.message
                 });
+                const layoutAssertion = ["no-overlap", "no-clipping"].includes(assertion.type);
+                const visualAssertion = assertion.type === "computed-style";
                 add({
-                  category: "state-assertion-failure",
-                  ruleId: "missing-required-state",
+                  category: layoutAssertion ? "overflow" : visualAssertion ? "visual-intent" : "state-assertion-failure",
+                  ruleId: layoutAssertion
+                    ? "overflow-overlap-or-clipping"
+                    : visualAssertion ? "visual-intent-contract-violation" : "missing-required-state",
                   claim: `Scenario ${scenario.id} assertion ${assertion.type} failed at ${viewportName}`,
                   evidence: `${executionId}: ${error.message}`,
-                  suggestedFix: "Restore the required state behavior before approval."
+                  suggestedFix: layoutAssertion
+                    ? "Repair the scoped layout or declare intentional clipping with the documented opt-out marker."
+                    : visualAssertion
+                      ? "Restore the digest-locked project visual invariant before approval."
+                      : "Restore the required state behavior before approval."
                 });
               }
             }
 
             execution.overflow = await inspectOverflow(page);
-            if (execution.overflow.document_overflow || execution.overflow.offenders.length) {
+            if (execution.overflow.document_overflow || execution.overflow.offenders.length ||
+              execution.overflow.overlaps.length || execution.overflow.clipped_text.length) {
               add({
                 category: "overflow",
                 ruleId: "overflow-overlap-or-clipping",
-                claim: `Horizontal overflow was detected in ${executionId}`,
+                claim: `Unintended overflow, overlap, or text clipping was detected in ${executionId}`,
                 evidence: `${executionId}: ${JSON.stringify(execution.overflow)}`,
-                suggestedFix: "Fix unintended overflow without hiding required content."
+                suggestedFix: "Fix the responsive layout without hiding required content; mark only approved intentional clipping."
               });
             }
 
@@ -540,11 +999,12 @@ async function run(request) {
             await page.setViewportSize(zoomViewport);
             execution.zoom_200 = { viewport: zoomViewport, overflow: await inspectOverflow(page) };
             await page.setViewportSize(originalViewport);
-            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length) {
+            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length ||
+              execution.zoom_200.overflow.overlaps.length || execution.zoom_200.overflow.clipped_text.length) {
               add({
                 category: "zoom-200",
                 ruleId: "overflow-overlap-or-clipping",
-                claim: `The 200% zoom/reflow proxy overflowed in ${executionId}`,
+                claim: `The 200% zoom/reflow proxy overflowed, overlapped, or clipped text in ${executionId}`,
                 evidence: `${executionId}: ${JSON.stringify(execution.zoom_200)}`,
                 suggestedFix: "Support reflow at half the CSS viewport width without clipping required content."
               });

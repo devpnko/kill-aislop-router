@@ -2,6 +2,7 @@
   "host_adapter_version": 1,
   "allowed_providers": [
     "project-contract",
+    "visual-intent-review",
     "kill-ai-slop",
     "anti-slop",
     "independent-rendered-craft-agent",
@@ -11,11 +12,16 @@
     "domain-authority-review",
     "privacy-authority-review",
     "design-system-contract-review",
+    "design-direction-agent",
+    "design-direction-critic",
+    "color-system-agent",
+    "color-system-critic",
     "peakoss-anti-slop"
   ],
   "granted_permissions": [],
   "providers": {
     "project-contract": {"adapter": "manual-v1", "strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"], "permissions": []},
+    "visual-intent-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["visual-intent-fidelity", "editorial-boundary", "character-preservation", "energy-preservation", "depth-preservation", "palette-fidelity", "typography-fidelity", "density-fidelity", "shape-fidelity", "elevation-fidelity", "imagery-fidelity", "motion-fidelity", "transformation-boundary"], "permissions": []},
     "kill-ai-slop": {"adapter": "manual-v1", "strength": 2, "capabilities": ["source-pattern-detection"], "permissions": []},
     "anti-slop": {"adapter": "manual-v1", "strength": 3, "capabilities": ["task-fit", "state-completeness", "responsive-review", "accessibility-review", "interaction-review"], "permissions": []},
     "independent-rendered-craft-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["rendered-hierarchy", "visual-specificity", "visual-restraint", "component-coherence"], "permissions": []},
@@ -25,6 +31,10 @@
     "domain-authority-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["domain-authority"], "permissions": []},
     "privacy-authority-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["privacy-authority"], "permissions": []},
     "design-system-contract-review": {"adapter": "manual-v1", "strength": 4, "capabilities": ["token-contract", "component-boundaries", "variant-state-contract", "responsive-density-contract", "surface-profile-contract", "migration-map", "drift-control"], "permissions": []},
+    "design-direction-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["design-direction-generation", "baseline-preservation", "responsive-prototype", "locale-prototype"], "permissions": []},
+    "design-direction-critic": {"adapter": "manual-v1", "strength": 4, "capabilities": ["product-fit-review", "visual-distinctiveness-review", "baseline-preservation-review", "responsive-review"], "permissions": []},
+    "color-system-agent": {"adapter": "manual-v1", "strength": 3, "capabilities": ["color-system-generation", "semantic-color-roles", "contrast-aware-palette", "responsive-prototype"], "permissions": []},
+    "color-system-critic": {"adapter": "manual-v1", "strength": 4, "capabilities": ["color-harmony-review", "semantic-role-review", "contrast-review", "brand-fit-review"], "permissions": []},
     "peakoss-anti-slop": {"adapter": "manual-v1", "strength": 3, "capabilities": ["pr-contribution-hygiene"], "permissions": []}
   }
 }

@@ -56,6 +56,104 @@ function bootstrapProject(directory) {
   };
 }
 
+function approveFixtureVisualIntent(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-intent-approval.json");
+  const receipt = {
+    visual_intent_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    intent: {
+      mode: "product-native",
+      editorial_treatment: "forbidden",
+      editorial_scope: [],
+      energy: "balanced",
+      depth: "layered",
+      preserve: ["fixture interaction hierarchy", "browser state clarity", "visual energy"],
+      avoid: ["paper-like neutralization", "universal flattening"]
+    },
+    authority: {
+      kind: "approved-reference",
+      authority_id: "playwright-fixture-owner",
+      basis: "The fixture tests a product-native interactive surface, not an editorial treatment.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{
+      kind: "approved-artifact",
+      path: path.relative(path.dirname(receiptPath), artifactPath),
+      digest: hashArtifact(artifactPath)
+    }]
+  };
+  writeJson(receiptPath, receipt);
+  profile.visual_intents[surface] = {
+    visual_intent_version: 1,
+    status: "approved",
+    ...receipt.intent,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
+function approveFixtureVisualSignature(profilePath, artifactPath) {
+  const profile = readJson(profilePath);
+  const surface = profile.surface_contract.primary;
+  const receiptPath = path.join(path.dirname(profilePath), "visual-signature-approval.json");
+  const signature = {
+    palette: {
+      primary: [{ value: "#175CD3", usage: "primary actions" }],
+      accent: [],
+      background: [{ value: "#F8FAFC", usage: "canvas" }],
+      surface: [{ value: "#FFFFFF", usage: "panels" }],
+      text: [{ value: "#101828", usage: "labels" }],
+      semantic: []
+    },
+    typography: {
+      families: [{ family: "Inter", role: "operator interface" }],
+      scale: "compact operator hierarchy",
+      weights: ["400", "600"],
+      treatments: ["tabular numerals"]
+    },
+    density: { mode: "compact", characteristics: ["same-screen comparison"] },
+    shape: { radii: ["4px controls"], geometry: ["rectangular panels"], strokes: ["1px strokes"] },
+    elevation: { strategy: "layered", shadows: ["low overlay shadow"], separation: ["surface contrast"] },
+    imagery: { strategy: "functional", characteristics: ["state evidence only"] },
+    motion: { intensity: "restrained", characteristics: ["state transitions"] },
+    style_keywords: ["operational", "high-clarity"],
+    forbidden_transformations: ["paper-like neutralization", "global flattening"]
+  };
+  const relativeArtifact = path.relative(path.dirname(receiptPath), artifactPath);
+  const aspects = [
+    "palette", "typography", "density", "shape", "elevation", "imagery", "motion",
+    "style_keywords", "forbidden_transformations"
+  ];
+  writeJson(receiptPath, {
+    visual_signature_receipt_version: 1,
+    project_id: profile.project_id,
+    surface,
+    status: "approved",
+    signature,
+    authority: {
+      kind: "approved-reference",
+      authority_id: "playwright-fixture-owner",
+      basis: "The browser fixture binds an exact product-native visual signature.",
+      decided_at: "2026-08-18T00:00:00.000Z"
+    },
+    evidence: [{ kind: "approved-artifact", path: relativeArtifact, digest: hashArtifact(artifactPath) }],
+    coverage: aspects.map((aspect) => ({ aspect, evidence_paths: [relativeArtifact] }))
+  });
+  profile.visual_signatures[surface] = {
+    visual_signature_version: 1,
+    status: "approved",
+    ...signature,
+    authority_receipt: path.basename(receiptPath),
+    authority_digest: hashArtifact(receiptPath)
+  };
+  writeJson(profilePath, profile);
+}
+
 function startServer(artifactDigests) {
   const child = spawn(process.execPath, [serverEntrypoint], {
     cwd: root,
@@ -134,6 +232,7 @@ function enableFixtureReviewers(hostPath) {
   const host = readJson(hostPath);
   const providerIds = [
     "project-contract",
+    "visual-intent-review",
     "kill-ai-slop",
     "anti-slop",
     "hallmark",
@@ -275,6 +374,26 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
+        id: "unsafe-style-property",
+        path: "/",
+        actions: [],
+        assertions: [{
+          type: "computed-style", locator: "body", property: "color;background", value: "red"
+        }]
+      }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /safe CSS property/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
         id: "external-explicit",
         path: "/",
         actions: [],
@@ -393,6 +512,155 @@ test("official Playwright runtime, scenario, and baseline tamper fail before chi
   }
 });
 
+test("official Playwright adapter verifies a digest-bound static design prototype", {
+  timeout: 60_000
+}, () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
+  try {
+    const paths = bootstrapProject(directory);
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome"
+    });
+    const prototype = path.join(directory, "candidate.html");
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Design candidate</title>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
+<body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const capabilities = [
+      "responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence",
+      "contrast-evidence", "zoom-evidence"
+    ];
+    const packet = {
+      design_packet_version: 1,
+      packet_id: "browser-design-fixture",
+      run_id: "official-design-browser-run",
+      stage_id: "browser-evidence",
+      provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
+      assigned_capabilities: capabilities,
+      minimum_strength: 3,
+      required_permissions: ["artifact:read", "evidence:write", "browser:control"],
+      evidence_contract: {
+        required_viewports: ["mobile", "desktop"],
+        required_checks: ["keyboard", "state", "overflow", "contrast", "zoom-200"]
+      },
+      design_task: {
+        kind: "browser-evidence",
+        subject_kind: "direction-candidate",
+        subject_id: "signal-desk--refine",
+        subject_result_digest: `sha256:${"2".repeat(64)}`,
+        prototype_paths: [prototype],
+        prototypes: [{ path: prototype, digest: hashArtifact(prototype) }],
+        locales: ["en-US", "ko-KR"],
+        required_states: ["default", "error"]
+      },
+      packet_digest: `sha256:${"1".repeat(64)}`
+    };
+    const manifest = loadHostManifest(paths.host);
+    const unsupportedPacket = structuredClone(packet);
+    unsupportedPacket.evidence_contract.required_checks.push("screen-reader", "visual-regression");
+    const unsupported = inspectPacketAdapter(unsupportedPacket, manifest);
+    assert.equal(unsupported.execution_status, "manual_pending");
+    assert.match(unsupported.reason, /screen-reader, visual-regression/);
+    assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
+    const run = {
+      run_id: packet.run_id,
+      packets: [packet],
+      creator: { provider_id: "design-direction-agent", actor_id: "creator:direction" },
+      scope: { kind: "design-exploration" },
+      artifacts: [snapshotArtifact(prototype, { root: directory })],
+      results: []
+    };
+    const result = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "design-evidence")
+    });
+    assert.equal(result.execution_status, "ran", result.error);
+    assert.notEqual(result.child_pid, process.pid);
+    assert.equal(result.result.kind, "browser-evidence");
+    assert.equal(result.result.browser_engine, "playwright");
+    assert.ok(Object.values(result.result.checks).every(Boolean));
+    assert.deepEqual(new Set(result.result.locales_tested), new Set(["en-US", "ko-KR"]));
+    assert.deepEqual(new Set(result.result.states_tested), new Set(["default", "error"]));
+    assert.deepEqual(
+      new Set(result.result.evidence.filter((item) => item.kind === "screenshot").map((item) => item.viewport)),
+      new Set(["mobile", "desktop"])
+    );
+
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
+<body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const layoutPacket = structuredClone(packet);
+    layoutPacket.packet_id = "browser-design-layout-defect";
+    layoutPacket.packet_digest = `sha256:${"4".repeat(64)}`;
+    layoutPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const layoutBlocked = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-layout-run",
+        packets: [layoutPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: layoutPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "layout-blocked-design-evidence")
+    });
+    assert.equal(layoutBlocked.execution_status, "ran", layoutBlocked.error);
+    assert.equal(layoutBlocked.result.checks.overflow, false);
+    assert.equal(layoutBlocked.result.checks["zoom-200"], false);
+    const layoutBlockedReport = readJson(
+      layoutBlocked.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.overlaps.length > 0));
+    assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
+
+    fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
+    fs.writeFileSync(prototype, `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Unbound resource</title>
+<link rel="stylesheet" href="./unbound.css">
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
+<body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`);
+    const blockedPacket = structuredClone(packet);
+    blockedPacket.packet_id = "browser-design-unbound-resource";
+    blockedPacket.packet_digest = `sha256:${"3".repeat(64)}`;
+    blockedPacket.evidence_contract.required_checks.push("network");
+    blockedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const blocked = executeAuditPacket({
+      run: { ...run, run_id: "official-design-browser-block-run", packets: [blockedPacket] },
+      packet: blockedPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "blocked-design-evidence")
+    });
+    assert.equal(blocked.execution_status, "ran", blocked.error);
+    assert.equal(blocked.result.checks.network, false);
+    const blockedReportPath = blocked.result.evidence.find((item) => item.kind === "test-report").path;
+    const blockedReport = readJson(blockedReportPath);
+    assert.ok(blockedReport.executions.every((execution) =>
+      execution.blocked_requests.some((item) => item.url.endsWith("/unbound.css"))));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("served artifact attestation mismatch fails closed across the child boundary", {
   timeout: 30_000
 }, async () => {
@@ -430,8 +698,8 @@ test("served artifact attestation mismatch fails closed across the child boundar
   }
 });
 
-test("official Playwright adapter crosses a real child boundary, blocks missing baselines, and passes after digest-locked retry", {
-  timeout: 120_000
+test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
+  timeout: 150_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-e2e-"));
   let server = null;
@@ -450,7 +718,13 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
         actions: [{ type: "click", locator: "#toggle" }],
         assertions: [
           { type: "visible", locator: "#details" },
-          { type: "text", locator: "#details", value: "Verified state" }
+          { type: "text", locator: "#details", value: "Verified state" },
+          { type: "no-overlap", locator: "#details > *" },
+          { type: "no-clipping", locator: "#toggle, #details-heading" },
+          { type: "count", locator: ".window-label", value: 1 },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-style", value: "dashed" },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-width", value: "2px" },
+          { type: "computed-style", locator: ".sponsor-slot", property: "background-color", value: "rgb(255, 255, 255)" }
         ]
       }]
     });
@@ -514,6 +788,49 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
+        id: "layout-readability",
+        path: "/layout-bad",
+        actions: [],
+        assertions: [
+          { type: "no-overlap", locator: "#collision > span" },
+          { type: "no-clipping", locator: "#clipped-title" },
+          { type: "count", locator: ".window-label", value: 1 },
+          { type: "computed-style", locator: ".sponsor-slot", property: "border-top-style", value: "dashed" }
+        ]
+      }]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    manifest = loadHostManifest(paths.host);
+    const layoutOutput = path.join(directory, "evidence-layout-defects");
+    const layout = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: layoutOutput });
+    assert.equal(layout.execution_status, "ran", layout.error);
+    assert.equal(layout.result.verdict, "block");
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "overflow" && item.rule_id === "overflow-overlap-or-clipping"));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "overflow" && item.claim.startsWith("Unintended overflow, overlap, or text clipping")));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "state-assertion-failure" && item.rule_id === "missing-required-state"));
+    assert.ok(layout.result.findings.some((item) =>
+      item.category === "visual-intent" && item.rule_id === "visual-intent-contract-violation"));
+    const layoutReport = readJson(path.join(layoutOutput, "browser-report.json"));
+    assert.ok(layoutReport.executions.every((entry) => entry.overflow.overlaps.length > 0));
+    assert.ok(layoutReport.executions.every((entry) => entry.overflow.clipped_text.length > 0));
+    assert.ok(layoutReport.executions.every((entry) =>
+      entry.assertions.filter((assertion) =>
+        ["no-overlap", "no-clipping", "computed-style"].includes(assertion.type))
+        .every((assertion) => assertion.status === "failed")));
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
         id: "details-open",
         path: "/changed",
         actions: [{ type: "click", locator: "#toggle" }],
@@ -533,7 +850,7 @@ test("official Playwright adapter crosses a real child boundary, blocks missing 
     });
     manifest = loadHostManifest(paths.host);
     const changedOutput = path.join(directory, "evidence-material-change");
-    const changed = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: changedOutput });
+    const changed = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: changedOutput });
     assert.equal(changed.execution_status, "ran", changed.error);
     assert.equal(changed.result.verdict, "block");
     assert.ok(changed.result.findings.some((item) => item.category === "visual-regression"));
@@ -557,6 +874,8 @@ test("integrated automation resumes and retries the official Playwright stage be
     const snapshot = snapshotArtifact(artifact, { root: directory });
     server = await startServer({ [snapshot.path]: snapshot.digest });
     const paths = bootstrapProject(directory);
+    approveFixtureVisualIntent(paths.profile, artifact);
+    approveFixtureVisualSignature(paths.profile, artifact);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{

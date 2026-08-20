@@ -7,9 +7,33 @@ for await (const chunk of process.stdin) input += chunk;
 const request = JSON.parse(input);
 const { packet, settings = {} } = request;
 
+if (settings.write_started_marker) {
+  fs.writeFileSync(path.join(request.output_directory, "started.marker"), `${process.pid}\n`);
+}
+
+if (settings.delay_ms) {
+  await new Promise((resolve) => setTimeout(resolve, settings.delay_ms));
+}
+
 if ((settings.fail_attempts || []).includes(request.attempt)) {
   process.stderr.write(`fixture failure on attempt ${request.attempt}\n`);
   process.exit(17);
+}
+
+if (settings.invalid_json) {
+  process.stdout.write("{not-json");
+  process.exit(0);
+}
+
+if (settings.oversized_stdout_bytes) {
+  const chunk = Buffer.alloc(1024 * 1024, "x");
+  let remaining = settings.oversized_stdout_bytes;
+  while (remaining > 0) {
+    const bytes = Math.min(remaining, chunk.length);
+    fs.writeSync(1, chunk, 0, bytes);
+    remaining -= bytes;
+  }
+  process.exit(0);
 }
 
 const startedAt = new Date().toISOString();
@@ -38,6 +62,17 @@ if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence
     viewports: packet.evidence_contract?.required_viewports || [],
     checks: packet.evidence_contract?.required_checks || []
   });
+  if (settings.evidence_escape) {
+    const escaped = path.join(request.output_directory, "..", "escaped-evidence.txt");
+    fs.writeFileSync(escaped, "fixture attempted to escape its evidence grant\n");
+    evidence.push({
+      path: "../escaped-evidence.txt",
+      kind: "test-report",
+      covers: packet.assigned_capabilities,
+      viewports: packet.evidence_contract?.required_viewports || [],
+      checks: packet.evidence_contract?.required_checks || []
+    });
+  }
 }
 
 function packetFor(stageId) {
@@ -128,6 +163,8 @@ process.stdout.write(JSON.stringify({
   result,
   metadata: {
     child_pid: process.pid,
-    transport: "node-json-stdio-fixture"
+    transport: "node-json-stdio-fixture",
+    observed_visual_signature_digest: packet.visual_signature_contract?.contract_digest || null,
+    observed_primary_color: packet.visual_signature_contract?.palette?.primary?.[0]?.value || null
   }
 }));

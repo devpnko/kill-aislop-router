@@ -10,6 +10,99 @@
       {"root": ".", "surface": "operator-product-ui"}
     ]
   },
+  "visual_intents": {
+    "operator-product-ui": {
+      "visual_intent_version": 1,
+      "status": "approved",
+      "mode": "product-native",
+      "editorial_treatment": "forbidden",
+      "editorial_scope": [],
+      "energy": "balanced",
+      "depth": "layered",
+      "preserve": [
+        "operator task density",
+        "action hierarchy",
+        "existing brand contrast",
+        "fast same-screen comparison"
+      ],
+      "avoid": [
+        "paper-like neutralization",
+        "universal flatness",
+        "consumer-service restyling"
+      ],
+      "authority_receipt": "planning-evidence/visual-intent-approval.json",
+      "authority_digest": "sha256:63dc8fc0007f17a1ccb8cedb8dec659d3cb45aa42774a73adec32aa2696d60ef"
+    }
+  },
+  "visual_signatures": {
+    "operator-product-ui": {
+      "visual_signature_version": 1,
+      "status": "approved",
+      "palette": {
+        "primary": [
+          {"value": "#175CD3", "token": "--color-brand-600", "usage": "primary actions and active selection"}
+        ],
+        "accent": [
+          {"value": "#F04438", "token": "--color-accent-500", "usage": "urgent attention without replacing primary hierarchy"}
+        ],
+        "background": [
+          {"value": "#F8FAFC", "token": "--color-background", "usage": "application canvas"}
+        ],
+        "surface": [
+          {"value": "#FFFFFF", "token": "--color-surface", "usage": "panels and controls"}
+        ],
+        "text": [
+          {"value": "#101828", "token": "--color-text-primary", "usage": "primary labels and values"},
+          {"value": "#475467", "token": "--color-text-secondary", "usage": "secondary labels and metadata"}
+        ],
+        "semantic": [
+          {"role": "success", "value": "#079455", "token": "--color-success", "usage": "successful status"},
+          {"role": "warning", "value": "#DC6803", "token": "--color-warning", "usage": "warning status"},
+          {"role": "danger", "value": "#D92D20", "token": "--color-danger", "usage": "failed or destructive status"}
+        ]
+      },
+      "typography": {
+        "families": [
+          {"family": "Inter", "role": "operator labels, data, and controls"}
+        ],
+        "scale": "compact operator hierarchy",
+        "weights": ["400", "500", "600"],
+        "treatments": ["tabular numerals", "compact labels", "strong action hierarchy"]
+      },
+      "density": {
+        "mode": "compact",
+        "characteristics": ["same-screen comparison", "short control rows", "high information density"]
+      },
+      "shape": {
+        "radii": ["4px controls", "8px panels"],
+        "geometry": ["restrained rectangles", "clear table and panel edges"],
+        "strokes": ["1px neutral control and panel strokes"]
+      },
+      "elevation": {
+        "strategy": "layered",
+        "shadows": ["single low-elevation shadow on overlays"],
+        "separation": ["surface contrast", "panel strokes", "overlay shadow"]
+      },
+      "imagery": {
+        "strategy": "functional",
+        "characteristics": ["status and data imagery only", "no decorative editorial texture"]
+      },
+      "motion": {
+        "intensity": "restrained",
+        "characteristics": ["state confirmation", "focus transitions", "no ornamental drift"]
+      },
+      "style_keywords": ["operational", "data-dense", "high-clarity", "brand-blue"],
+      "forbidden_transformations": [
+        "replace brand blue with neutral gray or paper beige",
+        "replace compact operator density with spacious consumer cards",
+        "remove all depth or shadows globally",
+        "introduce editorial texture or magazine composition",
+        "derive a new palette from color frequency alone"
+      ],
+      "authority_receipt": "planning-evidence/visual-signature-approval.json",
+      "authority_digest": "sha256:2f2f2f2cfd09249b77b55db0ebae9daecf719a4def7202d50b517afe3ef0e37e"
+    }
+  },
   "approved_design_system": true,
   "design_system": {
     "id": "example-product-ui",
@@ -31,6 +124,7 @@
     "project-design-system": "docs/design-system.md",
     "project-systemizer": "docs/systemization-protocol.md",
     "design-system-contract-review": "reviewers/design-system-contract",
+    "visual-intent-review": "reviewers/visual-intent",
     "locale-copy-review": "reviewers/en-US-copy",
     "domain-authority-review": "reviewers/product-owner",
     "privacy-authority-review": "reviewers/privacy-owner",

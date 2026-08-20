@@ -1,0 +1,42 @@
+{
+  "visual_intent_receipt_version": 1,
+  "project_id": "example-product",
+  "surface": "operator-product-ui",
+  "status": "approved",
+  "intent": {
+    "mode": "product-native",
+    "editorial_treatment": "forbidden",
+    "editorial_scope": [],
+    "energy": "balanced",
+    "depth": "layered",
+    "preserve": [
+      "operator task density",
+      "action hierarchy",
+      "existing brand contrast",
+      "fast same-screen comparison"
+    ],
+    "avoid": [
+      "paper-like neutralization",
+      "universal flatness",
+      "consumer-service restyling"
+    ]
+  },
+  "authority": {
+    "kind": "owner-direction",
+    "authority_id": "example-owner",
+    "basis": "The approved operator mockup and owner decision define a dense product-native interface, not an editorial visual treatment.",
+    "decided_at": "2026-08-18T00:00:00.000Z"
+  },
+  "evidence": [
+    {
+      "kind": "approved-artifact",
+      "path": "mockup.html",
+      "digest": "sha256:8705e970fde84d43902a98b4dfa3094a0e2a486cf5ca8d4526ce078c6f01d111"
+    },
+    {
+      "kind": "owner-approval",
+      "path": "owner-approval.json",
+      "digest": "sha256:d19bdc7bfbb1b6abdd11f0a3df4e759c6c7537eeaec358a5133ac6a2671c00df"
+    }
+  ]
+}

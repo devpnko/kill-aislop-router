@@ -24,6 +24,28 @@ Legend: `P` primary, `S` secondary, `A` executable automation, `C` conditional,
 | PR contribution hygiene | - | - | - | - | - | - | A/P |
 | Browser interaction proof | - | - | - | - | - | - | - |
 
+Project-local authority and evidence providers are outside the upstream table:
+
+| Provider | Minimum strength | Required capabilities |
+|---|:---:|---|
+| `visual-intent-review` | 4 | visual-intent fidelity; editorial, character, energy, and depth preservation; palette, typography, density, shape, elevation, imagery, motion fidelity; transformation boundary |
+| `project-contract` | 4 | task contract, object model, and state authority |
+| `domain-authority-review` | 4 | domain authority and conflict adjudication |
+| `browser-evidence` | 3 | responsive, keyboard, state, overflow, contrast, and zoom evidence |
+| design direction creator | 3 | project-specific direction generation, baseline preservation, self-contained responsive/locale prototype, font availability and license report |
+| design direction critic | 4 | product fit, distinctiveness, baseline preservation, responsive review |
+| color-system creator | 3 | role-based color system, semantic separation, contrast-aware palette, self-contained prototype, exact implementation tokens |
+| color-system critic | 4 | harmony, semantic roles, contrast, brand and project fit |
+
+The visual-intent reviewer is independent from the creator. It evaluates the
+verified intent and exact signature rather than choosing a preferred aesthetic.
+Missing capabilities cannot be borrowed from the scanner or inferred from a
+craft score.
+
+The design exploration providers are brief-selected project integrations, not
+new universal tools. Their artifacts are evaluated separately through
+Playwright, comparison critics, computed color checks, and owner decisions.
+
 Design-system extraction is deliberately outside this upstream-tool matrix.
 It is a project-local creator contract, because no generic visual skill can
 decide which domain states, authority boundaries, or density profiles are safe
@@ -55,6 +77,14 @@ All can find visual tells, but they inspect different representations:
 
 Run them as separate passes. A regex hit is not a verdict, and a rendered review
 cannot prove interaction behavior.
+
+Here, restraint means avoiding unjustified effects relative to the approved
+direction. It does not mean gray, flat, paper-like, shadowless, or low-energy.
+None of these critics may convert its anti-pattern list into creator direction.
+The visual-intent contract decides the direction and editorial boundary; the
+visual-signature contract fixes the actual palette, type, density, shape,
+elevation, imagery, and motion. Zero scanner hits satisfy none of the
+independent visual-contract, craft, browser, or owner gates.
 
 If one provider is unavailable, route by the missing capability contract. Do
 not substitute a source scanner for rendered craft or a browser smoke test for

@@ -1,4 +1,4 @@
 interface:
   display_name: "KillSlopRouter"
-  short_description: "Route anti-slop reviews by locked product surface"
-  default_prompt: "Use $kill-slop-router to lock this project artifact to its semantic product surface, continue the safest eligible audit stage, and report exact receipts or pending evidence."
+  short_description: "Bind exact visual signatures and route fail-closed reviews"
+  default_prompt: "Use $kill-slop-router to bind this artifact to its semantic surface, verified visual intent, and exact visual signature, then continue the fail-closed audit."
