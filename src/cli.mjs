@@ -42,6 +42,7 @@ import {
   resumeDesignExploration,
   startDesignExploration
 } from "./design.mjs";
+import { configureCodexReviewers } from "./codex.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -70,7 +71,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "design", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "host", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -96,6 +97,9 @@ function parseArgs(argv) {
     } else if (key === "result") {
       args.results.push(value);
       args.result = value;
+    } else if (key === "skill-provider") {
+      args["skill-provider"] ||= [];
+      args["skill-provider"].push(value);
     } else {
       args[key] = value;
     }
@@ -108,6 +112,8 @@ function help() {
 
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
+  killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
+  killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
   killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
   killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
@@ -152,6 +158,13 @@ Options:
   --router /path/to/router.json
   --creator-id ID
   --host-config FILE
+  --runtime FILE
+  --runtime-root DIR
+  --model MODEL
+  --agent-providers ID,ID
+  --skill-provider ID=DIR (repeatable)
+  --timeout-ms NUMBER
+  --max-output-bytes NUMBER
   --brief FILE
   --baseline PATH
   --shortlist FILE
@@ -228,6 +241,70 @@ function browserCommand(args) {
     `receipt: ${receipt.receipt_path}`,
     `receipt digest: ${receipt.receipt_digest}`
   ].join("\n") + "\n");
+}
+
+function integerOption(value, label, fallback) {
+  if (value === undefined) return fallback;
+  if (!/^\d+$/.test(value)) throw new RouterError(`${label} must be an integer`, 2);
+  return Number(value);
+}
+
+function skillProviderBindings(values = []) {
+  return values.map((value) => {
+    const separator = value.indexOf("=");
+    if (separator <= 0 || separator === value.length - 1) {
+      throw new RouterError("--skill-provider requires PROVIDER_ID=/absolute/skill/root", 2);
+    }
+    return {
+      providerId: value.slice(0, separator),
+      skillRoot: value.slice(separator + 1)
+    };
+  });
+}
+
+function hostCommand(args) {
+  if (args.subcommand !== "configure-codex") {
+    throw new RouterError("host requires the configure-codex subcommand", 2);
+  }
+  if (!args.runtime || !args.model) {
+    throw new RouterError("host configure-codex requires --runtime and --model", 2);
+  }
+  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  if (!profilePath) throw new RouterError("host configure-codex requires a project profile", 2);
+  const hostManifestPath = path.resolve(args["host-config"] ||
+    path.join(path.dirname(profilePath), "host-adapters.json"));
+  const router = readJson(path.resolve(args.router || defaultRouterPath), "router");
+  const receipt = configureCodexReviewers({
+    router,
+    profilePath,
+    hostManifestPath,
+    runtimePath: args.runtime,
+    runtimeRoot: args["runtime-root"] || null,
+    model: args.model,
+    agentProviders: (args["agent-providers"] || "").split(",")
+      .map((providerId) => providerId.trim()).filter(Boolean),
+    skillProviders: skillProviderBindings(args["skill-provider"] || []),
+    allowExternal: Boolean(args["allow-external"]),
+    replace: Boolean(args.replace),
+    runtimeTimeoutMs: integerOption(args["timeout-ms"], "--timeout-ms", 600_000),
+    maxOutputBytes: integerOption(args["max-output-bytes"], "--max-output-bytes", 8 * 1024 * 1024)
+  });
+  if (args.json || args.format === "json") {
+    process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
+  } else {
+    process.stdout.write([
+      "KillSlopRouter Codex review host",
+      `status: ${receipt.status}`,
+      `runtime: ${receipt.runtime.version} (${receipt.runtime.digest})`,
+      `model: ${receipt.runtime.model}`,
+      `providers: ${receipt.providers.map((provider) => provider.provider_id).join(", ")}`,
+      `host: ${receipt.host_manifest.path} (${receipt.host_manifest.digest})`,
+      `receipt: ${receipt.receipt_path}`,
+      `receipt digest: ${receipt.receipt_digest}`,
+      ...(receipt.pending_reason ? [`pending: ${receipt.pending_reason}`] : [])
+    ].join("\n") + "\n");
+  }
+  if (receipt.status === "manual_pending") process.exitCode = 6;
 }
 
 function pluginCommand(args) {
@@ -646,6 +723,10 @@ export async function main(argv) {
   }
   if (args.command === "plugin") {
     pluginCommand(args);
+    return;
+  }
+  if (args.command === "host") {
+    hostCommand(args);
     return;
   }
   if (args.command === "browser") {

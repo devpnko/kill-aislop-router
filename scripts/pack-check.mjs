@@ -38,15 +38,19 @@ try {
     "src/audit.mjs",
     "src/automation.mjs",
     "src/bootstrap.mjs",
+    "src/codex.mjs",
     "src/design.mjs",
     "src/execution.mjs",
     "src/playwright.mjs",
     "src/adapters/playwright-browser.mjs",
+    "src/adapters/codex-review.mjs",
     "router/default-router.json",
     "schemas/automation-run.schema.json",
     "schemas/bootstrap-receipt.schema.json",
     "schemas/automation-step-receipt.schema.json",
     "schemas/host-adapter.schema.json",
+    "schemas/codex-host-setup-receipt.schema.json",
+    "schemas/codex-review-output.schema.json",
     "schemas/design-brief.schema.json",
     "schemas/design-font-report.schema.json",
     "schemas/design-packet.schema.json",
@@ -68,6 +72,7 @@ try {
     "docs/adapter-authoring.md",
     "docs/design-exploration.md",
     "docs/codex-plugin.md",
+    "docs/codex-review-host.md",
     "docs/surface-contract.md",
     "docs/visual-intent-contract.md",
     "docs/visual-signature-contract.md",
@@ -121,6 +126,13 @@ try {
   const installedCli = path.join(installedRoot, "bin", "killsloprouter.mjs");
   const help = run(process.execPath, [installedCli, "--help"], { cwd: consumer });
   assert.equal(help.status, 0, help.stderr || help.stdout);
+  assert.match(help.stdout, /host configure-codex/);
+  const codexExport = run(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    "import('killsloprouter/codex').then((module) => { if (!module.configureCodexReviewers) process.exit(1); })"
+  ], { cwd: consumer });
+  assert.equal(codexExport.status, 0, codexExport.stderr || codexExport.stdout);
 
   const installedProfile = path.join(installedRoot, "examples", "project-profile.example.json");
   const installedHost = path.join(installedRoot, "examples", "host-adapter.example.json");
@@ -158,7 +170,7 @@ try {
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
-  process.stdout.write("installed consumer: help, doctor, manual dry-run passed\n");
+  process.stdout.write("installed consumer: help, Codex export, doctor, manual dry-run passed\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

@@ -13,6 +13,7 @@
     "./audit": "./src/audit.mjs",
     "./automation": "./src/automation.mjs",
     "./bootstrap": "./src/bootstrap.mjs",
+    "./codex": "./src/codex.mjs",
     "./design": "./src/design.mjs",
     "./execution": "./src/execution.mjs",
     "./integrity": "./src/integrity.mjs",
@@ -38,7 +39,7 @@
   ],
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "test:e2e": "node --test test/e2e.test.mjs test/playwright.test.mjs test/design.test.mjs test/dogfood.test.mjs",
+    "test:e2e": "node --test test/e2e.test.mjs test/playwright.test.mjs test/design.test.mjs test/dogfood.test.mjs test/codex.test.mjs",
     "test:playwright": "node --test test/playwright.test.mjs",
     "check": "npm test && node scripts/static-check.mjs && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
     "pack:check": "node scripts/pack-check.mjs"

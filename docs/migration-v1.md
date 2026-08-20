@@ -34,6 +34,20 @@ change. Consumers that reject unknown fields should permit all three fields.
 - package export `./design`, `killsloprouter design` commands, design brief and
   result version 1, resumable design exploration run version 1, shortlist
   version 1, and owner design decision version 1
+- package export `./codex`, `killsloprouter host configure-codex`, official
+  Codex review contract version 1, structured review output schema, and Codex
+  host setup receipt version 1
+
+The host adapter response version remains `1`. It now accepts an additive,
+mutually exclusive `{ execution_status: "manual_pending", reason }` envelope
+for the official Codex bridge. Existing `{ result }` responses are unchanged.
+Consumers with a local strict copy of the schema should update it; consumers
+that only emit existing result envelopes require no change.
+
+The official Codex bridge is opt-in and does not migrate manual declarations
+automatically. Configuration requires explicit external-network authority and
+backs up the host manifest. It never changes scanner, browser, design creator,
+or owner providers. See [Official Codex review host](codex-review-host.md).
 
 `bootstrap` is additive and refuses to replace an existing project profile,
 host manifest, or bootstrap receipt. It starts with manual-only adapters and an
