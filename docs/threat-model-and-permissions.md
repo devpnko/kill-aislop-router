@@ -77,7 +77,10 @@ Official GitHub Actions are pinned to reviewed full commit SHAs so a moved tag
 cannot substitute checkout or Node setup code. The explicitly pinned Playwright
 package then installs the bundled Chromium build used by browser tests. Feature
 branches run through the pull-request event only, and concurrency cancellation
-prevents superseded commits from duplicating browser installs.
+prevents superseded commits from duplicating browser installs. Dependabot
+monitors npm and GitHub Actions weekly, while CI blocks high-severity production
+dependency advisories. Automated dependency pull requests receive no merge,
+publication, or release authority.
 
 ### Adapter child
 
@@ -164,6 +167,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Visual-signature receipt or evidence replaced | Profile, audit, approval scope, and final receipt bind and re-hash the complete signature chain |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
 | CI action tag substitution | Checkout and Node setup actions use immutable full commit SHAs under read-only workflow permissions |
+| Vulnerable or stale dependency silently lands | Dependabot proposes npm and Actions updates; production high-severity advisories fail CI; every proposal still requires normal review |
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
 | Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
 | Shell injection | Fixed Node executable, fixed single entrypoint argument, `shell:false` |
