@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Added an opt-in first-party Codex audit-review host with a reviewed CLI
+  configurator, fresh ephemeral agent/skill sessions, fixed read-only runtime
+  arguments, structured output, and digest locks for the adapter, output
+  schema, executable, complete runtime root, and skill roots.
+- Kept missing runtime, skill, or authentication as `manual_pending`, while
+  treating changed locked bytes, forbidden runtime capabilities, invalid JSONL,
+  timeout, and output overflow as blockers.
+- Preserved dedicated scanner, Playwright, design exploration, locale/domain/
+  privacy routing, conflict adjudication, and owner approval boundaries.
+
 ## 1.0.0 - 2026-08-18
 
 - Added owner-gated design exploration with three project-specific theses ×

@@ -91,6 +91,42 @@ timeout, and confines accepted evidence paths. It does not provide an OS or
 network sandbox. Run third-party adapters in a container, VM, or restricted CI
 worker when the entrypoint itself is not fully trusted.
 
+### Official Codex review boundary
+
+The optional Codex host is configured only through an explicit CLI operation.
+It digest-locks the bundled Node bridge, structured-output schema, exact Codex
+executable, complete runtime root, and any skill root. The project profile
+cannot select a runtime, command, argument, model credential, or auth store.
+The host manifest records an explicit model name and `network:external`
+permission but no credential contents.
+
+Each packet uses a new ephemeral Codex thread under a fixed read-only,
+non-interactive invocation. User configuration, project `AGENTS.md`, plugins,
+automatic skill instructions, MCP/apps, browser, web search, computer use,
+image generation, and delegation are disabled. Authentication is exposed only
+through a temporary private `CODEX_HOME` containing a link to the host's
+regular `auth.json`; the directory is removed after the probe or review. The
+wrapper rejects forbidden event types, binds the returned
+actor to the JSONL thread ID, and rechecks artifact and runtime locks before
+execution. It rechecks artifact locks after execution before result ingestion.
+Authentication/runtime/skill absence is `manual_pending`; changed locked bytes
+or invalid output block.
+
+This is not a container boundary. The nested runtime uses Codex's platform
+read-only sandbox, which prevents writes but may permit reads outside the
+artifact root depending on OS implementation. The Codex process also needs
+access to its host authentication store and model service. Use a container,
+VM, restricted CI worker, or dedicated OS account when unrelated readable
+files, stronger egress isolation, or authenticated remote-model identity are
+in scope. The integration is audit-only and cannot satisfy scanner,
+Playwright, design creation, or owner packets.
+
+Reviewed artifacts are also untrusted model input. Embedded instructions can
+influence a reviewer even when they cannot expand its tool permissions. A
+digest-bound structured response proves provenance and schema conformance, not
+the truth of its findings. Separate critics, adjudication, deterministic
+evidence, and owner authority remain required by the route.
+
 ### Reviewer and owner identity
 
 Actor IDs are asserted provenance, not authenticated human identities. Owner
@@ -171,6 +207,12 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
 | Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
 | Shell injection | Fixed Node executable, fixed single entrypoint argument, `shell:false` |
+| Project selects a nested Codex command | Only `host configure-codex` can bind the bundled bridge; runtime, root, model, schema, and skill settings are strictly validated and digest-locked |
+| Codex reviewer reuses the creator session | Every packet starts one fresh ephemeral thread; result actor identity is derived from its JSONL thread ID and the ledger still checks provider/actor independence |
+| Missing Codex auth or runtime reported as execution | Readiness and nested preflight return explicit `manual_pending`; no result is ingested and no attempt is labeled `ran` |
+| Codex runtime, skill, or schema substitution | Complete roots and individual executable/schema/entrypoint files are digest-checked at configuration, manifest load, and child execution |
+| Codex reviewer mutates or expands authority | Read-only sandbox, fixed capability set, forbidden event rejection, and separate scanner/browser/design/owner gates |
+| Artifact prompt injection biases a model verdict | Treat the response as a bounded critic claim; retain independent stages, conflict adjudication, deterministic evidence, and owner authority |
 | Capability downgrade | Runtime declaration must cover the packet assignment and minimum strength |
 | Creator self-review | Provider and actor identity checks during audit ingestion |
 | `routable` reported as `ran` | Only an ingested result gets execution status `ran`; otherwise `manual_pending` or blocked |

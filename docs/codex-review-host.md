@@ -1,0 +1,191 @@
+# Official Codex Review Host
+
+The opt-in Codex host runs audit-only `agent-json-v1` and `skill-json-v1`
+reviewers without asking each project to author an executable adapter. It is a
+local host integration, not an MCP server. The deterministic CLI still owns
+routing, capability and strength checks, result ingestion, tamper detection,
+scanner triage, conflict adjudication, browser proof, and owner approval.
+
+This integration is optional. A manual host manifest remains the safe bootstrap
+default.
+
+## What the configure command locks
+
+`host configure-codex` is the only supported way to create an official Codex
+review declaration. It writes no executable data to the project profile. For
+every selected provider it binds:
+
+- the bundled `src/adapters/codex-review.mjs` entrypoint and SHA-256 digest;
+- the exact Codex executable and its digest;
+- the complete operator-selected runtime root and directory digest;
+- the bundled structured-output schema and digest;
+- an explicit model name;
+- the route's existing strength and complete capability contract;
+- `artifact:read` and explicitly granted `network:external` permissions;
+- for `skill-json-v1`, the complete skill root and directory digest;
+- fixed runtime and output limits.
+
+The command backs up the previous host manifest and writes
+`.killsloprouter/codex-host-setup-receipt.json`. It refuses to replace an
+existing non-manual, non-official provider unless `--replace` is explicit.
+
+## Configure
+
+First verify the selected runtime and its authentication outside the router:
+
+```bash
+codex --version
+codex login status
+```
+
+The official bridge requires `codex-cli` 0.144.0 or newer. Configuration binds
+the exact installed version and bytes; meeting the minimum alone never bypasses
+the digest lock.
+
+Then bind agent reviewers and any installed skill reviewers. The standalone
+Codex installation below is an example; pass the real reviewed locations on
+the host:
+
+```bash
+killsloprouter host configure-codex \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --runtime "$HOME/.codex/packages/standalone/current/bin/codex" \
+  --runtime-root "$HOME/.codex/packages/standalone/current" \
+  --model gpt-5.4 \
+  --agent-providers project-contract,visual-intent-review,locale-copy-review,domain-authority-review,privacy-authority-review \
+  --skill-provider "anti-slop=$HOME/.codex/skills/antislop" \
+  --allow-external \
+  --json
+```
+
+`--skill-provider PROVIDER_ID=DIR` is repeatable. The directory must contain
+`SKILL.md`; the whole directory is locked so a linked reference cannot change
+silently. `--agent-providers` is a comma-separated list. The provider must have
+a strength and capability contract in the router or project fallback profile.
+
+`--model` is required so the host does not silently inherit a changing model
+choice. The host records that fixed argument as provenance. Codex JSONL does
+not independently report the effective model, so this is a configuration claim
+bound to the exact runtime and invocation rather than remote model attestation.
+
+The router requires `--allow-external` because a Codex review can transmit
+artifact content to the configured model service. It adds
+`network:external` only to the separate host manifest. No API key, access
+token, auth file contents, or credential-store path is copied into the profile,
+manifest, request, result, setup receipt, or audit receipt. Authentication stays
+in the Codex runtime's normal host store.
+
+After configuration, rerun the normal readiness and lifecycle commands:
+
+```bash
+killsloprouter doctor --profile .killsloprouter/profile.json --json
+
+killsloprouter run \
+  --dry-run \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --task redesign \
+  --direction approved \
+  --changes source,copy,layout,interaction \
+  --artifact ./src \
+  --scope runtime \
+  --creator-id codex:creator-session-id \
+  --json
+```
+
+## Execution boundary
+
+For each eligible packet, KillSlopRouter starts its digest-locked Node adapter
+with `shell:false`. That adapter rechecks the runtime, runtime-root, schema,
+skill, and artifact digests immediately before starting the nested Codex
+process, then rechecks artifact digests again before accepting its output. The
+nested invocation has a fixed argument list:
+
+- one new `codex exec --json --ephemeral` thread per packet;
+- `--sandbox read-only` and non-interactive `approval_policy="never"`;
+- ignored user configuration, project execution rules, and project
+  `AGENTS.md` content;
+- no automatic user/bundled skill instructions and no plugin, app, MCP,
+  browser, web-search, computer-use, image-generation, or multi-agent
+  capability;
+- a reduced shell environment and no inherited secret variables;
+- a digest-locked JSON output schema;
+- explicit timeout and output limits.
+
+Read-only shell commands may inspect the artifact. The wrapper rejects event
+streams that show file changes, MCP calls, delegation, web search, browser-like
+computer control, or image generation. It derives the reviewer actor from the
+fresh JSONL `thread_id`; the model cannot choose that identity. The audit ledger
+then rechecks provider identity, creator independence, the complete capability
+set, artifact digests, findings, conflict resolutions, and result schema.
+
+Artifact text is untrusted model input and can contain prompt-injection-like
+instructions. Digest binding and structured output preserve provenance and
+shape; they do not prove that a model finding is true. Treat each result as one
+bounded critic opinion. Independent stages, conflict adjudication, deterministic
+scanner and browser evidence, and exact owner approval remain authoritative in
+their own scopes.
+
+For each readiness probe and review, the wrapper creates a mode-`0700`
+temporary `CODEX_HOME` containing only a symlink or hard link to the host's
+regular, non-symlink `auth.json`. It sets both `HOME` and `CODEX_HOME` to that
+directory and removes it after the child exits. This keeps user config,
+installed skills, plugins, sessions, and unrelated Codex state out of the
+reviewer context without copying credential bytes into router artifacts or
+receipts. If the isolated auth link cannot be created, readiness remains
+`manual_pending`.
+
+The setup and runtime have three distinct failure classes:
+
+| Condition | Result |
+|---|---|
+| Adapter not configured, Codex runtime absent/not executable, skill absent, or authentication unavailable | `manual_pending`, exit `6` in an incomplete run |
+| Runtime, runtime root, adapter, schema, skill, artifact, state, result, or evidence digest changed | tamper/block, non-zero |
+| Codex starts but fails, times out, exceeds output, emits invalid JSONL/schema, or uses a forbidden event capability | `blocked_execution_error`, non-zero |
+
+A late authentication failure returned by the nested runtime is still
+`manual_pending`; it is never rewritten as `ran`. Only a structured result that
+the ledger ingests is execution evidence.
+
+## Deliberate exclusions
+
+The official Codex host is a read-only audit reviewer. It refuses to substitute
+for:
+
+- `kill-ai-slop-v1` scanner execution and scanner triage;
+- `browser-json-v1` Playwright evidence;
+- `owner-approval`;
+- design-direction or color candidate creation and comparison;
+- project creators and design-system generation;
+- external G6T/G7 service-planning authority.
+
+Locale, domain, and privacy reviewer providers may be bound only when the
+operator selects those exact providers. Their packets and strength/capability
+requirements remain separate. Owner approval is always a later, exact-scope
+decision and can never be configured through this command.
+
+## OS and container isolation
+
+The digest lock proves which local code was selected; it does not make that
+code trustworthy. The outer Node adapter has the operating-system privileges
+of KillSlopRouter. The nested Codex process uses Codex's platform read-only
+sandbox, which prevents artifact writes but is not an artifact-only read jail
+on every supported OS. Depending on the Codex platform implementation, a
+read-only process may be able to read other host files even though the prompt
+and logical permission limit it to the named artifacts.
+
+For private, regulated, or hostile repositories, run the whole router and
+Codex runtime inside a container, VM, restricted CI worker, or dedicated OS
+account whose readable filesystem contains only the reviewed artifact and
+required tool/skill runtime. Remove secrets and unrelated personal data before
+granting `artifact:read` or `network:external`. This project does not provide a
+container boundary or authenticate remote model identity.
+
+## Upgrade and removal
+
+Changing the Codex binary, runtime root, bundled adapter, output schema, or
+skill root intentionally invalidates the previous lock. Rerun the configure
+command, review the backup and new receipt, then rerun `--dry-run`. To disable
+the integration, restore the provider to `manual-v1`; do not leave stale
+runtime paths while claiming the provider executed.

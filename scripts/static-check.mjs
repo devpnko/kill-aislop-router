@@ -74,8 +74,31 @@ assert.equal(router.invariants.missing_direction_requires_design_exploration, tr
 assert.equal(router.invariants.design_candidates_require_playwright_evidence, true);
 assert.equal(router.invariants.design_shortlist_and_palette_require_owner_selection, true);
 assert.equal(packageJson.exports["./design"], "./src/design.mjs");
+assert.equal(packageJson.exports["./codex"], "./src/codex.mjs");
 assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
   "design child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,
+  "official Codex host child-process coverage must remain in the E2E script");
+assert.ok(fs.existsSync(path.join(root, "src", "adapters", "codex-review.mjs")),
+  "official Codex review adapter is missing");
+assert.ok(fs.existsSync(path.join(root, "schemas", "codex-review-output.schema.json")),
+  "official Codex review output schema is missing");
+const codexAdapterSource = fs.readFileSync(
+  path.join(root, "src", "adapters", "codex-review.mjs"),
+  "utf8"
+);
+for (const boundary of [
+  '"--ephemeral"',
+  '"--sandbox", "read-only"',
+  '"approval_policy=\\"never\\""',
+  '"skills.include_instructions=false"',
+  '"skills.bundled.enabled=false"',
+  '"--disable", "multi_agent"',
+  '"--disable", "plugins"'
+]) {
+  assert.ok(codexAdapterSource.includes(boundary),
+    `official Codex review adapter lost fixed boundary: ${boundary}`);
+}
 assert.equal(exampleDesignBrief.directions.length, 3);
 assert.equal(exampleDesignBrief.color_strategies.length, 3);
 for (const routeId of ["consumer-product-ui", "marketing-editorial"]) {

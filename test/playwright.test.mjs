@@ -748,6 +748,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     assert.notEqual(first.child_pid, process.pid);
     assert.equal(first.result.verdict, "block");
     assert.match(first.result.findings.map((item) => item.category).join("\n"), /visual-regression/);
+    assert.equal(first.result.findings.some((item) => item.category === "keyboard"), false);
     assert.ok(first.result.evidence.some((item) => item.kind === "test-report"));
     assert.ok(first.result.evidence.some((item) => item.kind === "trace"));
     assert.deepEqual(

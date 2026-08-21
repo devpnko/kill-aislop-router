@@ -27,6 +27,13 @@ GitHub Release.
 - [ ] Design matrix tests reject byte-identical prototypes, repeated palettes,
       weak distinctiveness, unbound static resources, malformed font evidence,
       and token specs that disagree with emitted role values.
+- [ ] Official Codex host tests prove agent and skill execution across both
+      Node and nested-runtime child boundaries, fresh thread provenance,
+      fixed read-only arguments, missing auth/runtime/skill `manual_pending`,
+      partial capability blocking, reserved-gate refusal, and runtime/skill
+      tamper detection.
+- [ ] Codex host documentation states the external model data flow, credential
+      non-storage rule, and the limits of the OS read-only sandbox.
 - [ ] The example design brief describes an operator product without acting as
       a reusable style preset, and missing direction no longer falls through to
       `taste-skill`.

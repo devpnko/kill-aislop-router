@@ -10,6 +10,10 @@ import {
   PLAYWRIGHT_SUPPORTED_CHECKS,
   validateOfficialPlaywrightSettings
 } from "./playwright.mjs";
+import {
+  CODEX_REVIEW_ADAPTER_CONTRACT,
+  validateOfficialCodexSettings
+} from "./codex.mjs";
 
 export const HOST_ADAPTER_TYPES = new Set([
   "kill-ai-slop-v1",
@@ -157,6 +161,16 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
       manifestPath
     });
   }
+  let officialCodex = null;
+  if (PROCESS_ADAPTERS.has(declaration.adapter) &&
+    declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT) {
+    officialCodex = validateOfficialCodexSettings(declaration.settings, {
+      entrypoint,
+      adapterType: declaration.adapter,
+      permissionScopes: permissions,
+      manifestPath
+    });
+  }
 
   return {
     ...declaration,
@@ -166,7 +180,8 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
     entrypoint,
     adapter_root: adapterRoot,
     timeout_ms: timeoutMs,
-    settings: declaration.settings || {}
+    settings: declaration.settings || {},
+    official_codex: officialCodex
   };
 }
 
@@ -271,6 +286,11 @@ export function inspectPacketAdapter(packet, manifest) {
         manifest);
     }
   }
+  if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT && packet.design_packet_version === 1) {
+    return manualPending(packet,
+      "official Codex review adapter is read-only and cannot create or review design-exploration candidates",
+      manifest);
+  }
   const missingPermissions = (packet.required_permissions || []).filter(
     (permission) => !declaration.permissions.includes(permission)
   );
@@ -290,6 +310,12 @@ export function inspectPacketAdapter(packet, manifest) {
   if (missingCapabilities.length) {
     return manualPending(packet,
       `host adapter lacks assigned capabilities: ${missingCapabilities.join(", ")}`,
+      manifest);
+  }
+  if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT &&
+    declaration.official_codex?.readiness.status !== "ready") {
+    return manualPending(packet,
+      declaration.official_codex?.readiness.reason || "official Codex reviewer is unavailable",
       manifest);
   }
   return {
@@ -334,14 +360,19 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
     settings: declaration.settings
   };
   const startedAt = new Date().toISOString();
+  const childEnvironment = {
+    PATH: process.env.PATH || "",
+    KILLSLOPROUTER_HOST_ADAPTER: "1"
+  };
+  if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT) {
+    if (process.env.CODEX_HOME) childEnvironment.CODEX_HOME = process.env.CODEX_HOME;
+    if (process.env.HOME) childEnvironment.HOME = process.env.HOME;
+  }
   const child = spawnSync(process.execPath, [declaration.entrypoint], {
     input: `${JSON.stringify(request)}\n`,
     encoding: "utf8",
     cwd: outputDirectory,
-    env: {
-      PATH: process.env.PATH || "",
-      KILLSLOPROUTER_HOST_ADAPTER: "1"
-    },
+    env: childEnvironment,
     shell: false,
     timeout: declaration.timeout_ms,
     maxBuffer: 16 * 1024 * 1024
@@ -370,6 +401,21 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
       exit_code: child.status,
       signal: child.signal || null,
       error: `host adapter emitted invalid JSON: ${error.message}`
+    };
+  }
+  if (response?.host_adapter_response_version === 1 &&
+    response.execution_status === "manual_pending" &&
+    declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT &&
+    typeof response.reason === "string" && response.reason.length > 0) {
+    return {
+      execution_status: "manual_pending",
+      started_at: startedAt,
+      finished_at: finishedAt,
+      child_pid: child.pid || response.metadata?.child_pid || null,
+      exit_code: child.status,
+      signal: child.signal || null,
+      metadata: response.metadata || {},
+      reason: response.reason
     };
   }
   if (response?.host_adapter_response_version !== 1 || !response.result) {

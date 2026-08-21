@@ -6,6 +6,14 @@ Install it once into the personal Codex marketplace, then invoke the skill from
 any repository. It contains no MCP server, requests no external app access,
 and does not bundle or download a browser binary.
 
+The plugin also includes an optional official Codex audit-review bridge, but
+installation does not enable it. An operator must run `host configure-codex`,
+select exact providers and skill roots, bind the complete local Codex runtime,
+choose an explicit model, and grant `--allow-external`. Missing authentication
+remains `manual_pending`. The bridge starts fresh read-only reviewer threads;
+it cannot replace Playwright, scanner triage, design creation, or owner
+approval. See [Official Codex review host](codex-review-host.md).
+
 ## Install
 
 Install from the default branch without a checkout:
@@ -18,6 +26,7 @@ For unattended use, append an exact reviewed commit to the package spec. The
 same entrypoint supports a non-mutating preview and a marked-install refresh:
 
 ```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install
 npx --yes github:devpnko/kill-aislop-router plugin install --dry-run
 npx --yes github:devpnko/kill-aislop-router plugin install --force
 ```

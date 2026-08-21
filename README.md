@@ -19,6 +19,7 @@ package or create a GitHub Release as part of the V1 work.
 - Executes only provider IDs allowed by an explicit host adapter manifest.
 - Never executes `command`, `args`, `shell`, or an entrypoint from a project profile.
 - Runs JSON agent, skill, browser, and `kill-ai-slop` adapters across a real child-process boundary.
+- Can opt into a first-party, digest-locked Codex reviewer host for fresh read-only agent and skill audit sessions.
 - Leaves missing, manual, weak, or partial adapters as `manual_pending`. A `routable` plan is not execution evidence.
 - Requires explicit scanner triage, conflict adjudication, browser proof, and owner approval where the route requires them.
 - Treats scanner zero hits as discovery output, never as design approval.
@@ -32,7 +33,8 @@ package or create a GitHub Release as part of the V1 work.
 - Node.js 20 or 22
 - npm
 - Google Chrome or Microsoft Edge for local Playwright runs, or an explicitly installed Playwright Chromium build
-- Project-specific adapters for any review you want the host to execute
+- Project-specific adapters, or the optional official Codex review host, for reviews you want the host to execute
+- `codex-cli` 0.144.0 or newer only when using the optional official Codex host
 
 `playwright-core` and `axe-core` are exact runtime pins. Installing the package
 does not implicitly download a browser.
@@ -58,7 +60,7 @@ KSR_PLAYWRIGHT_CHANNEL=bundled npm test
 
 ## Codex plugin
 
-Install the skill-only Codex plugin once, then invoke the same bundled CLI from
+Install the local Codex plugin once, then invoke the same bundled CLI from
 any project. The shortest install from the default branch is one command:
 
 ```bash
@@ -66,7 +68,13 @@ npx --yes github:devpnko/kill-aislop-router plugin install
 ```
 
 For unattended installation, append an exact reviewed 40-character commit to
-the package spec. Start a new Codex thread in the target repository and say:
+the package spec:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install
+```
+
+Start a new Codex thread in the target repository and say:
 
 ```text
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
@@ -107,6 +115,30 @@ workflow is normally `operator-product-ui`; a customer-facing product is
 `consumer-product-ui`. This is a semantic contract, not a request to make one
 surface look like another. Real adapters still require explicit allowlisting
 and digest locking.
+
+For an opt-in Codex installation, the official host configurator can replace
+selected manual audit reviewers without accepting a project command:
+
+```bash
+killsloprouter host configure-codex \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --runtime "$HOME/.codex/packages/standalone/current/bin/codex" \
+  --runtime-root "$HOME/.codex/packages/standalone/current" \
+  --model gpt-5.4 \
+  --agent-providers project-contract,visual-intent-review,locale-copy-review,domain-authority-review,privacy-authority-review \
+  --skill-provider "anti-slop=$HOME/.codex/skills/antislop" \
+  --allow-external \
+  --json
+```
+
+The command locks the bundled bridge, complete selected runtime root, model,
+output schema, and each selected skill root. It uses a new ephemeral,
+read-only Codex thread per packet. Missing runtime, skill, or authentication
+stays `manual_pending`; changed locked bytes block as tamper. It never replaces
+the scanner, Playwright, design creation, or owner approval and stores no model
+credential. Review the external-data and OS isolation boundary before granting
+`--allow-external`. See [Official Codex review host](docs/codex-review-host.md).
 
 Before `doctor`, replace the generated unresolved `visual_intents` and
 `visual_signatures` entries with contracts derived from project, brand,
@@ -316,6 +348,12 @@ JSON child adapters run through the current Node executable with `shell:false`,
 no profile-supplied arguments, and a reduced environment. Evidence returned by
 a child must stay inside its granted output directory.
 
+The optional official Codex bridge is the only bundled nested-runtime
+exception. It is installed through `host configure-codex`, binds the exact
+Codex executable and complete runtime root by digest, and uses a fixed
+read-only argument set. It cannot be enabled from a profile or arbitrary
+adapter settings.
+
 Generate an entrypoint digest with:
 
 ```bash
@@ -407,6 +445,9 @@ version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
 The additive design workflow uses design exploration run version 1, design
 result version 1, shortlist version 1, and owner decision version 1.
+The additive official Codex host uses setup receipt version 1 and extends host
+adapter response version 1 with an explicit `manual_pending` envelope; existing
+result envelopes remain valid.
 Profiles must add the fail-closed `surface_contract`. Visual tasks also require
 approved `visual_intents` and `visual_signatures` contracts; profiles without
 them remain readable for non-visual compatibility but visual plans block.
@@ -421,6 +462,7 @@ change. See [V1 migration notes](docs/migration-v1.md).
 - [Visual signature contract](docs/visual-signature-contract.md)
 - [Project-aware design exploration](docs/design-exploration.md)
 - [Codex plugin](docs/codex-plugin.md)
+- [Official Codex review host](docs/codex-review-host.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)
 - [Audit protocol](docs/audit-protocol.md)

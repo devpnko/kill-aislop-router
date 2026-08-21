@@ -19,6 +19,29 @@ The `agent-json-v1` and `skill-json-v1` transports are identical. Their
 different names preserve provenance and make the host's intended execution
 boundary reviewable.
 
+## Official Codex reviewer bridge
+
+Projects that already use Codex may configure the bundled read-only reviewer
+bridge instead of authoring one Node entrypoint per audit reviewer. Use
+`killsloprouter host configure-codex`; do not hand-author its `settings`
+contract. The command locks the bundled adapter, output schema, selected Codex
+executable, complete runtime root, explicit model, and complete skill root for
+each `skill-json-v1` provider.
+
+The bridge creates a fresh ephemeral thread per audit packet and derives the
+reviewer actor ID from Codex JSONL provenance. It disables plugins, MCP/apps,
+browser, web search, computer use, image generation, and multi-agent
+delegation, and it forces a read-only, non-interactive sandbox. It requires
+explicit `network:external` authority because artifact content can reach the
+model service. Authentication remains in Codex's host store and is never
+serialized into KillSlopRouter data.
+
+This bridge is audit-only. It refuses scanner, browser, owner, and design
+exploration packets. Runtime, skill, or authentication absence remains
+`manual_pending`; a changed digest is tamper; malformed or failed execution is
+blocked. See [Official Codex review host](codex-review-host.md) for setup,
+privacy, and OS/container boundaries.
+
 ## Manifest contract
 
 Validate host manifests against `schemas/host-adapter.schema.json`. A process
@@ -68,6 +91,12 @@ current-node-executable <digest-verified-entrypoint>
 
 The host uses `shell:false` and does not append profile data to the argument
 list.
+
+The official Codex bridge is a narrowly validated nested-runtime exception:
+the outer process still uses the fixed Node boundary above, and only the
+bundled adapter may launch the separately digest-locked Codex runtime with its
+fixed reviewed arguments. A generic process adapter cannot request a nested
+command through `settings`.
 
 ## Request protocol
 
