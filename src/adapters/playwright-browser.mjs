@@ -433,13 +433,26 @@ async function inspectOverflow(page) {
 
 async function inspectKeyboard(page, maxTabs) {
   const selector = [
-    "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
-    "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
+    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
+    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
+    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
   ].join(",");
   const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
+    if (element.closest("[inert]")) return [];
+    const closedDetails = element.closest("details:not([open])");
+    if (closedDetails) {
+      const summary = closedDetails.querySelector(":scope > summary");
+      if (!summary || (element !== summary && !summary.contains(element))) return [];
+    }
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      const ancestorStyle = getComputedStyle(ancestor);
+      if (ancestorStyle.display === "none" || ancestorStyle.visibility === "hidden") return [];
+      ancestor = ancestor.parentElement;
+    }
     const segments = [];
     let current = element;
     while (current && current !== document.body) {
@@ -459,7 +472,10 @@ async function inspectKeyboard(page, maxTabs) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const visited = [];
-  const limit = Math.min(maxTabs, Math.max(1, focusable.length + 2));
+  const requiredKeys = new Set(focusable.map((entry) => entry.key));
+  const visitedKeys = new Set();
+  let stagnantSteps = 0;
+  const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
     const active = await page.evaluate(() => {
@@ -489,9 +505,15 @@ async function inspectKeyboard(page, maxTabs) {
         box_shadow: style.boxShadow
       };
     });
-    if (active) visited.push(active);
+    if (active) {
+      visited.push(active);
+      const previousSize = visitedKeys.size;
+      visitedKeys.add(active.key);
+      stagnantSteps = visitedKeys.size === previousSize ? stagnantSteps + 1 : 0;
+      if ([...requiredKeys].every((key) => visitedKeys.has(key))) break;
+      if (stagnantSteps > Math.max(12, focusable.length + 4)) break;
+    }
   }
-  const visitedKeys = new Set(visited.map((entry) => entry.key));
   return {
     focusable_count: focusable.length,
     visited,
@@ -511,6 +533,9 @@ async function stabilizeVisualCapture(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    for (const activeTab of document.querySelectorAll('[role="tab"][aria-selected="true"]')) {
+      activeTab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     window.scrollTo(0, 0);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });

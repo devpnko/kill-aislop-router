@@ -21,6 +21,7 @@ const html = `<!doctype html>
       .intentional-overlay { display: grid; width: 8rem; min-height: 2rem; }
       .intentional-overlay > span { grid-area: 1 / 1; }
       .intentional-truncation { display: block; width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      [role="tablist"] { display: flex; gap: .5rem; margin-top: 1rem; }
       @media (max-width: 32rem) { main { width: min(100% - 1rem, 72rem); padding-top: 1rem; } }
     </style>
   </head>
@@ -29,6 +30,15 @@ const html = `<!doctype html>
       <h1>Evidence fixture</h1>
       <p>Deterministic local content for the official browser adapter.</p>
       <button id="toggle" type="button" aria-expanded="false" aria-controls="details">Show details</button>
+      <div role="tablist" aria-label="Fixture views">
+        <button id="active-tab" type="button" role="tab" aria-selected="true" tabindex="0">Overview</button>
+        <button id="inactive-tab" type="button" role="tab" aria-selected="false" tabindex="-1">History</button>
+      </div>
+      <details id="closed-advanced">
+        <summary>Advanced controls</summary>
+        <button id="closed-action" type="button">Hidden action</button>
+      </details>
+      <label>Fixture date <input id="fixture-date" type="date"></label>
       <section id="details" class="panel" aria-labelledby="details-heading" hidden>
         <h2 id="details-heading">Verified state <span class="sr-only">with assistive-only context</span></h2>
         <p>The interaction state is visible.</p>

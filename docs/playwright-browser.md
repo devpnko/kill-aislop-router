@@ -135,6 +135,13 @@ that the design is acceptable. Standard visually hidden assistive text using a
 one-pixel `clip` or `clip-path` pattern is excluded from visible clipping
 findings; it remains covered by the ARIA and axe evidence.
 The complete shape is in `schemas/playwright-scenarios.schema.json`.
+
+Keyboard evidence follows sequential focus semantics: controls with
+`tabindex="-1"`, descendants of closed `details`, and descendants of hidden or
+inert ancestors are excluded. The walker continues through browser-internal
+date/time focus stops until every declared sequential target is reached or the
+configured safety cap is exhausted.
+
 Because the default browser contract requires state evidence, configuration
 also requires at least one explicit assertion. The generated root scenario
 starts with a minimal visible-body assertion; replace or extend it with the

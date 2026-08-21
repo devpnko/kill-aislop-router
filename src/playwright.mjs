@@ -510,7 +510,7 @@ export function configurePlaywright({
         return [name, DEFAULT_PLAYWRIGHT_VIEWPORTS[name]];
       })),
       color_schemes: ["light"],
-      max_keyboard_tabs: 80,
+      max_keyboard_tabs: 200,
       navigation_timeout_ms: 30000
     }
   };
