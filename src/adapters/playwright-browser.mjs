@@ -794,6 +794,14 @@ async function run(request) {
   const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
+  const requiredScenarios = packet.evidence_contract?.required_scenarios || [];
+  const scenariosById = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
+  for (const scenarioId of requiredScenarios) {
+    const scenario = scenariosById.get(scenarioId);
+    requireValue(scenario, `required Playwright scenario is missing: ${scenarioId}`);
+    requireValue((scenario.assertions || []).length > 0,
+      `required Playwright scenario has no state assertion: ${scenarioId}`);
+  }
   if (requiredChecks.includes("state")) {
     requireValue(scenarios.some((scenario) => (scenario.assertions || []).length > 0),
       "Playwright state evidence requires at least one scenario assertion");
@@ -841,6 +849,7 @@ async function run(request) {
     allowed_origins: settings.allowed_origins,
     required_viewports: requiredViewports,
     required_checks: requiredChecks,
+    required_scenarios: requiredScenarios,
     visual_comparison: {
       comparator: "playwright-pixelmatch",
       threshold: VISUAL_COMPARISON.threshold,
@@ -1064,7 +1073,8 @@ async function run(request) {
               kind: "aria-snapshot",
               covers: ["keyboard-evidence", "state-evidence"],
               viewports: [viewportName],
-              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
+              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check)),
+              scenarios: [scenario.id]
             });
 
             const screenshotPath = path.join(outputDirectory, screenshotName);
@@ -1081,7 +1091,8 @@ async function run(request) {
               kind: "screenshot",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             const baselinePath = path.join(settings.baseline_directory, screenshotName);
             if (!fs.existsSync(baselinePath)) {
@@ -1115,7 +1126,8 @@ async function run(request) {
                     kind: "visual-diff",
                     covers: packet.assigned_capabilities,
                     viewports: [viewportName],
-                    checks: ["visual-regression"]
+                    checks: ["visual-regression"],
+                    scenarios: [scenario.id]
                   });
                 }
                 add({
@@ -1168,7 +1180,8 @@ async function run(request) {
               kind: "trace",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             await context.close();
           }
@@ -1197,7 +1210,8 @@ async function run(request) {
     kind: "test-report",
     covers: packet.assigned_capabilities,
     viewports: requiredViewports,
-    checks: requiredChecks
+    checks: requiredChecks,
+    scenarios: scenarios.map((scenario) => scenario.id)
   });
 
   return {

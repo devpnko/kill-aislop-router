@@ -46,11 +46,18 @@ The reviewer supplies a stable actor identity, verdict, findings, evidence,
 and timestamps. A stage that needs multiple fallback providers passes only
 when the union of recorded results covers the stage contract.
 
-Browser evidence items declare which capabilities, viewports, and checks they
-cover. The example profile requires mobile and desktop evidence plus keyboard,
-state, overflow, contrast, 200 percent zoom, visual-regression, and
-screen-reader checks. Each required viewport needs its own screenshot, and a
-non-screenshot report must cover every required check.
+Browser evidence items declare which capabilities, viewports, checks, and
+scenarios they cover. The example profile requires mobile and desktop evidence
+plus keyboard, state, overflow, contrast, 200 percent zoom, visual-regression,
+and screen-reader checks. Each required viewport needs its own screenshot, and
+a non-screenshot report must cover every required check. For a scoped UI run,
+each reviewed required scenario also needs non-screenshot proof and a
+screenshot at every required viewport.
+
+A runtime redesign audit additionally carries a digest-bound
+`baseline_observation` from a finalized pre-change runtime audit. Only the
+official Playwright child transport can supply that observation provenance;
+manual or custom browser evidence remains valid only at its declared scope.
 
 ## Finding Disposition
 

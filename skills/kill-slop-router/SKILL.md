@@ -27,10 +27,11 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 7. If direction is genuinely undecided and the task needs visual creation, use `<plugin-root>/docs/design-exploration.md`. Build a brief from product and repository evidence with exactly three distinct project-specific theses, not three renamed style presets. Run the 3×3 direction matrix through authorized creators and separate Playwright packets using self-contained digest-bound prototypes, stop for the real owner to shortlist three, run the 3×3 color matrix, and stop again for exact owner approval. Missing adapters remain `manual_pending`; never author the owner files yourself.
 8. Resolve `visual_signatures` separately. Inspect approved design tokens, CSS variables, theme configuration, brand mappings, fonts, type hierarchy, density, radii, geometry, strokes, shadows, separation, imagery, and motion for the routed surface. A value's frequency or presence in a logo is discovery evidence only, never proof of its UI role. Do not combine signatures from other product surfaces.
 9. If every aspect is authoritative, create the receipt described in `<plugin-root>/docs/visual-signature-contract.md`, map all nine aspects to digest-locked evidence, and copy the exact signature into the profile. If design exploration completed, use only its compiled `profile-bindings.json`; do not reinterpret the selected palette or style. If any role or source conflict is material, keep the signature unresolved and stop before creation. Never fill unresolved fields with an editorial, neutral, flat, or trend-based default.
-10. For a UI artifact, use the official Playwright adapter only when the project's reviewed server URL is already running or the user explicitly starts it. Run `browser attest` for the exact artifacts and make the project serve that JSON at `/.well-known/killsloprouter-artifact.json`, then run `browser configure`. Never infer or execute a dev-server command.
-11. Run `doctor`, then an integrated `run --dry-run`. Treat `configuration_required` as a blocker. Do not edit the artifact while the route is blocked.
-12. Start `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID.
-13. Resume the same state until it is complete or an exact external action is required.
+10. For a UI artifact, inventory the critical routes and interactive states before approval. Write deterministic Playwright scenarios for primary navigation, requested components, dialogs/drawers, empty/error/loading and permission states, and mobile behavior. Put the reviewed IDs in `evidence.required_scenarios` or pass `browser configure --required-scenarios`; every required scenario needs a state assertion. A visible `body` alone is not sufficient for an existing product. Keep the configure-generated `scenario_digest` and `browser_contract_digest`; do not weaken scenario actions, assertions, or viewport definitions between observation and redesign.
+11. Use the official Playwright adapter only when the project's reviewed server URL is already running or the user explicitly starts it. Run `browser attest` for the exact artifacts and make the project serve that JSON at `/.well-known/killsloprouter-artifact.json`, then run `browser configure`. Never infer or execute a dev-server command.
+12. Run `doctor`, then an integrated `run --dry-run`. Doctor validates project/profile authority only; `automation-ready` does not mean a host or browser ran. Treat `configuration_required` as a blocker. Do not edit the artifact while the route is blocked.
+13. For an existing UI improvement, follow `<plugin-root>/docs/existing-ui-closed-loop.md`: before any edit, complete a runtime `task audit` through execution, result ingest, scanner triage, conflict adjudication, and finalization. The browser result must come from the official Playwright child adapter and cover every required scenario × viewport. Use that state as `--observation-run` for the later runtime `task redesign`; a manual/custom browser result cannot substitute.
+14. Start each `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID. Resume the same state until it is complete or an exact external action is required.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.
@@ -51,13 +52,16 @@ currently eligible stage without asking the user to restate CLI flags.
    When product evidence is sufficient but visual direction is not, offer or
    resume the design exploration instead of routing directly to a generic taste
    creator. Preserve all owner stops.
-3. For a requested improvement, plan before changes and hand the exact artifact
-   plus both verified visual contracts to the single selected creator. Do
+3. For an existing UI improvement, collect and finalize the official pre-change
+   runtime observation before changing any artifact. Then verify the redesign
+   route with that `--observation-run` and hand the exact artifact plus both
+   verified visual contracts and bound findings to the single selected creator. Do
    not include critic anti-pattern lists as a replacement design brief. If that
    creator is unavailable through an authorized integration, emit the handoff
    and remain `manual_pending`.
-4. Audit the changed artifact with separate critics, scanner triage, conflict
-   adjudication, locale/domain/privacy checks, browser evidence, and owner scope.
+4. Audit the changed artifact with the same required scenario inventory,
+   separate critics, scanner triage, conflict adjudication,
+   locale/domain/privacy checks, official browser evidence, and owner scope.
 5. Continue to `systemize` only when the planning bridge verifies G6T and exact
    G7 approval for the unchanged artifact. Audit the extracted candidate design
    system independently; never promote it merely because extraction completed.
@@ -109,6 +113,11 @@ editorial may describe evidence but never choose concrete values by themselves.
 - Treat scanner hits as candidates, not verdicts. Treat zero hits as scanner output, not design approval.
 - Let hard product, truth, accessibility, privacy, and authority failures block approval.
 - Require browser evidence for visual and interaction approval.
+- Require a non-empty reviewed critical-scenario inventory for scoped UI runs,
+  and require each scenario at every required viewport plus non-screenshot proof.
+- For runtime redesign, require a digest-bound pre-change audit executed by the
+  official Playwright child adapter. `doctor`, `plan`, manual screenshots, or a
+  generic browser child are not observation evidence.
 - Treat missing Playwright baselines as an approval stop: review candidate screenshots, copy only owner-approved pixels, rerun `browser configure` to lock the baseline digest, then retry `browser-evidence`.
 - Do not describe ARIA snapshots or axe output as a real screen-reader session. Require separate assistive-technology evidence when project risk demands it.
 - Apply project locale and domain review after English-first tools.
@@ -126,7 +135,7 @@ editorial may describe evidence but never choose concrete values by themselves.
 5. On `manual_pending`, use the emitted packet and a genuinely separate reviewer. If this session created the artifact, it must not author or approve that review result.
 6. Ingest manual results with `run --resume ... --result`; they remain `manual_recorded`, never `ran`.
 7. Classify every scanner candidate before adjudication. A clean scan cannot replace visual-intent/signature review. Resolve referenced critic conflicts without score averaging; the critic cannot override the exact signature.
-8. Require browser screenshots plus non-screenshot check evidence when the packet requests them.
+8. Require browser screenshots plus non-screenshot check evidence when the packet requests them. For scoped UI work, verify every required scenario × viewport and preserve the same inventory before and after implementation.
 9. Ask the real owner for the generated approval scope. Never manufacture approval.
 10. Report final status, state digest, receipt digest, blockers, pending work, and the exact files used.
 

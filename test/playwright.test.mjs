@@ -38,7 +38,7 @@ function runCli(args, cwd) {
   });
 }
 
-function bootstrapProject(directory) {
+function bootstrapProject(directory, requiredScenarios = ["root"]) {
   const result = runCli([
     "bootstrap",
     "--root", directory,
@@ -48,12 +48,16 @@ function bootstrapProject(directory) {
     "--json"
   ], directory);
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  return {
+  const paths = {
     profile: path.join(directory, ".killsloprouter", "profile.json"),
     host: path.join(directory, ".killsloprouter", "host-adapters.json"),
     scenarios: path.join(directory, ".killsloprouter", "playwright-scenarios.json"),
     baselines: path.join(directory, ".killsloprouter", "playwright-baselines")
   };
+  const profile = readJson(paths.profile);
+  profile.evidence.required_scenarios = [...requiredScenarios];
+  writeJson(paths.profile, profile);
+  return paths;
 }
 
 function approveFixtureVisualIntent(profilePath, artifactPath) {
@@ -202,7 +206,12 @@ function makePacket(profile, artifactDigests) {
     packet_id: "browser-evidence--browser-evidence--1",
     stage_id: "browser-evidence",
     stage_question: "Do the approved states work in a real browser?",
-    provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
+    provider: {
+      id: "browser-evidence",
+      kind: "local",
+      version: "playwright-core@1.62.1",
+      resolved_to: "official:playwright-browser-v1"
+    },
     minimum_strength: 3,
     reviewer_independence_required: true,
     assigned_capabilities: capabilities,
@@ -279,7 +288,9 @@ function enableFixtureReviewers(hostPath) {
 function writeApproval(statePath, directory) {
   const state = readJson(statePath);
   const audit = readJson(state.paths.audit.path);
-  const approval = path.join(directory, "approval.json");
+  const extension = path.extname(statePath);
+  const stateName = path.basename(statePath, extension);
+  const approval = path.join(directory, `${stateName}.approval.json`);
   writeJson(approval, {
     approval_version: 1,
     run_id: audit.run_id,
@@ -315,7 +326,8 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     weakenedProfile.evidence = {
       browser: "legacy-smoke-test",
       required_viewports: ["mobile"],
-      required_checks: ["keyboard"]
+      required_checks: ["keyboard"],
+      required_scenarios: []
     };
     writeJson(paths.profile, weakenedProfile);
     const configured = runCli([
@@ -324,6 +336,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
       "--host-config", paths.host,
       "--base-url", "http://127.0.0.1:4173",
       "--channel", "chrome",
+      "--required-scenarios", "root",
       "--json"
     ], directory);
     assert.equal(configured.status, 0, configured.stderr || configured.stdout);
@@ -332,6 +345,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     assert.match(receipt.receipt_digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(receipt.browser.attestation_path, "/.well-known/killsloprouter-artifact.json");
     assert.deepEqual(receipt.browser.allowed_origins, []);
+    assert.deepEqual(receipt.browser.required_scenarios, ["root"]);
     const profile = readJson(paths.profile);
     assert.equal(profile.evidence.browser, "playwright");
     assert.deepEqual(profile.evidence.required_viewports, ["mobile", "tablet", "desktop"]);
@@ -341,13 +355,30 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     ]);
     assert.ok(profile.evidence.required_checks.includes("screen-reader"));
     assert.ok(profile.evidence.required_checks.includes("visual-regression"));
+    assert.deepEqual(profile.evidence.required_scenarios, ["root"]);
     const host = loadHostManifest(paths.host);
     const declaration = host.providers["browser-evidence"];
     assert.equal(declaration.settings.contract, "killsloprouter-playwright-v1");
     assert.equal(declaration.settings.runtime_digest, playwrightRuntimeDigest(resolvePlaywrightRuntimeRoot()));
+    assert.equal(profile.evidence.scenario_digest, declaration.settings.scenario_digest);
+    assert.equal(profile.evidence.browser_contract_digest,
+      declaration.official_playwright.verificationContractDigest);
+    assert.equal(receipt.browser.verification_contract_digest,
+      profile.evidence.browser_contract_digest);
     assert.deepEqual(declaration.permissions, ["artifact:read", "evidence:write", "browser:control"]);
     assert.equal(fs.existsSync(receipt.profile.backup), true);
     assert.equal(fs.existsSync(receipt.host_manifest.backup), true);
+
+    const configuredHost = readJson(paths.host);
+    const weakenedHost = structuredClone(configuredHost);
+    weakenedHost.providers["browser-evidence"].settings.viewports.mobile.width += 1;
+    writeJson(paths.host, weakenedHost);
+    const weakenedInspection = inspectPacketAdapter(makePacket(profile, {
+      "artifact.html": `sha256:${"a".repeat(64)}`
+    }), loadHostManifest(paths.host));
+    assert.equal(weakenedInspection.execution_status, "manual_pending");
+    assert.match(weakenedInspection.reason, /does not match the profile-bound browser verification contract/);
+    writeJson(paths.host, configuredHost);
 
     const before = [hashArtifact(paths.profile), hashArtifact(paths.host)];
     assert.throws(() => configurePlaywright({
@@ -360,7 +391,38 @@ test("browser configure creates a digest-locked official adapter and rejects ext
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
-      scenarios: [{ id: "invalid", path: "/", actions: [{ type: "shell", locator: "body" }] }]
+      scenarios: [{
+        id: "unreviewed-state",
+        path: "/",
+        actions: [],
+        assertions: [{ type: "visible", locator: "body" }]
+      }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /required Playwright scenario is missing.*root/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{ id: "root", path: "/", actions: [], assertions: [] }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /required Playwright scenario needs at least one state assertion: root/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{ id: "root", path: "/", actions: [{ type: "shell", locator: "body" }] }]
     });
     assert.throws(() => configurePlaywright({
       profilePath: paths.profile,
@@ -374,7 +436,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "unsafe-style-property",
+        id: "root",
         path: "/",
         actions: [],
         assertions: [{
@@ -394,7 +456,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "external-explicit",
+        id: "root",
         path: "/",
         actions: [],
         assertions: [{ type: "visible", locator: "body" }]
@@ -709,7 +771,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     const snapshot = snapshotArtifact(artifact, { root: directory });
     const artifactDigests = { [snapshot.path]: snapshot.digest };
     server = await startServer(artifactDigests);
-    const paths = bootstrapProject(directory);
+    const paths = bootstrapProject(directory, ["details-open"]);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
@@ -738,7 +800,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     });
     let profile = readJson(paths.profile);
     let manifest = loadHostManifest(paths.host);
-    const packet = makePacket(profile, artifactDigests);
+    let packet = makePacket(profile, artifactDigests);
     let run = makeRun(directory, artifact, packet);
     assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
 
@@ -779,17 +841,21 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     assert.equal(second.result.verdict, "pass_with_findings");
     const report = readJson(path.join(secondOutput, "browser-report.json"));
     assert.equal(report.status, "passed");
+    assert.deepEqual(report.required_scenarios, ["details-open"]);
     assert.equal(report.artifact_attestation.artifact_digests[snapshot.path], snapshot.digest);
     assert.ok(report.executions.every((entry) => entry.visual_regression.status === "matched"));
     assert.ok(report.executions.every((entry) => entry.actions.every((action) => action.status === "passed")));
     assert.ok(report.executions.every((entry) => entry.assertions.every((assertion) => assertion.status === "passed")));
+    assert.ok(second.result.evidence
+      .filter((item) => ["screenshot", "test-report"].includes(item.kind))
+      .every((item) => item.scenarios.includes("details-open")));
     run = recordAuditResult(run, second.result, path.join(secondOutput, "browser-report.json"), { replace: true });
     assert.equal(run.results[0].normalized.verdict, "pass_with_findings");
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "layout-readability",
+        id: "details-open",
         path: "/layout-bad",
         actions: [],
         assertions: [
@@ -808,7 +874,10 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       scenarioPath: paths.scenarios,
       baselineDirectory: paths.baselines
     });
+    profile = readJson(paths.profile);
     manifest = loadHostManifest(paths.host);
+    packet = makePacket(profile, artifactDigests);
+    run = makeRun(directory, artifact, packet);
     const layoutOutput = path.join(directory, "evidence-layout-defects");
     const layout = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: layoutOutput });
     assert.equal(layout.execution_status, "ran", layout.error);
@@ -849,7 +918,10 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       scenarioPath: paths.scenarios,
       baselineDirectory: paths.baselines
     });
+    profile = readJson(paths.profile);
     manifest = loadHostManifest(paths.host);
+    packet = makePacket(profile, artifactDigests);
+    run = makeRun(directory, artifact, packet);
     const changedOutput = path.join(directory, "evidence-material-change");
     const changed = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: changedOutput });
     assert.equal(changed.execution_status, "ran", changed.error);
@@ -864,19 +936,24 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
   }
 });
 
-test("integrated automation resumes and retries the official Playwright stage before owner approval", {
-  timeout: 120_000
+test("integrated automation binds a real pre-change observation before the runtime redesign audit", {
+  timeout: 180_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-automation-"));
   let server = null;
   try {
     const artifact = path.join(directory, "artifact.html");
+    const authority = path.join(directory, "approved-visual-authority.html");
     fs.writeFileSync(artifact, "<!doctype html><p>integrated browser artifact</p>\n");
+    fs.writeFileSync(authority, "<!doctype html><p>stable approved visual authority</p>\n");
     const snapshot = snapshotArtifact(artifact, { root: directory });
     server = await startServer({ [snapshot.path]: snapshot.digest });
-    const paths = bootstrapProject(directory);
-    approveFixtureVisualIntent(paths.profile, artifact);
-    approveFixtureVisualSignature(paths.profile, artifact);
+    const paths = bootstrapProject(directory, ["integrated-details"]);
+    approveFixtureVisualIntent(paths.profile, authority);
+    approveFixtureVisualSignature(paths.profile, authority);
+    const creationProfile = readJson(paths.profile);
+    creationProfile.approved_design_system = true;
+    writeJson(paths.profile, creationProfile);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
@@ -961,6 +1038,77 @@ test("integrated automation resumes and retries the official Playwright stage be
     ], directory);
     assert.equal(completed.status, 0, completed.stderr || completed.stdout);
     assert.equal(readJson(statePath).status, "complete");
+
+    fs.appendFileSync(artifact, "<!-- post-observation implementation -->\n");
+    server.child.kill("SIGTERM");
+    const changedSnapshot = snapshotArtifact(artifact, { root: directory });
+    server = await startServer({ [changedSnapshot.path]: changedSnapshot.digest });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    enableFixtureReviewers(paths.host);
+
+    const redesignArgs = [
+      "--profile", paths.profile,
+      "--host-config", paths.host,
+      "--surface", "operator-product-ui",
+      "--task", "redesign",
+      "--direction", "approved",
+      "--changes", "source,copy,style,layout,interaction,state",
+      "--artifact", artifact,
+      "--scope", "runtime",
+      "--creator-id", "creator-agent-2",
+      "--observation-run", statePath,
+      "--root", directory,
+      "--json"
+    ];
+    const dryRun = runCli(["run", "--dry-run", ...redesignArgs], directory);
+    assert.equal(dryRun.status, 0, dryRun.stderr || dryRun.stdout);
+    const dryRunReport = JSON.parse(dryRun.stdout);
+    assert.equal(dryRunReport.baseline_observation.run_id, state.run_id);
+    assert.deepEqual(dryRunReport.baseline_observation.required_scenarios, ["integrated-details"]);
+
+    const redesignStatePath = path.join(directory, ".killsloprouter", "playwright-redesign.json");
+    const redesigned = runCli([
+      "run", ...redesignArgs.slice(0, -1),
+      "--out", redesignStatePath,
+      "--json"
+    ], directory);
+    assert.equal(redesigned.status, 6, redesigned.stderr || redesigned.stdout);
+    const redesignState = readJson(redesignStatePath);
+    assert.equal(redesignState.status, "manual_pending");
+    assert.equal(redesignState.baseline_observation.run_id, state.run_id);
+    const observationPlan = readJson(state.paths.plan.path);
+    const redesignPlan = readJson(redesignState.paths.plan.path);
+    assert.equal(redesignState.baseline_observation.profile_digest,
+      observationPlan.profile_digest);
+    assert.equal(redesignPlan.profile_digest, observationPlan.profile_digest);
+    assert.notDeepEqual(
+      redesignState.baseline_observation.artifact_digests,
+      Object.fromEntries([[changedSnapshot.path, changedSnapshot.digest]])
+    );
+    const redesignAudit = readJson(redesignState.paths.audit.path);
+    assert.equal(redesignAudit.baseline_observation.observation_digest,
+      redesignState.baseline_observation.observation_digest);
+    const redesignBrowserAttempt = redesignState.attempts.find((item) =>
+      item.provider_id === "browser-evidence"
+    );
+    assert.equal(redesignBrowserAttempt.metadata.transport, "official-playwright-json-v1");
+
+    const redesignApproval = writeApproval(redesignStatePath, directory);
+    const redesignCompleted = runCli([
+      "run", "--resume", redesignStatePath,
+      "--host-config", paths.host,
+      "--approval", redesignApproval,
+      "--json"
+    ], directory);
+    assert.equal(redesignCompleted.status, 0, redesignCompleted.stderr || redesignCompleted.stdout);
+    assert.equal(readJson(redesignStatePath).status, "complete");
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });

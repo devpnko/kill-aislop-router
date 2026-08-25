@@ -172,6 +172,32 @@ function cleanup(fixture) {
   fs.rmSync(fixture.directory, { recursive: true, force: true });
 }
 
+function writeOfficialTargetProfile(fixture) {
+  const source = JSON.parse(fs.readFileSync(profile, "utf8"));
+  const profileDirectory = path.dirname(profile);
+  for (const contract of Object.values(source.visual_intents || {})) {
+    contract.authority_receipt = path.resolve(profileDirectory, contract.authority_receipt);
+  }
+  for (const contract of Object.values(source.visual_signatures || {})) {
+    contract.authority_receipt = path.resolve(profileDirectory, contract.authority_receipt);
+  }
+  for (const [surface, receipt] of Object.entries(source.planning?.surface_receipts || {})) {
+    source.planning.surface_receipts[surface] = path.resolve(profileDirectory, receipt);
+  }
+  source.local_adapters["browser-evidence"] = {
+    target: "official:playwright-browser-v1",
+    status: "available",
+    version: "playwright-core@1.62.1",
+    executor: "browser-json-v1",
+    strength: PROVIDERS["browser-evidence"].strength,
+    capabilities: PROVIDERS["browser-evidence"].capabilities,
+    independent_from_creator: true
+  };
+  const target = path.join(fixture.directory, "runtime-profile.json");
+  writeJson(target, source);
+  return target;
+}
+
 async function waitForPath(filePath, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -792,6 +818,131 @@ test("dry-run exits manual_pending when any planned adapter is not executable", 
     assert.equal(report.status, "dry_run");
     assert.match(report.pending.join("\n"), /anti-slop.*not allowlisted/);
     assert.equal(fs.existsSync(fixture.state), false);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("plan --dry-run is rejected because only integrated dry-run inspects execution readiness", () => {
+  const fixture = makeFixture();
+  try {
+    const result = runCli([
+      "plan",
+      "--dry-run",
+      "--profile", profile,
+      "--task", "audit",
+      "--changes", "source,layout",
+      "--artifact", fixture.artifact,
+      "--scope", "runtime",
+      "--json"
+    ], fixture.directory);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(result.stderr, /use killsloprouter run --dry-run/);
+    assert.equal(fs.existsSync(fixture.state), false);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("runtime redesign cannot start without a finalized pre-change UI observation run", () => {
+  const fixture = makeFixture();
+  try {
+    const result = runCli([
+      ...startArgs(fixture)
+        .map((value) => value === "mockup" ? "runtime" : value),
+      "--root", fixture.directory
+    ], fixture.directory);
+    assert.equal(result.status, 5, result.stderr || result.stdout);
+    assert.match(result.stderr, /runtime redesign requires --observation-run/);
+    assert.equal(fs.existsSync(fixture.state), false);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("an official Playwright route cannot execute through a generic browser host", () => {
+  const fixture = makeFixture();
+  try {
+    const runtimeProfile = writeOfficialTargetProfile(fixture);
+    const observationState = path.join(fixture.directory, "observation.json");
+    const observed = runCli([
+      "run",
+      "--profile", runtimeProfile,
+      "--host-config", fixture.host,
+      "--task", "audit",
+      "--direction", "none",
+      "--changes", "source,copy,style,layout,interaction,state",
+      "--artifact", fixture.artifact,
+      "--scope", "runtime",
+      "--root", fixture.directory,
+      "--out", observationState,
+      "--json"
+    ], fixture.directory);
+    assert.equal(observed.status, 6, observed.stderr || observed.stdout);
+    const observation = JSON.parse(fs.readFileSync(observationState, "utf8"));
+    assert.equal(observation.status, "manual_pending");
+    assert.equal(observation.steps.execution.status, "manual_pending");
+    const browserAttempt = observation.attempts.find((item) =>
+      item.provider_id === "browser-evidence"
+    );
+    assert.equal(browserAttempt.execution_status, "manual_pending");
+    assert.equal(browserAttempt.ingest_status, "not-recorded");
+    assert.match(browserAttempt.reason,
+      /official Playwright routing requires the digest-locked official Playwright host adapter/);
+    assert.equal(observation.paths.final, undefined);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("a generic browser child cannot become the required official UI observation", () => {
+  const fixture = makeFixture();
+  try {
+    const observationState = path.join(fixture.directory, "observation.json");
+    const observed = runCli([
+      "run",
+      "--profile", profile,
+      "--host-config", fixture.host,
+      "--task", "audit",
+      "--direction", "none",
+      "--changes", "source,copy,style,layout,interaction,state",
+      "--artifact", fixture.artifact,
+      "--scope", "runtime",
+      "--root", fixture.directory,
+      "--out", observationState,
+      "--json"
+    ], fixture.directory);
+    assert.equal(observed.status, 6, observed.stderr || observed.stdout);
+    const observation = JSON.parse(fs.readFileSync(observationState, "utf8"));
+    assert.equal(observation.steps.execution.status, "completed");
+    assert.equal(observation.steps["result-ingest"].status, "completed");
+    assert.equal(observation.steps["scanner-triage"].status, "completed");
+    assert.equal(observation.steps["conflict-adjudication"].status, "completed");
+    assert.equal(
+      observation.attempts.find((item) => item.provider_id === "browser-evidence").metadata.transport,
+      "node-json-stdio-fixture"
+    );
+
+    const redesignState = path.join(fixture.directory, "redesign.json");
+    const redesign = runCli([
+      "run",
+      "--profile", profile,
+      "--host-config", fixture.host,
+      "--task", "redesign",
+      "--direction", "approved",
+      "--changes", "source,copy,layout,interaction",
+      "--artifact", fixture.artifact,
+      "--scope", "runtime",
+      "--creator-id", "creator-agent-2",
+      "--observation-run", observationState,
+      "--root", fixture.directory,
+      "--out", redesignState,
+      "--json"
+    ], fixture.directory);
+    assert.equal(redesign.status, 5, redesign.stderr || redesign.stdout);
+    const state = JSON.parse(fs.readFileSync(redesignState, "utf8"));
+    assert.equal(state.status, "blocked");
+    assert.match(state.blockers.join("\n"), /runtime redesign did not route the official Playwright adapter/);
   } finally {
     cleanup(fixture);
   }

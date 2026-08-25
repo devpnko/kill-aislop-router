@@ -59,6 +59,30 @@ Playwright as the preferred browser. Existing profiles and generic
 replaced. Run `killsloprouter browser configure` to opt into the official
 digest-locked adapter. It creates backups of the profile and host manifest.
 
+Bootstrap now writes `evidence.required_scenarios: []` as an explicit unresolved
+critical-state inventory. Existing profiles without the field remain readable,
+but any scoped UI route that requires browser evidence blocks until the
+inventory is non-empty. Add reviewed IDs to the profile or pass
+`browser configure --required-scenarios ID,ID`. Each selected scenario must be
+present in the digest-locked scenario file and have at least one state
+assertion.
+
+Official `browser configure` also adds `evidence.scenario_digest` and
+`evidence.browser_contract_digest`. The latter binds the scenario bytes,
+viewport dimensions, allowed origins, browser channel, locale, runtime, color
+schemes, and interaction limits. An older manually authored profile that routes
+the official Playwright target must be reconfigured before it can execute; a
+generic browser route remains governed by its existing contract.
+
+Audit-result evidence items add the optional `scenarios` array. Existing
+non-browser results are unchanged. Browser results for profiles with a required
+inventory must add scenario coverage to their non-screenshot report and to
+every scenario × required viewport screenshot. The Playwright setup receipt
+adds `browser.required_scenarios` and `browser.verification_contract_digest`;
+consumers that strictly copy the version-1 schema must allow these additive
+fields. They remain optional in the version-1 compatibility schema, while new
+setup receipts always emit them.
+
 Bootstrap also writes one conservative, unresolved `visual_intents` entry and
 one unresolved `visual_signatures` entry per surface. The intent preserves
 existing character and energy and forbids editorial treatment. The signature
@@ -73,6 +97,31 @@ schema still accepts earlier receipts that do not contain those two fields.
 The official adapter adds a served-artifact attestation gate and an approved
 pixel baseline. A missing baseline is a deliberate first-run block. This is an
 additive strengthening of browser evidence, not a receipt-version break.
+
+### Existing runtime redesign requires pre-change observation
+
+A new runtime `task redesign` run requires `--observation-run` pointing to a
+finalized pre-change runtime `task audit` state with the exact same routed
+profile digest, artifact paths, and required scenario inventory. The profile
+digest locks the project, surface, visual authorities, and official browser
+route across the pair. The baseline audit must have completed execution,
+result ingestion, scanner triage, and conflict adjudication, and its browser
+packet must have run through the bundled official Playwright child transport.
+A blocking defect receipt is eligible; an incomplete/manual browser packet is
+not.
+
+Automation run version 1 adds the optional `baseline_observation` object,
+including its routed `profile_digest`, and the request adds
+`observation_run_path`. Mockup redesign and non-redesign tasks remain
+unchanged. Resume re-hashes the complete observation state and receipt chain.
+This is a fail-closed behavioral strengthening for runtime redesign, not a
+receipt-version bump.
+
+`plan --dry-run` is now rejected with exit code `2`; it never inspected a host
+or executed an adapter. Use integrated `run --dry-run`. `doctor` retains its
+compatibility status values but reports `completion_eligible: false` and
+execution readiness as not evaluated, and rejects `--host-config` rather than
+silently ignoring it.
 
 The `overflow` check now includes unintended direct flex/grid child overlap and
 required-text clipping. Existing scenario version 1 files remain valid and may

@@ -7,6 +7,7 @@ import { hashArtifact, publicSnapshot, sha256, snapshotArtifact } from "./integr
 import { RouterError } from "./router.mjs";
 import {
   PLAYWRIGHT_ADAPTER_CONTRACT,
+  PLAYWRIGHT_PROVIDER_TARGET,
   PLAYWRIGHT_SUPPORTED_CHECKS,
   validateOfficialPlaywrightSettings
 } from "./playwright.mjs";
@@ -153,9 +154,10 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
   requireValue(declaration.settings === undefined || (
     declaration.settings && typeof declaration.settings === "object" && !Array.isArray(declaration.settings)
   ), `host provider ${providerId} settings must be an object`);
+  let officialPlaywright = null;
   if (declaration.adapter === "browser-json-v1" &&
     declaration.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
-    validateOfficialPlaywrightSettings(declaration.settings, {
+    officialPlaywright = validateOfficialPlaywrightSettings(declaration.settings, {
       entrypoint,
       permissionScopes: permissions,
       manifestPath
@@ -181,6 +183,7 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
     adapter_root: adapterRoot,
     timeout_ms: timeoutMs,
     settings: declaration.settings || {},
+    official_playwright: officialPlaywright,
     official_codex: officialCodex
   };
 }
@@ -260,6 +263,25 @@ export function inspectPacketAdapter(packet, manifest) {
   if (packet.stage_id === "browser-evidence" && declaration.adapter !== "browser-json-v1") {
     return manualPending(packet, "browser-evidence requires the browser-json-v1 adapter", manifest);
   }
+  if (packet.stage_id === "browser-evidence" &&
+    packet.provider.resolved_to === PLAYWRIGHT_PROVIDER_TARGET &&
+    declaration.settings?.contract !== PLAYWRIGHT_ADAPTER_CONTRACT) {
+    return manualPending(packet,
+      "official Playwright routing requires the digest-locked official Playwright host adapter", manifest);
+  }
+  if (packet.stage_id === "browser-evidence" &&
+    !packet.design_task &&
+    packet.provider.resolved_to === PLAYWRIGHT_PROVIDER_TARGET) {
+    const expectedContract = packet.evidence_contract?.browser_contract_digest;
+    if (!DIGEST_PATTERN.test(expectedContract || "")) {
+      return manualPending(packet,
+        "official Playwright routing requires a profile-bound browser verification contract digest", manifest);
+    }
+    if (declaration.official_playwright?.verificationContractDigest !== expectedContract) {
+      return manualPending(packet,
+        "official Playwright host does not match the profile-bound browser verification contract", manifest);
+    }
+  }
   if (packet.stage_id !== "browser-evidence" && declaration.adapter === "browser-json-v1") {
     return manualPending(packet, "browser-json-v1 may only satisfy browser-evidence packets", manifest);
   }
@@ -275,6 +297,18 @@ export function inspectPacketAdapter(packet, manifest) {
     if (unsupportedChecks.length) {
       return manualPending(packet,
         `official Playwright adapter cannot prove checks: ${unsupportedChecks.join(", ")}`, manifest);
+    }
+    const missingScenarios = (packet.evidence_contract?.required_scenarios || [])
+      .filter((scenario) => !declaration.official_playwright?.scenarioIds.includes(scenario));
+    if (missingScenarios.length) {
+      return manualPending(packet,
+        `official Playwright adapter lacks required scenarios: ${missingScenarios.join(", ")}`, manifest);
+    }
+    const assertionlessScenarios = (packet.evidence_contract?.required_scenarios || [])
+      .filter((scenario) => !declaration.official_playwright?.scenarioAssertions[scenario]);
+    if (assertionlessScenarios.length) {
+      return manualPending(packet,
+        `official Playwright scenarios lack state assertions: ${assertionlessScenarios.join(", ")}`, manifest);
     }
     const unsupportedDesignChecks = packet.design_task?.kind === "browser-evidence"
       ? (packet.evidence_contract?.required_checks || [])

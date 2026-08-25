@@ -49,6 +49,9 @@ expected value; it never overrides the profile.
 exist as real directories. It also verifies every surface's visual-intent and
 visual-signature authority; a valid surface boundary with either contract
 unresolved reports `configuration_required`, not automation readiness.
+The compatibility status `automation-ready` means these project/profile
+contracts are ready for routing; doctor reports that host execution readiness
+was not evaluated. Use integrated `run --dry-run` for the exact route.
 
 ## Multi-surface repository
 

@@ -205,6 +205,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(profile.visual_intents["operator-product-ui"].editorial_treatment, "forbidden");
     assert.equal(profile.visual_signatures["operator-product-ui"].status, "unresolved");
     assert.deepEqual(profile.visual_signatures["operator-product-ui"].palette.primary, []);
+    assert.deepEqual(profile.evidence.required_scenarios, []);
     assert.ok(Object.values(profile.local_adapters).every((item) => item.executor === "manual-review"));
     assert.ok(Object.values(host.providers).every((item) => item.adapter === "manual-v1"));
     assert.deepEqual(host.granted_permissions, []);
@@ -267,9 +268,25 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(intentOnlyDoctor.status, 5, intentOnlyDoctor.stderr || intentOnlyDoctor.stdout);
     assert.equal(JSON.parse(intentOnlyDoctor.stdout).visual_signatures[0].status, "unresolved");
     approveVisualSignature(profilePath, artifact);
+    const scenarioBoundProfile = readJson(profilePath);
+    scenarioBoundProfile.evidence.required_scenarios = ["root"];
+    writeJson(profilePath, scenarioBoundProfile);
     const readyDoctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
     assert.equal(readyDoctor.status, 0, readyDoctor.stderr || readyDoctor.stdout);
-    assert.equal(JSON.parse(readyDoctor.stdout).status, "automation-ready");
+    const readyDoctorReport = JSON.parse(readyDoctor.stdout);
+    assert.equal(readyDoctorReport.status, "automation-ready");
+    assert.equal(readyDoctorReport.execution_readiness, "not_evaluated_use_integrated_dry_run");
+    assert.equal(readyDoctorReport.completion_eligible, false);
+    assert.equal(readyDoctorReport.next_required_command, "killsloprouter run --dry-run");
+
+    const misleadingHostDoctor = runNode(cli, [
+      "doctor",
+      "--profile", profilePath,
+      "--host-config", hostPath,
+      "--format", "json"
+    ], directory);
+    assert.equal(misleadingHostDoctor.status, 2, misleadingHostDoctor.stderr || misleadingHostDoctor.stdout);
+    assert.match(misleadingHostDoctor.stderr, /doctor validates project\/profile authority only/);
 
     const dryRun = runNode(cli, [
       "run",

@@ -87,7 +87,12 @@
         "kind": {"type": "string", "minLength": 1},
         "covers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "viewports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "scenarios": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     },

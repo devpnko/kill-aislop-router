@@ -8,6 +8,7 @@ import { RouterError, readJson, validateProfile } from "./router.mjs";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const PLAYWRIGHT_ADAPTER_CONTRACT = "killsloprouter-playwright-v1";
+export const PLAYWRIGHT_PROVIDER_TARGET = "official:playwright-browser-v1";
 export const PLAYWRIGHT_CORE_VERSION = "1.62.1";
 export const AXE_CORE_VERSION = "4.13.0";
 export const PLAYWRIGHT_RUNTIME_PACKAGES = ["axe-core", "playwright-core"];
@@ -40,6 +41,23 @@ export const DEFAULT_PLAYWRIGHT_CHECKS = [
   "console",
   "network"
 ];
+
+export function playwrightVerificationContractDigest(settings) {
+  return canonicalDigest({
+    contract: settings?.contract || null,
+    attestation_path: settings?.attestation_path || null,
+    allowed_origins: settings?.allowed_origins || null,
+    browser_channel: settings?.browser_channel || null,
+    locale: settings?.locale || null,
+    runtime_digest: settings?.runtime_digest || null,
+    scenario_digest: settings?.scenario_digest || null,
+    viewports: settings?.viewports || null,
+    color_schemes: settings?.color_schemes || null,
+    max_keyboard_tabs: settings?.max_keyboard_tabs || null,
+    navigation_timeout_ms: settings?.navigation_timeout_ms || null
+  });
+}
+
 const PLAYWRIGHT_ACTION_TYPES = new Set([
   "click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"
 ]);
@@ -194,7 +212,9 @@ export function validateOfficialPlaywrightSettings(settings, {
   realRegularFile(scenarioFile, "Playwright scenario file");
   requireValue(hashArtifact(scenarioFile) === settings.scenario_digest,
     "Playwright scenario file digest mismatch", 4);
-  validatePlaywrightScenarioDocument(readJson(scenarioFile, "Playwright scenario file"));
+  const scenarioDocument = validatePlaywrightScenarioDocument(
+    readJson(scenarioFile, "Playwright scenario file")
+  );
 
   const baselineDirectory = path.isAbsolute(settings.baseline_directory || "")
     ? path.resolve(settings.baseline_directory)
@@ -237,6 +257,12 @@ export function validateOfficialPlaywrightSettings(settings, {
   return {
     runtimeRoot: realDirectory(runtimeRoot, "Playwright runtime root"),
     scenarioFile: realRegularFile(scenarioFile, "Playwright scenario file"),
+    scenarioIds: scenarioDocument.scenarios.map((scenario) => scenario.id),
+    scenarioAssertions: Object.fromEntries(scenarioDocument.scenarios.map((scenario) => [
+      scenario.id,
+      (scenario.assertions || []).length
+    ])),
+    verificationContractDigest: playwrightVerificationContractDigest(settings),
     baselineDirectory: realDirectory(baselineDirectory, "Playwright baseline directory"),
     baseOrigin,
     allowedOrigins,
@@ -403,7 +429,8 @@ export function configurePlaywright({
   allowedOrigins = [],
   allowExternal = false,
   scenarioPath = null,
-  baselineDirectory = null
+  baselineDirectory = null,
+  requiredScenarios: requestedRequiredScenarios = null
 }) {
   const profileSource = safeJsonFile(profilePath, "project profile");
   const hostSource = safeJsonFile(hostManifestPath, "host adapter manifest");
@@ -434,6 +461,23 @@ export function configurePlaywright({
   const scenarioDocument = validatePlaywrightScenarioDocument(
     readJson(scenarioFile, "Playwright scenario file")
   );
+  requireValue(requestedRequiredScenarios === null || (
+    Array.isArray(requestedRequiredScenarios) &&
+    requestedRequiredScenarios.length > 0 &&
+    new Set(requestedRequiredScenarios).size === requestedRequiredScenarios.length
+  ), "browser configure --required-scenarios must contain unique scenario IDs");
+  const requiredScenarios = [...(
+    requestedRequiredScenarios || profileSource.value.evidence?.required_scenarios || []
+  )];
+  requireValue(requiredScenarios.length > 0,
+    "browser configure requires profile evidence.required_scenarios from the reviewed critical UI inventory");
+  const scenariosById = new Map(scenarioDocument.scenarios.map((scenario) => [scenario.id, scenario]));
+  for (const scenarioId of requiredScenarios) {
+    const scenario = scenariosById.get(scenarioId);
+    requireValue(scenario, `required Playwright scenario is missing from the scenario file: ${scenarioId}`);
+    requireValue((scenario.assertions || []).length > 0,
+      `required Playwright scenario needs at least one state assertion: ${scenarioId}`);
+  }
   const baselineRoot = path.resolve(baselineDirectory || path.join(configDirectory, "playwright-baselines"));
   if (!fs.existsSync(baselineRoot)) fs.mkdirSync(baselineRoot, { recursive: true });
   realDirectory(baselineRoot, "Playwright baseline directory");
@@ -451,17 +495,45 @@ export function configurePlaywright({
   const permissions = ["artifact:read", "evidence:write", "browser:control"];
   if (external) permissions.push("network:external");
 
+  const requiredViewports = [...new Set([
+    ...(profileSource.value.evidence?.required_viewports || []),
+    ...Object.keys(DEFAULT_PLAYWRIGHT_VIEWPORTS)
+  ])];
+  const requiredChecks = [...new Set([
+    ...(profileSource.value.evidence?.required_checks || []),
+    ...DEFAULT_PLAYWRIGHT_CHECKS
+  ])];
+  const browserSettings = {
+    contract: PLAYWRIGHT_ADAPTER_CONTRACT,
+    base_url: baseUrl,
+    attestation_path: "/.well-known/killsloprouter-artifact.json",
+    allowed_origins: [...new Set(normalizedAllowedOrigins)],
+    browser_channel: browserChannel,
+    locale: profileSource.value.default_locale,
+    runtime_root: runtimeRoot,
+    runtime_digest: playwrightRuntimeDigest(runtimeRoot),
+    scenario_file: scenarioFile,
+    scenario_digest: hashArtifact(scenarioFile),
+    baseline_directory: baselineRoot,
+    baseline_digest: hashArtifact(baselineRoot, { ignores: [] }),
+    viewports: Object.fromEntries(requiredViewports.map((name) => {
+      requireValue(DEFAULT_PLAYWRIGHT_VIEWPORTS[name],
+        `viewport ${name} requires an explicit adapter definition`);
+      return [name, DEFAULT_PLAYWRIGHT_VIEWPORTS[name]];
+    })),
+    color_schemes: ["light"],
+    max_keyboard_tabs: 200,
+    navigation_timeout_ms: 30000
+  };
+
   const profile = structuredClone(profileSource.value);
   profile.evidence = {
     browser: "playwright",
-    required_viewports: [...new Set([
-      ...(profile.evidence?.required_viewports || []),
-      ...Object.keys(DEFAULT_PLAYWRIGHT_VIEWPORTS)
-    ])],
-    required_checks: [...new Set([
-      ...(profile.evidence?.required_checks || []),
-      ...DEFAULT_PLAYWRIGHT_CHECKS
-    ])]
+    required_viewports: requiredViewports,
+    required_checks: requiredChecks,
+    required_scenarios: requiredScenarios,
+    scenario_digest: browserSettings.scenario_digest,
+    browser_contract_digest: playwrightVerificationContractDigest(browserSettings)
   };
   if (profile.evidence.required_checks.includes("state")) {
     requireValue(scenarioDocument.scenarios.some((scenario) => (scenario.assertions || []).length > 0),
@@ -469,7 +541,7 @@ export function configurePlaywright({
   }
   profile.local_adapters ||= {};
   profile.local_adapters["browser-evidence"] = {
-    target: "official:playwright-browser-v1",
+    target: PLAYWRIGHT_PROVIDER_TARGET,
     status: "available",
     version: `playwright-core@${PLAYWRIGHT_CORE_VERSION}`,
     executor: "browser-json-v1",
@@ -491,28 +563,7 @@ export function configurePlaywright({
     capabilities,
     permissions,
     timeout_ms: 900000,
-    settings: {
-      contract: PLAYWRIGHT_ADAPTER_CONTRACT,
-      base_url: baseUrl,
-      attestation_path: "/.well-known/killsloprouter-artifact.json",
-      allowed_origins: [...new Set(normalizedAllowedOrigins)],
-      browser_channel: browserChannel,
-      locale: profile.default_locale,
-      runtime_root: runtimeRoot,
-      runtime_digest: playwrightRuntimeDigest(runtimeRoot),
-      scenario_file: scenarioFile,
-      scenario_digest: hashArtifact(scenarioFile),
-      baseline_directory: baselineRoot,
-      baseline_digest: hashArtifact(baselineRoot, { ignores: [] }),
-      viewports: Object.fromEntries(profile.evidence.required_viewports.map((name) => {
-        requireValue(DEFAULT_PLAYWRIGHT_VIEWPORTS[name],
-          `viewport ${name} requires an explicit adapter definition`);
-        return [name, DEFAULT_PLAYWRIGHT_VIEWPORTS[name]];
-      })),
-      color_schemes: ["light"],
-      max_keyboard_tabs: 200,
-      navigation_timeout_ms: 30000
-    }
+    settings: browserSettings
   };
   validateOfficialPlaywrightSettings(host.providers["browser-evidence"].settings, {
     entrypoint,
@@ -548,6 +599,8 @@ export function configurePlaywright({
         browser_channel: browserChannel,
         scenario_file: scenarioFile,
         scenario_digest: hashArtifact(scenarioFile),
+        required_scenarios: requiredScenarios,
+        verification_contract_digest: profile.evidence.browser_contract_digest,
         baseline_directory: baselineRoot,
         baseline_digest: hashArtifact(baselineRoot, { ignores: [] }),
         external_network: external

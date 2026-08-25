@@ -736,9 +736,28 @@ export function validateProfile(profile) {
     if (typeof profile.evidence !== "object" || Array.isArray(profile.evidence)) {
       throw new RouterError("profile evidence must be an object", 2);
     }
-    for (const key of ["required_viewports", "required_checks"]) {
+    for (const key of ["required_viewports", "required_checks", "required_scenarios"]) {
       if (profile.evidence[key] && !Array.isArray(profile.evidence[key])) {
         throw new RouterError(`profile evidence.${key} must be an array`, 2);
+      }
+    }
+    if (profile.evidence.required_scenarios) {
+      requireUniqueStrings(profile.evidence.required_scenarios, "profile evidence.required_scenarios", {
+        allowEmpty: true
+      });
+      for (const scenario of profile.evidence.required_scenarios) {
+        if (!/^[A-Za-z0-9._-]+$/.test(scenario)) {
+          throw new RouterError(
+            `profile evidence.required_scenarios contains an unsafe scenario id: ${scenario}`,
+            2
+          );
+        }
+      }
+    }
+    for (const key of ["scenario_digest", "browser_contract_digest"]) {
+      if (profile.evidence[key] !== undefined &&
+        !/^sha256:[a-f0-9]{64}$/.test(profile.evidence[key])) {
+        throw new RouterError(`profile evidence.${key} must be a sha256 digest`, 2);
       }
     }
   }
@@ -1734,6 +1753,12 @@ export function planRoute({
   const creator = resolveCreator(route, normalized, profile, override, unresolved);
   const stages = resolveStages(route, creator, profile, override, normalized, router);
   const required = requiredStages(router, normalized, profile);
+  if (normalized.scope && required.includes("browser-evidence") &&
+    !(profile?.evidence?.required_scenarios || []).length) {
+    unresolved.push(
+      "browser-evidence requires a non-empty profile evidence.required_scenarios inventory for this scoped UI run"
+    );
+  }
   const represented = new Set(stages.flatMap((stage) => [stage.id, ...stage.actors.map((actor) => actor.id)]));
   const missingRequired = required
     .filter((id) => !represented.has(id))
@@ -1782,6 +1807,9 @@ export function planRoute({
 
   return {
     receipt_version: 1,
+    execution_status: "not_started",
+    completion_eligible: false,
+    next_required_command: "killsloprouter run --dry-run",
     router_id: router.router_id,
     router_version: router.router_version,
     router_path: routerPath,
@@ -1811,6 +1839,7 @@ export function formatReceipt(receipt) {
   const lines = [
     `KillSlopRouter ${receipt.router_version}`,
     `status: ${receipt.status}`,
+    `execution: ${receipt.execution_status || "not_started"} (completion eligible: ${Boolean(receipt.completion_eligible)})`,
     `route: ${receipt.route_id}`,
     `project: ${receipt.project_id || "unprofiled"}`,
     `creator: ${receipt.creator || "none"}`,
@@ -1825,6 +1854,7 @@ export function formatReceipt(receipt) {
       `elevation ${receipt.visual_signature?.elevation?.strategy || "unresolved"})`,
     `direction/risk: ${receipt.input.direction} / ${receipt.input.risk}`,
     `scope: ${receipt.input.scope || "deferred"}`,
+    `next: ${receipt.next_required_command || "killsloprouter run --dry-run"}`,
     `planning gate: ${receipt.planning_gate?.status || "not-configured"}`,
     "stages:"
   ];

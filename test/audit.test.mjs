@@ -88,21 +88,24 @@ function makeResult(packet, fixture, overrides = {}) {
       kind: "screenshot",
       covers: packet.assigned_capabilities,
       viewports: ["desktop"],
-      checks: []
+      checks: [],
+      scenarios: packet.evidence_contract.required_scenarios
     },
     {
       path: path.basename(fixture.mobileScreenshot),
       kind: "screenshot",
       covers: packet.assigned_capabilities,
       viewports: ["mobile"],
-      checks: []
+      checks: [],
+      scenarios: packet.evidence_contract.required_scenarios
     },
     {
       path: path.basename(fixture.report),
       kind: "test-report",
       covers: packet.assigned_capabilities,
       viewports: packet.evidence_contract.required_viewports,
-      checks: packet.evidence_contract.required_checks
+      checks: packet.evidence_contract.required_checks,
+      scenarios: packet.evidence_contract.required_scenarios
     }
   ] : [];
   return {
@@ -490,6 +493,23 @@ test("audit initialization rejects a forged visual-signature plan claim", () => 
   }
 });
 
+test("audit initialization cannot bypass the critical scenario inventory with an unscoped plan", () => {
+  const fixture = createFixture();
+  try {
+    const forged = structuredClone(fixture.plan);
+    forged.evidence_contract.required_scenarios = [];
+    assert.throws(() => initializeAudit({
+      plan: forged,
+      artifacts: [fixture.artifact],
+      scope: "mockup",
+      creatorActorId: "creator-agent-1",
+      root: fixture.directory
+    }), /scoped UI audit requires a non-empty evidence\.required_scenarios inventory/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
 test("creator self-review is rejected before it enters the ledger", () => {
   const fixture = createFixture();
   try {
@@ -526,6 +546,44 @@ test("browser packets reject incomplete proof instead of accepting a smoke-test 
     assert.throws(
       () => recordAuditResult(fixture.run, result, resultPath),
       /missing screenshot evidence/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("browser packets require non-screenshot proof for every critical scenario", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.stage_id === "browser-evidence");
+    const result = makeResult(packet, fixture);
+    const report = result.evidence.find((item) => item.kind === "test-report");
+    report.scenarios = [];
+    const resultPath = path.join(fixture.directory, "scenario-report-gap.json");
+    writeJson(resultPath, result);
+    assert.throws(
+      () => recordAuditResult(fixture.run, result, resultPath),
+      /scenario lacks non-screenshot proof: root/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("browser packets require every critical scenario at every required viewport", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.stage_id === "browser-evidence");
+    const result = makeResult(packet, fixture);
+    const mobile = result.evidence.find((item) =>
+      item.kind === "screenshot" && item.viewports.includes("mobile")
+    );
+    mobile.scenarios = [];
+    const resultPath = path.join(fixture.directory, "scenario-viewport-gap.json");
+    writeJson(resultPath, result);
+    assert.throws(
+      () => recordAuditResult(fixture.run, result, resultPath),
+      /missing a screenshot for scenario root at viewport mobile/
     );
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });

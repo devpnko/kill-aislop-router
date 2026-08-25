@@ -9,6 +9,12 @@ authority chain. A fresh bootstrap intentionally reports
 `configuration_required` until both are approved and digest-bound; the plan
 phase then resolves the exact artifacts.
 
+For compatibility, a successful doctor still says `automation-ready`, but it
+also says execution readiness was not evaluated and completion is ineligible.
+Doctor does not accept a host manifest. Always follow it with integrated
+`run --dry-run`; that is the command that builds packets and inspects the exact
+planned host adapters.
+
 ## State files
 
 `--out PATH` creates one automation state file and a sibling directory. The
@@ -53,6 +59,68 @@ Adjudication deliberately runs after scanner triage. This keeps an unclassified
 source pattern from being silently absorbed into a later aesthetic decision.
 A zero-hit scanner result is still only discovery output. It cannot satisfy the
 independent visual-intent/signature review or any later visual, browser, or owner gate.
+
+## Existing UI before/after binding
+
+A runtime `redesign` is a post-change audit. It therefore requires
+`--observation-run` pointing to a pre-change `task audit` state with the exact
+same routed profile digest, artifact paths, and `evidence.required_scenarios`
+inventory. The profile digest locks the project, resolved surface, visual
+authorities, and official browser route across both runs. Official browser
+configuration also writes a `browser_contract_digest` that covers the exact
+scenario file, viewport dimensions, allowed origins, browser channel, locale,
+runtime, color schemes, and interaction limits; a substituted host remains
+`manual_pending`.
+
+The observation state must have reached all of these stages:
+
+- adapter execution;
+- result ingestion;
+- scanner triage;
+- conflict adjudication;
+- finalization with a written final receipt.
+
+It may have a blocking final verdict because the purpose of the first run is to
+capture defects. Missing/manual browser evidence is different: it is incomplete
+and cannot authorize implementation. The browser packet must route to
+`official:playwright-browser-v1`, run across a real child-process boundary, and
+return the official `official-playwright-json-v1` transport with every required
+scenario represented in accepted evidence.
+
+The post-change state binds the observation state file, state digest, profile
+digest, audit and final receipts, browser result, scenario IDs, and pre-change
+artifact digests. Resume re-verifies that entire chain. The artifact paths stay
+fixed while the implementation bytes are allowed to change.
+
+Use this order:
+
+```bash
+# 1. Collect the current UI before editing.
+killsloprouter run \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --task audit --direction none \
+  --changes source,copy,style,layout,interaction,state \
+  --artifact ./src --scope runtime \
+  --out .killsloprouter/pre-change-ui.json --json
+
+# 2. After the authorized creator implements the fixes, audit the result.
+killsloprouter run \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --task redesign --direction approved \
+  --changes source,copy,style,layout,interaction,state \
+  --artifact ./src --scope runtime \
+  --creator-id <creator-session-id> \
+  --observation-run .killsloprouter/pre-change-ui.json \
+  --out .killsloprouter/post-change-ui.json --json
+```
+
+`--observation-run` is immutable after the post-change state starts. Use
+`run --dry-run` with the same flag before implementation to verify route and
+host readiness. `plan --dry-run` is rejected because planning alone cannot
+inspect adapters or collect browser evidence. See
+[Existing UI anti-slop closed loop](existing-ui-closed-loop.md).
 
 ## Resume and retry
 

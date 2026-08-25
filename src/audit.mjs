@@ -80,6 +80,7 @@ function auditManifest(run) {
     creator: run.creator,
     artifacts: run.artifacts,
     evidence_contract: run.evidence_contract,
+    baseline_observation: run.baseline_observation,
     hard_blockers: run.hard_blockers,
     invariants: run.invariants,
     owner_approval_required: run.owner_approval_required,
@@ -151,6 +152,13 @@ export function initializeAudit({
   requireValue(plan?.receipt_version === 1, "audit init requires a route receipt_version of 1");
   requireValue(plan.status === "planned", `cannot initialize audit from route status: ${plan.status}`);
   requireValue(VALID_SCOPES.has(scope), "audit scope must be mockup, runtime, source, or document");
+  const requiredBrowserStage = plan.stages?.find((stage) =>
+    stage.id === "browser-evidence" && !stage.optional
+  );
+  if (requiredBrowserStage && ["mockup", "runtime"].includes(scope)) {
+    requireValue((plan.evidence_contract?.required_scenarios || []).length > 0,
+      "scoped UI audit requires a non-empty evidence.required_scenarios inventory", 3);
+  }
   if (plan.input?.task === "runtime-handoff") {
     requireValue(scope === "runtime", "runtime-handoff audits require --scope runtime");
   }
@@ -279,6 +287,7 @@ export function initializeAudit({
     visual_intent_sources: visualIntentSources.map((source) => source.digest),
     visual_signature: plan.visual_signature || null,
     visual_signature_sources: visualSignatureSources.map((source) => source.digest),
+    baseline_observation: plan.baseline_observation || null,
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactDigestMap(artifactSnapshots),
     packets: packets.map((packet) => packet.packet_digest)
@@ -311,6 +320,7 @@ export function initializeAudit({
     creator: { provider_id: plan.creator || null, actor_id: creatorActorId || null },
     artifacts: artifactSnapshots,
     evidence_contract: plan.evidence_contract || null,
+    baseline_observation: plan.baseline_observation || null,
     hard_blockers: plan.adjudication?.hard_blockers || [],
     invariants: plan.invariants || {},
     owner_approval_required: plan.stages.some((stage) => stage.id === "approval" && !stage.optional),
@@ -335,18 +345,23 @@ function resultTemplate(run, packet) {
   const browserEvidence = packet.stage_id === "browser-evidence";
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
-  const screenshotTemplates = requiredViewports.length ? requiredViewports.map((viewport) => ({
-    path: `replace-with-${viewport}-screenshot-file`,
-    kind: "screenshot",
-    covers: packet.assigned_capabilities,
-    viewports: [viewport],
-    checks: []
-  })) : [{
+  const requiredScenarios = packet.evidence_contract?.required_scenarios || [];
+  const scenarioTemplates = requiredScenarios.length ? requiredScenarios : [null];
+  const screenshotTemplates = requiredViewports.length ? scenarioTemplates.flatMap((scenario) =>
+    requiredViewports.map((viewport) => ({
+      path: `replace-with-${scenario ? `${scenario}-` : ""}${viewport}-screenshot-file`,
+      kind: "screenshot",
+      covers: packet.assigned_capabilities,
+      viewports: [viewport],
+      checks: [],
+      scenarios: scenario ? [scenario] : []
+    }))) : [{
     path: "replace-with-screenshot-file",
     kind: "screenshot",
     covers: packet.assigned_capabilities,
     viewports: [],
-    checks: []
+    checks: [],
+    scenarios: requiredScenarios
   }];
   return {
     audit_result_version: 1,
@@ -367,7 +382,8 @@ function resultTemplate(run, packet) {
         kind: "test-report",
         covers: packet.assigned_capabilities,
         viewports: requiredViewports,
-        checks: requiredChecks
+        checks: requiredChecks,
+        scenarios: requiredScenarios
       }
     ] : [],
     resolutions: [],
@@ -447,7 +463,8 @@ function snapshotEvidence(items, sourcePath, root) {
       kind: item.kind,
       covers: unique(item.covers || []),
       viewports: unique(item.viewports || []),
-      checks: unique(item.checks || [])
+      checks: unique(item.checks || []),
+      scenarios: unique(item.scenarios || [])
     };
   });
 }
@@ -459,6 +476,7 @@ function validateEvidenceCoverage(packet, evidence) {
   const covers = new Set(evidence.flatMap((item) => item.covers));
   const viewports = new Set(evidence.flatMap((item) => item.viewports));
   const checks = new Set(evidence.flatMap((item) => item.checks));
+  const scenarios = new Set(evidence.flatMap((item) => item.scenarios));
 
   for (const kind of packet.required_evidence_kinds || []) {
     requireValue(kinds.has(kind), `${packet.packet_id} is missing ${kind} evidence`);
@@ -475,6 +493,16 @@ function validateEvidenceCoverage(packet, evidence) {
     requireValue(checks.has(check), `${packet.packet_id} is missing browser check: ${check}`);
     requireValue(evidence.some((item) => item.kind !== "screenshot" && item.checks.includes(check)),
       `${packet.packet_id} browser check lacks non-screenshot proof: ${check}`);
+  }
+  for (const scenario of packet.evidence_contract?.required_scenarios || []) {
+    requireValue(scenarios.has(scenario), `${packet.packet_id} is missing scenario evidence: ${scenario}`);
+    requireValue(evidence.some((item) => item.kind !== "screenshot" && item.scenarios.includes(scenario)),
+      `${packet.packet_id} scenario lacks non-screenshot proof: ${scenario}`);
+    for (const viewport of packet.evidence_contract?.required_viewports || []) {
+      requireValue(evidence.some((item) => item.kind === "screenshot" &&
+        item.scenarios.includes(scenario) && item.viewports.includes(viewport)),
+      `${packet.packet_id} is missing a screenshot for scenario ${scenario} at viewport ${viewport}`);
+    }
   }
 }
 

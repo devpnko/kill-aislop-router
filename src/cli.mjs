@@ -114,7 +114,7 @@ Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
   killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
-  killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
+  killsloprouter browser configure --base-url URL --required-scenarios ID,ID [--scenario FILE] [options]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
   killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
@@ -123,6 +123,7 @@ Usage:
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
+  killsloprouter run --task redesign --scope runtime --observation-run FILE [options]
   killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
   killsloprouter scan --adapter kill-ai-slop --adapter-root DIR --target PATH
   killsloprouter digest --target PATH [--json]
@@ -157,6 +158,7 @@ Options:
   --profile /path/to/profile.json
   --router /path/to/router.json
   --creator-id ID
+  --observation-run FILE (required for runtime redesign; points to the pre-change audit state)
   --host-config FILE
   --runtime FILE
   --runtime-root DIR
@@ -171,6 +173,7 @@ Options:
   --base-url URL
   --channel chrome|msedge|chromium|bundled
   --scenario FILE
+  --required-scenarios ID,ID
   --baseline-dir DIR
   --allowed-origins URL,URL
   --allow-external
@@ -224,7 +227,10 @@ function browserCommand(args) {
     allowedOrigins: (args["allowed-origins"] || "").split(",").map((item) => item.trim()).filter(Boolean),
     allowExternal: Boolean(args["allow-external"]),
     scenarioPath: args.scenario || null,
-    baselineDirectory: args["baseline-dir"] || null
+    baselineDirectory: args["baseline-dir"] || null,
+    requiredScenarios: args["required-scenarios"]
+      ? args["required-scenarios"].split(",").map((item) => item.trim()).filter(Boolean)
+      : null
   });
   if (args.json || args.format === "json") {
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
@@ -236,6 +242,7 @@ function browserCommand(args) {
     `base URL: ${receipt.browser.base_url}`,
     `channel: ${receipt.browser.browser_channel}`,
     `scenario: ${receipt.browser.scenario_file} (${receipt.browser.scenario_digest})`,
+    `required scenarios: ${receipt.browser.required_scenarios.join(", ")}`,
     `baselines: ${receipt.browser.baseline_directory} (${receipt.browser.baseline_digest})`,
     `host: ${receipt.host_manifest.path} (${receipt.host_manifest.digest})`,
     `receipt: ${receipt.receipt_path}`,
@@ -348,6 +355,12 @@ function routingRoot(profilePath, requestedRoot = null) {
 }
 
 function doctor(args) {
+  if (args["host-config"]) {
+    throw new RouterError(
+      "doctor validates project/profile authority only; use killsloprouter run --dry-run to inspect host execution readiness",
+      2
+    );
+  }
   const context = loadContext(args);
   validateProfile(context.profile);
   const surfaceBoundary = inspectSurfaceContract({
@@ -388,7 +401,12 @@ function doctor(args) {
     declared_external_adapters: context.profile?.external_adapters || {},
     fallback_adapters: context.profile?.fallback_adapters || {},
     capability_contracts: Object.keys(context.router.stage_capability_contracts || {}),
-    execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands"
+    execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands",
+    execution_readiness: "not_evaluated_use_integrated_dry_run",
+    completion_eligible: false,
+    next_required_command: visualIntentsReady && visualSignaturesReady
+      ? "killsloprouter run --dry-run"
+      : "resolve and digest-lock project visual authority"
   };
   const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
@@ -409,7 +427,10 @@ function doctor(args) {
     `external adapters declared: ${Object.keys(report.declared_external_adapters).length}`,
     `fallback routes declared: ${Object.values(report.fallback_adapters).flat().length}`,
     `capability contracts: ${report.capability_contracts.length}`,
-    `boundary: ${report.execution_boundary}`
+    `boundary: ${report.execution_boundary}`,
+    `execution readiness: ${report.execution_readiness}`,
+    `completion eligible: ${report.completion_eligible}`,
+    `next: ${report.next_required_command}`
   ].join("\n") + "\n";
   return { status: report.status, output: rendered };
 }
@@ -486,6 +507,9 @@ function runCommand(args) {
   const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
   if (args.resume) {
     if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    if (args["observation-run"]) {
+      throw new RouterError("--observation-run is immutable after a run starts", 2);
+    }
     const state = resumeAutomation(args.resume, {
       hostManifest,
       resultPaths: args.results,
@@ -516,6 +540,7 @@ function runCommand(args) {
     artifacts: args.artifacts,
     scope: args.scope,
     creatorActorId: args["creator-id"] || null,
+    observationRunPath: args["observation-run"] || null,
     hostManifest,
     root: projectRoot
   };
@@ -785,6 +810,18 @@ export async function main(argv) {
     return;
   }
   if (args.command !== "plan") throw new RouterError(`unknown command: ${args.command}`, 2);
+  if (args["dry-run"]) {
+    throw new RouterError(
+      "plan --dry-run does not execute or inspect host adapters; use killsloprouter run --dry-run",
+      2
+    );
+  }
+  if (args["host-config"]) {
+    throw new RouterError(
+      "plan does not inspect --host-config; use killsloprouter run --dry-run for execution readiness",
+      2
+    );
+  }
 
   const context = loadContext(args);
   const projectRoot = routingRoot(context.profilePath, args.root || null);

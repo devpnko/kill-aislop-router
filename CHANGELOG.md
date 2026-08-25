@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added an existing-UI closed loop that binds runtime redesign to a finalized
+  pre-change audit executed by the official Playwright child adapter.
+- Added explicit critical scenario inventories, scenario × viewport screenshot
+  enforcement, non-screenshot scenario proof, and digest-bound observation
+  provenance across plan, audit, automation state, and resume.
+- Bound official scenario bytes, viewport dimensions, allowed origins, browser
+  channel, locale, runtime, color schemes, and interaction limits into a
+  profile verification digest so an apparently identical post-change scenario
+  cannot be weakened.
+- Made `browser configure --required-scenarios` populate the reviewed profile
+  inventory, rejected misleading `plan --dry-run` and `doctor --host-config`
+  usage, and made doctor state that execution readiness was not evaluated.
 - Added an opt-in first-party Codex audit-review host with a reviewed CLI
   configurator, fresh ephemeral agent/skill sessions, fixed read-only runtime
   arguments, structured output, and digest locks for the adapter, output

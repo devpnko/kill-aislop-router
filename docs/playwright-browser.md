@@ -17,7 +17,7 @@ versions. They do not contain a browser binary. Local runs default to the
 installed Google Chrome channel:
 
 ```bash
-killsloprouter browser configure --base-url http://127.0.0.1:3000 --channel chrome
+killsloprouter browser configure --base-url http://127.0.0.1:3000 --required-scenarios root --channel chrome
 ```
 
 For a reproducible CI Chromium build, install it explicitly and select the
@@ -25,7 +25,7 @@ For a reproducible CI Chromium build, install it explicitly and select the
 
 ```bash
 npx playwright-core install chromium
-killsloprouter browser configure --base-url http://127.0.0.1:3000 --channel bundled
+killsloprouter browser configure --base-url http://127.0.0.1:3000 --required-scenarios root --channel bundled
 ```
 
 Supported channel values are `chrome`, `msedge`, `chromium`, and `bundled`.
@@ -71,9 +71,10 @@ attestation action from changing the digest it just recorded.
 
 ## 2. Define deterministic scenarios
 
-The first `browser configure` creates
-`.killsloprouter/playwright-scenarios.json` when it is absent. Edit it before
-configuration if the project needs stateful coverage:
+The first `browser configure` can create a minimal root scenario when the file
+is absent, but configuration also requires an explicit reviewed inventory via
+profile `evidence.required_scenarios` or CLI `--required-scenarios`. Edit the
+scenario file before configuration for a real existing UI:
 
 ```json
 {
@@ -142,10 +143,31 @@ inert ancestors are excluded. The walker continues through browser-internal
 date/time focus stops until every declared sequential target is reached or the
 configured safety cap is exhausted.
 
-Because the default browser contract requires state evidence, configuration
-also requires at least one explicit assertion. The generated root scenario
-starts with a minimal visible-body assertion; replace or extend it with the
-project's real critical states.
+Every required scenario needs at least one explicit state assertion. The
+generated root scenario starts with a minimal visible-body assertion; that is a
+bootstrap aid, not evidence that account tabs, dialogs, permission states, or
+other critical paths were inventoried. Replace or extend it with the project's
+real critical states.
+
+Select the reviewed IDs in the profile or during configuration:
+
+```bash
+killsloprouter browser configure \
+  --base-url http://127.0.0.1:3000 \
+  --scenario .killsloprouter/playwright-scenarios.json \
+  --required-scenarios account-overview,account-tabs,settings-permissions \
+  --channel chrome
+```
+
+The selected IDs are stored in the profile and setup receipt. Configuration
+also stores the scenario digest and a browser verification digest covering the
+scenario bytes, viewport dimensions, allowed origins, browser channel, locale,
+runtime, color schemes, and interaction limits. A scoped UI plan blocks when
+the inventory is empty, and an official route remains `manual_pending` when its
+host does not match that profile-bound verification contract. The audit ledger
+requires non-screenshot proof plus a screenshot for every required scenario ×
+required viewport, so a single root capture cannot silently stand in for
+untested interaction states.
 
 The scenario file is digest-locked. Reconfigure after an intentional scenario
 change; an unacknowledged change blocks host-manifest loading.
@@ -162,6 +184,7 @@ killsloprouter browser configure \
   --base-url http://127.0.0.1:3000 \
   --channel chrome \
   --scenario .killsloprouter/playwright-scenarios.json \
+  --required-scenarios account-overview,account-tabs,settings-permissions \
   --baseline-dir .killsloprouter/playwright-baselines \
   --json
 ```
@@ -172,9 +195,13 @@ This command backs up both configuration files and replaces only the
 - adapter entrypoint digest;
 - complete `playwright-core` and `axe-core` package-directory digest;
 - scenario file digest;
+- reviewed required-scenario inventory;
 - visual-baseline directory digest;
 - base URL, allowed origins, browser channel, locale, viewport dimensions,
   color schemes, and timeouts;
+- a profile-bound verification-contract digest for the stable before/after
+  subset (runtime, scenario, allowed origins, channel, locale, viewports,
+  schemes, and limits);
 - the minimum browser permission set.
 
 Rerun configuration after an intentional plugin/package update. An older host
@@ -257,14 +284,20 @@ records:
 - browser engine, channel, version, origin policy, and served-artifact attestation.
 
 The consolidated `browser-report.json` is the non-screenshot proof covering the
-packet's required checks. The audit ledger still verifies its artifact digest,
-evidence location, capability set, viewports, and check coverage.
+packet's required checks and scenarios. The audit ledger still verifies its
+artifact digest, evidence location, capability set, viewports, checks, and the
+scenario × viewport screenshot matrix.
 
 A `manual-v1` browser provider remains a reviewer attestation: KillSlopRouter
 does not claim that it executed or semantically interpreted that project's
 custom report. Use the official digest-locked adapter and scenario assertions
 when overlap, clipping, repetition, or computed styles must be machine-enforced
 through the child-process boundary.
+
+For the existing-UI closed loop, a manual or custom browser adapter cannot act
+as the pre-change `--observation-run` even if it emits schema-valid screenshots.
+That authority requires the bundled official Playwright child transport. See
+[Existing UI anti-slop closed loop](existing-ui-closed-loop.md).
 
 ## Screen-reader scope
 

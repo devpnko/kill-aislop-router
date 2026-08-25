@@ -133,7 +133,11 @@ first run. See [Surface contract](surface-contract.md).
 When the artifact has a UI and the project exposes a reviewed local URL, use
 `browser attest` and `browser configure` to replace only the manual
 `browser-evidence` declaration. The skill must not invent or execute a project
-server command. See [Playwright browser evidence](playwright-browser.md).
+server command. It must inventory required interaction states, collect the
+official pre-change runtime audit before editing an existing UI, and bind the
+post-change runtime redesign to that state. See
+[Existing UI anti-slop closed loop](existing-ui-closed-loop.md) and
+[Playwright browser evidence](playwright-browser.md).
 
 ## Why this is not MCP
 

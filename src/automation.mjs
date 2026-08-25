@@ -11,6 +11,7 @@ import {
 } from "./audit.mjs";
 import { executeAuditPacket, hostReadiness, inspectPacketAdapter } from "./execution.mjs";
 import { canonicalDigest, hashArtifact } from "./integrity.mjs";
+import { PLAYWRIGHT_PROVIDER_TARGET } from "./playwright.mjs";
 import { verifyPlanningGateForAudit } from "./planning.mjs";
 import { RouterError, planRoute, readJson } from "./router.mjs";
 
@@ -27,6 +28,12 @@ const STEP_FILES = {
 };
 
 const COMPLETED_AUDIT_STATUSES = new Set(["approved", "critic_pass"]);
+const REQUIRED_OBSERVATION_STEPS = [
+  "execution",
+  "result-ingest",
+  "scanner-triage",
+  "conflict-adjudication"
+];
 
 function requireValue(condition, message, exitCode = 2) {
   if (!condition) throw new RouterError(message, exitCode);
@@ -38,6 +45,16 @@ function nowIso(now = null) {
 
 function unique(values = []) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function sameStringSet(left = [], right = []) {
+  const a = [...new Set(left)].sort();
+  const b = [...new Set(right)].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function observationRequired(input, scope) {
+  return input?.task === "redesign" && scope === "runtime";
 }
 
 function stateManifest(state) {
@@ -161,10 +178,21 @@ export function readAutomationState(statePath) {
     requireValue(hashArtifact(snapshot.path) === snapshot.digest,
       `automation ${key} file changed outside the orchestrator`, 4);
   }
+  if (state.baseline_observation) verifyObservationBinding(state.baseline_observation, absolute);
   return state;
 }
 
-function newState({ statePath, routerPath, profilePath, input, artifacts, scope, creatorActorId, root }) {
+function newState({
+  statePath,
+  routerPath,
+  profilePath,
+  input,
+  artifacts,
+  scope,
+  creatorActorId,
+  observationRunPath,
+  root
+}) {
   const absoluteStatePath = path.resolve(statePath);
   const directory = stateDirectory(absoluteStatePath);
   return sealState({
@@ -183,13 +211,15 @@ function newState({ statePath, routerPath, profilePath, input, artifacts, scope,
       input,
       artifacts: artifacts.map((artifact) => path.resolve(root, artifact)),
       scope,
-      creator_actor_id: creatorActorId || null
+      creator_actor_id: creatorActorId || null,
+      observation_run_path: observationRunPath ? path.resolve(observationRunPath) : null
     },
     paths: {},
     steps: {},
     attempts: [],
     blockers: [],
     pending: [],
+    baseline_observation: null,
     final_audit_status: null,
     final_receipt_digest: null,
     state_digest: null
@@ -229,6 +259,12 @@ function planPayload(plan, planPath = null) {
     } : null,
     unresolved: plan.unresolved,
     warnings: plan.warnings,
+    baseline_observation: plan.baseline_observation ? {
+      run_id: plan.baseline_observation.run_id,
+      state_digest: plan.baseline_observation.state_digest,
+      browser_result_digest: plan.baseline_observation.browser_result_digest,
+      required_scenarios: plan.baseline_observation.required_scenarios
+    } : null,
     plan_path: planPath,
     plan_digest: canonicalDigest(plan),
     routing: plan.stages.map((stage) => ({
@@ -240,6 +276,124 @@ function planPayload(plan, planPath = null) {
   };
 }
 
+function observationBody(value) {
+  const { observation_digest: _digest, ...body } = value;
+  return body;
+}
+
+function verifyObservationBinding(observation, currentStatePath = null) {
+  requireValue(observation?.ui_observation_version === 1,
+    "baseline observation version must be 1", 4);
+  requireValue(canonicalDigest(observationBody(observation)) === observation.observation_digest,
+    "baseline observation digest mismatch", 4);
+  requireValue(path.resolve(observation.state_path) !== path.resolve(currentStatePath || ""),
+    "automation state cannot observe itself", 4);
+  requireValue(fs.existsSync(observation.state_path), "baseline observation state is missing", 4);
+  requireValue(hashArtifact(observation.state_path) === observation.state_file_digest,
+    "baseline observation state changed", 4);
+  const state = readAutomationState(observation.state_path);
+  requireValue(state.state_digest === observation.state_digest,
+    "baseline observation state digest changed", 4);
+  requireValue(state.run_id === observation.run_id,
+    "baseline observation run id changed", 4);
+  requireValue(state.paths.audit?.digest === observation.audit_digest,
+    "baseline observation audit digest changed", 4);
+  requireValue(state.paths.final?.digest === observation.final_file_digest,
+    "baseline observation final receipt changed", 4);
+  requireValue(state.final_receipt_digest === observation.final_receipt_digest,
+    "baseline observation final receipt digest changed", 4);
+}
+
+function bindObservationRun(observationRunPath, { plan, artifacts, root, currentStatePath = null }) {
+  requireValue(observationRunPath,
+    "runtime redesign requires --observation-run from the completed pre-change UI audit", 5);
+  const absolute = path.resolve(observationRunPath);
+  requireValue(!currentStatePath || absolute !== path.resolve(currentStatePath),
+    "automation state cannot use itself as --observation-run", 4);
+  const state = readAutomationState(absolute);
+  requireValue(state.request?.input?.task === "audit",
+    "--observation-run must come from a task audit run", 5);
+  requireValue(state.request?.scope === "runtime",
+    "--observation-run must be a runtime audit", 5);
+  for (const stepId of REQUIRED_OBSERVATION_STEPS) {
+    requireValue(state.steps?.[stepId]?.status === "completed",
+      `--observation-run is incomplete at ${stepId}`, 5);
+  }
+  requireValue(state.paths?.final && state.final_receipt_digest,
+    "--observation-run must reach finalization after critic and browser collection", 5);
+
+  const observedPlan = readJson(state.paths.plan.path, "observation route plan");
+  const audit = readJson(state.paths.audit.path, "observation audit run");
+  requireValue(observedPlan.project_id === plan.project_id,
+    "--observation-run project does not match the redesign run", 5);
+  requireValue(observedPlan.profile_digest === plan.profile_digest,
+    "--observation-run routed profile does not match the redesign run", 5);
+  requireValue(observedPlan.surface_resolution?.resolved_surface ===
+    plan.surface_resolution?.resolved_surface,
+  "--observation-run surface does not match the redesign run", 5);
+  const requestedArtifacts = artifacts.map((artifact) => path.resolve(root, artifact)).sort();
+  const observedArtifacts = audit.artifacts.map((artifact) => artifact.resolved_path).sort();
+  requireValue(sameStringSet(requestedArtifacts, observedArtifacts),
+    "--observation-run artifact paths do not match the redesign run", 5);
+  const requiredScenarios = plan.evidence_contract?.required_scenarios || [];
+  requireValue(sameStringSet(
+    requiredScenarios,
+    observedPlan.evidence_contract?.required_scenarios || []
+  ), "--observation-run required scenario inventory does not match the redesign run", 5);
+
+  const redesignBrowserActor = plan.stages
+    .find((stage) => stage.id === "browser-evidence")
+    ?.selected_actors.find((actor) => actor.id === "browser-evidence");
+  requireValue(redesignBrowserActor?.resolved_to === PLAYWRIGHT_PROVIDER_TARGET,
+    "runtime redesign did not route the official Playwright adapter", 5);
+  const browserPacket = audit.packets.find((packet) => packet.stage_id === "browser-evidence");
+  requireValue(browserPacket, "--observation-run has no browser-evidence packet", 5);
+  requireValue(browserPacket.provider.resolved_to === PLAYWRIGHT_PROVIDER_TARGET,
+    "--observation-run did not route the official Playwright adapter", 5);
+  const browserResult = audit.results.find((result) => result.packet_id === browserPacket.packet_id);
+  requireValue(browserResult, "--observation-run has no ingested browser result", 5);
+  const browserAttempt = [...state.attempts].reverse().find((attempt) =>
+    attempt.packet_id === browserPacket.packet_id &&
+    attempt.execution_status === "ran" &&
+    attempt.ingest_status === "recorded"
+  );
+  requireValue(
+    browserAttempt?.adapter === "browser-json-v1" &&
+    browserAttempt.child_pid &&
+    browserAttempt.metadata?.transport === "official-playwright-json-v1",
+    "--observation-run browser evidence was not executed by the official Playwright child adapter",
+    5
+  );
+  const coveredScenarios = new Set(browserResult.normalized.evidence
+    .flatMap((item) => item.scenarios || []));
+  for (const scenario of requiredScenarios) {
+    requireValue(coveredScenarios.has(scenario),
+      `--observation-run browser evidence is missing required scenario: ${scenario}`, 5);
+  }
+
+  const observation = {
+    ui_observation_version: 1,
+    state_path: absolute,
+    state_file_digest: hashArtifact(absolute),
+    state_digest: state.state_digest,
+    run_id: state.run_id,
+    audit_digest: state.paths.audit.digest,
+    final_file_digest: state.paths.final.digest,
+    final_receipt_digest: state.final_receipt_digest,
+    browser_packet_id: browserPacket.packet_id,
+    browser_result_digest: browserResult.normalized_digest,
+    project_id: plan.project_id,
+    profile_digest: plan.profile_digest,
+    surface: plan.surface_resolution.resolved_surface,
+    artifact_digests: Object.fromEntries(audit.artifacts.map((artifact) => [artifact.path, artifact.digest])),
+    required_scenarios: [...requiredScenarios],
+    observed_at: state.updated_at
+  };
+  observation.observation_digest = canonicalDigest(observation);
+  verifyObservationBinding(observation, currentStatePath);
+  return observation;
+}
+
 export function dryRunAutomation({
   router,
   profile,
@@ -249,6 +403,7 @@ export function dryRunAutomation({
   artifacts,
   scope,
   creatorActorId = null,
+  observationRunPath = null,
   hostManifest = null,
   root = process.cwd()
 }) {
@@ -275,6 +430,15 @@ export function dryRunAutomation({
     return report;
   }
   try {
+    if (observationRequired(input, scope)) {
+      plan.baseline_observation = bindObservationRun(observationRunPath, {
+        plan,
+        artifacts,
+        root
+      });
+      report.baseline_observation = plan.baseline_observation;
+      report.plan = planPayload(plan);
+    }
     const planning = verifyPlanningGateForAudit(plan, scope);
     report.planning_verification = {
       status: "verified",
@@ -716,6 +880,7 @@ export function startAutomation({
   artifacts,
   scope,
   creatorActorId = null,
+  observationRunPath = null,
   hostManifest = null,
   resultPaths = [],
   triagePath = null,
@@ -731,6 +896,10 @@ export function startAutomation({
   requireValue(Array.isArray(artifacts) && artifacts.length > 0,
     "run requires at least one --artifact");
   requireValue(scope, "run requires --scope");
+  if (observationRequired(input, scope)) {
+    requireValue(observationRunPath,
+      "runtime redesign requires --observation-run from the completed pre-change UI audit", 5);
+  }
   validateStateArtifactSeparation(absoluteStatePath, artifacts, root);
   const state = newState({
     statePath: absoluteStatePath,
@@ -740,6 +909,7 @@ export function startAutomation({
     artifacts,
     scope,
     creatorActorId,
+    observationRunPath,
     root
   });
   fs.mkdirSync(state.state_directory, { recursive: true });
@@ -763,6 +933,21 @@ export function startAutomation({
   if (state.request.profile_digest !== plan.profile_digest) {
     recordStep(state, "plan", "blocked", { error: "profile changed while surface routing was being planned" });
     return stop(state, "blocked", ["profile changed while surface routing was being planned"]);
+  }
+  if (observationRequired(input, scope)) {
+    try {
+      plan.baseline_observation = bindObservationRun(observationRunPath, {
+        plan,
+        artifacts,
+        root,
+        currentStatePath: absoluteStatePath
+      });
+      state.baseline_observation = plan.baseline_observation;
+      writeState(state);
+    } catch (error) {
+      recordStep(state, "plan", "blocked", { error: error.message });
+      return stop(state, "blocked", [error.message]);
+    }
   }
   const planPath = path.join(state.state_directory, "plan.json");
   writeJsonAtomic(planPath, plan);

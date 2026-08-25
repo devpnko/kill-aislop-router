@@ -26,6 +26,8 @@ package or create a GitHub Release as part of the V1 work.
 - Re-hashes plans, artifacts, results, evidence, triage, approval, step receipts, and automation state.
 - Resumes interrupted runs and retries a failed packet, provider, or stage without discarding completed evidence.
 - Ships an official Playwright adapter for real responsive, interaction, accessibility-proxy, trace, and pixel-baseline evidence.
+- Requires a reviewed critical-state inventory and scenario × viewport proof for scoped UI runs.
+- Binds runtime redesign to a finalized pre-change audit executed by the official Playwright child adapter.
 - Resolves missing direction through a resumable 3-thesis × 3-depth exploration, owner shortlist, 3-strategy color matrix, and exact owner-approved receipts.
 
 ## Requirements
@@ -211,6 +213,8 @@ killsloprouter browser configure \
   --profile .killsloprouter/profile.json \
   --host-config .killsloprouter/host-adapters.json \
   --base-url http://127.0.0.1:3000 \
+  --scenario .killsloprouter/playwright-scenarios.json \
+  --required-scenarios account-overview,account-tabs,settings-permissions \
   --channel chrome \
   --json
 ```
@@ -244,7 +248,31 @@ reports every provider as `manual_pending`; it never fabricates a completed
 review. Replace those declarations with real, digest-locked adapters before an
 executing run.
 
-## Integrated run
+## Existing UI closed loop
+
+When the artifact already has a UI, collect a real pre-change observation
+before editing it:
+
+```bash
+node bin/killsloprouter.mjs run \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --task audit \
+  --direction none \
+  --changes source,copy,style,layout,interaction,state \
+  --artifact ./src \
+  --scope runtime \
+  --out .killsloprouter/pre-change-ui.json \
+  --json
+```
+
+That audit must reach result ingestion, scanner triage, conflict adjudication,
+and finalization. It may correctly end blocked because it found the defects to
+fix. A manual browser result or generic child process cannot satisfy this
+observation contract.
+
+After the routed creator implements the bounded fixes, run the post-change
+audit against the same critical scenario inventory:
 
 ```bash
 node bin/killsloprouter.mjs run \
@@ -252,13 +280,24 @@ node bin/killsloprouter.mjs run \
   --host-config .killsloprouter/host-adapters.json \
   --task redesign \
   --direction approved \
-  --changes source,copy,layout,interaction \
+  --changes source,copy,style,layout,interaction,state \
   --artifact ./src \
   --scope runtime \
   --creator-id codex:session-123 \
-  --out .killsloprouter/v1-run.json \
+  --observation-run .killsloprouter/pre-change-ui.json \
+  --out .killsloprouter/post-change-ui.json \
   --json
 ```
+
+The exact routed profile, observation run, before/after artifact digests,
+official Playwright result, scenario bytes, viewport/browser verification
+contract, and scenario inventory are hash-bound into the post-change plan and
+audit. Changing the surface, visual authority, browser route, or verification
+contract between the two runs starts a new observation instead of weakening
+the comparison.
+See [Existing UI anti-slop closed loop](docs/existing-ui-closed-loop.md).
+
+## Integrated run receipts
 
 The profile resolves `--artifact ./src` to a locked surface before route or
 creator selection. An optional `--surface` may assert the expected value; a
@@ -273,15 +312,15 @@ plan -> planning receipt verification -> audit init -> dispatch
 ```
 
 Every phase writes a versioned receipt with a SHA-256 digest next to the state
-file. For `--out .killsloprouter/v1-run.json`, the plan, audit ledger, packets,
-results, evidence, phase receipts, and final audit receipt live under
-`.killsloprouter/v1-run.d/`.
+file. For `--out .killsloprouter/post-change-ui.json`, the plan, audit ledger,
+packets, results, evidence, phase receipts, and final audit receipt live under
+`.killsloprouter/post-change-ui.d/`.
 
 If a scanner returns candidates, supply a triage file and resume:
 
 ```bash
 node bin/killsloprouter.mjs run \
-  --resume .killsloprouter/v1-run.json \
+  --resume .killsloprouter/post-change-ui.json \
   --host-config .killsloprouter/host-adapters.json \
   --triage reports/static-triage.json \
   --json
@@ -292,7 +331,7 @@ If a provider is manual, complete its dispatch packet and ingest the resulting
 
 ```bash
 node bin/killsloprouter.mjs run \
-  --resume .killsloprouter/v1-run.json \
+  --resume .killsloprouter/post-change-ui.json \
   --host-config .killsloprouter/host-adapters.json \
   --result reports/manual-functional-review.json \
   --json
@@ -305,7 +344,7 @@ If an adapter failed, retry only that packet, provider, or stage:
 
 ```bash
 node bin/killsloprouter.mjs run \
-  --resume .killsloprouter/v1-run.json \
+  --resume .killsloprouter/post-change-ui.json \
   --host-config .killsloprouter/host-adapters.json \
   --retry browser-evidence \
   --json
@@ -316,7 +355,7 @@ record a real owner decision in a separate file, then resume:
 
 ```bash
 node bin/killsloprouter.mjs run \
-  --resume .killsloprouter/v1-run.json \
+  --resume .killsloprouter/post-change-ui.json \
   --host-config .killsloprouter/host-adapters.json \
   --approval reports/owner-approval.json \
   --json
@@ -330,6 +369,11 @@ Exit codes are stable for automation:
 - `4`: a tracked profile, artifact, result, or evidence boundary changed
 - `5`: blocked, rejected, tampered, or execution failure
 - `6`: exact manual input is still pending
+
+`doctor` keeps the compatibility status `automation-ready` after project
+authority is valid, but also reports execution readiness as not evaluated,
+`completion_eligible: false`, and the next required command. It does not accept
+`--host-config`; only integrated `run --dry-run` checks planned adapters.
 
 ## Host adapter safety
 
@@ -452,11 +496,14 @@ Profiles must add the fail-closed `surface_contract`. Visual tasks also require
 approved `visual_intents` and `visual_signatures` contracts; profiles without
 them remain readable for non-visual compatibility but visual plans block.
 Dispatch packets gained additive contract fields; receipt versions did not
-change. See [V1 migration notes](docs/migration-v1.md).
+change. Scoped UI runs now require a critical scenario inventory, and runtime
+redesign runs require a pre-change observation state. See
+[V1 migration notes](docs/migration-v1.md).
 
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
+- [Existing UI anti-slop closed loop](docs/existing-ui-closed-loop.md)
 - [Surface contract](docs/surface-contract.md)
 - [Visual intent contract](docs/visual-intent-contract.md)
 - [Visual signature contract](docs/visual-signature-contract.md)

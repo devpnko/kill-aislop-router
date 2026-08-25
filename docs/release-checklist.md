@@ -7,6 +7,7 @@ GitHub Release.
 - [ ] Package and router versions agree.
 - [ ] `npm test` passes, including child-process E2E fixtures.
 - [ ] Real Playwright E2E proves attestation tamper, missing baseline, approved baseline retry, material visual change/diff, resume, and owner approval behavior.
+- [ ] Existing-UI E2E proves required scenario × viewport coverage, official pre-change observation binding, changed artifact digest, post-change rerun, and rejection of a generic browser child.
 - [ ] `npm run check` passes.
 - [ ] `npm run pack:check` confirms required public files and excludes tests.
 - [ ] The Codex plugin and bundled skill pass their official local validators.

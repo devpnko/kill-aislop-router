@@ -165,6 +165,13 @@ and computed CSS properties. Intentional overlap or truncation needs an explicit
 reviewable opt-out marker. A manual browser result remains an asserted review,
 not proof that the official child adapter executed or interpreted its report.
 
+Scoped UI runs also bind a non-empty reviewed `required_scenarios` inventory.
+The ledger requires non-screenshot report coverage and a screenshot for every
+required scenario × required viewport. Runtime redesign additionally binds a
+finalized pre-change audit whose browser attempt reports the bundled official
+Playwright transport. This prevents a root-only screenshot, manual report, or
+generic browser child from being promoted into observed-current-UI authority.
+
 Playwright's ARIA snapshot and axe checks are automated semantic proxies. They
 are not evidence that VoiceOver, NVDA, JAWS, TalkBack, or another real
 assistive technology was operated by a person. The report states this scope
@@ -219,9 +226,14 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Scanner false verdict or zero-hit approval | Findings remain candidates until explicit triage; zero hits never satisfy visual-intent, craft, browser, or owner gates |
 | Reviewer averaging | Conflicting finding references require an adjudication resolution |
 | Fake browser proof | Viewport screenshots and non-screenshot check coverage are validated separately |
+| Critical tabs, dialogs, or permission states omitted from a root screenshot | A non-empty reviewed scenario inventory is bound in profile/plan, and the ledger requires non-screenshot proof plus every scenario × viewport screenshot |
+| Manual or generic browser child presented as the observed current UI | Runtime redesign accepts only a finalized pre-change audit routed to and executed by the official Playwright child transport |
+| Official Playwright route executed by a substituted generic host | An official route is executable only when the digest-locked host declaration has the official Playwright contract; otherwise the packet remains `manual_pending` |
+| Visual authority or browser route changed between observation and redesign | The before/after pair requires the exact same routed profile digest and rechecks it on resume |
+| UI is changed before its defects and visual character are observed | Runtime redesign requires `--observation-run`; the state binds pre-change artifacts, browser result, scenarios, audit, and final receipt and rechecks them on resume |
 | Browser points at another build | Served endpoint must attest the packet's exact artifact digest map before launch |
 | Design prototype or candidate evidence is replaced between shortlist and approval | Every candidate result, prototype, Playwright screenshot/report, shortlist scope, color scope, and final owner decision is digest-bound and rechecked on resume |
-| Browser runtime or scenario substitution | Bundled entrypoint, runtime packages, scenario file, and baseline directory are digest-locked |
+| Browser runtime, scenario, viewport, or allowed-origin substitution | Bundled entrypoint and runtime packages are digest-locked; the profile-bound browser verification digest must also match the exact scenario bytes, viewport dimensions, allowed origins, browser channel, locale, color schemes, and interaction limits |
 | Material visual baseline change | Playwright comparator permits zero non-antialiased differing pixels and writes a reviewable diff PNG |
 | Browser data exfiltration | Loopback default, explicit external-network authority, and per-request origin blocking |
 | Static design prototype reads mutable or unrelated resources | Official design Playwright requires one self-contained digest-bound HTML file; only that exact `file:` URL plus `data:`, `blob:`, and `about:` are allowed, while all other local and network requests are blocked |

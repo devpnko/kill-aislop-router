@@ -40,16 +40,21 @@ const startedAt = new Date().toISOString();
 const evidence = [];
 
 if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence) {
-  for (const viewport of packet.evidence_contract?.required_viewports || []) {
-    const name = `${viewport}.png`;
-    fs.writeFileSync(path.join(request.output_directory, name), `fixture screenshot ${viewport}\n`);
-    evidence.push({
-      path: name,
-      kind: "screenshot",
-      covers: packet.assigned_capabilities,
-      viewports: [viewport],
-      checks: []
-    });
+  const scenarios = packet.evidence_contract?.required_scenarios || [];
+  for (const scenario of scenarios.length ? scenarios : [null]) {
+    for (const viewport of packet.evidence_contract?.required_viewports || []) {
+      const name = `${scenario ? `${scenario}-` : ""}${viewport}.png`;
+      fs.writeFileSync(path.join(request.output_directory, name),
+        `fixture screenshot ${scenario || "unspecified"} ${viewport}\n`);
+      evidence.push({
+        path: name,
+        kind: "screenshot",
+        covers: packet.assigned_capabilities,
+        viewports: [viewport],
+        checks: [],
+        scenarios: scenario ? [scenario] : []
+      });
+    }
   }
   fs.writeFileSync(path.join(request.output_directory, "browser-report.json"), JSON.stringify({
     passed: true,
@@ -60,7 +65,8 @@ if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence
     kind: "test-report",
     covers: packet.assigned_capabilities,
     viewports: packet.evidence_contract?.required_viewports || [],
-    checks: packet.evidence_contract?.required_checks || []
+    checks: packet.evidence_contract?.required_checks || [],
+    scenarios: packet.evidence_contract?.required_scenarios || []
   });
   if (settings.evidence_escape) {
     const escaped = path.join(request.output_directory, "..", "escaped-evidence.txt");
@@ -70,7 +76,8 @@ if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence
       kind: "test-report",
       covers: packet.assigned_capabilities,
       viewports: packet.evidence_contract?.required_viewports || [],
-      checks: packet.evidence_contract?.required_checks || []
+      checks: packet.evidence_contract?.required_checks || [],
+      scenarios: packet.evidence_contract?.required_scenarios || []
     });
   }
 }

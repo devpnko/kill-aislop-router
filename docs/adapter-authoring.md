@@ -256,16 +256,24 @@ return paths relative to that directory. KillSlopRouter resolves and confines
 those paths before audit ingestion.
 
 Each required viewport needs a `screenshot`. Every required browser check needs
-non-screenshot proof such as a `test-report`. An evidence item must list the
-capabilities, viewports, and checks it actually covers. A smoke-test label does
-not satisfy keyboard, state, overflow, contrast, zoom, visual regression, or
-screen-reader requirements.
+non-screenshot proof such as a `test-report`. For each
+`packet.evidence_contract.required_scenarios` ID, return non-screenshot proof
+and one screenshot at every required viewport. An evidence item must list the
+capabilities, viewports, checks, and scenarios it actually covers. A smoke-test
+label does not satisfy keyboard, state, overflow, contrast, zoom, visual
+regression, screen-reader, or critical-state requirements.
 
 `manual-v1` records an explicit reviewer attestation; it does not make a custom
 report machine-verifiable or claim that KillSlopRouter ran the browser. Prefer
 the official adapter when a technical pass must prove layout geometry through
 the child-process boundary. Project-specific requirements belong in the
 digest-locked scenario as typed assertions, not arbitrary profile commands.
+Only the bundled official Playwright transport may serve as a runtime
+redesign's pre-change `--observation-run`; a schema-valid custom result remains
+valid custom audit evidence but cannot claim that stronger provenance. The
+official host must also match the profile's `browser_contract_digest`; reusing
+scenario IDs with weaker actions, assertions, or viewport definitions remains
+`manual_pending`.
 
 ### Official Playwright adapter
 
@@ -279,15 +287,18 @@ killsloprouter browser configure \
   --base-url http://127.0.0.1:3000 \
   --channel chrome \
   --scenario .killsloprouter/playwright-scenarios.json \
+  --required-scenarios account-overview,account-tabs,settings-permissions \
   --baseline-dir .killsloprouter/playwright-baselines \
   --json
 ```
 
 Configuration binds the bundled entrypoint, the complete `playwright-core` and
 `axe-core` runtime directories, the scenario file, and the baseline directory
-to SHA-256 digests. Localhost is the default network boundary. External base
-URLs or resource origins require both `--allow-external` at configuration time
-and `network:external` in the resulting provider permission set.
+to SHA-256 digests. It also places the stable verification-contract digest in
+the profile so the host cannot substitute scenario or viewport semantics.
+Localhost is the default network boundary. External base URLs or resource
+origins require both `--allow-external` at configuration time and
+`network:external` in the resulting provider permission set.
 
 The adapter connects only to a server the operator already started. It never
 accepts a start command, package script, shell, arbitrary executable, or
