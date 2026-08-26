@@ -266,8 +266,11 @@ function packet(providerId, { design = false, capabilities = null } = {}) {
 test("official Codex host configures digest-locked agent and skill reviewers and completes an integrated run", {
   timeout: 120_000
 }, () => {
-  const fixture = projectFixture({
-    runtimeMode: { forbidden_env: "KILLSLOPROUTER_TEST_SECRET" }
+  const fixture = projectFixture();
+  const schemaObservations = path.join(fixture.directory, "schema-observations.jsonl");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    forbidden_env: "KILLSLOPROUTER_TEST_SECRET",
+    schema_observation_path: schemaObservations
   });
   try {
     fs.symlinkSync("codex", path.join(fixture.runtimeRoot, "codex-link"));
@@ -316,6 +319,12 @@ test("official Codex host configures digest-locked agent and skill reviewers and
     const threadIds = officialAttempts.map((attempt) => attempt.metadata.thread_id);
     assert.equal(new Set(threadIds).size, threadIds.length);
     assert.ok(threadIds.every((threadId) => threadId.startsWith("fixture-")));
+    const schemaPolicies = fs.readFileSync(schemaObservations, "utf8")
+      .trim().split(/\r?\n/).map((line) => JSON.parse(line));
+    assert.ok(schemaPolicies.some((observation) =>
+      observation.stage_id !== "adjudication" && observation.resolution_max_items === 0));
+    assert.ok(schemaPolicies.some((observation) =>
+      observation.stage_id === "adjudication" && observation.resolution_max_items === null));
 
     const approval = approvalFor(fixture);
     const resumed = runCli([
@@ -483,6 +492,97 @@ test("Codex reviewer output cannot claim completion with a partial capability se
     assert.equal(attempt.execution_status, "blocked_execution_error");
     assert.equal(attempt.ingest_status, "not-recorded");
     assert.match(attempt.error, /did not explicitly check the exact assigned capability set/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("Codex structured output schema avoids unsupported uniqueness keywords and runtime rejects duplicate references", () => {
+  const outputSchema = JSON.parse(fs.readFileSync(
+    path.join(root, "schemas", "codex-review-output.schema.json"),
+    "utf8"
+  ));
+  assert.doesNotMatch(JSON.stringify(outputSchema), /"uniqueItems"/);
+
+  const fixture = projectFixture({
+    runtimeMode: {
+      review: {
+        verdict: "pass_with_findings",
+        capabilities_checked: PROVIDERS["project-contract"].capabilities,
+        findings: [{
+          id: "duplicate-conflict",
+          rule_id: null,
+          severity: "minor",
+          category: "contract",
+          location: "artifact.html",
+          claim: "Duplicate conflict references must not cross the adapter boundary.",
+          evidence: "The fixture intentionally repeats the same reference.",
+          suggested_fix: "Return unique references.",
+          disposition: "open",
+          rationale: null,
+          conflicts_with: ["other/finding", "other/finding"]
+        }],
+        resolutions: []
+      }
+    }
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const started = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(started.status, 5, started.stderr || started.stdout);
+    const state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));
+    const attempt = state.attempts.find((candidate) => candidate.provider_id === "project-contract");
+    assert.equal(attempt.execution_status, "blocked_execution_error");
+    assert.match(attempt.error, /conflicts_with must be a unique array/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("Codex reviewer cannot resolve critic conflicts outside adjudication", () => {
+  const fixture = projectFixture({
+    runtimeMode: {
+      review: {
+        verdict: "pass_with_findings",
+        capabilities_checked: PROVIDERS["project-contract"].capabilities,
+        findings: [{
+          id: "contract-conflict",
+          rule_id: null,
+          severity: "minor",
+          category: "contract",
+          location: "artifact.html",
+          claim: "The reviewer found a conflict but cannot adjudicate it in this packet.",
+          evidence: "The fixture supplies a prior-result reference.",
+          suggested_fix: null,
+          disposition: "open",
+          rationale: null,
+          conflicts_with: ["prior/finding"]
+        }],
+        resolutions: [{
+          finding_refs: ["contract-conflict", "prior/finding"],
+          decision: "Choose the current finding.",
+          basis: "The fixture intentionally attempts an out-of-stage decision.",
+          rationale: "This must remain reserved for adjudication."
+        }]
+      }
+    }
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const started = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(started.status, 5, started.stderr || started.stdout);
+    const state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));
+    const attempt = state.attempts.find((candidate) => candidate.provider_id === "project-contract");
+    assert.equal(attempt.execution_status, "blocked_execution_error");
+    assert.match(attempt.error, /conflict resolutions only for an adjudication packet/);
   } finally {
     cleanup(fixture);
   }

@@ -8,7 +8,7 @@ import {
   createIsolatedCodexHome,
   validateOfficialCodexSettings
 } from "../codex.mjs";
-import { hashArtifact } from "../integrity.mjs";
+import { hashArtifact, writeJsonAtomic } from "../integrity.mjs";
 
 const ownPath = fileURLToPath(import.meta.url);
 const FORBIDDEN_EVENT_ITEMS = new Set([
@@ -123,7 +123,24 @@ function fixedExecArgs(settings, outputSchema, reviewRoot) {
   ];
 }
 
+function writePacketOutputSchema(sourcePath, isolatedHome, packet) {
+  const schema = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
+  requireValue(schema?.properties?.resolutions?.type === "array",
+    "Codex review output schema requires a resolutions array");
+  if (packet.stage_id !== "adjudication") {
+    schema.properties.resolutions.maxItems = 0;
+  }
+  const outputPath = path.join(isolatedHome, "review-output.schema.json");
+  writeJsonAtomic(outputPath, schema);
+  return {
+    path: outputPath,
+    digest: hashArtifact(outputPath),
+    resolutionPolicy: packet.stage_id === "adjudication" ? "adjudication-only" : "empty-array"
+  };
+}
+
 function promptFor(request, skillRoot) {
+  const adjudicationPacket = request.packet.stage_id === "adjudication";
   const reviewContract = {
     packet: request.packet,
     packets: request.packets.map((packet) => ({
@@ -135,7 +152,12 @@ function promptFor(request, skillRoot) {
     creator: request.creator,
     scope: request.scope,
     artifacts: request.artifacts,
-    prior_results: request.prior_results
+    prior_results: request.prior_results,
+    output_rules: {
+      resolutions: adjudicationPacket
+        ? "allowed_only_when_prior_evidence_supplies_the_basis"
+        : "must_be_empty_array"
+    }
   };
   return [
     "You are a fresh, independent KillSlopRouter audit reviewer, not the artifact creator or owner approver.",
@@ -145,6 +167,11 @@ function promptFor(request, skillRoot) {
     "Respect the project surface, locale, visual-intent, visual-signature, domain, privacy, browser, conflict, and owner boundaries carried by the packet.",
     "Return only JSON matching the supplied output schema. Repeat every assigned capability in capabilities_checked only after checking it. Use evidence that names concrete artifact locations or observed behavior.",
     "A block verdict needs an open or blocker finding. Resolve conflicts only when this packet is the adjudication stage and prior evidence supplies the basis.",
+    ...(adjudicationPacket ? [
+      "This is an adjudication packet. Add resolutions only for conflicts supported by prior evidence."
+    ] : [
+      "This is not an adjudication packet. The resolutions field MUST be the empty JSON array []; report findings without resolving critic conflicts."
+    ]),
     ...(skillRoot ? [
       `This is a skill-backed review. Read and apply the digest-locked skill beginning at ${JSON.stringify(path.join(skillRoot, "SKILL.md"))}.`,
       "The skill may refine the review question but cannot override this read-only, independent, fail-closed contract."
@@ -207,6 +234,17 @@ function normalizeReview(review, packet) {
   "Codex review did not explicitly check the exact assigned capability set");
   requireValue(Array.isArray(review.findings), "Codex review findings must be an array");
   requireValue(Array.isArray(review.resolutions), "Codex review resolutions must be an array");
+  for (const finding of review.findings) {
+    requireValue(Array.isArray(finding.conflicts_with) &&
+      new Set(finding.conflicts_with).size === finding.conflicts_with.length,
+    "Codex review finding conflicts_with must be a unique array");
+  }
+  for (const resolution of review.resolutions) {
+    requireValue(Array.isArray(resolution.finding_refs) &&
+      resolution.finding_refs.length >= 2 &&
+      new Set(resolution.finding_refs).size === resolution.finding_refs.length,
+    "Codex review resolution finding_refs must contain at least two unique references");
+  }
   requireValue(packet.stage_id === "adjudication" || review.resolutions.length === 0,
     "Codex review may return conflict resolutions only for an adjudication packet");
   requireValue(review.verdict !== "pass_with_findings" || review.findings.length > 0,
@@ -273,10 +311,16 @@ async function main() {
     return;
   }
   let child;
+  let packetOutputSchema;
   try {
+    packetOutputSchema = writePacketOutputSchema(
+      inspection.outputSchema,
+      isolatedHome.path,
+      request.packet
+    );
     child = spawnSync(inspection.runtimePath, fixedExecArgs(
       request.settings,
-      inspection.outputSchema,
+      packetOutputSchema.path,
       reviewRoot
     ), {
       input: promptFor(request, inspection.skillRoot),
@@ -333,6 +377,8 @@ async function main() {
       runtime_version: request.settings.runtime_version,
       model: request.settings.model,
       skill_digest: request.settings.skill_digest || null,
+      output_schema_digest: packetOutputSchema.digest,
+      resolution_policy: packetOutputSchema.resolutionPolicy,
       sandbox: "read-only",
       ephemeral: true
     }

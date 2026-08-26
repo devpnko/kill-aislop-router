@@ -10,13 +10,16 @@ const modePath = path.join(root, "mode.json");
 const mode = fs.existsSync(modePath) ? JSON.parse(fs.readFileSync(modePath, "utf8")) : {};
 const args = process.argv.slice(2);
 
-function requireIsolatedHome() {
+function requireIsolatedHome({ allowReviewSchema = false } = {}) {
   if (!process.env.CODEX_HOME || process.env.HOME !== process.env.CODEX_HOME) {
     process.stderr.write("fake Codex requires matching isolated HOME and CODEX_HOME\n");
     process.exit(3);
   }
   const entries = fs.readdirSync(process.env.CODEX_HOME).sort();
-  if (entries.length !== 1 || entries[0] !== "auth.json") {
+  const expected = allowReviewSchema
+    ? ["auth.json", "review-output.schema.json"]
+    : ["auth.json"];
+  if (entries.length !== expected.length || entries.some((entry, index) => entry !== expected[index])) {
     process.stderr.write(`fake Codex received non-auth user state: ${entries.join(",")}\n`);
     process.exit(3);
   }
@@ -59,7 +62,7 @@ if (args[0] !== "exec") {
   process.exit(2);
 }
 
-requireIsolatedHome();
+requireIsolatedHome({ allowReviewSchema: true });
 
 const required = [
   "--json",
@@ -131,6 +134,31 @@ if (!match) {
   process.exit(4);
 }
 const contract = JSON.parse(match[1]);
+const outputSchemaIndex = args.indexOf("--output-schema");
+const outputSchemaPath = args[outputSchemaIndex + 1];
+if (path.resolve(outputSchemaPath) !== path.join(process.env.CODEX_HOME, "review-output.schema.json")) {
+  process.stderr.write("review output schema was not isolated with the packet runtime\n");
+  process.exit(4);
+}
+const outputSchema = JSON.parse(fs.readFileSync(outputSchemaPath, "utf8"));
+const resolutionMaxItems = outputSchema?.properties?.resolutions?.maxItems;
+if (contract.packet.stage_id === "adjudication" ? resolutionMaxItems !== undefined : resolutionMaxItems !== 0) {
+  process.stderr.write("review output schema does not enforce the packet resolution boundary\n");
+  process.exit(4);
+}
+if (mode.schema_observation_path) {
+  fs.appendFileSync(mode.schema_observation_path, `${JSON.stringify({
+    packet_id: contract.packet.packet_id,
+    stage_id: contract.packet.stage_id,
+    resolution_max_items: resolutionMaxItems ?? null
+  })}\n`);
+}
+if (contract.packet.stage_id !== "adjudication" &&
+  (contract.output_rules?.resolutions !== "must_be_empty_array" ||
+    !prompt.includes("The resolutions field MUST be the empty JSON array []"))) {
+  process.stderr.write("non-adjudication packet did not receive the empty resolutions contract\n");
+  process.exit(4);
+}
 if (contract.packet.provider.id === "anti-slop" && !prompt.includes("This is a skill-backed review")) {
   process.stderr.write("skill-backed provider did not receive its locked skill instruction\n");
   process.exit(4);

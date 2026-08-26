@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Kept Codex review uniqueness checks fail-closed at the adapter boundary while
+  removing unsupported structured-output schema keywords, and made
+  non-adjudication packets require an explicit empty `resolutions` array in both
+  the prompt contract and a packet-scoped structured-output schema.
 - Made KillSlopRouter the single top-level workflow for routed audits and
   constrained `anti-slop` to the digest-locked `functional-human-review`
   `skill-json-v1` child, with standalone/agent bindings left `manual_pending`.
