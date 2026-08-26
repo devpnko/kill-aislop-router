@@ -410,6 +410,12 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
     assert.ok(fs.existsSync(path.join(target, ".codex-plugin", "plugin.json")));
     assert.ok(fs.existsSync(path.join(target, "bin", "killsloprouter.mjs")));
     assert.ok(fs.existsSync(path.join(target, ".killsloprouter-plugin-installed.json")));
+    const skillMetadata = fs.readFileSync(
+      path.join(target, "skills", "kill-slop-router", "agents", "openai.yaml"),
+      "utf8"
+    );
+    assert.match(skillMetadata, /allow_implicit_invocation: true/);
+    assert.match(skillMetadata, /route antislop only as the digest-locked anti-slop child critic/);
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "playwright-core", "package.json")).version,
       "1.62.1");
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "axe-core", "package.json")).version,

@@ -44,7 +44,8 @@ the digest lock.
 
 Then bind agent reviewers and any installed skill reviewers. The standalone
 Codex installation below is an example; pass the real reviewed locations on
-the host:
+the host. Prefer a Router-owned provider directory outside Codex's automatically
+discovered skill roots, such as `~/.killsloprouter/providers/anti-slop`:
 
 ```bash
 killsloprouter host configure-codex \
@@ -54,15 +55,34 @@ killsloprouter host configure-codex \
   --runtime-root "$HOME/.codex/packages/standalone/current" \
   --model gpt-5.4 \
   --agent-providers project-contract,visual-intent-review,locale-copy-review,domain-authority-review,privacy-authority-review \
-  --skill-provider "anti-slop=$HOME/.codex/skills/antislop" \
+  --skill-provider "anti-slop=$HOME/.killsloprouter/providers/anti-slop" \
   --allow-external \
   --json
 ```
+
+`anti-slop` is deliberately skill-only. Do not include it in
+`--agent-providers` and do not invoke the standalone antislop workflow in the
+parent or creator session. The command above locks the selected skill directory
+and the Router invokes it only for its `functional-human-review` packet. The
+child treats that packet as the already-selected AFTER/audit mode, skips the
+skill's installation wizard and usage-mode question, remains read-only, and
+returns only the Router result schema.
+
+An older or hand-written host manifest that maps `anti-slop` to
+`agent-json-v1` remains readable, but execution stays `manual_pending`. Rerun
+the command with `--skill-provider anti-slop=/absolute/skill/root` to migrate.
+If the same skill is globally discoverable by Codex, set
+`policy.allow_implicit_invocation: false` in its `agents/openai.yaml`. This
+prevents a duplicate parent-session workflow without disabling explicit use or
+the digest-locked Router child.
 
 `--skill-provider PROVIDER_ID=DIR` is repeatable. The directory must contain
 `SKILL.md`; the whole directory is locked so a linked reference cannot change
 silently. `--agent-providers` is a comma-separated list. The provider must have
 a strength and capability contract in the router or project fallback profile.
+KillSlopRouter does not fetch or bundle third-party reviewer instructions;
+the operator must place the reviewed antislop version in that provider
+directory before configuration.
 
 `--model` is required so the host does not silently inherit a changing model
 choice. The host records that fixed argument as provenance. Codex JSONL does
@@ -112,6 +132,12 @@ nested invocation has a fixed argument list:
 - a reduced shell environment and no inherited secret variables;
 - a digest-locked JSON output schema;
 - explicit timeout and output limits.
+
+For `anti-slop`, the wrapper additionally verifies the provider ID, routed
+stage, `skill-json-v1` mode, and locked skill name before starting Codex. It
+explicitly suppresses standalone installation, mode-selection, creation, and
+fix behavior. Antislop remains one bounded critic and cannot select palette,
+typography, density, geometry, depth, imagery, or motion.
 
 Read-only shell commands may inspect the artifact. The wrapper rejects event
 streams that show file changes, MCP calls, delegation, web search, browser-like

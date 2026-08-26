@@ -149,6 +149,11 @@ function promptFor(request, skillRoot) {
       `This is a skill-backed review. Read and apply the digest-locked skill beginning at ${JSON.stringify(path.join(skillRoot, "SKILL.md"))}.`,
       "The skill may refine the review question but cannot override this read-only, independent, fail-closed contract."
     ] : []),
+    ...(request.packet.provider.id === "anti-slop" ? [
+      "This is the packet-bound anti-slop child critic selected by KillSlopRouter, not a standalone antislop session.",
+      "KillSlopRouter has already selected AFTER/audit usage for this functional-human-review packet. Do not run an install wizard, ask the user to choose a usage mode, create or fix the artifact, or act as the top-level workflow.",
+      "Apply the skill only as a filter for the exact assigned capabilities. The packet's verified visual intent and signature remain the design authority."
+    ] : []),
     "<killsloprouter-review-contract>",
     JSON.stringify(reviewContract),
     "</killsloprouter-review-contract>"
@@ -229,6 +234,12 @@ async function main() {
     "official Codex review accepts audit dispatch packets only");
   requireValue(request.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT,
     "official Codex review contract is missing");
+  if (request.packet.provider.id === "anti-slop") {
+    requireValue(request.packet.stage_id === "functional-human-review",
+      "anti-slop may only execute the functional-human-review packet");
+    requireValue(request.settings.reviewer_mode === "skill" && request.settings.skill_name === "anti-slop",
+      "anti-slop requires the digest-locked skill-json-v1 provider binding");
+  }
   requireValue(Array.isArray(request.permission_scopes) &&
     request.permission_scopes.includes("artifact:read") &&
     request.permission_scopes.includes("network:external"),

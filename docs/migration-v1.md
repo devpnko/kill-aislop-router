@@ -49,6 +49,31 @@ automatically. Configuration requires explicit external-network authority and
 backs up the host manifest. It never changes scanner, browser, design creator,
 or owner providers. See [Official Codex review host](codex-review-host.md).
 
+### Route antislop only through the skill child
+
+`anti-slop` is now a Router-scoped, skill-only provider. Existing host manifest
+version 1 files remain readable, but an `agent-json-v1` declaration for that
+provider is no longer executable and resolves to `manual_pending`. Bind the
+reviewed antislop root through the existing command instead:
+
+```bash
+killsloprouter host configure-codex \
+  --profile .killsloprouter/profile.json \
+  --host-config .killsloprouter/host-adapters.json \
+  --runtime /absolute/codex/runtime \
+  --runtime-root /absolute/codex/runtime-root \
+  --model gpt-5.4 \
+  --skill-provider anti-slop=/absolute/.killsloprouter/providers/anti-slop \
+  --allow-external \
+  --json
+```
+
+The provider may satisfy only `functional-human-review`. Its child prompt
+selects AFTER/audit mode and suppresses standalone installation, usage-mode,
+creation, and fix behavior. Direct antislop output can still be ingested using
+the existing manual-result contract, but it remains `manual_recorded` and is
+not execution evidence. Receipt and host manifest versions do not change.
+
 `bootstrap` is additive and refuses to replace an existing project profile,
 host manifest, or bootstrap receipt. It starts with manual-only adapters and an
 unapproved design-system state; it does not upgrade legacy authority claims.

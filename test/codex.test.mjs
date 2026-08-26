@@ -253,7 +253,9 @@ function packet(providerId, { design = false, capabilities = null } = {}) {
   return {
     ...(design ? { design_packet_version: 1 } : { dispatch_packet_version: 1 }),
     packet_id: `${providerId}--fixture--1`,
-    stage_id: design ? "direction-candidate" : "project-contract",
+    stage_id: design
+      ? "direction-candidate"
+      : providerId === "anti-slop" ? "functional-human-review" : "project-contract",
     provider: { id: providerId },
     assigned_capabilities: capabilities || PROVIDERS[providerId].capabilities,
     minimum_strength: PROVIDERS[providerId].strength,
@@ -524,6 +526,14 @@ test("Codex host configuration requires explicit external permission and rejects
     assert.equal(reserved.status, 2, reserved.stderr || reserved.stdout);
     assert.match(reserved.stderr, /dedicated manual, scanner, browser, owner, or design adapter/);
 
+    const standaloneAntiSlop = runCli(configureArgs(fixture, {
+      agents: ["anti-slop"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(standaloneAntiSlop.status, 2, standaloneAntiSlop.stderr || standaloneAntiSlop.stdout);
+    assert.match(standaloneAntiSlop.stderr,
+      /Router-scoped skill critic; bind it with --skill-provider anti-slop=/);
+
     const unsafeHost = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
     unsafeHost.providers["project-contract"].command = "arbitrary-project-command";
     writeJson(fixture.host, unsafeHost);
@@ -545,6 +555,48 @@ test("Codex host configuration requires explicit external permission and rejects
     host.providers["project-contract"].settings.args = ["--dangerously-bypass-approvals-and-sandbox"];
     writeJson(fixture.host, host);
     assert.throws(() => loadFixtureManifest(fixture), /unsupported field: args/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("anti-slop remains pending unless the Router dispatches its skill child for functional-human-review", () => {
+  const fixture = projectFixture();
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: [], skill: true }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const host = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
+    const declaration = host.providers["anti-slop"];
+    declaration.adapter = "agent-json-v1";
+    declaration.settings.reviewer_mode = "agent";
+    delete declaration.settings.skill_name;
+    delete declaration.settings.skill_root;
+    delete declaration.settings.skill_digest;
+    writeJson(fixture.host, host);
+    let manifest = loadHostManifest(fixture.host);
+    const direct = inspectPacketAdapter(packet("anti-slop"), manifest);
+    assert.equal(direct.execution_status, "manual_pending");
+    assert.match(direct.reason, /packet-bound skill-json-v1 child critic/);
+
+    host.providers["anti-slop"] = {
+      ...declaration,
+      adapter: "skill-json-v1",
+      settings: {
+        ...declaration.settings,
+        reviewer_mode: "skill",
+        skill_name: "anti-slop",
+        skill_root: fixture.skillRoot,
+        skill_digest: hashArtifact(fixture.skillRoot, { ignores: [] })
+      }
+    };
+    writeJson(fixture.host, host);
+    manifest = loadHostManifest(fixture.host);
+    const wrongStage = inspectPacketAdapter({
+      ...packet("anti-slop"),
+      stage_id: "rendered-craft-review"
+    }, manifest);
+    assert.equal(wrongStage.execution_status, "manual_pending");
+    assert.match(wrongStage.reason, /only satisfy the routed functional-human-review stage/);
   } finally {
     cleanup(fixture);
   }

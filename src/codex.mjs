@@ -75,6 +75,7 @@ const RESERVED_PROVIDERS = new Set([
   "color-system-agent",
   "color-system-critic"
 ]);
+const SKILL_ONLY_PROVIDERS = new Set(["anti-slop"]);
 const runtimeProbeCache = new Map();
 
 export const CODEX_REVIEW_ADAPTER_CONTRACT = "killsloprouter-codex-review-v1";
@@ -581,6 +582,10 @@ export function configureCodexReviewers({
     "host configure-codex requires --agent-providers or at least one --skill-provider");
   requireValue(new Set(providerIds).size === providerIds.length,
     "Codex reviewer providers must be unique across agent and skill bindings");
+  for (const providerId of normalizedAgents) {
+    requireValue(!SKILL_ONLY_PROVIDERS.has(providerId),
+      `provider ${providerId} is a Router-scoped skill critic; bind it with --skill-provider ${providerId}=/absolute/skill/root`);
+  }
   for (const providerId of providerIds) {
     requireValue(PROVIDER_ID_PATTERN.test(providerId), `invalid Codex reviewer provider ID: ${providerId}`);
     requireValue(!RESERVED_PROVIDERS.has(providerId),

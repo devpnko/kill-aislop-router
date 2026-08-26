@@ -55,6 +55,24 @@ The shortest request uses implicit skill discovery:
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
 ```
 
+This is the single top-level entrypoint. Do not separately invoke a globally
+installed `antislop` skill for the same work. KillSlopRouter binds that skill as
+the `anti-slop` provider and starts it only as a packet-bound read-only child;
+without that binding the stage remains `manual_pending`.
+
+When the standalone skill is installed in Codex, prevent duplicate automatic
+activation by setting its agent metadata to explicit-only:
+
+```yaml
+# ~/.codex/skills/antislop/agents/openai.yaml
+policy:
+  allow_implicit_invocation: false
+```
+
+Explicit `$antislop` requests still work. The Router child is unaffected because
+the official host reads the configured skill root directly with automatic skill
+discovery disabled.
+
 `전체 여정` means continue from existing repository evidence: resume a matching
 run, consume but never invent planning authority, route the anti-slop change and
 independent audit, and enter `systemize` only after exact G6T and G7 evidence.

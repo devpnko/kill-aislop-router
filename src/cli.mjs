@@ -164,7 +164,7 @@ Options:
   --runtime-root DIR
   --model MODEL
   --agent-providers ID,ID
-  --skill-provider ID=DIR (repeatable)
+  --skill-provider ID=DIR (repeatable; anti-slop must use this form)
   --timeout-ms NUMBER
   --max-output-bytes NUMBER
   --brief FILE

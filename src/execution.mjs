@@ -260,6 +260,16 @@ export function inspectPacketAdapter(packet, manifest) {
   if (packet.provider.id === "kill-ai-slop" && declaration.adapter !== "kill-ai-slop-v1") {
     return manualPending(packet, "kill-ai-slop requires the kill-ai-slop-v1 adapter", manifest);
   }
+  if (packet.provider.id === "anti-slop" && declaration.adapter !== "skill-json-v1") {
+    return manualPending(packet,
+      "anti-slop must run as a packet-bound skill-json-v1 child critic, not as a standalone or agent provider",
+      manifest);
+  }
+  if (packet.provider.id === "anti-slop" && packet.stage_id !== "functional-human-review") {
+    return manualPending(packet,
+      "anti-slop may only satisfy the routed functional-human-review stage",
+      manifest);
+  }
   if (packet.stage_id === "browser-evidence" && declaration.adapter !== "browser-json-v1") {
     return manualPending(packet, "browser-evidence requires the browser-json-v1 adapter", manifest);
   }

@@ -135,6 +135,12 @@ if (contract.packet.provider.id === "anti-slop" && !prompt.includes("This is a s
   process.stderr.write("skill-backed provider did not receive its locked skill instruction\n");
   process.exit(4);
 }
+if (contract.packet.provider.id === "anti-slop" &&
+  (!prompt.includes("packet-bound anti-slop child critic selected by KillSlopRouter") ||
+    !prompt.includes("already selected AFTER/audit usage"))) {
+  process.stderr.write("anti-slop provider was not constrained to the Router child-review mode\n");
+  process.exit(4);
+}
 if (mode.mutate_artifact) {
   fs.appendFileSync(contract.artifacts[0].resolved_path, "<!-- fake runtime mutation -->\n");
 }

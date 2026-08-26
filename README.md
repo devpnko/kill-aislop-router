@@ -5,6 +5,11 @@ authorized host adapters, and records the evidence needed to approve an exact
 artifact version. It keeps route planning, tool execution, scanner triage,
 conflict adjudication, and owner approval separate.
 
+Use `KillSlopRouter`, not standalone `antislop`, as the top-level command for a
+Router audit. The Router dispatches the installed antislop rules only as the
+digest-locked `anti-slop` child critic for `functional-human-review`. Direct
+antislop output is not a KillSlopRouter run and cannot be reported as `ran`.
+
 Version 1.0.0 is release-ready source. This repository does not publish an npm
 package or create a GitHub Release as part of the V1 work.
 
@@ -20,6 +25,7 @@ package or create a GitHub Release as part of the V1 work.
 - Never executes `command`, `args`, `shell`, or an entrypoint from a project profile.
 - Runs JSON agent, skill, browser, and `kill-ai-slop` adapters across a real child-process boundary.
 - Can opt into a first-party, digest-locked Codex reviewer host for fresh read-only agent and skill audit sessions.
+- Requires `anti-slop` to use a packet-bound `skill-json-v1` child; an agent or standalone binding remains `manual_pending`.
 - Leaves missing, manual, weak, or partial adapters as `manual_pending`. A `routable` plan is not execution evidence.
 - Requires explicit scanner triage, conflict adjudication, browser proof, and owner approval where the route requires them.
 - Treats scanner zero hits as discovery output, never as design approval.
@@ -82,6 +88,22 @@ Start a new Codex thread in the target repository and say:
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
 ```
 
+Do not append `antislop을 실행해` to that request. The plugin routes antislop
+internally after it has locked project direction, reviewer identity, and the
+exact audit packet.
+
+If antislop is also installed as a personal Codex skill, disable only its
+implicit top-level trigger while keeping explicit `$antislop` use available:
+
+```yaml
+# ~/.codex/skills/antislop/agents/openai.yaml
+policy:
+  allow_implicit_invocation: false
+```
+
+This metadata does not weaken the Router child. `host configure-codex` reads
+the selected skill root directly and locks its complete digest.
+
 The explicit invocation is available when implicit skill discovery is disabled:
 
 ```text
@@ -129,7 +151,7 @@ killsloprouter host configure-codex \
   --runtime-root "$HOME/.codex/packages/standalone/current" \
   --model gpt-5.4 \
   --agent-providers project-contract,visual-intent-review,locale-copy-review,domain-authority-review,privacy-authority-review \
-  --skill-provider "anti-slop=$HOME/.codex/skills/antislop" \
+  --skill-provider "anti-slop=$HOME/.killsloprouter/providers/anti-slop" \
   --allow-external \
   --json
 ```

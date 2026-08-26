@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Made KillSlopRouter the single top-level workflow for routed audits and
+  constrained `anti-slop` to the digest-locked `functional-human-review`
+  `skill-json-v1` child, with standalone/agent bindings left `manual_pending`.
+- Added explicit-only Codex metadata guidance for standalone antislop so it
+  does not start a duplicate parent workflow while remaining available through
+  `$antislop` and the Router's locked child binding.
 - Added an existing-UI closed loop that binds runtime redesign to a finalized
   pre-change audit executed by the official Playwright child adapter.
 - Added explicit critical scenario inventories, scenario × viewport screenshot

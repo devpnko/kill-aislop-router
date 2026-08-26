@@ -1,6 +1,6 @@
 ---
 name: kill-slop-router
-description: Bootstrap, continue, and run the safest eligible stage of a project-aware, fail-closed anti-AI-slop journey with independent reviewers, browser evidence, resumable receipts, owner approval, and gated design-system extraction. Use when the user says KillSlopRouter, killsloprouter, "킬슬롭", "이 프로젝트 정리해", anti-slop routing, AI slop audit or removal, asks to apply the process to a new repository, or wants evidence-backed creator, critic, browser, privacy, domain, and approval gates.
+description: Bootstrap, continue, and run the safest eligible stage of a project-aware, fail-closed anti-AI-slop journey with independent reviewers, browser evidence, resumable receipts, owner approval, and gated design-system extraction. Use when the user says KillSlopRouter, killsloprouter, "킬슬롭", "이 프로젝트 정리해", anti-slop routing, AI slop audit or removal, asks to apply the process to a new repository, or wants evidence-backed creator, critic, browser, privacy, domain, and approval gates. This is the top-level entrypoint for those requests; route antislop as a digest-locked child critic instead of starting its standalone workflow in the parent session.
 ---
 
 # KillSlopRouter
@@ -8,6 +8,23 @@ description: Bootstrap, continue, and run the safest eligible stage of a project
 Use the plugin's bundled `bin/killsloprouter.mjs` CLI as the deterministic route
 authority. Resolve the plugin root two directories above this skill directory.
 Do not substitute an ad-hoc prompt workflow for the CLI ledger.
+
+## Single entrypoint
+
+Keep this skill and the CLI as the only top-level workflow when the request is
+for KillSlopRouter. Do not start a separately installed `antislop` wizard, ask
+its DURING/AFTER question, apply it in the creator session, or report its direct
+output as a Router run. `anti-slop` is the provider ID for the routed
+`functional-human-review` packet. Bind its exact skill root with
+`host configure-codex --skill-provider anti-slop=/absolute/skill/root`; the
+Router then starts it in a fresh read-only child through `skill-json-v1`.
+
+If that binding is absent, weak, changed, or configured as an agent, leave the
+packet `manual_pending`. A separately produced antislop review may be ingested
+only as an explicitly manual result and remains `manual_recorded`, never `ran`.
+The child applies antislop as a filter after visual authority is resolved; it
+does not install skills, choose usage mode, create or fix the artifact, or
+override the verified visual intent and signature.
 
 ## Start in a project
 
