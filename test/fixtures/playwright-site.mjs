@@ -67,6 +67,43 @@ const layoutFailureHtml = html
       </section>
     </main>`);
 
+const inspectorScopeHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Inspector scope fixture</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #111; background: #fff; font: 16px/1.5 system-ui, sans-serif; }
+      main, [role="dialog"] { width: min(100% - 2rem, 40rem); margin: 1rem auto; padding: 1rem; }
+      button { min-height: 44px; padding: .625rem 1rem; color: #fff; background: #123a63; border: 2px solid #123a63; }
+      #scope-scroller { width: 220px; overflow-x: auto; border: 1px solid #475467; }
+      #scope-track { width: 5200px; padding: .5rem; }
+      #nested-focus { display: inline-block; margin-left: 5000px; }
+    </style>
+  </head>
+  <body>
+    <main id="background" inert>
+      <h1>Background workspace</h1>
+      <button id="background-action" type="button">Background action</button>
+    </main>
+    <section id="active-modal" role="dialog" aria-modal="true" aria-label="Inspector modal">
+      <button id="modal-close" type="button">Close</button>
+      <div id="scope-scroller">
+        <div id="scope-track"><a id="nested-focus" href="#modal-close">Nested focus target</a></div>
+      </div>
+    </section>
+  </body>
+</html>`;
+
+const unisolatedModalHtml = inspectorScopeHtml.replace(' id="background" inert', ' id="background"');
+const ariaHiddenModalHtml = inspectorScopeHtml.replace(
+  ' id="background" inert',
+  ' id="background" aria-hidden="true"'
+);
+
 const server = http.createServer((request, response) => {
   if (request.url === "/.well-known/killsloprouter-artifact.json") {
     const artifactDigests = JSON.parse(process.env.KSR_TEST_ARTIFACT_DIGESTS || "{}");
@@ -77,13 +114,18 @@ const server = http.createServer((request, response) => {
     }));
     return;
   }
-  if (["/", "/index.html", "/changed", "/layout-bad"].includes(request.url)) {
+  if ([
+    "/", "/index.html", "/changed", "/layout-bad", "/inspector-scope", "/modal-unisolated",
+    "/modal-aria-hidden"
+  ].includes(request.url)) {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
     if (request.url === "/changed") {
       response.end(html.replace("<h1>Evidence fixture</h1>", "<h1>Materially changed evidence fixture</h1>"));
-    } else {
-      response.end(request.url === "/layout-bad" ? layoutFailureHtml : html);
-    }
+    } else if (request.url === "/layout-bad") response.end(layoutFailureHtml);
+    else if (request.url === "/inspector-scope") response.end(inspectorScopeHtml);
+    else if (request.url === "/modal-unisolated") response.end(unisolatedModalHtml);
+    else if (request.url === "/modal-aria-hidden") response.end(ariaHiddenModalHtml);
+    else response.end(html);
     return;
   }
   response.writeHead(404, { "content-type": "text/plain" });

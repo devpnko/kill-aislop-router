@@ -315,6 +315,7 @@ async function inspectOverflow(page) {
   return page.evaluate(() => {
     const documentOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
     const offenders = [];
+    const scrollerExemptions = [];
     const overlaps = [];
     const clippedText = [];
     const selectorFor = (element) => {
@@ -336,16 +337,60 @@ async function inspectOverflow(page) {
         (style.clipPath && style.clipPath !== "none");
       return clipped && rect.width <= 2 && rect.height <= 2;
     };
+    const findContainingScroller = (element) => {
+      if (getComputedStyle(element).position === "fixed") return null;
+      const isClippedBy = (scroller) => {
+        let current = element;
+        while (current && current !== scroller) {
+          const style = getComputedStyle(current);
+          if (style.position === "fixed") return false;
+          if (style.position === "absolute") {
+            const containingBlock = current.offsetParent;
+            if (!containingBlock ||
+              (containingBlock !== scroller && !scroller.contains(containingBlock))) {
+              return false;
+            }
+          }
+          current = current.parentElement;
+        }
+        return current === scroller;
+      };
+      let current = element.parentElement;
+      while (current && current !== document.body) {
+        const style = getComputedStyle(current);
+        if (["auto", "scroll"].includes(style.overflowX) &&
+          current.scrollWidth > current.clientWidth + 1 && isClippedBy(current)) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    };
     for (const element of document.querySelectorAll("body *")) {
       const style = getComputedStyle(element);
       if (style.display === "none" || style.visibility === "hidden") continue;
       const rect = element.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) continue;
-      const parent = element.parentElement;
-      const parentStyle = parent ? getComputedStyle(parent) : null;
-      const intentionalScroller = parentStyle && ["auto", "scroll"].includes(parentStyle.overflowX) &&
-        parent.scrollWidth > parent.clientWidth;
-      if (!intentionalScroller && (rect.left < -1 || rect.right > window.innerWidth + 1)) {
+      const outsideViewport = rect.left < -1 || rect.right > window.innerWidth + 1;
+      const scroller = findContainingScroller(element);
+      const scrollerRect = scroller?.getBoundingClientRect();
+      const intentionalScroller = Boolean(scrollerRect &&
+        scrollerRect.left >= -1 && scrollerRect.right <= window.innerWidth + 1);
+      if (outsideViewport && intentionalScroller && scrollerExemptions.length < 25) {
+        scrollerExemptions.push({
+          tag: element.tagName.toLowerCase(),
+          id: element.id || null,
+          class: typeof element.className === "string" ? element.className.slice(0, 160) : null,
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          scroller: {
+            tag: scroller.tagName.toLowerCase(),
+            id: scroller.id || null,
+            class: typeof scroller.className === "string" ? scroller.className.slice(0, 160) : null
+          }
+        });
+      }
+      if (!intentionalScroller && outsideViewport) {
         offenders.push({
           tag: element.tagName.toLowerCase(),
           id: element.id || null,
@@ -425,6 +470,7 @@ async function inspectOverflow(page) {
       scroll_width: document.documentElement.scrollWidth,
       client_width: document.documentElement.clientWidth,
       offenders,
+      scroller_exemptions: scrollerExemptions,
       overlaps,
       clipped_text: clippedText
     };
@@ -436,35 +482,13 @@ async function inspectKeyboard(page, maxTabs) {
     "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
     "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
   ].join(",");
-  const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
-    const segments = [];
-    let current = element;
-    while (current && current !== document.body) {
-      if (current.id) {
-        segments.unshift(`#${current.id}`);
-        break;
-      }
-      const siblings = current.parentElement
-        ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
-        : [];
-      segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
-      current = current.parentElement;
-    }
-    return [{ key: segments.join(" > ") }];
-  }));
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  });
-  const visited = [];
-  const limit = Math.min(maxTabs, Math.max(1, focusable.length + 2));
-  for (let index = 0; index < limit; index += 1) {
-    await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (!element || element === document.body) return null;
+  const scope = await page.evaluate((focusableSelector) => {
+    const isVisible = (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const describe = (element) => {
       const style = getComputedStyle(element);
       const segments = [];
       let current = element;
@@ -488,15 +512,125 @@ async function inspectKeyboard(page, maxTabs) {
         outline: `${style.outlineStyle} ${style.outlineWidth}`,
         box_shadow: style.boxShadow
       };
+    };
+    const elements = [...document.querySelectorAll(focusableSelector)]
+      .filter((element) => isVisible(element) && element.tabIndex >= 0);
+    const modalCandidates = [...document.querySelectorAll('[aria-modal="true"]')].filter(isVisible);
+    const modalRoot = modalCandidates.at(-1) || null;
+    const scoped = modalRoot ? elements.filter((element) => modalRoot.contains(element)) : elements;
+    const background = modalRoot ? elements.filter((element) => !modalRoot.contains(element)) : [];
+    const unisolatedBackground = background.filter((element) =>
+      !element.closest("[inert]") && !element.closest('[aria-hidden="true"]'));
+    const ariaHiddenFocusableBackground = background.filter((element) =>
+      !element.closest("[inert]") && Boolean(element.closest('[aria-hidden="true"]')));
+    return {
+      focusable: scoped.map(describe),
+      modal_active: Boolean(modalRoot),
+      modal_scope: modalRoot ? describe(modalRoot) : null,
+      background_controls_total: background.length,
+      unisolated_background: unisolatedBackground.slice(0, 25).map(describe),
+      aria_hidden_focusable_background: ariaHiddenFocusableBackground.slice(0, 25).map(describe)
+    };
+  }, selector);
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  const visited = [];
+  const limit = maxTabs;
+  for (let index = 0; index < limit; index += 1) {
+    await page.keyboard.press("Tab");
+    const active = await page.evaluate(() => {
+      const element = document.activeElement;
+      if (!element || element === document.body) return null;
+      const style = getComputedStyle(element);
+      const segments = [];
+      let current = element;
+      while (current && current !== document.body) {
+        if (current.id) {
+          segments.unshift(`#${current.id}`);
+          break;
+        }
+        const siblings = current.parentElement
+          ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
+          : [];
+        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
+        current = current.parentElement;
+      }
+      const modalCandidates = [...document.querySelectorAll('[aria-modal="true"]')].filter((candidate) => {
+        const candidateStyle = getComputedStyle(candidate);
+        const candidateRect = candidate.getBoundingClientRect();
+        return candidateStyle.display !== "none" && candidateStyle.visibility !== "hidden" &&
+          candidateRect.width > 0 && candidateRect.height > 0;
+      });
+      const modalRoot = modalCandidates.at(-1) || null;
+      return {
+        key: segments.join(" > "),
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        role: element.getAttribute("role"),
+        name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
+        outline: `${style.outlineStyle} ${style.outlineWidth}`,
+        box_shadow: style.boxShadow,
+        inside_modal: !modalRoot || modalRoot.contains(element)
+      };
     });
     if (active) visited.push(active);
   }
   const visitedKeys = new Set(visited.map((entry) => entry.key));
+  const escapedByKey = new Map(visited
+    .filter((entry) => scope.modal_active && !entry.inside_modal)
+    .map((entry) => [entry.key, entry]));
   return {
-    focusable_count: focusable.length,
+    focusable_count: scope.focusable.length,
+    modal_active: scope.modal_active,
+    modal_scope: scope.modal_scope,
+    background_controls_total: scope.background_controls_total,
+    unisolated_background: scope.unisolated_background,
+    aria_hidden_focusable_background: scope.aria_hidden_focusable_background,
+    focus_escaped_scope: [...escapedByKey.values()].slice(0, 25),
     visited,
-    unreached: focusable.filter((entry) => !visitedKeys.has(entry.key))
+    unreached: scope.focusable.filter((entry) => !visitedKeys.has(entry.key))
   };
+}
+
+async function resetScrollState(page) {
+  return page.evaluate(async () => {
+    const selectorFor = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`;
+      const className = typeof element.className === "string"
+        ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3)
+          .map((name) => `.${CSS.escape(name)}`).join("")
+        : "";
+      return `${element.tagName.toLowerCase()}${className}`;
+    };
+    const scan = () => {
+      const drifted = [];
+      for (const element of document.querySelectorAll("*")) {
+        if (element.scrollLeft === 0 && element.scrollTop === 0) continue;
+        drifted.push({
+          selector: selectorFor(element),
+          scroll_left: element.scrollLeft,
+          scroll_top: element.scrollTop
+        });
+        if (drifted.length >= 25) break;
+      }
+      return drifted;
+    };
+    const before = { window: [window.scrollX, window.scrollY], drifted_elements: scan() };
+    for (const element of document.querySelectorAll("*")) {
+      if (element.scrollLeft !== 0) element.scrollLeft = 0;
+      if (element.scrollTop !== 0) element.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const residual = scan();
+    const after = { window: [window.scrollX, window.scrollY], residual_drift: residual };
+    return {
+      before,
+      after,
+      verified: after.window[0] === 0 && after.window[1] === 0 && residual.length === 0
+    };
+  });
 }
 
 async function runAxe(page, axeSource) {
@@ -663,16 +797,35 @@ async function runDesignBrowser(request) {
           execution.overflow.offenders.length === 0 &&
           execution.overflow.overlaps.length === 0 &&
           execution.overflow.clipped_text.length === 0;
+
+        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        await stabilizeVisualCapture(page);
+        await page.screenshot({
+          path: path.join(outputDirectory, screenshotName),
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          scale: "css"
+        });
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
-        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 &&
+          execution.keyboard.unreached.length === 0 &&
+          execution.keyboard.unisolated_background.length === 0 &&
+          execution.keyboard.aria_hidden_focusable_background.length === 0 &&
+          execution.keyboard.focus_escaped_scope.length === 0;
 
         const originalViewport = page.viewportSize();
         await page.setViewportSize({
           width: Math.max(320, Math.floor(originalViewport.width / 2)),
           height: originalViewport.height
         });
+        await stabilizeVisualCapture(page);
+        execution.scroll_reset = await resetScrollState(page);
         execution.zoom_200 = await inspectOverflow(page);
-        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+        aggregate["zoom-200"] &&= execution.scroll_reset.verified &&
+          !execution.zoom_200.document_overflow &&
           execution.zoom_200.offenders.length === 0 &&
           execution.zoom_200.overlaps.length === 0 &&
           execution.zoom_200.clipped_text.length === 0;
@@ -685,17 +838,6 @@ async function runDesignBrowser(request) {
         aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
         aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
         aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
-
-        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
-        await stabilizeVisualCapture(page);
-        await page.screenshot({
-          path: path.join(outputDirectory, screenshotName),
-          fullPage: true,
-          animations: "disabled",
-          caret: "hide",
-          scale: "css"
-        });
-        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
       } finally {
         await context.close();
       }
@@ -860,6 +1002,7 @@ async function run(request) {
             blocked_requests: [],
             overflow: null,
             zoom_200: null,
+            scroll_reset: null,
             keyboard: null,
             axe: null,
             visual_regression: null,
@@ -980,68 +1123,6 @@ async function run(request) {
               });
             }
 
-            execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
-            if (execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length > 0) {
-              add({
-                category: "keyboard",
-                ruleId: "keyboard-failure",
-                claim: `${execution.keyboard.unreached.length} focusable control(s) could not be reached by keyboard in ${executionId}`,
-                evidence: `${executionId}: ${JSON.stringify(execution.keyboard)}`,
-                suggestedFix: "Restore native focusability and a usable tab order."
-              });
-            }
-
-            const originalViewport = page.viewportSize();
-            const zoomViewport = {
-              width: Math.max(320, Math.floor(originalViewport.width / 2)),
-              height: originalViewport.height
-            };
-            await page.setViewportSize(zoomViewport);
-            execution.zoom_200 = { viewport: zoomViewport, overflow: await inspectOverflow(page) };
-            await page.setViewportSize(originalViewport);
-            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length ||
-              execution.zoom_200.overflow.overlaps.length || execution.zoom_200.overflow.clipped_text.length) {
-              add({
-                category: "zoom-200",
-                ruleId: "overflow-overlap-or-clipping",
-                claim: `The 200% zoom/reflow proxy overflowed, overlapped, or clipped text in ${executionId}`,
-                evidence: `${executionId}: ${JSON.stringify(execution.zoom_200)}`,
-                suggestedFix: "Support reflow at half the CSS viewport width without clipping required content."
-              });
-            }
-
-            execution.axe = await runAxe(page, axeSource);
-            for (const violation of execution.axe.violations) {
-              const contrast = violation.id === "color-contrast";
-              add({
-                severity: contrast || ["critical", "serious"].includes(violation.impact) ? "blocker" : "major",
-                category: contrast ? "contrast" : "aria-semantics",
-                ruleId: contrast ? "contrast-failure" : `axe:${violation.id}`,
-                claim: `${violation.help} (${violation.nodes.length} node${violation.nodes.length === 1 ? "" : "s"})`,
-                evidence: `${executionId}: ${violation.helpUrl}`,
-                suggestedFix: violation.description
-              });
-            }
-
-            const ariaSnapshot = await page.locator("body").ariaSnapshot();
-            fs.writeFileSync(path.join(outputDirectory, ariaName), `${ariaSnapshot}\n`);
-            if (!ariaSnapshot.trim()) {
-              add({
-                category: "screen-reader",
-                ruleId: "axe:empty-aria-snapshot",
-                claim: `ARIA snapshot is empty in ${executionId}`,
-                evidence: ariaName,
-                suggestedFix: "Restore semantic HTML, roles, names, and required states."
-              });
-            }
-            evidence.push({
-              path: ariaName,
-              kind: "aria-snapshot",
-              covers: ["keyboard-evidence", "state-evidence"],
-              viewports: [viewportName],
-              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
-            });
-
             const screenshotPath = path.join(outputDirectory, screenshotName);
             await stabilizeVisualCapture(page);
             await page.screenshot({
@@ -1101,6 +1182,107 @@ async function run(request) {
                 });
               }
             }
+
+            execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
+            if (execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length > 0) {
+              add({
+                category: "keyboard",
+                ruleId: "keyboard-failure",
+                claim: `${execution.keyboard.unreached.length} focusable control(s) could not be reached by keyboard in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.keyboard)}`,
+                suggestedFix: "Restore native focusability and a usable tab order."
+              });
+            }
+            if (execution.keyboard.modal_active && execution.keyboard.unisolated_background.length > 0) {
+              add({
+                category: "keyboard",
+                ruleId: "modal-background-not-isolated",
+                claim: `${execution.keyboard.unisolated_background.length} background control(s) are not inert or aria-hidden while a modal is active in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.keyboard.unisolated_background)}`,
+                suggestedFix: "Make background landmarks inert while the modal is open; use aria-hidden only when hidden focus is also removed."
+              });
+            }
+            if (execution.keyboard.modal_active && execution.keyboard.focus_escaped_scope.length > 0) {
+              add({
+                category: "keyboard",
+                ruleId: "modal-focus-escaped-scope",
+                claim: `${execution.keyboard.focus_escaped_scope.length} background control(s) received focus while a modal was active in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.keyboard.focus_escaped_scope)}`,
+                suggestedFix: "Use inert or a verified focus trap so keyboard focus cannot leave the active modal."
+              });
+            }
+            if (execution.keyboard.modal_active &&
+              execution.keyboard.aria_hidden_focusable_background.length > 0) {
+              add({
+                category: "keyboard",
+                ruleId: "aria-hidden-background-focusable",
+                claim: `${execution.keyboard.aria_hidden_focusable_background.length} aria-hidden background control(s) remain in the sequential focus order in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.keyboard.aria_hidden_focusable_background)}`,
+                suggestedFix: "Use inert or remove hidden descendants from the sequential focus order; aria-hidden alone is not keyboard isolation."
+              });
+            }
+
+            const originalViewport = page.viewportSize();
+            const zoomViewport = {
+              width: Math.max(320, Math.floor(originalViewport.width / 2)),
+              height: originalViewport.height
+            };
+            await page.setViewportSize(zoomViewport);
+            await stabilizeVisualCapture(page);
+            execution.scroll_reset = await resetScrollState(page);
+            execution.zoom_200 = { viewport: zoomViewport, overflow: await inspectOverflow(page) };
+            await page.setViewportSize(originalViewport);
+            if (!execution.scroll_reset.verified) {
+              add({
+                category: "zoom-200",
+                ruleId: "scroll-reset-not-verified",
+                claim: `Zoom/reflow inspection could not verify a clean scroll reset in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.scroll_reset)}`,
+                suggestedFix: "Remove script-driven or scroll-snap behavior that prevents deterministic zero-state zoom inspection."
+              });
+            }
+            if (execution.zoom_200.overflow.document_overflow || execution.zoom_200.overflow.offenders.length ||
+              execution.zoom_200.overflow.overlaps.length || execution.zoom_200.overflow.clipped_text.length) {
+              add({
+                category: "zoom-200",
+                ruleId: "overflow-overlap-or-clipping",
+                claim: `The 200% zoom/reflow proxy overflowed, overlapped, or clipped text in ${executionId}`,
+                evidence: `${executionId}: ${JSON.stringify(execution.zoom_200)}`,
+                suggestedFix: "Support reflow at half the CSS viewport width without clipping required content."
+              });
+            }
+
+            execution.axe = await runAxe(page, axeSource);
+            for (const violation of execution.axe.violations) {
+              const contrast = violation.id === "color-contrast";
+              add({
+                severity: contrast || ["critical", "serious"].includes(violation.impact) ? "blocker" : "major",
+                category: contrast ? "contrast" : "aria-semantics",
+                ruleId: contrast ? "contrast-failure" : `axe:${violation.id}`,
+                claim: `${violation.help} (${violation.nodes.length} node${violation.nodes.length === 1 ? "" : "s"})`,
+                evidence: `${executionId}: ${violation.helpUrl}`,
+                suggestedFix: violation.description
+              });
+            }
+
+            const ariaSnapshot = await page.locator("body").ariaSnapshot();
+            fs.writeFileSync(path.join(outputDirectory, ariaName), `${ariaSnapshot}\n`);
+            if (!ariaSnapshot.trim()) {
+              add({
+                category: "screen-reader",
+                ruleId: "axe:empty-aria-snapshot",
+                claim: `ARIA snapshot is empty in ${executionId}`,
+                evidence: ariaName,
+                suggestedFix: "Restore semantic HTML, roles, names, and required states."
+              });
+            }
+            evidence.push({
+              path: ariaName,
+              kind: "aria-snapshot",
+              covers: ["keyboard-evidence", "state-evidence"],
+              viewports: [viewportName],
+              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
+            });
 
             if (execution.console_errors.length || execution.page_errors.length) {
               add({

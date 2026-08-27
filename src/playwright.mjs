@@ -403,7 +403,8 @@ export function configurePlaywright({
   allowedOrigins = [],
   allowExternal = false,
   scenarioPath = null,
-  baselineDirectory = null
+  baselineDirectory = null,
+  maxKeyboardTabs = 80
 }) {
   const profileSource = safeJsonFile(profilePath, "project profile");
   const hostSource = safeJsonFile(hostManifestPath, "host adapter manifest");
@@ -420,6 +421,8 @@ export function configurePlaywright({
   requireValue(Array.isArray(allowedOrigins), "browser configure allowed origins must be an array");
   requireValue(PLAYWRIGHT_CHANNELS.has(browserChannel),
     `unsupported Playwright browser channel: ${browserChannel}`);
+  requireValue(Number.isInteger(maxKeyboardTabs) && maxKeyboardTabs >= 1 && maxKeyboardTabs <= 200,
+    "browser configure max keyboard tabs must be between 1 and 200");
   const external = [baseUrl, ...allowedOrigins].some((value) => !isLoopbackUrl(value));
   requireValue(!external || allowExternal,
     "external Playwright URLs require explicit --allow-external");
@@ -510,7 +513,7 @@ export function configurePlaywright({
         return [name, DEFAULT_PLAYWRIGHT_VIEWPORTS[name]];
       })),
       color_schemes: ["light"],
-      max_keyboard_tabs: 80,
+      max_keyboard_tabs: maxKeyboardTabs,
       navigation_timeout_ms: 30000
     }
   };
@@ -550,6 +553,7 @@ export function configurePlaywright({
         scenario_digest: hashArtifact(scenarioFile),
         baseline_directory: baselineRoot,
         baseline_digest: hashArtifact(baselineRoot, { ignores: [] }),
+        max_keyboard_tabs: maxKeyboardTabs,
         external_network: external
       },
       receipt_path: receiptPath

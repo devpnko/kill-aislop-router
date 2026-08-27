@@ -108,7 +108,7 @@ function help() {
 
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
-  killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR]
+  killsloprouter browser configure --base-url URL [--channel chrome] [--scenario FILE] [--baseline-dir DIR] [--max-keyboard-tabs 80]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
   killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
@@ -211,7 +211,8 @@ function browserCommand(args) {
     allowedOrigins: (args["allowed-origins"] || "").split(",").map((item) => item.trim()).filter(Boolean),
     allowExternal: Boolean(args["allow-external"]),
     scenarioPath: args.scenario || null,
-    baselineDirectory: args["baseline-dir"] || null
+    baselineDirectory: args["baseline-dir"] || null,
+    maxKeyboardTabs: args["max-keyboard-tabs"] === undefined ? 80 : Number(args["max-keyboard-tabs"])
   });
   if (args.json || args.format === "json") {
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
@@ -222,6 +223,7 @@ function browserCommand(args) {
     `status: ${receipt.status}`,
     `base URL: ${receipt.browser.base_url}`,
     `channel: ${receipt.browser.browser_channel}`,
+    `keyboard tab budget: ${receipt.browser.max_keyboard_tabs}`,
     `scenario: ${receipt.browser.scenario_file} (${receipt.browser.scenario_digest})`,
     `baselines: ${receipt.browser.baseline_directory} (${receipt.browser.baseline_digest})`,
     `host: ${receipt.host_manifest.path} (${receipt.host_manifest.digest})`,

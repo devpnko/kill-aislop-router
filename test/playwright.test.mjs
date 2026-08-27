@@ -21,6 +21,39 @@ const genericAdapter = path.join(root, "test", "fixtures", "host-adapter.mjs");
 const scannerRoot = path.join(root, "test", "fixtures", "kill-ai-slop");
 const scannerEntrypoint = path.join(scannerRoot, "skill", "scripts", "scan.mjs");
 const router = readJson(path.join(root, "router", "default-router.json"));
+const inlineServerSource = String.raw`
+import http from "node:http";
+
+const artifactDigests = JSON.parse(process.env.KSR_TEST_ARTIFACT_DIGESTS || "{}");
+const pages = JSON.parse(Buffer.from(process.env.KSR_TEST_PAGES_BASE64 || "", "base64").toString("utf8"));
+const server = http.createServer((request, response) => {
+  const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+  if (pathname === "/.well-known/killsloprouter-artifact.json") {
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({
+      killsloprouter_browser_attestation_version: 1,
+      artifact_digests: artifactDigests
+    }));
+    return;
+  }
+  if (Object.hasOwn(pages, pathname)) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(pages[pathname]);
+    return;
+  }
+  response.writeHead(404, { "content-type": "text/plain" });
+  response.end("not found");
+});
+
+server.listen(0, "127.0.0.1", () => {
+  const address = server.address();
+  process.stdout.write(JSON.stringify({ url: "http://127.0.0.1:" + address.port }) + "\n");
+});
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => server.close(() => process.exit(0)));
+}
+`;
 
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -28,6 +61,63 @@ function writeJson(file, value) {
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function reflowTransitionHtml({ mediumWidth = 600, narrowWidth = 280 } = {}) {
+  return `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:"><title>Responsive transition fixture</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}main{padding:24px}
+#reflow-panel{width:900px;padding:16px;background:#eef2ff;transition:width 60s linear}
+button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
+@media(max-width:1000px){#reflow-panel{width:${mediumWidth}px}}
+@media(max-width:500px){#reflow-panel{width:${narrowWidth}px}}
+</style></head><body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">반응형 전환 완료</p>
+<section id="reflow-panel" data-killsloprouter-state="default"><button type="button">Review settled layout</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`;
+}
+
+function scenarioScrollHtml() {
+  return `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:"><title>Scenario scroll fixture</title>
+<style>
+*{box-sizing:border-box}body{height:1600px;margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}
+main{padding:24px}button{min-height:44px;color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:8px 12px}
+#scenario-scroller{width:220px;overflow-x:auto;border:1px solid #475467}
+#scenario-track{display:flex;width:600px;padding:8px;gap:0}#leading-tab{flex:0 0 160px}#active-tab{flex:0 0 100px}
+#trailing-tab{flex:0 0 160px}#scroll-state{margin-top:16px;font-weight:600}
+</style></head><body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">선택 탭 정렬 완료</p>
+<section data-killsloprouter-state="default">
+<div id="scenario-scroller" role="tablist" aria-label="Account sections"><div id="scenario-track">
+<button id="leading-tab" type="button" role="tab" aria-selected="false">Overview</button>
+<button id="active-tab" type="button" role="tab" aria-selected="true">Crons</button>
+<button id="trailing-tab" type="button" role="tab" aria-selected="false">History</button>
+</div></div><p id="scroll-state">Inspector zero state</p>
+</section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main><script>
+const scroller = document.querySelector("#scenario-scroller");
+const state = document.querySelector("#scroll-state");
+const syncScrollState = () => {
+  const settled = scroller.scrollLeft === 73;
+  document.body.style.height = settled ? "1200px" : "1600px";
+  state.textContent = settled ? "Selected cron tab aligned" : "Inspector zero state";
+};
+scroller.addEventListener("scroll", syncScrollState);
+scroller.scrollLeft = 73;
+syncScrollState();
+</script></body></html>\n`;
+}
+
+function pngDimensions(file) {
+  const png = fs.readFileSync(file);
+  assert.equal(png.toString("ascii", 1, 4), "PNG");
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
 function runCli(args, cwd) {
@@ -154,12 +244,7 @@ function approveFixtureVisualSignature(profilePath, artifactPath) {
   writeJson(profilePath, profile);
 }
 
-function startServer(artifactDigests) {
-  const child = spawn(process.execPath, [serverEntrypoint], {
-    cwd: root,
-    env: { PATH: process.env.PATH || "", KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests) },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+function waitForServer(child) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -187,6 +272,26 @@ function startServer(artifactDigests) {
       }
     });
   });
+}
+
+function startServer(artifactDigests) {
+  return waitForServer(spawn(process.execPath, [serverEntrypoint], {
+    cwd: root,
+    env: { PATH: process.env.PATH || "", KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests) },
+    stdio: ["ignore", "pipe", "pipe"]
+  }));
+}
+
+function startInlineServer(artifactDigests, pages) {
+  return waitForServer(spawn(process.execPath, ["--input-type=module", "--eval", inlineServerSource], {
+    cwd: root,
+    env: {
+      PATH: process.env.PATH || "",
+      KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests),
+      KSR_TEST_PAGES_BASE64: Buffer.from(JSON.stringify(pages)).toString("base64")
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  }));
 }
 
 function makePacket(profile, artifactDigests) {
@@ -332,6 +437,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     assert.match(receipt.receipt_digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(receipt.browser.attestation_path, "/.well-known/killsloprouter-artifact.json");
     assert.deepEqual(receipt.browser.allowed_origins, []);
+    assert.equal(receipt.browser.max_keyboard_tabs, 80);
     const profile = readJson(paths.profile);
     assert.equal(profile.evidence.browser, "playwright");
     assert.deepEqual(profile.evidence.required_viewports, ["mobile", "tablet", "desktop"]);
@@ -345,9 +451,39 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     const declaration = host.providers["browser-evidence"];
     assert.equal(declaration.settings.contract, "killsloprouter-playwright-v1");
     assert.equal(declaration.settings.runtime_digest, playwrightRuntimeDigest(resolvePlaywrightRuntimeRoot()));
+    assert.equal(declaration.settings.max_keyboard_tabs, 80);
     assert.deepEqual(declaration.permissions, ["artifact:read", "evidence:write", "browser:control"]);
     assert.equal(fs.existsSync(receipt.profile.backup), true);
     assert.equal(fs.existsSync(receipt.host_manifest.backup), true);
+
+    const denseConfigured = runCli([
+      "browser", "configure",
+      "--profile", paths.profile,
+      "--host-config", paths.host,
+      "--base-url", "http://127.0.0.1:4173",
+      "--channel", "chrome",
+      "--max-keyboard-tabs", "120",
+      "--json"
+    ], directory);
+    assert.equal(denseConfigured.status, 0, denseConfigured.stderr || denseConfigured.stdout);
+    const denseReceipt = JSON.parse(denseConfigured.stdout);
+    assert.equal(denseReceipt.browser.max_keyboard_tabs, 120);
+    assert.equal(loadHostManifest(paths.host).providers["browser-evidence"].settings.max_keyboard_tabs, 120);
+
+    const beforeInvalidBudget = [hashArtifact(paths.profile), hashArtifact(paths.host)];
+    for (const invalidBudget of ["0", "201", "1.5", "invalid"]) {
+      const rejectedBudget = runCli([
+        "browser", "configure",
+        "--profile", paths.profile,
+        "--host-config", paths.host,
+        "--base-url", "http://127.0.0.1:4173",
+        "--max-keyboard-tabs", invalidBudget,
+        "--json"
+      ], directory);
+      assert.equal(rejectedBudget.status, 2, rejectedBudget.stderr || rejectedBudget.stdout);
+      assert.match(rejectedBudget.stderr, /max keyboard tabs must be between 1 and 200/);
+      assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], beforeInvalidBudget);
+    }
 
     const before = [hashArtifact(paths.profile), hashArtifact(paths.host)];
     assert.throws(() => configurePlaywright({
@@ -513,7 +649,7 @@ test("official Playwright runtime, scenario, and baseline tamper fail before chi
 });
 
 test("official Playwright adapter verifies a digest-bound static design prototype", {
-  timeout: 60_000
+  timeout: 120_000
 }, () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
   try {
@@ -596,12 +732,264 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       new Set(["mobile", "desktop"])
     );
 
+    fs.writeFileSync(prototype, scenarioScrollHtml());
+    const scenarioScrollPacket = structuredClone(packet);
+    scenarioScrollPacket.packet_id = "browser-design-scenario-scroll";
+    scenarioScrollPacket.packet_digest = `sha256:${"b".repeat(64)}`;
+    scenarioScrollPacket.evidence_contract.required_viewports = ["desktop"];
+    scenarioScrollPacket.design_task.subject_id = "scenario-scroll";
+    scenarioScrollPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const scenarioScrollManifest = structuredClone(manifest);
+    scenarioScrollManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 3;
+    const scenarioScroll = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-scenario-scroll-run",
+        packets: [scenarioScrollPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: scenarioScrollPacket,
+      manifest: scenarioScrollManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "scenario-scroll-design-evidence")
+    });
+    assert.equal(scenarioScroll.execution_status, "ran", scenarioScroll.error);
+    assert.ok(Object.values(scenarioScroll.result.checks).every(Boolean));
+    const scenarioScrollScreenshot = scenarioScroll.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(scenarioScrollScreenshot.path).height, 1200);
+    const scenarioScrollReport = readJson(
+      scenarioScroll.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(scenarioScrollReport.executions.every((execution) =>
+      execution.scroll_reset.before.drifted_elements.some((item) =>
+        item.selector === "#scenario-scroller" && item.scroll_left > 0)));
+    assert.ok(scenarioScrollReport.executions.every((execution) => execution.scroll_reset.verified));
+    assert.ok(scenarioScrollReport.executions.every((execution) =>
+      execution.scroll_reset.after.residual_drift.length === 0));
+
+    fs.writeFileSync(prototype, reflowTransitionHtml());
+    const settledReflowPacket = structuredClone(packet);
+    settledReflowPacket.packet_id = "browser-design-settled-reflow";
+    settledReflowPacket.packet_digest = `sha256:${"9".repeat(64)}`;
+    settledReflowPacket.evidence_contract.required_viewports = ["desktop"];
+    settledReflowPacket.design_task.subject_id = "settled-reflow";
+    settledReflowPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const settledReflow = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-settled-reflow-run",
+        packets: [settledReflowPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: settledReflowPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "settled-reflow-design-evidence")
+    });
+    assert.equal(settledReflow.execution_status, "ran", settledReflow.error);
+    assert.equal(settledReflow.result.checks["zoom-200"], true);
+    const settledReflowReport = readJson(
+      settledReflow.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(settledReflowReport.executions.every((execution) =>
+      !execution.zoom_200.document_overflow && execution.zoom_200.offenders.length === 0));
+
+    fs.writeFileSync(prototype, reflowTransitionHtml({ mediumWidth: 800 }));
+    const finalOverflowPacket = structuredClone(settledReflowPacket);
+    finalOverflowPacket.packet_id = "browser-design-final-reflow-overflow";
+    finalOverflowPacket.packet_digest = `sha256:${"a".repeat(64)}`;
+    finalOverflowPacket.design_task.subject_id = "final-reflow-overflow";
+    finalOverflowPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const finalOverflow = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-final-reflow-overflow-run",
+        packets: [finalOverflowPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: finalOverflowPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "final-reflow-overflow-design-evidence")
+    });
+    assert.equal(finalOverflow.execution_status, "ran", finalOverflow.error);
+    assert.equal(finalOverflow.result.checks.overflow, true);
+    assert.equal(finalOverflow.result.checks["zoom-200"], false);
+    const finalOverflowReport = readJson(
+      finalOverflow.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(finalOverflowReport.executions.every((execution) =>
+      execution.zoom_200.offenders.some((item) => item.id === "reflow-panel")));
+
+    const scopedPrototype = `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Inspector scope</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}
+main,[role=dialog]{width:min(100% - 2rem,40rem);margin:1rem auto;padding:1rem}
+button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
+#scope-scroller{width:220px;overflow-x:auto;border:1px solid #475467}
+#scope-track{width:5200px;padding:8px}#nested-focus{display:inline-block;margin-left:5000px}
+</style></head><body>
+<section id="active-modal" role="dialog" aria-modal="true" aria-label="Inspector modal">
+<button id="modal-close" type="button">Close</button>
+<button id="sticky-focus" type="button">Sticky focus proxy</button>
+<div id="scope-scroller"><div id="scope-track"><a id="nested-focus" href="#modal-close">Nested focus target</a></div></div>
+</section>
+<main id="background" inert data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button id="background-action" type="button">Background action</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main>
+<script>
+let heldTabs = 0;
+document.querySelector("#sticky-focus").addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && heldTabs < 4) {
+    heldTabs += 1;
+    event.preventDefault();
+  }
+});
+</script></body></html>\n`;
+    fs.writeFileSync(prototype, scopedPrototype);
+    const scopedPacket = structuredClone(packet);
+    scopedPacket.packet_id = "browser-design-inspector-scope";
+    scopedPacket.packet_digest = `sha256:${"5".repeat(64)}`;
+    scopedPacket.design_task.subject_id = "inspector-scope";
+    scopedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const repeatedKeyManifest = structuredClone(manifest);
+    repeatedKeyManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 8;
+    const scoped = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-inspector-scope-run",
+        packets: [scopedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: scopedPacket,
+      manifest: repeatedKeyManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "inspector-scope-design-evidence")
+    });
+    assert.equal(scoped.execution_status, "ran", scoped.error);
+    assert.ok(Object.values(scoped.result.checks).every(Boolean));
+    const scopedReport = readJson(scoped.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.modal_active));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unreached.length === 0));
+    assert.ok(scopedReport.executions.every((execution) =>
+      execution.keyboard.visited.filter((entry) => entry.id === "sticky-focus").length === 5));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unisolated_background.length === 0));
+    assert.ok(scopedReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(scopedReport.executions.every((execution) => execution.overflow.scroller_exemptions.some(
+      (item) => item.id === "nested-focus" && item.scroller.id === "scope-scroller"
+    )));
+    assert.ok(scopedReport.executions.every((execution) => execution.scroll_reset.before.drifted_elements.some(
+      (item) => item.selector === "#scope-scroller" && item.scroll_left > 0
+    )));
+    assert.ok(scopedReport.executions.every((execution) => execution.scroll_reset.verified));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace("heldTabs < 4", "true"));
+    const trappedPacket = structuredClone(scopedPacket);
+    trappedPacket.packet_id = "browser-design-keyboard-trap";
+    trappedPacket.packet_digest = `sha256:${"8".repeat(64)}`;
+    trappedPacket.design_task.subject_id = "keyboard-trap";
+    trappedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const trapped = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-keyboard-trap-run",
+        packets: [trappedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: trappedPacket,
+      manifest: repeatedKeyManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "keyboard-trap-design-evidence")
+    });
+    assert.equal(trapped.execution_status, "ran", trapped.error);
+    assert.equal(trapped.result.checks.keyboard, false);
+    const trappedReport = readJson(trapped.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.ok(trappedReport.executions.every((execution) => execution.keyboard.visited.length === 8));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.unreached.some((entry) => entry.id === "nested-focus")));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.length === 0));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.focus_escaped_scope.length === 0));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace(' id="background" inert', ' id="background"'));
+    const unisolatedPacket = structuredClone(scopedPacket);
+    unisolatedPacket.packet_id = "browser-design-unisolated-modal";
+    unisolatedPacket.packet_digest = `sha256:${"6".repeat(64)}`;
+    unisolatedPacket.design_task.subject_id = "unisolated-modal";
+    unisolatedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const unisolated = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-unisolated-modal-run",
+        packets: [unisolatedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: unisolatedPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "unisolated-modal-design-evidence")
+    });
+    assert.equal(unisolated.execution_status, "ran", unisolated.error);
+    assert.equal(unisolated.result.checks.keyboard, false);
+    const unisolatedReport = readJson(
+      unisolated.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(unisolatedReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.some((item) => item.id === "background-action")));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace(
+      ' id="background" inert',
+      ' id="background" aria-hidden="true"'
+    ));
+    const ariaHiddenPacket = structuredClone(scopedPacket);
+    ariaHiddenPacket.packet_id = "browser-design-aria-hidden-modal";
+    ariaHiddenPacket.packet_digest = `sha256:${"7".repeat(64)}`;
+    ariaHiddenPacket.design_task.subject_id = "aria-hidden-modal";
+    ariaHiddenPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const lowTabBudgetManifest = structuredClone(manifest);
+    lowTabBudgetManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 1;
+    const ariaHidden = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-aria-hidden-modal-run",
+        packets: [ariaHiddenPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: ariaHiddenPacket,
+      manifest: lowTabBudgetManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "aria-hidden-modal-design-evidence")
+    });
+    assert.equal(ariaHidden.execution_status, "ran", ariaHidden.error);
+    assert.equal(ariaHidden.result.checks.keyboard, false);
+    const ariaHiddenReport = readJson(
+      ariaHidden.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.length === 0));
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.some((item) => item.id === "background-action")));
+
     fs.writeFileSync(prototype, `<!doctype html>
 <html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}.scroller{width:200px;overflow-x:auto}.wide{width:5200px}.nested{display:inline-block;margin-left:5000px}#true-offender{position:absolute;left:5000px;width:100px}#offscreen-scroller{position:absolute;left:5000px}#escaped-absolute{position:absolute;left:6500px;width:100px}</style></head>
 <body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
 <section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
 <section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+<div id="in-view-scroller" class="scroller"><div class="wide"><span id="nested-wide-item" class="nested">Nested wide item</span></div></div>
+<div id="true-offender">True offender</div>
+<div id="offscreen-scroller" class="scroller"><div class="wide"><span id="offscreen-nested" class="nested">Offscreen nested item</span></div></div>
+<div id="absolute-scroller" class="scroller"><div class="wide"><div id="escaped-absolute"><span id="escaped-nested">Escaped nested item</span></div></div></div>
 </main></body></html>\n`);
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
@@ -627,6 +1015,22 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     );
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.overlaps.length > 0));
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.scroller_exemptions.some((item) =>
+        item.id === "nested-wide-item" && item.scroller.id === "in-view-scroller")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "true-offender")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "offscreen-scroller")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      !execution.overflow.scroller_exemptions.some((item) => item.id === "offscreen-nested")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "escaped-absolute")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "escaped-nested")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      !execution.overflow.scroller_exemptions.some((item) =>
+        ["escaped-absolute", "escaped-nested"].includes(item.id))));
 
     fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
     fs.writeFileSync(prototype, `<!doctype html>
@@ -698,8 +1102,175 @@ test("served artifact attestation mismatch fails closed across the child boundar
   }
 });
 
+test("official Playwright settles responsive transitions before reflow inspection without hiding final overflow", {
+  timeout: 120_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-reflow-settle-"));
+  let server = null;
+  try {
+    const pages = {
+      "/settled": reflowTransitionHtml(),
+      "/final-overflow": reflowTransitionHtml({ narrowWidth: 350 })
+    };
+    const artifact = path.join(directory, "responsive-pages.json");
+    writeJson(artifact, pages);
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startInlineServer(artifactDigests, pages);
+    const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        {
+          id: "settled-reflow",
+          path: "/settled",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#reflow-panel" }]
+        },
+        {
+          id: "final-overflow",
+          path: "/final-overflow",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#reflow-panel" }]
+        }
+      ]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    const profile = readJson(paths.profile);
+    const manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    const outputDirectory = path.join(directory, "reflow-evidence");
+    const result = executeAuditPacket({
+      run: makeRun(directory, artifact, packet),
+      packet,
+      manifest,
+      attempt: 1,
+      outputDirectory
+    });
+    assert.equal(result.execution_status, "ran", result.error);
+    const report = readJson(path.join(outputDirectory, "browser-report.json"));
+    const settledExecutions = report.executions.filter((execution) => execution.scenario === "settled-reflow");
+    assert.equal(settledExecutions.length, 3);
+    assert.ok(settledExecutions.every((execution) =>
+      !execution.zoom_200.overflow.document_overflow &&
+      execution.zoom_200.overflow.offenders.length === 0));
+    const finalOverflowExecutions = report.executions.filter((execution) => execution.scenario === "final-overflow");
+    assert.equal(finalOverflowExecutions.length, 3);
+    assert.ok(finalOverflowExecutions.every((execution) =>
+      !execution.overflow.document_overflow && execution.overflow.offenders.length === 0));
+    assert.ok(finalOverflowExecutions.some((execution) =>
+      execution.zoom_200.overflow.offenders.some((item) => item.id === "reflow-panel")));
+    assert.ok(result.result.findings.some((item) =>
+      item.category === "zoom-200" && item.rule_id === "overflow-overlap-or-clipping" &&
+      item.evidence.startsWith("final-overflow--light--mobile:")));
+    assert.ok(!result.result.findings.some((item) =>
+      item.category === "zoom-200" && item.evidence.startsWith("settled-reflow--")));
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official Playwright captures the asserted horizontal scroll state before keyboard and zoom reset", {
+  timeout: 120_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-scenario-scroll-"));
+  let server = null;
+  try {
+    const pages = { "/scenario-scroll": scenarioScrollHtml() };
+    const artifact = path.join(directory, "scenario-scroll-page.json");
+    writeJson(artifact, pages);
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startInlineServer(artifactDigests, pages);
+    const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
+        id: "scenario-scroll",
+        path: "/scenario-scroll",
+        actions: [],
+        assertions: [
+          { type: "visible", locator: "#active-tab" },
+          { type: "computed-style", locator: "body", property: "height", value: "1200px" }
+        ]
+      }]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines,
+      maxKeyboardTabs: 3
+    });
+    const profile = readJson(paths.profile);
+    let manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    packet.evidence_contract = { ...packet.evidence_contract, required_viewports: ["desktop"] };
+    const run = makeRun(directory, artifact, packet);
+    const firstOutput = path.join(directory, "scenario-scroll-evidence-1");
+    const first = executeAuditPacket({ run, packet, manifest, attempt: 1, outputDirectory: firstOutput });
+    assert.equal(first.execution_status, "ran", first.error);
+    const firstScreenshot = first.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(firstScreenshot.path).height, 1200);
+    const firstReport = readJson(path.join(firstOutput, "browser-report.json"));
+    assert.equal(firstReport.executions.length, 1);
+    const firstExecution = firstReport.executions[0];
+    assert.ok(firstExecution.assertions.every((assertion) => assertion.status === "passed"));
+    assert.equal(firstExecution.keyboard.focusable_count, 3);
+    assert.equal(firstExecution.keyboard.unreached.length, 0);
+    assert.ok(firstExecution.scroll_reset.before.drifted_elements.some((item) =>
+      item.selector === "#scenario-scroller" && item.scroll_left > 0));
+    assert.equal(firstExecution.scroll_reset.verified, true);
+    assert.deepEqual(firstExecution.scroll_reset.after.residual_drift, []);
+    assert.ok(firstExecution.zoom_200?.overflow);
+    assert.ok(firstExecution.axe);
+    assert.deepEqual(firstExecution.console_errors, []);
+    assert.deepEqual(firstExecution.page_errors, []);
+    assert.deepEqual(firstExecution.request_failures, []);
+    assert.deepEqual(firstExecution.response_errors, []);
+    assert.deepEqual(firstExecution.blocked_requests, []);
+    assert.ok(first.result.evidence.some((item) => item.kind === "aria-snapshot"));
+    assert.ok(first.result.evidence.some((item) => item.kind === "trace"));
+    assert.ok(first.result.findings.some((item) => item.category === "visual-regression"));
+
+    fs.copyFileSync(firstScreenshot.path, path.join(paths.baselines, path.basename(firstScreenshot.path)));
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines,
+      maxKeyboardTabs: 3
+    });
+    manifest = loadHostManifest(paths.host);
+    const secondOutput = path.join(directory, "scenario-scroll-evidence-2");
+    const second = executeAuditPacket({ run, packet, manifest, attempt: 2, outputDirectory: secondOutput });
+    assert.equal(second.execution_status, "ran", second.error);
+    const secondScreenshot = second.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(secondScreenshot.path).height, 1200);
+    const secondReport = readJson(path.join(secondOutput, "browser-report.json"));
+    assert.equal(secondReport.executions[0].visual_regression.status, "matched");
+    assert.equal(secondReport.executions[0].scroll_reset.verified, true);
+    assert.ok(!second.result.findings.some((item) => item.category === "visual-regression"));
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
-  timeout: 150_000
+  timeout: 240_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-e2e-"));
   let server = null;
@@ -827,6 +1398,71 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       entry.assertions.filter((assertion) =>
         ["no-overlap", "no-clipping", "computed-style"].includes(assertion.type))
         .every((assertion) => assertion.status === "failed")));
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        {
+          id: "inspector-scope",
+          path: "/inspector-scope",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        },
+        {
+          id: "modal-unisolated",
+          path: "/modal-unisolated",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        },
+        {
+          id: "modal-aria-hidden",
+          path: "/modal-aria-hidden",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        }
+      ]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    manifest = loadHostManifest(paths.host);
+    const inspectorOutput = path.join(directory, "evidence-inspector-scope");
+    const inspector = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: inspectorOutput });
+    assert.equal(inspector.execution_status, "ran", inspector.error);
+    const inspectorReport = readJson(path.join(inspectorOutput, "browser-report.json"));
+    const scopedExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "inspector-scope");
+    assert.equal(scopedExecutions.length, 3);
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.modal_active));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.unreached.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.unisolated_background.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.overflow.scroller_exemptions.some(
+      (item) => item.id === "nested-focus" && item.scroller.id === "scope-scroller"
+    )));
+    assert.ok(scopedExecutions.every((entry) => entry.scroll_reset.before.drifted_elements.some(
+      (item) => item.selector === "#scope-scroller" && item.scroll_left > 0
+    )));
+    assert.ok(scopedExecutions.every((entry) => entry.scroll_reset.verified));
+    const unisolatedExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "modal-unisolated");
+    assert.equal(unisolatedExecutions.length, 3);
+    assert.ok(unisolatedExecutions.every((entry) =>
+      entry.keyboard.unisolated_background.some((item) => item.id === "background-action")));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "modal-background-not-isolated"));
+    const ariaHiddenExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "modal-aria-hidden");
+    assert.equal(ariaHiddenExecutions.length, 3);
+    assert.ok(ariaHiddenExecutions.every((entry) => entry.keyboard.unisolated_background.length === 0));
+    assert.ok(ariaHiddenExecutions.every((entry) =>
+      entry.keyboard.aria_hidden_focusable_background.some((item) => item.id === "background-action")));
+    assert.ok(ariaHiddenExecutions.every((entry) =>
+      entry.keyboard.focus_escaped_scope.some((item) => item.id === "background-action")));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "aria-hidden-background-focusable"));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "modal-focus-escaped-scope"));
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
