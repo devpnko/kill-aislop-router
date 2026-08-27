@@ -80,6 +80,46 @@ button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
 </main></body></html>\n`;
 }
 
+function scenarioScrollHtml() {
+  return `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:"><title>Scenario scroll fixture</title>
+<style>
+*{box-sizing:border-box}body{height:1600px;margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}
+main{padding:24px}button{min-height:44px;color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:8px 12px}
+#scenario-scroller{width:220px;overflow-x:auto;border:1px solid #475467}
+#scenario-track{display:flex;width:600px;padding:8px;gap:0}#leading-tab{flex:0 0 160px}#active-tab{flex:0 0 100px}
+#trailing-tab{flex:0 0 160px}#scroll-state{margin-top:16px;font-weight:600}
+</style></head><body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">선택 탭 정렬 완료</p>
+<section data-killsloprouter-state="default">
+<div id="scenario-scroller" role="tablist" aria-label="Account sections"><div id="scenario-track">
+<button id="leading-tab" type="button" role="tab" aria-selected="false">Overview</button>
+<button id="active-tab" type="button" role="tab" aria-selected="true">Crons</button>
+<button id="trailing-tab" type="button" role="tab" aria-selected="false">History</button>
+</div></div><p id="scroll-state">Inspector zero state</p>
+</section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main><script>
+const scroller = document.querySelector("#scenario-scroller");
+const state = document.querySelector("#scroll-state");
+const syncScrollState = () => {
+  const settled = scroller.scrollLeft === 73;
+  document.body.style.height = settled ? "1200px" : "1600px";
+  state.textContent = settled ? "Selected cron tab aligned" : "Inspector zero state";
+};
+scroller.addEventListener("scroll", syncScrollState);
+scroller.scrollLeft = 73;
+syncScrollState();
+</script></body></html>\n`;
+}
+
+function pngDimensions(file) {
+  const png = fs.readFileSync(file);
+  assert.equal(png.toString("ascii", 1, 4), "PNG");
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
 function runCli(args, cwd) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd,
@@ -692,6 +732,41 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       new Set(["mobile", "desktop"])
     );
 
+    fs.writeFileSync(prototype, scenarioScrollHtml());
+    const scenarioScrollPacket = structuredClone(packet);
+    scenarioScrollPacket.packet_id = "browser-design-scenario-scroll";
+    scenarioScrollPacket.packet_digest = `sha256:${"b".repeat(64)}`;
+    scenarioScrollPacket.evidence_contract.required_viewports = ["desktop"];
+    scenarioScrollPacket.design_task.subject_id = "scenario-scroll";
+    scenarioScrollPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const scenarioScrollManifest = structuredClone(manifest);
+    scenarioScrollManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 3;
+    const scenarioScroll = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-scenario-scroll-run",
+        packets: [scenarioScrollPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: scenarioScrollPacket,
+      manifest: scenarioScrollManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "scenario-scroll-design-evidence")
+    });
+    assert.equal(scenarioScroll.execution_status, "ran", scenarioScroll.error);
+    assert.ok(Object.values(scenarioScroll.result.checks).every(Boolean));
+    const scenarioScrollScreenshot = scenarioScroll.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(scenarioScrollScreenshot.path).height, 1200);
+    const scenarioScrollReport = readJson(
+      scenarioScroll.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(scenarioScrollReport.executions.every((execution) =>
+      execution.scroll_reset.before.drifted_elements.some((item) =>
+        item.selector === "#scenario-scroller" && item.scroll_left > 0)));
+    assert.ok(scenarioScrollReport.executions.every((execution) => execution.scroll_reset.verified));
+    assert.ok(scenarioScrollReport.executions.every((execution) =>
+      execution.scroll_reset.after.residual_drift.length === 0));
+
     fs.writeFileSync(prototype, reflowTransitionHtml());
     const settledReflowPacket = structuredClone(packet);
     settledReflowPacket.packet_id = "browser-design-settled-reflow";
@@ -1097,6 +1172,97 @@ test("official Playwright settles responsive transitions before reflow inspectio
       item.evidence.startsWith("final-overflow--light--mobile:")));
     assert.ok(!result.result.findings.some((item) =>
       item.category === "zoom-200" && item.evidence.startsWith("settled-reflow--")));
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official Playwright captures the asserted horizontal scroll state before keyboard and zoom reset", {
+  timeout: 120_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-scenario-scroll-"));
+  let server = null;
+  try {
+    const pages = { "/scenario-scroll": scenarioScrollHtml() };
+    const artifact = path.join(directory, "scenario-scroll-page.json");
+    writeJson(artifact, pages);
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startInlineServer(artifactDigests, pages);
+    const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{
+        id: "scenario-scroll",
+        path: "/scenario-scroll",
+        actions: [],
+        assertions: [
+          { type: "visible", locator: "#active-tab" },
+          { type: "computed-style", locator: "body", property: "height", value: "1200px" }
+        ]
+      }]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines,
+      maxKeyboardTabs: 3
+    });
+    const profile = readJson(paths.profile);
+    let manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    packet.evidence_contract = { ...packet.evidence_contract, required_viewports: ["desktop"] };
+    const run = makeRun(directory, artifact, packet);
+    const firstOutput = path.join(directory, "scenario-scroll-evidence-1");
+    const first = executeAuditPacket({ run, packet, manifest, attempt: 1, outputDirectory: firstOutput });
+    assert.equal(first.execution_status, "ran", first.error);
+    const firstScreenshot = first.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(firstScreenshot.path).height, 1200);
+    const firstReport = readJson(path.join(firstOutput, "browser-report.json"));
+    assert.equal(firstReport.executions.length, 1);
+    const firstExecution = firstReport.executions[0];
+    assert.ok(firstExecution.assertions.every((assertion) => assertion.status === "passed"));
+    assert.equal(firstExecution.keyboard.focusable_count, 3);
+    assert.equal(firstExecution.keyboard.unreached.length, 0);
+    assert.ok(firstExecution.scroll_reset.before.drifted_elements.some((item) =>
+      item.selector === "#scenario-scroller" && item.scroll_left > 0));
+    assert.equal(firstExecution.scroll_reset.verified, true);
+    assert.deepEqual(firstExecution.scroll_reset.after.residual_drift, []);
+    assert.ok(firstExecution.zoom_200?.overflow);
+    assert.ok(firstExecution.axe);
+    assert.deepEqual(firstExecution.console_errors, []);
+    assert.deepEqual(firstExecution.page_errors, []);
+    assert.deepEqual(firstExecution.request_failures, []);
+    assert.deepEqual(firstExecution.response_errors, []);
+    assert.deepEqual(firstExecution.blocked_requests, []);
+    assert.ok(first.result.evidence.some((item) => item.kind === "aria-snapshot"));
+    assert.ok(first.result.evidence.some((item) => item.kind === "trace"));
+    assert.ok(first.result.findings.some((item) => item.category === "visual-regression"));
+
+    fs.copyFileSync(firstScreenshot.path, path.join(paths.baselines, path.basename(firstScreenshot.path)));
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines,
+      maxKeyboardTabs: 3
+    });
+    manifest = loadHostManifest(paths.host);
+    const secondOutput = path.join(directory, "scenario-scroll-evidence-2");
+    const second = executeAuditPacket({ run, packet, manifest, attempt: 2, outputDirectory: secondOutput });
+    assert.equal(second.execution_status, "ran", second.error);
+    const secondScreenshot = second.result.evidence.find((item) => item.kind === "screenshot");
+    assert.equal(pngDimensions(secondScreenshot.path).height, 1200);
+    const secondReport = readJson(path.join(secondOutput, "browser-report.json"));
+    assert.equal(secondReport.executions[0].visual_regression.status, "matched");
+    assert.equal(secondReport.executions[0].scroll_reset.verified, true);
+    assert.ok(!second.result.findings.some((item) => item.category === "visual-regression"));
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });

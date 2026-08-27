@@ -797,6 +797,18 @@ async function runDesignBrowser(request) {
           execution.overflow.offenders.length === 0 &&
           execution.overflow.overlaps.length === 0 &&
           execution.overflow.clipped_text.length === 0;
+
+        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        await stabilizeVisualCapture(page);
+        await page.screenshot({
+          path: path.join(outputDirectory, screenshotName),
+          fullPage: true,
+          animations: "disabled",
+          caret: "hide",
+          scale: "css"
+        });
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
         aggregate.keyboard &&= execution.keyboard.focusable_count > 0 &&
           execution.keyboard.unreached.length === 0 &&
@@ -826,17 +838,6 @@ async function runDesignBrowser(request) {
         aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
         aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
         aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
-
-        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
-        await stabilizeVisualCapture(page);
-        await page.screenshot({
-          path: path.join(outputDirectory, screenshotName),
-          fullPage: true,
-          animations: "disabled",
-          caret: "hide",
-          scale: "css"
-        });
-        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
       } finally {
         await context.close();
       }
@@ -1122,6 +1123,66 @@ async function run(request) {
               });
             }
 
+            const screenshotPath = path.join(outputDirectory, screenshotName);
+            await stabilizeVisualCapture(page);
+            await page.screenshot({
+              path: screenshotPath,
+              fullPage: true,
+              animations: "disabled",
+              caret: "hide",
+              scale: "css"
+            });
+            evidence.push({
+              path: screenshotName,
+              kind: "screenshot",
+              covers: packet.assigned_capabilities,
+              viewports: [viewportName],
+              checks: []
+            });
+            const baselinePath = path.join(settings.baseline_directory, screenshotName);
+            if (!fs.existsSync(baselinePath)) {
+              execution.visual_regression = { status: "baseline-missing", baseline: baselinePath };
+              add({
+                category: "visual-regression",
+                claim: `Approved visual baseline is missing for ${executionId}`,
+                evidence: screenshotName,
+                suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
+              });
+            } else {
+              const baseline = fs.readFileSync(baselinePath);
+              const actual = fs.readFileSync(screenshotPath);
+              const exact = baseline.equals(actual);
+              const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
+              const matches = comparison === null;
+              execution.visual_regression = {
+                status: matches ? "matched" : "changed",
+                baseline: baselinePath,
+                comparison: exact ? "exact-bytes" : "playwright-pixelmatch",
+                threshold: VISUAL_COMPARISON.threshold,
+                max_diff_pixels: VISUAL_COMPARISON.maxDiffPixels,
+                difference: comparison?.errorMessage || null
+              };
+              if (!matches) {
+                const diffName = `${executionId}.diff.png`;
+                if (comparison.diff) {
+                  fs.writeFileSync(path.join(outputDirectory, diffName), comparison.diff);
+                  evidence.push({
+                    path: diffName,
+                    kind: "visual-diff",
+                    covers: packet.assigned_capabilities,
+                    viewports: [viewportName],
+                    checks: ["visual-regression"]
+                  });
+                }
+                add({
+                  category: "visual-regression",
+                  claim: `Rendered pixels changed from the approved baseline for ${executionId}`,
+                  evidence: `${screenshotName} differs from ${baselinePath}: ${comparison.errorMessage}`,
+                  suggestedFix: "Review the visual change and approve a new digest-bound baseline only when intentional."
+                });
+              }
+            }
+
             execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
             if (execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length > 0) {
               add({
@@ -1222,66 +1283,6 @@ async function run(request) {
               viewports: [viewportName],
               checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
             });
-
-            const screenshotPath = path.join(outputDirectory, screenshotName);
-            await stabilizeVisualCapture(page);
-            await page.screenshot({
-              path: screenshotPath,
-              fullPage: true,
-              animations: "disabled",
-              caret: "hide",
-              scale: "css"
-            });
-            evidence.push({
-              path: screenshotName,
-              kind: "screenshot",
-              covers: packet.assigned_capabilities,
-              viewports: [viewportName],
-              checks: []
-            });
-            const baselinePath = path.join(settings.baseline_directory, screenshotName);
-            if (!fs.existsSync(baselinePath)) {
-              execution.visual_regression = { status: "baseline-missing", baseline: baselinePath };
-              add({
-                category: "visual-regression",
-                claim: `Approved visual baseline is missing for ${executionId}`,
-                evidence: screenshotName,
-                suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
-              });
-            } else {
-              const baseline = fs.readFileSync(baselinePath);
-              const actual = fs.readFileSync(screenshotPath);
-              const exact = baseline.equals(actual);
-              const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
-              const matches = comparison === null;
-              execution.visual_regression = {
-                status: matches ? "matched" : "changed",
-                baseline: baselinePath,
-                comparison: exact ? "exact-bytes" : "playwright-pixelmatch",
-                threshold: VISUAL_COMPARISON.threshold,
-                max_diff_pixels: VISUAL_COMPARISON.maxDiffPixels,
-                difference: comparison?.errorMessage || null
-              };
-              if (!matches) {
-                const diffName = `${executionId}.diff.png`;
-                if (comparison.diff) {
-                  fs.writeFileSync(path.join(outputDirectory, diffName), comparison.diff);
-                  evidence.push({
-                    path: diffName,
-                    kind: "visual-diff",
-                    covers: packet.assigned_capabilities,
-                    viewports: [viewportName],
-                    checks: ["visual-regression"]
-                  });
-                }
-                add({
-                  category: "visual-regression",
-                  claim: `Rendered pixels changed from the approved baseline for ${executionId}`,
-                  evidence: `${screenshotName} differs from ${baselinePath}: ${comparison.errorMessage}`,
-                  suggestedFix: "Review the visual change and approve a new digest-bound baseline only when intentional."
-                });
-              }
-            }
 
             if (execution.console_errors.length || execution.page_errors.length) {
               add({
