@@ -536,7 +536,7 @@ async function inspectKeyboard(page, maxTabs) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const visited = [];
-  const limit = Math.min(maxTabs, Math.max(1, scope.focusable.length + 2));
+  const limit = maxTabs;
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
     const active = await page.evaluate(() => {

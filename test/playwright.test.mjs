@@ -607,19 +607,31 @@ button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
 </style></head><body>
 <section id="active-modal" role="dialog" aria-modal="true" aria-label="Inspector modal">
 <button id="modal-close" type="button">Close</button>
+<button id="sticky-focus" type="button">Sticky focus proxy</button>
 <div id="scope-scroller"><div id="scope-track"><a id="nested-focus" href="#modal-close">Nested focus target</a></div></div>
 </section>
 <main id="background" inert data-killsloprouter-locale="en-US">
 <p data-killsloprouter-locale="ko-KR">검토 대기</p>
 <section data-killsloprouter-state="default"><button id="background-action" type="button">Background action</button></section>
 <section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`;
+</main>
+<script>
+let heldTabs = 0;
+document.querySelector("#sticky-focus").addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && heldTabs < 4) {
+    heldTabs += 1;
+    event.preventDefault();
+  }
+});
+</script></body></html>\n`;
     fs.writeFileSync(prototype, scopedPrototype);
     const scopedPacket = structuredClone(packet);
     scopedPacket.packet_id = "browser-design-inspector-scope";
     scopedPacket.packet_digest = `sha256:${"5".repeat(64)}`;
     scopedPacket.design_task.subject_id = "inspector-scope";
     scopedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const repeatedKeyManifest = structuredClone(manifest);
+    repeatedKeyManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 8;
     const scoped = executeAuditPacket({
       run: {
         ...run,
@@ -628,7 +640,7 @@ button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
         artifacts: [snapshotArtifact(prototype, { root: directory })]
       },
       packet: scopedPacket,
-      manifest,
+      manifest: repeatedKeyManifest,
       attempt: 1,
       outputDirectory: path.join(directory, "inspector-scope-design-evidence")
     });
@@ -637,6 +649,8 @@ button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
     const scopedReport = readJson(scoped.result.evidence.find((item) => item.kind === "test-report").path);
     assert.ok(scopedReport.executions.every((execution) => execution.keyboard.modal_active));
     assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unreached.length === 0));
+    assert.ok(scopedReport.executions.every((execution) =>
+      execution.keyboard.visited.filter((entry) => entry.id === "sticky-focus").length === 5));
     assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unisolated_background.length === 0));
     assert.ok(scopedReport.executions.every((execution) =>
       execution.keyboard.aria_hidden_focusable_background.length === 0));
@@ -648,6 +662,37 @@ button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
       (item) => item.selector === "#scope-scroller" && item.scroll_left > 0
     )));
     assert.ok(scopedReport.executions.every((execution) => execution.scroll_reset.verified));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace("heldTabs < 4", "true"));
+    const trappedPacket = structuredClone(scopedPacket);
+    trappedPacket.packet_id = "browser-design-keyboard-trap";
+    trappedPacket.packet_digest = `sha256:${"8".repeat(64)}`;
+    trappedPacket.design_task.subject_id = "keyboard-trap";
+    trappedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const trapped = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-keyboard-trap-run",
+        packets: [trappedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: trappedPacket,
+      manifest: repeatedKeyManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "keyboard-trap-design-evidence")
+    });
+    assert.equal(trapped.execution_status, "ran", trapped.error);
+    assert.equal(trapped.result.checks.keyboard, false);
+    const trappedReport = readJson(trapped.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.ok(trappedReport.executions.every((execution) => execution.keyboard.visited.length === 8));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.unreached.some((entry) => entry.id === "nested-focus")));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.length === 0));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(trappedReport.executions.every((execution) =>
+      execution.keyboard.focus_escaped_scope.length === 0));
 
     fs.writeFileSync(prototype, scopedPrototype.replace(' id="background" inert', ' id="background"'));
     const unisolatedPacket = structuredClone(scopedPacket);
