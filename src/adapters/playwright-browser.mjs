@@ -809,6 +809,7 @@ async function runDesignBrowser(request) {
           width: Math.max(320, Math.floor(originalViewport.width / 2)),
           height: originalViewport.height
         });
+        await stabilizeVisualCapture(page);
         execution.scroll_reset = await resetScrollState(page);
         execution.zoom_200 = await inspectOverflow(page);
         aggregate["zoom-200"] &&= execution.scroll_reset.verified &&
@@ -1166,6 +1167,7 @@ async function run(request) {
               height: originalViewport.height
             };
             await page.setViewportSize(zoomViewport);
+            await stabilizeVisualCapture(page);
             execution.scroll_reset = await resetScrollState(page);
             execution.zoom_200 = { viewport: zoomViewport, overflow: await inspectOverflow(page) };
             await page.setViewportSize(originalViewport);

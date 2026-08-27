@@ -21,6 +21,39 @@ const genericAdapter = path.join(root, "test", "fixtures", "host-adapter.mjs");
 const scannerRoot = path.join(root, "test", "fixtures", "kill-ai-slop");
 const scannerEntrypoint = path.join(scannerRoot, "skill", "scripts", "scan.mjs");
 const router = readJson(path.join(root, "router", "default-router.json"));
+const inlineServerSource = String.raw`
+import http from "node:http";
+
+const artifactDigests = JSON.parse(process.env.KSR_TEST_ARTIFACT_DIGESTS || "{}");
+const pages = JSON.parse(Buffer.from(process.env.KSR_TEST_PAGES_BASE64 || "", "base64").toString("utf8"));
+const server = http.createServer((request, response) => {
+  const pathname = new URL(request.url, "http://127.0.0.1").pathname;
+  if (pathname === "/.well-known/killsloprouter-artifact.json") {
+    response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    response.end(JSON.stringify({
+      killsloprouter_browser_attestation_version: 1,
+      artifact_digests: artifactDigests
+    }));
+    return;
+  }
+  if (Object.hasOwn(pages, pathname)) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(pages[pathname]);
+    return;
+  }
+  response.writeHead(404, { "content-type": "text/plain" });
+  response.end("not found");
+});
+
+server.listen(0, "127.0.0.1", () => {
+  const address = server.address();
+  process.stdout.write(JSON.stringify({ url: "http://127.0.0.1:" + address.port }) + "\n");
+});
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => server.close(() => process.exit(0)));
+}
+`;
 
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -28,6 +61,23 @@ function writeJson(file, value) {
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+function reflowTransitionHtml({ mediumWidth = 600, narrowWidth = 280 } = {}) {
+  return `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:"><title>Responsive transition fixture</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}main{padding:24px}
+#reflow-panel{width:900px;padding:16px;background:#eef2ff;transition:width 60s linear}
+button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
+@media(max-width:1000px){#reflow-panel{width:${mediumWidth}px}}
+@media(max-width:500px){#reflow-panel{width:${narrowWidth}px}}
+</style></head><body><main data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">반응형 전환 완료</p>
+<section id="reflow-panel" data-killsloprouter-state="default"><button type="button">Review settled layout</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`;
 }
 
 function runCli(args, cwd) {
@@ -154,12 +204,7 @@ function approveFixtureVisualSignature(profilePath, artifactPath) {
   writeJson(profilePath, profile);
 }
 
-function startServer(artifactDigests) {
-  const child = spawn(process.execPath, [serverEntrypoint], {
-    cwd: root,
-    env: { PATH: process.env.PATH || "", KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests) },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
+function waitForServer(child) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -187,6 +232,26 @@ function startServer(artifactDigests) {
       }
     });
   });
+}
+
+function startServer(artifactDigests) {
+  return waitForServer(spawn(process.execPath, [serverEntrypoint], {
+    cwd: root,
+    env: { PATH: process.env.PATH || "", KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests) },
+    stdio: ["ignore", "pipe", "pipe"]
+  }));
+}
+
+function startInlineServer(artifactDigests, pages) {
+  return waitForServer(spawn(process.execPath, ["--input-type=module", "--eval", inlineServerSource], {
+    cwd: root,
+    env: {
+      PATH: process.env.PATH || "",
+      KSR_TEST_ARTIFACT_DIGESTS: JSON.stringify(artifactDigests),
+      KSR_TEST_PAGES_BASE64: Buffer.from(JSON.stringify(pages)).toString("base64")
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  }));
 }
 
 function makePacket(profile, artifactDigests) {
@@ -332,6 +397,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     assert.match(receipt.receipt_digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(receipt.browser.attestation_path, "/.well-known/killsloprouter-artifact.json");
     assert.deepEqual(receipt.browser.allowed_origins, []);
+    assert.equal(receipt.browser.max_keyboard_tabs, 80);
     const profile = readJson(paths.profile);
     assert.equal(profile.evidence.browser, "playwright");
     assert.deepEqual(profile.evidence.required_viewports, ["mobile", "tablet", "desktop"]);
@@ -345,9 +411,39 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     const declaration = host.providers["browser-evidence"];
     assert.equal(declaration.settings.contract, "killsloprouter-playwright-v1");
     assert.equal(declaration.settings.runtime_digest, playwrightRuntimeDigest(resolvePlaywrightRuntimeRoot()));
+    assert.equal(declaration.settings.max_keyboard_tabs, 80);
     assert.deepEqual(declaration.permissions, ["artifact:read", "evidence:write", "browser:control"]);
     assert.equal(fs.existsSync(receipt.profile.backup), true);
     assert.equal(fs.existsSync(receipt.host_manifest.backup), true);
+
+    const denseConfigured = runCli([
+      "browser", "configure",
+      "--profile", paths.profile,
+      "--host-config", paths.host,
+      "--base-url", "http://127.0.0.1:4173",
+      "--channel", "chrome",
+      "--max-keyboard-tabs", "120",
+      "--json"
+    ], directory);
+    assert.equal(denseConfigured.status, 0, denseConfigured.stderr || denseConfigured.stdout);
+    const denseReceipt = JSON.parse(denseConfigured.stdout);
+    assert.equal(denseReceipt.browser.max_keyboard_tabs, 120);
+    assert.equal(loadHostManifest(paths.host).providers["browser-evidence"].settings.max_keyboard_tabs, 120);
+
+    const beforeInvalidBudget = [hashArtifact(paths.profile), hashArtifact(paths.host)];
+    for (const invalidBudget of ["0", "201", "1.5", "invalid"]) {
+      const rejectedBudget = runCli([
+        "browser", "configure",
+        "--profile", paths.profile,
+        "--host-config", paths.host,
+        "--base-url", "http://127.0.0.1:4173",
+        "--max-keyboard-tabs", invalidBudget,
+        "--json"
+      ], directory);
+      assert.equal(rejectedBudget.status, 2, rejectedBudget.stderr || rejectedBudget.stdout);
+      assert.match(rejectedBudget.stderr, /max keyboard tabs must be between 1 and 200/);
+      assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], beforeInvalidBudget);
+    }
 
     const before = [hashArtifact(paths.profile), hashArtifact(paths.host)];
     assert.throws(() => configurePlaywright({
@@ -595,6 +691,60 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       new Set(result.result.evidence.filter((item) => item.kind === "screenshot").map((item) => item.viewport)),
       new Set(["mobile", "desktop"])
     );
+
+    fs.writeFileSync(prototype, reflowTransitionHtml());
+    const settledReflowPacket = structuredClone(packet);
+    settledReflowPacket.packet_id = "browser-design-settled-reflow";
+    settledReflowPacket.packet_digest = `sha256:${"9".repeat(64)}`;
+    settledReflowPacket.evidence_contract.required_viewports = ["desktop"];
+    settledReflowPacket.design_task.subject_id = "settled-reflow";
+    settledReflowPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const settledReflow = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-settled-reflow-run",
+        packets: [settledReflowPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: settledReflowPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "settled-reflow-design-evidence")
+    });
+    assert.equal(settledReflow.execution_status, "ran", settledReflow.error);
+    assert.equal(settledReflow.result.checks["zoom-200"], true);
+    const settledReflowReport = readJson(
+      settledReflow.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(settledReflowReport.executions.every((execution) =>
+      !execution.zoom_200.document_overflow && execution.zoom_200.offenders.length === 0));
+
+    fs.writeFileSync(prototype, reflowTransitionHtml({ mediumWidth: 800 }));
+    const finalOverflowPacket = structuredClone(settledReflowPacket);
+    finalOverflowPacket.packet_id = "browser-design-final-reflow-overflow";
+    finalOverflowPacket.packet_digest = `sha256:${"a".repeat(64)}`;
+    finalOverflowPacket.design_task.subject_id = "final-reflow-overflow";
+    finalOverflowPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const finalOverflow = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-final-reflow-overflow-run",
+        packets: [finalOverflowPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: finalOverflowPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "final-reflow-overflow-design-evidence")
+    });
+    assert.equal(finalOverflow.execution_status, "ran", finalOverflow.error);
+    assert.equal(finalOverflow.result.checks.overflow, true);
+    assert.equal(finalOverflow.result.checks["zoom-200"], false);
+    const finalOverflowReport = readJson(
+      finalOverflow.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(finalOverflowReport.executions.every((execution) =>
+      execution.zoom_200.offenders.some((item) => item.id === "reflow-panel")));
 
     const scopedPrototype = `<!doctype html>
 <html lang="en-US"><head><meta charset="utf-8"><title>Inspector scope</title>
@@ -871,6 +1021,82 @@ test("served artifact attestation mismatch fails closed across the child boundar
     assert.equal(result.execution_status, "blocked_execution_error");
     assert.equal(result.exit_code, 4);
     assert.match(result.error, /served artifact attestation does not match/);
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official Playwright settles responsive transitions before reflow inspection without hiding final overflow", {
+  timeout: 120_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-reflow-settle-"));
+  let server = null;
+  try {
+    const pages = {
+      "/settled": reflowTransitionHtml(),
+      "/final-overflow": reflowTransitionHtml({ narrowWidth: 350 })
+    };
+    const artifact = path.join(directory, "responsive-pages.json");
+    writeJson(artifact, pages);
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startInlineServer(artifactDigests, pages);
+    const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        {
+          id: "settled-reflow",
+          path: "/settled",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#reflow-panel" }]
+        },
+        {
+          id: "final-overflow",
+          path: "/final-overflow",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#reflow-panel" }]
+        }
+      ]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    const profile = readJson(paths.profile);
+    const manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    const outputDirectory = path.join(directory, "reflow-evidence");
+    const result = executeAuditPacket({
+      run: makeRun(directory, artifact, packet),
+      packet,
+      manifest,
+      attempt: 1,
+      outputDirectory
+    });
+    assert.equal(result.execution_status, "ran", result.error);
+    const report = readJson(path.join(outputDirectory, "browser-report.json"));
+    const settledExecutions = report.executions.filter((execution) => execution.scenario === "settled-reflow");
+    assert.equal(settledExecutions.length, 3);
+    assert.ok(settledExecutions.every((execution) =>
+      !execution.zoom_200.overflow.document_overflow &&
+      execution.zoom_200.overflow.offenders.length === 0));
+    const finalOverflowExecutions = report.executions.filter((execution) => execution.scenario === "final-overflow");
+    assert.equal(finalOverflowExecutions.length, 3);
+    assert.ok(finalOverflowExecutions.every((execution) =>
+      !execution.overflow.document_overflow && execution.overflow.offenders.length === 0));
+    assert.ok(finalOverflowExecutions.some((execution) =>
+      execution.zoom_200.overflow.offenders.some((item) => item.id === "reflow-panel")));
+    assert.ok(result.result.findings.some((item) =>
+      item.category === "zoom-200" && item.rule_id === "overflow-overlap-or-clipping" &&
+      item.evidence.startsWith("final-overflow--light--mobile:")));
+    assert.ok(!result.result.findings.some((item) =>
+      item.category === "zoom-200" && item.evidence.startsWith("settled-reflow--")));
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });
