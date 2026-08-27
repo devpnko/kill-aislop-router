@@ -513,7 +513,7 @@ test("official Playwright runtime, scenario, and baseline tamper fail before chi
 });
 
 test("official Playwright adapter verifies a digest-bound static design prototype", {
-  timeout: 60_000
+  timeout: 120_000
 }, () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
   try {
@@ -596,12 +596,130 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       new Set(["mobile", "desktop"])
     );
 
+    const scopedPrototype = `<!doctype html>
+<html lang="en-US"><head><meta charset="utf-8"><title>Inspector scope</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#0f172a;background:#fff;font:16px/1.5 sans-serif}
+main,[role=dialog]{width:min(100% - 2rem,40rem);margin:1rem auto;padding:1rem}
+button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}
+#scope-scroller{width:220px;overflow-x:auto;border:1px solid #475467}
+#scope-track{width:5200px;padding:8px}#nested-focus{display:inline-block;margin-left:5000px}
+</style></head><body>
+<section id="active-modal" role="dialog" aria-modal="true" aria-label="Inspector modal">
+<button id="modal-close" type="button">Close</button>
+<div id="scope-scroller"><div id="scope-track"><a id="nested-focus" href="#modal-close">Nested focus target</a></div></div>
+</section>
+<main id="background" inert data-killsloprouter-locale="en-US">
+<p data-killsloprouter-locale="ko-KR">검토 대기</p>
+<section data-killsloprouter-state="default"><button id="background-action" type="button">Background action</button></section>
+<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+</main></body></html>\n`;
+    fs.writeFileSync(prototype, scopedPrototype);
+    const scopedPacket = structuredClone(packet);
+    scopedPacket.packet_id = "browser-design-inspector-scope";
+    scopedPacket.packet_digest = `sha256:${"5".repeat(64)}`;
+    scopedPacket.design_task.subject_id = "inspector-scope";
+    scopedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const scoped = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-inspector-scope-run",
+        packets: [scopedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: scopedPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "inspector-scope-design-evidence")
+    });
+    assert.equal(scoped.execution_status, "ran", scoped.error);
+    assert.ok(Object.values(scoped.result.checks).every(Boolean));
+    const scopedReport = readJson(scoped.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.modal_active));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unreached.length === 0));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.unisolated_background.length === 0));
+    assert.ok(scopedReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(scopedReport.executions.every((execution) => execution.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(scopedReport.executions.every((execution) => execution.overflow.scroller_exemptions.some(
+      (item) => item.id === "nested-focus" && item.scroller.id === "scope-scroller"
+    )));
+    assert.ok(scopedReport.executions.every((execution) => execution.scroll_reset.before.drifted_elements.some(
+      (item) => item.selector === "#scope-scroller" && item.scroll_left > 0
+    )));
+    assert.ok(scopedReport.executions.every((execution) => execution.scroll_reset.verified));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace(' id="background" inert', ' id="background"'));
+    const unisolatedPacket = structuredClone(scopedPacket);
+    unisolatedPacket.packet_id = "browser-design-unisolated-modal";
+    unisolatedPacket.packet_digest = `sha256:${"6".repeat(64)}`;
+    unisolatedPacket.design_task.subject_id = "unisolated-modal";
+    unisolatedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const unisolated = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-unisolated-modal-run",
+        packets: [unisolatedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: unisolatedPacket,
+      manifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "unisolated-modal-design-evidence")
+    });
+    assert.equal(unisolated.execution_status, "ran", unisolated.error);
+    assert.equal(unisolated.result.checks.keyboard, false);
+    const unisolatedReport = readJson(
+      unisolated.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(unisolatedReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.some((item) => item.id === "background-action")));
+
+    fs.writeFileSync(prototype, scopedPrototype.replace(
+      ' id="background" inert',
+      ' id="background" aria-hidden="true"'
+    ));
+    const ariaHiddenPacket = structuredClone(scopedPacket);
+    ariaHiddenPacket.packet_id = "browser-design-aria-hidden-modal";
+    ariaHiddenPacket.packet_digest = `sha256:${"7".repeat(64)}`;
+    ariaHiddenPacket.design_task.subject_id = "aria-hidden-modal";
+    ariaHiddenPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    const lowTabBudgetManifest = structuredClone(manifest);
+    lowTabBudgetManifest.providers["browser-evidence"].settings.max_keyboard_tabs = 1;
+    const ariaHidden = executeAuditPacket({
+      run: {
+        ...run,
+        run_id: "official-design-browser-aria-hidden-modal-run",
+        packets: [ariaHiddenPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
+      },
+      packet: ariaHiddenPacket,
+      manifest: lowTabBudgetManifest,
+      attempt: 1,
+      outputDirectory: path.join(directory, "aria-hidden-modal-design-evidence")
+    });
+    assert.equal(ariaHidden.execution_status, "ran", ariaHidden.error);
+    assert.equal(ariaHidden.result.checks.keyboard, false);
+    const ariaHiddenReport = readJson(
+      ariaHidden.result.evidence.find((item) => item.kind === "test-report").path
+    );
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.unisolated_background.length === 0));
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(ariaHiddenReport.executions.every((execution) =>
+      execution.keyboard.aria_hidden_focusable_background.some((item) => item.id === "background-action")));
+
     fs.writeFileSync(prototype, `<!doctype html>
 <html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
+<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}.scroller{width:200px;overflow-x:auto}.wide{width:5200px}.nested{display:inline-block;margin-left:5000px}#true-offender{position:absolute;left:5000px;width:100px}#offscreen-scroller{position:absolute;left:5000px}#escaped-absolute{position:absolute;left:6500px;width:100px}</style></head>
 <body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
 <section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
 <section data-killsloprouter-state="error" role="alert">A recoverable error</section>
+<div id="in-view-scroller" class="scroller"><div class="wide"><span id="nested-wide-item" class="nested">Nested wide item</span></div></div>
+<div id="true-offender">True offender</div>
+<div id="offscreen-scroller" class="scroller"><div class="wide"><span id="offscreen-nested" class="nested">Offscreen nested item</span></div></div>
+<div id="absolute-scroller" class="scroller"><div class="wide"><div id="escaped-absolute"><span id="escaped-nested">Escaped nested item</span></div></div></div>
 </main></body></html>\n`);
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
@@ -627,6 +745,22 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     );
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.overlaps.length > 0));
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.scroller_exemptions.some((item) =>
+        item.id === "nested-wide-item" && item.scroller.id === "in-view-scroller")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "true-offender")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "offscreen-scroller")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      !execution.overflow.scroller_exemptions.some((item) => item.id === "offscreen-nested")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "escaped-absolute")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      execution.overflow.offenders.some((item) => item.id === "escaped-nested")));
+    assert.ok(layoutBlockedReport.executions.every((execution) =>
+      !execution.overflow.scroller_exemptions.some((item) =>
+        ["escaped-absolute", "escaped-nested"].includes(item.id))));
 
     fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
     fs.writeFileSync(prototype, `<!doctype html>
@@ -699,7 +833,7 @@ test("served artifact attestation mismatch fails closed across the child boundar
 });
 
 test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
-  timeout: 150_000
+  timeout: 240_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-e2e-"));
   let server = null;
@@ -827,6 +961,71 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       entry.assertions.filter((assertion) =>
         ["no-overlap", "no-clipping", "computed-style"].includes(assertion.type))
         .every((assertion) => assertion.status === "failed")));
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        {
+          id: "inspector-scope",
+          path: "/inspector-scope",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        },
+        {
+          id: "modal-unisolated",
+          path: "/modal-unisolated",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        },
+        {
+          id: "modal-aria-hidden",
+          path: "/modal-aria-hidden",
+          actions: [],
+          assertions: [{ type: "visible", locator: "#active-modal" }]
+        }
+      ]
+    });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    manifest = loadHostManifest(paths.host);
+    const inspectorOutput = path.join(directory, "evidence-inspector-scope");
+    const inspector = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: inspectorOutput });
+    assert.equal(inspector.execution_status, "ran", inspector.error);
+    const inspectorReport = readJson(path.join(inspectorOutput, "browser-report.json"));
+    const scopedExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "inspector-scope");
+    assert.equal(scopedExecutions.length, 3);
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.modal_active));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.unreached.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.unisolated_background.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.aria_hidden_focusable_background.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.keyboard.focus_escaped_scope.length === 0));
+    assert.ok(scopedExecutions.every((entry) => entry.overflow.scroller_exemptions.some(
+      (item) => item.id === "nested-focus" && item.scroller.id === "scope-scroller"
+    )));
+    assert.ok(scopedExecutions.every((entry) => entry.scroll_reset.before.drifted_elements.some(
+      (item) => item.selector === "#scope-scroller" && item.scroll_left > 0
+    )));
+    assert.ok(scopedExecutions.every((entry) => entry.scroll_reset.verified));
+    const unisolatedExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "modal-unisolated");
+    assert.equal(unisolatedExecutions.length, 3);
+    assert.ok(unisolatedExecutions.every((entry) =>
+      entry.keyboard.unisolated_background.some((item) => item.id === "background-action")));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "modal-background-not-isolated"));
+    const ariaHiddenExecutions = inspectorReport.executions.filter((entry) => entry.scenario === "modal-aria-hidden");
+    assert.equal(ariaHiddenExecutions.length, 3);
+    assert.ok(ariaHiddenExecutions.every((entry) => entry.keyboard.unisolated_background.length === 0));
+    assert.ok(ariaHiddenExecutions.every((entry) =>
+      entry.keyboard.aria_hidden_focusable_background.some((item) => item.id === "background-action")));
+    assert.ok(ariaHiddenExecutions.every((entry) =>
+      entry.keyboard.focus_escaped_scope.some((item) => item.id === "background-action")));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "aria-hidden-background-focusable"));
+    assert.ok(inspector.result.findings.some((item) => item.rule_id === "modal-focus-escaped-scope"));
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
