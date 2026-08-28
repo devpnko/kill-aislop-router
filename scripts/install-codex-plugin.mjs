@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { inspectSkillCatalog, migrateLegacySkillEntry } from "../src/skill-catalog.mjs";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE_ENTRIES = [
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token === "--dry-run") args.dryRun = true;
     else if (token === "--force") args.force = true;
+    else if (token === "--migrate-legacy-entry") args.migrateLegacyEntry = true;
     else if (token === "--no-activate") args.activate = false;
     else if (token === "--home") {
       const value = argv[index + 1];
@@ -50,7 +52,7 @@ function parseArgs(argv) {
 }
 
 function help() {
-  return `Install the KillSlopRouter Codex plugin\n\nUsage:\n  node scripts/install-codex-plugin.mjs [--dry-run] [--force] [--no-activate] [--home DIR]\n`;
+  return `Install the KillSlopRouter Codex plugin\n\nUsage:\n  node scripts/install-codex-plugin.mjs [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]\n`;
 }
 
 function readJson(file, label) {
@@ -212,6 +214,17 @@ function main() {
   const marketplace = path.join(installHome, ".agents", "plugins", "marketplace.json");
   const marketplaceValue = nextMarketplace(marketplace);
   const isDefaultHome = installHome === path.resolve(os.homedir());
+  const catalogBefore = inspectSkillCatalog({ home: installHome, assumeCanonical: true });
+  if (catalogBefore.identity_conflict && !args.migrateLegacyEntry) {
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      status: "identity_conflict",
+      skill_catalog: catalogBefore,
+      next: catalogBefore.migration.command
+    }, null, 2)}\n`);
+    process.exitCode = 5;
+    return;
+  }
   if (args.dryRun) {
     process.stdout.write(`${JSON.stringify({
       ok: true,
@@ -221,12 +234,19 @@ function main() {
       marketplace,
       marketplace_name: marketplaceValue.name,
       would_replace_marked_install: fs.existsSync(target) && Boolean(args.force),
-      would_activate: args.activate && isDefaultHome
+      would_activate: args.activate && isDefaultHome,
+      would_migrate_legacy_entry: Boolean(args.migrateLegacyEntry &&
+        catalogBefore.legacy.status !== "absent" &&
+        catalogBefore.legacy.status !== "verified-explicit-shim"),
+      skill_catalog: catalogBefore
     }, null, 2)}\n`);
     return;
   }
 
   const pluginBackup = copyBundle(target, { force: Boolean(args.force) });
+  const legacyMigration = args.migrateLegacyEntry
+    ? migrateLegacySkillEntry({ home: installHome })
+    : { status: "not_requested", backup: null };
   const marketplaceBackup = updateMarketplace(marketplace, marketplaceValue);
   const activation = args.activate && isDefaultHome
     ? activatePlugin(marketplaceValue.name)
@@ -235,10 +255,12 @@ function main() {
     ok: activation.ok,
     plugin_target: target,
     plugin_backup: pluginBackup,
+    legacy_migration: legacyMigration,
     marketplace,
     marketplace_backup: marketplaceBackup,
     marketplace_name: marketplaceValue.name,
     activation,
+    skill_catalog: inspectSkillCatalog({ home: installHome }),
     next: "start a new Codex thread and invoke $killsloprouter:kill-slop-router"
   }, null, 2)}\n`);
   if (!activation.ok) process.exitCode = 5;

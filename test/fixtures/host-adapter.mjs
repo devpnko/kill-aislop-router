@@ -7,6 +7,15 @@ for await (const chunk of process.stdin) input += chunk;
 const request = JSON.parse(input);
 const { packet, settings = {} } = request;
 
+if (request.journey_identity?.identity_digest !== packet.journey_identity?.identity_digest) {
+  throw new Error("fixture child received conflicting KillSlopRouter journey identities");
+}
+if (request.participant?.provider_id !== packet.provider?.id ||
+  request.participant?.visibility !== "internal" ||
+  request.participant?.orchestrator_id !== "kill-slop-router") {
+  throw new Error("fixture child received an invalid internal participant binding");
+}
+
 if (settings.write_started_marker) {
   fs.writeFileSync(path.join(request.output_directory, "started.marker"), `${process.pid}\n`);
 }
@@ -171,6 +180,8 @@ process.stdout.write(JSON.stringify({
   metadata: {
     child_pid: process.pid,
     transport: "node-json-stdio-fixture",
+    observed_journey_identity_digest: request.journey_identity.identity_digest,
+    observed_participant: request.participant,
     observed_visual_signature_digest: packet.visual_signature_contract?.contract_digest || null,
     observed_primary_color: packet.visual_signature_contract?.palette?.primary?.[0]?.value || null
   }

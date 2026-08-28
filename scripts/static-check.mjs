@@ -73,16 +73,67 @@ assert.equal(router.invariants.critic_preferences_cannot_override_visual_signatu
 assert.equal(router.invariants.missing_direction_requires_design_exploration, true);
 assert.equal(router.invariants.design_candidates_require_playwright_evidence, true);
 assert.equal(router.invariants.design_shortlist_and_palette_require_owner_selection, true);
+assert.equal(router.invariants.parent_orchestrator_identity_is_digest_bound, true);
+assert.equal(router.invariants.child_provider_names_are_internal_roles_not_modes, true);
+assert.equal(router.invariants.legacy_skill_entry_conflicts_fail_closed, true);
 assert.equal(packageJson.exports["./design"], "./src/design.mjs");
 assert.equal(packageJson.exports["./codex"], "./src/codex.mjs");
+assert.equal(packageJson.exports["./identity"], "./src/identity.mjs");
+assert.equal(packageJson.exports["./skill-catalog"], "./src/skill-catalog.mjs");
+const skillMetadata = fs.readFileSync(
+  path.join(root, "skills", "kill-slop-router", "agents", "openai.yaml"),
+  "utf8"
+);
+assert.match(skillMetadata, /\$killsloprouter:kill-slop-router/,
+  "bundled skill prompt must bind the namespaced V1 entrypoint");
+assert.doesNotMatch(skillMetadata, /Use \$kill-slop-router\b/,
+  "bundled skill prompt must not reactivate the legacy entrypoint");
+const skillSource = fs.readFileSync(
+  path.join(root, "skills", "kill-slop-router", "SKILL.md"),
+  "utf8"
+);
+assert.match(skillSource, /Parent identity invariant/,
+  "bundled skill must state the parent identity contract");
+assert.match(skillSource, /왠 antislop\? 킬슬롭라우터 아니야\?/,
+  "bundled skill must preserve the Korean correction regression contract");
+assert.match(skillSource, /standalone `\$antislop` workflow remains compatible only/,
+  "bundled skill must preserve standalone explicit antislop compatibility");
+const identityFixtures = JSON.parse(fs.readFileSync(
+  path.join(root, "test", "fixtures", "orchestrator-identity.json"),
+  "utf8"
+));
+for (const fixtureId of [
+  "korean-correction",
+  "compaction-continuation",
+  "duplicate-catalog-wording",
+  "standalone-antislop-explicit"
+]) {
+  assert.ok(identityFixtures.resolution_cases.some((item) => item.id === fixtureId),
+    `orchestrator identity fixture is missing: ${fixtureId}`);
+}
+assert.ok(identityFixtures.presentation_cases.some((item) =>
+  item.id === "allowed-internal-critic" && item.allowed === true),
+"orchestrator identity fixture must allow qualified internal-critic wording");
 assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
   "design child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,
   "official Codex host child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/orchestrator-identity\.test\.mjs/,
+  "orchestrator identity and catalog migration coverage must remain in the E2E script");
 assert.ok(fs.existsSync(path.join(root, "src", "adapters", "codex-review.mjs")),
   "official Codex review adapter is missing");
 assert.ok(fs.existsSync(path.join(root, "schemas", "codex-review-output.schema.json")),
   "official Codex review output schema is missing");
+for (const schema of [
+  "journey-identity.schema.json",
+  "participant.schema.json",
+  "audit-run.schema.json",
+  "audit-receipt.schema.json",
+  "identity-migration-receipt.schema.json"
+]) {
+  assert.ok(fs.existsSync(path.join(root, "schemas", schema)),
+    `orchestrator identity contract schema is missing: ${schema}`);
+}
 const codexAdapterSource = fs.readFileSync(
   path.join(root, "src", "adapters", "codex-review.mjs"),
   "utf8"

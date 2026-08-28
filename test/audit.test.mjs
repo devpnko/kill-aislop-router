@@ -178,6 +178,7 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
     const approval = {
       approval_version: 1,
       run_id: run.run_id,
+      journey_identity: run.journey_identity,
       scope_digest: run.approval_scope_digest,
       owner_id: "release-owner-1",
       status: "approved",
@@ -779,6 +780,7 @@ test("owner approval is bound to the exact run scope and cannot come from the cr
     const wrongScope = {
       approval_version: 1,
       run_id: run.run_id,
+      journey_identity: run.journey_identity,
       scope_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       owner_id: "release-owner-1",
       status: "approved",

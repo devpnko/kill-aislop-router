@@ -11,6 +11,7 @@ independence, required proof, or artifact integrity is missing.
 - visual-intent authority receipts and their project, brand, reference, or owner evidence;
 - visual-signature receipts, per-aspect coverage, and exact palette/type/density/elevation evidence;
 - reviewer and owner provenance;
+- the selected KillSlopRouter parent identity and child-role boundary;
 - screenshots, browser traces, and test reports;
 - the distinction between dispatchable work and completed work.
 
@@ -30,6 +31,29 @@ an owner, or turn a manual provider into executed evidence. Those authorities
 still require the project profile, explicit `--host-config`, and audit ledger.
 The installer copies exact `playwright-core` and `axe-core` runtime packages,
 but it neither downloads a browser nor starts one.
+
+The installer and `doctor` also inspect the runtime skill catalog. A full local
+`kill-slop-router` entry alongside the namespaced plugin is an identity
+conflict. Migration is never implicit: the operator must pass
+`--migrate-legacy-entry`, after which the original directory is preserved in a
+digest-verified backup and only an implicit-disabled handoff shim remains.
+Changing the shim or backup fails closed. Standalone antislop is outside this
+migration boundary.
+
+### Journey identity
+
+`journey_identity` binds the KillSlopRouter ID and version, namespaced
+entrypoint, run ID, invocation origin, display name, and presentation rule in a
+canonical digest. It is repeated across the automation state, audit manifest,
+dispatch/design packets, step and final receipts, owner decisions, and child
+requests. Packet digests additionally bind the internal participant metadata.
+Resume cross-checks these copies before execution, so re-signing one layer does
+not switch the parent.
+
+Participant provider IDs are provenance, not workflow selection. A creator,
+critic, scanner, browser provider, or adjudicator remains
+`visibility: internal`; standalone `$antislop` compatibility applies only when
+there is no active KillSlopRouter identity.
 
 ### Project profile
 
@@ -194,6 +218,9 @@ Browser execution cannot be disguised as a generic agent adapter.
 
 | Threat | Control |
 |---|---|
+| Child critic is presented as the selected workflow | Digest-bound parent identity stays KillSlopRouter; child provider metadata is internal-only and presentation regressions cover correction and resume wording |
+| Legacy local router wins catalog precedence | Installer and doctor detect the duplicate; only an explicit backup-bound, implicit-disabled shim migration clears the conflict |
+| State is re-signed with another parent before resume | Step receipts, audit, packets, approval, and migration receipt must all match the same identity before another child runs |
 | Operator/ERP artifact routed as a consumer product | Required artifact-root surface contract resolves before creator selection; ambiguity, CLI mismatch, and mixed-surface runs block |
 | Surface contract changed after planning | Plan records the profile digest; audit and resume re-hash the same profile source |
 | Anti-slop critique laundered into a paper/editorial house style | Surface and visual intent are separate; editorial treatment requires a verified `bounded` or `required` contract and an independent intent review |
@@ -239,7 +266,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Static design prototype reads mutable or unrelated resources | Official design Playwright requires one self-contained digest-bound HTML file; only that exact `file:` URL plus `data:`, `blob:`, and `about:` are allowed, while all other local and network requests are blocked |
 | Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
-| Approval reuse | Approval must match the run ID and exact approval-scope digest |
+| Approval reuse | Approval must match the run ID, journey identity, and exact approval-scope digest |
 | Privacy or authority bypass | Required locale, domain, privacy, browser, and owner packets remain required |
 
 ## Integrity limitations

@@ -24,6 +24,13 @@ import {
   visualIntentBody,
   visualSignatureBody
 } from "./router.mjs";
+import {
+  createJourneyIdentity,
+  createParticipant,
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney
+} from "./identity.mjs";
 
 export const DESIGN_DEPTHS = ["refine", "evolve", "reimagine"];
 export const DESIGN_RESULT_KINDS = new Set([
@@ -200,6 +207,12 @@ function makePacket(state, {
     design_packet_version: 1,
     packet_id: packetId,
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
+    participant: createParticipant({
+      providerId,
+      stageId,
+      designTaskKind: task.kind
+    }),
     stage_id: stageId,
     provider: { id: providerId, kind: "external", version: null },
     assigned_capabilities: [...capabilities],
@@ -650,6 +663,7 @@ function resultBinding(state, record) {
   requireValue(attempt, `design result execution provenance is missing: ${record.packet_id}`, 4);
   return {
     provider_id: record.provider_id,
+    participant: structuredClone(record.participant),
     actor_id: record.normalized.actor.actor_id,
     packet_digest: packet.packet_digest,
     result_digest: record.result_digest,
@@ -915,6 +929,7 @@ function recordResult(state, packet, input, sourcePath) {
   const record = {
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
+    participant: structuredClone(packet.participant),
     result_digest: canonicalDigest(normalized),
     source: snapshotArtifact(absoluteSource, { root: state.state_directory }),
     evidence: snapshotResultEvidence(normalized, state.state_directory),
@@ -941,10 +956,15 @@ export function readDesignState(statePath) {
     "design state path does not match the resume target", 4);
   requireValue(canonicalDigest(stateBody(state)) === state.state_digest,
     "design state digest mismatch", 4);
+  verifyJourneyIdentity(state.journey_identity, {
+    runId: state.run_id,
+    label: "design exploration journey_identity"
+  });
   validateDesignBrief(state.brief);
   verifyBoundSnapshot(state.brief_source, "design brief");
   verifyBoundSnapshot(state.baseline, "design baseline");
   for (const packet of state.packets || []) {
+    verifyPacketJourney(packet, state.journey_identity, `design packet ${packet.packet_id}`);
     requireValue(canonicalDigest(packetBody(packet)) === packet.packet_digest,
       `design packet digest mismatch: ${packet.packet_id}`, 4);
     requireValue(state.packet_files?.[packet.packet_id],
@@ -1011,6 +1031,7 @@ function selectionScope(state) {
   const review = resultForPacket(state, "direction-review");
   return canonicalDigest({
     run_id: state.run_id,
+    journey_identity: state.journey_identity,
     brief_digest: state.brief_source.digest,
     baseline_digest: state.baseline.digest,
     candidates: Object.fromEntries(candidates.map((record) => [
@@ -1032,6 +1053,7 @@ function approvalScope(state) {
   const review = resultForPacket(state, "color-review");
   return canonicalDigest({
     run_id: state.run_id,
+    journey_identity: state.journey_identity,
     selection_scope_digest: state.selection_scope_digest,
     shortlist_digest: state.shortlist?.shortlist_digest || null,
     colors: Object.fromEntries(colors.map((record) => [
@@ -1051,11 +1073,13 @@ function ingestShortlist(state, shortlistPath) {
   const absolute = path.resolve(shortlistPath);
   const input = readJson(absolute, "design shortlist");
   exact(input, new Set([
-    "design_shortlist_version", "run_id", "selection_scope_digest", "owner_id",
+    "design_shortlist_version", "run_id", "journey_identity", "selection_scope_digest", "owner_id",
     "candidate_ids", "rationale", "decided_at"
   ]), "design shortlist");
   requireValue(input.design_shortlist_version === 1, "design_shortlist_version must be 1", 4);
   requireValue(input.run_id === state.run_id, "design shortlist run_id mismatch", 4);
+  requireValue(identitiesMatch(input.journey_identity, state.journey_identity),
+    "design shortlist journey_identity mismatch", 4);
   requireValue(input.selection_scope_digest === state.selection_scope_digest,
     "design shortlist scope digest mismatch", 4);
   string(input.owner_id, "design shortlist owner_id");
@@ -1082,12 +1106,14 @@ function ingestApproval(state, approvalPath) {
   const absolute = path.resolve(approvalPath);
   const input = readJson(absolute, "design owner decision");
   exact(input, new Set([
-    "design_owner_decision_version", "run_id", "approval_scope_digest", "owner_id", "status",
+    "design_owner_decision_version", "run_id", "journey_identity", "approval_scope_digest", "owner_id", "status",
     "selected_design_candidate_id", "selected_color_candidate_id", "note", "decided_at"
   ]), "design owner decision");
   requireValue(input.design_owner_decision_version === 1,
     "design_owner_decision_version must be 1", 4);
   requireValue(input.run_id === state.run_id, "design owner decision run_id mismatch", 4);
+  requireValue(identitiesMatch(input.journey_identity, state.journey_identity),
+    "design owner decision journey_identity mismatch", 4);
   requireValue(input.approval_scope_digest === state.approval_scope_digest,
     "design owner decision scope digest mismatch", 4);
   string(input.owner_id, "design owner decision owner_id");
@@ -1139,6 +1165,7 @@ function compileApprovedDirection(state) {
   const decisionBody = {
     design_direction_decision_version: 1,
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
     project_id: state.brief.project_id,
     surface: state.brief.surface,
     screen_id: state.brief.screen_id,
@@ -1196,6 +1223,7 @@ function compileApprovedDirection(state) {
   const intentReceiptPath = path.join(directory, "visual-intent-approval.json");
   const intentReceipt = {
     visual_intent_receipt_version: 1,
+    journey_identity: structuredClone(state.journey_identity),
     project_id: state.brief.project_id,
     surface: state.brief.surface,
     status: "approved",
@@ -1241,6 +1269,7 @@ function compileApprovedDirection(state) {
   ];
   const signatureReceipt = {
     visual_signature_receipt_version: 1,
+    journey_identity: structuredClone(state.journey_identity),
     project_id: state.brief.project_id,
     surface: state.brief.surface,
     status: "approved",
@@ -1280,6 +1309,7 @@ function compileApprovedDirection(state) {
   const bindingsPath = path.join(directory, "profile-bindings.json");
   const bindings = {
     profile_bindings_version: 1,
+    journey_identity: structuredClone(state.journey_identity),
     project_id: state.brief.project_id,
     surface: state.brief.surface,
     generated_at: nowIso(),
@@ -1388,10 +1418,16 @@ function adapterRun(state, packet) {
     : null;
   return {
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
     packets: state.packets,
     creator: {
       provider_id: subject?.provider_id || packet.provider.id,
-      actor_id: subject?.normalized.actor.actor_id || null
+      actor_id: subject?.normalized.actor.actor_id || null,
+      participant: subject?.participant || createParticipant({
+        providerId: packet.provider.id,
+        stageId: packet.stage_id,
+        designTaskKind: packet.design_task.kind
+      })
     },
     scope: {
       kind: "design-exploration",
@@ -1489,6 +1525,7 @@ function ingestKnownManual(state, entries) {
     state.attempts.push({
       packet_id: packet.packet_id,
       provider_id: packet.provider.id,
+      participant: structuredClone(packet.participant),
       adapter: "manual-v1",
       execution_status: "manual_recorded",
       attempt: attemptNumber(state, packet.packet_id),
@@ -1521,6 +1558,7 @@ function writeSelectionTemplate(state) {
   writeJsonAtomic(target, {
     design_shortlist_version: 1,
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
     selection_scope_digest: state.selection_scope_digest,
     owner_id: "REPLACE_WITH_OWNER_ID",
     candidate_ids: eligibleDirectionIds(state).slice(0, 3),
@@ -1538,6 +1576,7 @@ function writeApprovalTemplate(state) {
   writeJsonAtomic(target, {
     design_owner_decision_version: 1,
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
     approval_scope_digest: state.approval_scope_digest,
     owner_id: "REPLACE_WITH_OWNER_ID",
     status: "approved",
@@ -1556,6 +1595,13 @@ export function continueDesignExploration(state, {
   approvalPath = null,
   retry = null
 } = {}) {
+  verifyJourneyIdentity(state.journey_identity, {
+    runId: state.run_id,
+    label: "active design journey_identity"
+  });
+  for (const packet of state.packets || []) {
+    verifyPacketJourney(packet, state.journey_identity, `active design packet ${packet.packet_id}`);
+  }
   if (state.status === "complete") return state;
   requireValue(!shortlistPath || !state.shortlist,
     "design shortlist is already digest-bound and cannot be replaced", 4);
@@ -1721,6 +1767,9 @@ export function startDesignExploration({
   shortlistPath = null,
   approvalPath = null,
   retry = null,
+  routerId = "kill-slop-router",
+  routerVersion = "1.0.0",
+  invocation = "explicit",
   root = process.cwd()
 }) {
   const absoluteState = path.resolve(statePath);
@@ -1732,9 +1781,11 @@ export function startDesignExploration({
   const absoluteBaseline = path.resolve(baselinePath);
   validateStateLocation(absoluteState, absoluteBaseline);
   const brief = validateDesignBrief(readJson(absoluteBrief, "design brief"));
+  const runId = crypto.randomUUID();
   const state = sealState({
     design_exploration_run_version: 1,
-    run_id: crypto.randomUUID(),
+    run_id: runId,
+    journey_identity: createJourneyIdentity({ runId, routerId, routerVersion, invocation }),
     status: "running",
     phase: "direction-generation",
     created_at: nowIso(),
@@ -1785,12 +1836,23 @@ function dryPacket(state, kind, providerId, capabilities, strength, permissions,
   });
 }
 
-export function dryRunDesignExploration({ briefPath, baselinePath, hostManifest = null, root = process.cwd() }) {
+export function dryRunDesignExploration({
+  briefPath,
+  baselinePath,
+  hostManifest = null,
+  routerId = "kill-slop-router",
+  routerVersion = "1.0.0",
+  invocation = "explicit",
+  root = process.cwd()
+}) {
   const absoluteBrief = path.resolve(briefPath);
   const absoluteBaseline = path.resolve(baselinePath);
   const brief = validateDesignBrief(readJson(absoluteBrief, "design brief"));
   const state = {
     run_id: "dry-run",
+    journey_identity: createJourneyIdentity({
+      runId: "dry-run", routerId, routerVersion, invocation
+    }),
     brief,
     brief_source: snapshotArtifact(absoluteBrief, { root }),
     baseline: snapshotArtifact(absoluteBaseline, { root })
@@ -1814,6 +1876,7 @@ export function dryRunDesignExploration({ briefPath, baselinePath, hostManifest 
   const pending = readiness.filter((item) => item.execution_status !== "ready");
   return {
     design_exploration_dry_run_version: 1,
+    journey_identity: state.journey_identity,
     status: pending.length ? "manual_pending" : "ready",
     project_id: brief.project_id,
     surface: brief.surface,
@@ -1856,6 +1919,7 @@ export function dispatchDesignPackets(state, outputDirectory) {
     writeJsonAtomic(shortlistTemplate, {
       design_shortlist_version: 1,
       run_id: state.run_id,
+      journey_identity: structuredClone(state.journey_identity),
       selection_scope_digest: state.selection_scope_digest,
       owner_id: "REPLACE_WITH_OWNER_ID",
       candidate_ids: eligibleDirectionIds(state).slice(0, 3),
@@ -1868,6 +1932,7 @@ export function dispatchDesignPackets(state, outputDirectory) {
     writeJsonAtomic(approvalTemplate, {
       design_owner_decision_version: 1,
       run_id: state.run_id,
+      journey_identity: structuredClone(state.journey_identity),
       approval_scope_digest: state.approval_scope_digest,
       owner_id: "REPLACE_WITH_OWNER_ID",
       status: "approved",
@@ -1879,6 +1944,7 @@ export function dispatchDesignPackets(state, outputDirectory) {
   }
   return {
     run_id: state.run_id,
+    journey_identity: structuredClone(state.journey_identity),
     status: state.status,
     directory,
     packet_count: state.packets.length,

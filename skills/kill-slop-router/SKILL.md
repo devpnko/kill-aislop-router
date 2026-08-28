@@ -9,6 +9,27 @@ Use the plugin's bundled `bin/killsloprouter.mjs` CLI as the deterministic route
 authority. Resolve the plugin root two directories above this skill directory.
 Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
+## Parent identity invariant
+
+An explicit KillSlopRouter request binds the namespaced
+`$killsloprouter:kill-slop-router` entrypoint as the sole orchestrator for the
+whole journey. Create and preserve the CLI's digest-bound `journey_identity`
+through compaction, resume, retry, dispatch, child execution, owner approval,
+and final reporting. A continuation such as `계속 진행해`, and a correction
+such as `왠 antislop? 킬슬롭라우터 아니야?`, must resume KillSlopRouter rather
+than start or expose a child workflow.
+
+Always call the active workflow **KillSlopRouter** in commentary and final
+reports. A provider name may appear only with internal-role qualification, for
+example: `KillSlopRouter 내부 critic인 anti-slop`. Never say that antislop,
+anti-slop, a creator, scanner, browser provider, or reviewer is the active mode,
+workflow, or orchestrator. Preserve its exact `provider_id` in packets and
+receipts with `participant.visibility: internal`.
+
+The standalone `$antislop` workflow remains compatible only when the user
+explicitly invokes it outside an active KillSlopRouter journey. Once a
+KillSlopRouter identity is active, child wording cannot replace the parent.
+
 ## Single entrypoint
 
 Keep this skill and the CLI as the only top-level workflow when the request is

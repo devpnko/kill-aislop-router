@@ -9,6 +9,10 @@ Use `KillSlopRouter`, not standalone `antislop`, as the top-level command for a
 Router audit. The Router dispatches the installed antislop rules only as the
 digest-locked `anti-slop` child critic for `functional-human-review`. Direct
 antislop output is not a KillSlopRouter run and cannot be reported as `ran`.
+Every V1 journey carries a digest-bound `journey_identity` naming
+`killsloprouter:kill-slop-router` as the parent. Provider IDs such as
+`anti-slop`, creators, scanners, and browser reviewers remain visible only as
+internal participant provenance; they never become the active mode.
 
 Version 1.0.0 is release-ready source. This repository does not publish an npm
 package or create a GitHub Release as part of the V1 work.
@@ -81,6 +85,27 @@ the package spec:
 ```bash
 npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install
 ```
+
+Preview installation first when this machine may already have the legacy local
+`~/.codex/skills/kill-slop-router` entry:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install --dry-run
+```
+
+An `identity_conflict` is a deliberate stop. Migrate it explicitly with the
+same reviewed package spec; add `--force` only when refreshing an already
+marked plugin installation:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install --migrate-legacy-entry
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install --force --migrate-legacy-entry
+```
+
+The migration moves the complete legacy entry to
+`~/.codex/skills/.killsloprouter-backups/`, verifies its digest, and writes only
+an explicit, implicit-disabled handoff shim at the old path. It does not remove
+or modify standalone `$antislop`.
 
 Start a new Codex thread in the target repository and say:
 
@@ -338,6 +363,12 @@ file. For `--out .killsloprouter/post-change-ui.json`, the plan, audit ledger,
 packets, results, evidence, phase receipts, and final audit receipt live under
 `.killsloprouter/post-change-ui.d/`.
 
+The state, audit, every packet, phase receipt, owner approval, final receipt,
+and child request repeat the same `journey_identity.identity_digest`. Each
+packet also records a digest-bound `participant` with the exact `provider_id`,
+role, `visibility: internal`, and parent orchestrator. Resume rejects a changed
+identity even if an attacker recomputes only the state digest.
+
 If a scanner returns candidates, supply a triage file and resume:
 
 ```bash
@@ -396,6 +427,8 @@ Exit codes are stable for automation:
 authority is valid, but also reports execution readiness as not evaluated,
 `completion_eligible: false`, and the next required command. It does not accept
 `--host-config`; only integrated `run --dry-run` checks planned adapters.
+Doctor also reports `skill_catalog`; a competing full legacy router entry or a
+tampered compatibility shim makes the status `configuration_required`.
 
 ## Host adapter safety
 
@@ -522,6 +555,21 @@ change. Scoped UI runs now require a critical scenario inventory, and runtime
 redesign runs require a pre-change observation state. See
 [V1 migration notes](docs/migration-v1.md).
 
+New V1 runs require `journey_identity` in state, audit, packets, phase receipts,
+owner decisions, and child requests. A pre-identity automation state may be
+migrated only before it contains adapter attempts, accepted results, approval,
+final evidence, or an observation binding:
+
+```bash
+killsloprouter run --resume .killsloprouter/legacy-run.json \
+  --migrate-identity \
+  --host-config .killsloprouter/host-adapters.json \
+  --json
+```
+
+Evidence-bearing legacy runs must start a new V1 journey; the migration refuses
+to relabel old child evidence.
+
 ## Documentation
 
 - [Automation lifecycle](docs/automation-run.md)
@@ -531,6 +579,7 @@ redesign runs require a pre-change observation state. See
 - [Visual signature contract](docs/visual-signature-contract.md)
 - [Project-aware design exploration](docs/design-exploration.md)
 - [Codex plugin](docs/codex-plugin.md)
+- [Sidefy parent-identity UAT](docs/sidefy-parent-identity-uat.md)
 - [Official Codex review host](docs/codex-review-host.md)
 - [Adapter authoring](docs/adapter-authoring.md)
 - [Official Playwright browser evidence](docs/playwright-browser.md)

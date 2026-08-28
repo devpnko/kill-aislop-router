@@ -14,6 +14,7 @@
   ],
   "properties": {
     "visual_intent_receipt_version": {"const": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
     "project_id": {"type": "string", "minLength": 1},
     "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "status": {"const": "approved"},

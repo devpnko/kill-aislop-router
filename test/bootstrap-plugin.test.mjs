@@ -415,7 +415,8 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
       "utf8"
     );
     assert.match(skillMetadata, /allow_implicit_invocation: true/);
-    assert.match(skillMetadata, /route antislop only as the digest-locked anti-slop child critic/);
+    assert.match(skillMetadata, /\$killsloprouter:kill-slop-router/);
+    assert.match(skillMetadata, /route antislop only as the digest-locked internal anti-slop critic/);
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "playwright-core", "package.json")).version,
       "1.62.1");
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "axe-core", "package.json")).version,

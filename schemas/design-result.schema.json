@@ -12,6 +12,7 @@
     "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
     "packet_id": {"type": "string", "minLength": 1},
     "provider_id": {"type": "string", "minLength": 1},
+    "participant": {"$ref": "participant.schema.json"},
     "actor": {
       "type": "object",
       "required": ["actor_id", "kind"],

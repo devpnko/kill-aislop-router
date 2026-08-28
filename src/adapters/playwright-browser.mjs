@@ -5,6 +5,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney,
+  verifyParticipant
+} from "../identity.mjs";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
@@ -771,13 +777,33 @@ async function runDesignBrowser(request) {
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-design-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }
 
 async function run(request) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
+  requireValue(request?.host_adapter_request_version === 1,
+    "host_adapter_request_version must be 1");
+  verifyJourneyIdentity(request.journey_identity, {
+    runId: request.run_id,
+    label: "Playwright host request journey_identity"
+  });
+  verifyPacketJourney(packet, request.journey_identity,
+    `packet ${packet?.packet_id || "unknown"}`);
+  requireValue(identitiesMatch(packet.journey_identity, request.journey_identity),
+    "Playwright request and packet journey identities conflict");
+  verifyParticipant(request.participant, {
+    providerId: packet?.provider?.id,
+    stageId: packet?.stage_id,
+    designTaskKind: packet?.design_task?.kind || null,
+    label: "Playwright host request participant"
+  });
+  requireValue(JSON.stringify(request.participant) === JSON.stringify(packet.participant),
+    "Playwright host request participant conflicts with the packet");
   requireValue(packet?.stage_id === "browser-evidence", "official Playwright adapter accepts browser-evidence only");
   requireValue(settings.contract === CONTRACT, `settings.contract must be ${CONTRACT}`);
   requireValue(request.permission_scopes?.includes("artifact:read"), "artifact:read permission is required");
@@ -1233,7 +1259,9 @@ async function run(request) {
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }

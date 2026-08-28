@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/audit-receipt.schema.json",
+  "title": "KillSlopRouter Final Audit Receipt",
+  "type": "object",
+  "required": [
+    "audit_receipt_version",
+    "run_id",
+    "journey_identity",
+    "status",
+    "technical_status",
+    "route",
+    "manifest_digest",
+    "creator",
+    "results",
+    "owner_approval",
+    "boundaries",
+    "receipt_digest"
+  ],
+  "properties": {
+    "audit_receipt_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "status": {
+      "enum": [
+        "blocked",
+        "incomplete",
+        "rejected",
+        "approved",
+        "critic_pass",
+        "critic_pass_owner_review_pending"
+      ]
+    },
+    "technical_status": {"enum": ["blocked", "incomplete", "pass"]},
+    "route": {
+      "type": "object",
+      "required": ["router_id", "router_version", "route_id", "plan_digest"],
+      "properties": {
+        "router_id": {"const": "kill-slop-router"},
+        "router_version": {"type": "string", "minLength": 1},
+        "route_id": {"type": "string", "minLength": 1},
+        "plan_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": true
+    },
+    "manifest_digest": {"$ref": "#/$defs/digest"},
+    "creator": {"type": "object"},
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["packet_id", "provider_id", "participant", "normalized_digest"],
+        "properties": {
+          "packet_id": {"type": "string", "minLength": 1},
+          "provider_id": {"type": "string", "minLength": 1},
+          "participant": {"$ref": "participant.schema.json"},
+          "normalized_digest": {"$ref": "#/$defs/digest"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "owner_approval": {
+      "type": "object",
+      "required": ["status", "journey_identity", "scope_digest"],
+      "properties": {
+        "status": {"enum": ["approved", "rejected", "pending", "not-required"]},
+        "journey_identity": {"$ref": "journey-identity.schema.json"},
+        "scope_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": true
+    },
+    "boundaries": {
+      "type": "array",
+      "contains": {"const": "KillSlopRouter-is-the-parent-and-provider-names-are-internal-roles"}
+    },
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "additionalProperties": true
+}

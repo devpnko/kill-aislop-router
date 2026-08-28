@@ -6,6 +6,7 @@
   "required": [
     "automation_run_version",
     "run_id",
+    "journey_identity",
     "status",
     "state_path",
     "state_directory",
@@ -20,6 +21,7 @@
   "properties": {
     "automation_run_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
     "status": {"enum": ["running", "manual_pending", "blocked", "complete"]},
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
@@ -31,6 +33,21 @@
     "attempts": {"type": "array", "items": {"type": "object"}},
     "blockers": {"type": "array", "items": {"type": "string"}},
     "pending": {"type": "array", "items": {"type": "string"}},
+    "identity_migration": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["path", "digest", "receipt_digest"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "digest": {"$ref": "#/$defs/digest"},
+            "receipt_digest": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "baseline_observation": {
       "oneOf": [
         {"type": "null"},
@@ -54,6 +71,7 @@
         "state_file_digest",
         "state_digest",
         "run_id",
+        "journey_identity",
         "audit_digest",
         "final_file_digest",
         "final_receipt_digest",
@@ -73,6 +91,7 @@
         "state_file_digest": {"$ref": "#/$defs/digest"},
         "state_digest": {"$ref": "#/$defs/digest"},
         "run_id": {"type": "string", "minLength": 1},
+        "journey_identity": {"$ref": "journey-identity.schema.json"},
         "audit_digest": {"$ref": "#/$defs/digest"},
         "final_file_digest": {"$ref": "#/$defs/digest"},
         "final_receipt_digest": {"$ref": "#/$defs/digest"},

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
 import { inspectPacketAdapter, loadHostManifest } from "../src/execution.mjs";
 import { codexRuntimeRootDigest } from "../src/codex.mjs";
+import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -87,6 +88,12 @@ const AGENT_PROVIDERS = [
   "locale-copy-review",
   "domain-authority-review"
 ];
+
+function sealPacket(value) {
+  delete value.packet_digest;
+  value.packet_digest = canonicalDigest(value);
+  return value;
+}
 
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
@@ -240,6 +247,7 @@ function approvalFor(fixture) {
   writeJson(approval, {
     approval_version: 1,
     run_id: audit.run_id,
+    journey_identity: audit.journey_identity,
     scope_digest: audit.approval_scope_digest,
     owner_id: "owner:codex-host-e2e",
     status: "approved",
@@ -250,17 +258,29 @@ function approvalFor(fixture) {
 }
 
 function packet(providerId, { design = false, capabilities = null } = {}) {
-  return {
+  const runId = "codex-packet-fixture";
+  const stageId = design
+    ? "direction-candidate"
+    : providerId === "anti-slop" ? "functional-human-review" : "project-contract";
+  const designTask = design ? { kind: "direction-candidate" } : null;
+  const value = {
     ...(design ? { design_packet_version: 1 } : { dispatch_packet_version: 1 }),
     packet_id: `${providerId}--fixture--1`,
-    stage_id: design
-      ? "direction-candidate"
-      : providerId === "anti-slop" ? "functional-human-review" : "project-contract",
+    run_id: runId,
+    journey_identity: createJourneyIdentity({ runId, routerVersion: "1.0.0" }),
+    participant: createParticipant({
+      providerId,
+      stageId,
+      designTaskKind: designTask?.kind || null
+    }),
+    stage_id: stageId,
+    ...(designTask ? { design_task: designTask } : {}),
     provider: { id: providerId },
     assigned_capabilities: capabilities || PROVIDERS[providerId].capabilities,
     minimum_strength: PROVIDERS[providerId].strength,
     required_permissions: ["artifact:read"]
   };
+  return sealPacket(value);
 }
 
 test("official Codex host configures digest-locked agent and skill reviewers and completes an integrated run", {
@@ -314,6 +334,10 @@ test("official Codex host configures digest-locked agent and skill reviewers and
     assert.ok(officialAttempts.some((attempt) => attempt.adapter === "skill-json-v1"));
     assert.ok(officialAttempts.every((attempt) => attempt.execution_status === "ran" &&
       attempt.ingest_status === "recorded"));
+    assert.ok(officialAttempts.every((attempt) =>
+      attempt.metadata.observed_journey_identity_digest === state.journey_identity.identity_digest &&
+      attempt.metadata.observed_participant.provider_id === attempt.provider_id &&
+      attempt.metadata.observed_participant.visibility === "internal"));
     assert.ok(officialAttempts.every((attempt) => attempt.child_pid > 0 &&
       attempt.metadata.child_pid > 0 && attempt.child_pid !== attempt.metadata.child_pid));
     const threadIds = officialAttempts.map((attempt) => attempt.metadata.thread_id);
@@ -691,10 +715,10 @@ test("anti-slop remains pending unless the Router dispatches its skill child for
     };
     writeJson(fixture.host, host);
     manifest = loadHostManifest(fixture.host);
-    const wrongStage = inspectPacketAdapter({
-      ...packet("anti-slop"),
-      stage_id: "rendered-craft-review"
-    }, manifest);
+    const wrongStagePacket = packet("anti-slop");
+    wrongStagePacket.stage_id = "rendered-craft-review";
+    sealPacket(wrongStagePacket);
+    const wrongStage = inspectPacketAdapter(wrongStagePacket, manifest);
     assert.equal(wrongStage.execution_status, "manual_pending");
     assert.match(wrongStage.reason, /only satisfy the routed functional-human-review stage/);
   } finally {

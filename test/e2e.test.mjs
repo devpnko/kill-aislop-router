@@ -6,7 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { hashArtifact } from "../src/integrity.mjs";
+import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -159,6 +159,7 @@ function writeApproval(fixture, ownerId = "release-owner-1") {
   writeJson(approval, {
     approval_version: 1,
     run_id: audit.run_id,
+    journey_identity: audit.journey_identity,
     scope_digest: audit.approval_scope_digest,
     owner_id: ownerId,
     status: "approved",
@@ -213,6 +214,11 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     const first = runCli(startArgs(fixture), fixture.directory);
     assert.equal(first.status, 6, first.stderr || first.stdout);
     let state = readState(fixture);
+    const journeyDigest = state.journey_identity.identity_digest;
+    assert.equal(state.journey_identity.orchestrator_id, "kill-slop-router");
+    assert.equal(state.journey_identity.display_name, "KillSlopRouter");
+    assert.equal(state.journey_identity.canonical_entrypoint, "killsloprouter:kill-slop-router");
+    assert.equal(state.journey_identity.presentation.participant_rule, "internal-role-only");
     assert.equal(state.status, "manual_pending");
     assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
     assert.equal(state.steps.plan.status, "completed");
@@ -223,6 +229,11 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     const childAttempts = state.attempts.filter((attempt) => attempt.child_pid);
     assert.ok(childAttempts.length > 0);
     assert.ok(childAttempts.every((attempt) => attempt.child_pid !== process.pid));
+    assert.ok(childAttempts.every((attempt) =>
+      attempt.participant.visibility === "internal" &&
+      attempt.metadata.observed_journey_identity_digest === journeyDigest &&
+      attempt.metadata.observed_participant.provider_id === attempt.provider_id
+    ));
     const visualIntentAttempt = state.attempts.find((attempt) =>
       attempt.provider_id === "visual-intent-review"
     );
@@ -231,6 +242,21 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     assert.match(visualIntentAttempt.metadata.observed_visual_signature_digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(visualIntentAttempt.metadata.observed_primary_color, "#175CD3");
     const preApprovalAudit = JSON.parse(fs.readFileSync(state.paths.audit.path, "utf8"));
+    assert.equal(preApprovalAudit.journey_identity.identity_digest, journeyDigest);
+    assert.equal(preApprovalAudit.creator.participant.role, "creator");
+    assert.ok(preApprovalAudit.packets.every((packet) =>
+      packet.journey_identity.identity_digest === journeyDigest &&
+      packet.participant.provider_id === packet.provider.id &&
+      packet.participant.visibility === "internal"
+    ));
+    assert.ok(preApprovalAudit.results.every((result) =>
+      result.normalized.participant.provider_id === result.normalized.provider_id &&
+      result.normalized.participant.visibility === "internal"
+    ));
+    assert.equal(
+      preApprovalAudit.packets.find((packet) => packet.provider.id === "anti-slop").participant.role,
+      "critic"
+    );
     const signaturePacket = preApprovalAudit.packets.find((item) =>
       item.provider.id === "visual-intent-review"
     );
@@ -248,6 +274,8 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
 
     const approval = writeApproval(fixture);
+    assert.equal(JSON.parse(fs.readFileSync(approval, "utf8")).journey_identity.identity_digest,
+      journeyDigest);
     const resumed = runCli([
       "run", "--resume", fixture.state,
       "--host-config", fixture.host,
@@ -257,6 +285,8 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     assert.equal(resumed.status, 0, resumed.stderr || resumed.stdout);
     state = readState(fixture);
     assert.equal(state.status, "complete");
+    assert.equal(state.journey_identity.identity_digest, journeyDigest,
+      "compaction/resume must preserve the original journey identity");
     assert.equal(state.final_audit_status, "approved");
     assert.match(state.final_receipt_digest, /^sha256:[a-f0-9]{64}$/);
     assert.deepEqual(Object.keys(state.steps).sort(), [
@@ -273,6 +303,12 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     assert.ok(Object.values(state.steps).every((step) =>
       /^sha256:[a-f0-9]{64}$/.test(step.receipt_digest) &&
       /^sha256:[a-f0-9]{64}$/.test(step.file_digest)));
+    assert.ok(Object.values(state.steps).every((step) =>
+      JSON.parse(fs.readFileSync(step.receipt_path, "utf8")).journey_identity.identity_digest === journeyDigest
+    ));
+    const finalReceipt = JSON.parse(fs.readFileSync(state.paths.final.path, "utf8"));
+    assert.equal(finalReceipt.journey_identity.identity_digest, journeyDigest);
+    assert.equal(finalReceipt.owner_approval.journey_identity.identity_digest, journeyDigest);
   } finally {
     cleanup(fixture);
   }
@@ -777,6 +813,32 @@ test("automation state tamper blocks resume before another child runs", () => {
     ], fixture.directory);
     assert.equal(resumed.status, 4, resumed.stderr || resumed.stdout);
     assert.match(resumed.stderr, /automation state digest mismatch/);
+    assert.equal(JSON.parse(fs.readFileSync(fixture.state, "utf8")).attempts.length, attemptsBefore);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("resume rejects a re-signed parent identity conflict before another child runs", () => {
+  const fixture = makeFixture();
+  try {
+    const first = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(first.status, 6, first.stderr || first.stdout);
+    const state = readState(fixture);
+    const attemptsBefore = state.attempts.length;
+    state.journey_identity.invocation = "resume";
+    const { identity_digest: _oldIdentityDigest, ...identityBody } = state.journey_identity;
+    state.journey_identity.identity_digest = canonicalDigest(identityBody);
+    const { state_digest: _oldStateDigest, ...stateBody } = state;
+    state.state_digest = canonicalDigest(stateBody);
+    writeJson(fixture.state, state);
+    const resumed = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(resumed.status, 4, resumed.stderr || resumed.stdout);
+    assert.match(resumed.stderr, /journey identity mismatch|journey identities conflict/);
     assert.equal(JSON.parse(fs.readFileSync(fixture.state, "utf8")).attempts.length, attemptsBefore);
   } finally {
     cleanup(fixture);

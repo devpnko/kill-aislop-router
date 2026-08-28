@@ -20,6 +20,7 @@
     "audit_result_version": {"const": 1},
     "packet_id": {"type": "string", "minLength": 1},
     "provider_id": {"type": "string", "minLength": 1},
+    "participant": {"$ref": "participant.schema.json"},
     "reviewer": {
       "type": "object",
       "required": ["actor_id", "kind"],

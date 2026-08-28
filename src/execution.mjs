@@ -15,6 +15,11 @@ import {
   CODEX_REVIEW_ADAPTER_CONTRACT,
   validateOfficialCodexSettings
 } from "./codex.mjs";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney
+} from "./identity.mjs";
 
 export const HOST_ADAPTER_TYPES = new Set([
   "kill-ai-slop-v1",
@@ -239,6 +244,7 @@ function manualPending(packet, reason, manifest = null) {
     execution_status: "manual_pending",
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
+    participant: packet.participant,
     adapter: null,
     host_manifest_digest: manifest?.manifest_digest || null,
     reason
@@ -246,6 +252,7 @@ function manualPending(packet, reason, manifest = null) {
 }
 
 export function inspectPacketAdapter(packet, manifest) {
+  verifyPacketJourney(packet, packet?.journey_identity, `packet ${packet?.packet_id || "unknown"}`);
   if (!manifest) return manualPending(packet, "no host adapter manifest was supplied");
   if (!manifest.allowed_providers.includes(packet.provider.id)) {
     return manualPending(packet, `provider is not allowlisted: ${packet.provider.id}`, manifest);
@@ -366,6 +373,7 @@ export function inspectPacketAdapter(packet, manifest) {
     execution_status: "ready",
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
+    participant: packet.participant,
     adapter: declaration.adapter,
     host_manifest_digest: manifest.manifest_digest,
     declaration
@@ -388,10 +396,17 @@ function normalizeReturnedEvidence(result, outputDirectory) {
 }
 
 function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) {
+  verifyJourneyIdentity(run.journey_identity, { runId: run.run_id, label: "host run journey_identity" });
+  verifyPacketJourney(packet, run.journey_identity, `packet ${packet.packet_id}`);
+  if (!identitiesMatch(packet.journey_identity, run.journey_identity)) {
+    throw new RouterError("host packet journey identity conflicts with the run", 4);
+  }
   fs.mkdirSync(outputDirectory, { recursive: true });
   const request = {
     host_adapter_request_version: 1,
     run_id: run.run_id,
+    journey_identity: run.journey_identity,
+    participant: packet.participant,
     attempt,
     packet,
     packets: run.packets,
@@ -538,6 +553,8 @@ function runScanner({ declaration, packet, run }) {
 }
 
 export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, outputDirectory }) {
+  verifyJourneyIdentity(run?.journey_identity, { runId: run?.run_id, label: "execution journey_identity" });
+  verifyPacketJourney(packet, run.journey_identity, `packet ${packet?.packet_id || "unknown"}`);
   const inspection = inspectPacketAdapter(packet, manifest);
   if (inspection.execution_status !== "ready") return inspection;
   const declaration = inspection.declaration;
@@ -558,6 +575,7 @@ export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, 
   const base = {
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
+    participant: packet.participant,
     adapter: declaration.adapter,
     adapter_entrypoint: declaration.entrypoint
       ? publicSnapshot(snapshotArtifact(declaration.entrypoint, { root: path.dirname(declaration.entrypoint) }))

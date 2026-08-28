@@ -6,6 +6,8 @@
   "required": [
     "host_adapter_request_version",
     "run_id",
+    "journey_identity",
+    "participant",
     "attempt",
     "packet",
     "packets",
@@ -20,6 +22,8 @@
   "properties": {
     "host_adapter_request_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "participant": {"$ref": "participant.schema.json"},
     "attempt": {"type": "integer", "minimum": 1},
     "packet": {"type": "object"},
     "packets": {"type": "array", "items": {"type": "object"}},

@@ -101,6 +101,7 @@ const REQUIRED_VISUAL_INTENT_KEYS = [
 ];
 const VISUAL_INTENT_RECEIPT_KEYS = new Set([
   "visual_intent_receipt_version",
+  "journey_identity",
   "project_id",
   "surface",
   "status",
@@ -154,6 +155,7 @@ const REQUIRED_VISUAL_SIGNATURE_KEYS = [
 ];
 const VISUAL_SIGNATURE_RECEIPT_KEYS = new Set([
   "visual_signature_receipt_version",
+  "journey_identity",
   "project_id",
   "surface",
   "status",
@@ -1074,6 +1076,27 @@ function exactObjectKeys(value, allowed, label) {
   }
 }
 
+function verifyOptionalJourneyIdentity(identity, label) {
+  if (identity === undefined) return;
+  exactObjectKeys(identity, new Set([
+    "journey_identity_version", "orchestrator_id", "orchestrator_version", "display_name",
+    "canonical_entrypoint", "invocation", "run_id", "presentation", "identity_digest"
+  ]), label);
+  if (identity.journey_identity_version !== 1 ||
+    identity.orchestrator_id !== "kill-slop-router" ||
+    identity.display_name !== "KillSlopRouter" ||
+    identity.canonical_entrypoint !== "killsloprouter:kill-slop-router" ||
+    !["explicit", "implicit", "resume", "legacy-migrated"].includes(identity.invocation) ||
+    typeof identity.orchestrator_version !== "string" || !identity.orchestrator_version ||
+    typeof identity.run_id !== "string" || !identity.run_id ||
+    identity.presentation?.active_workflow !== "KillSlopRouter" ||
+    identity.presentation?.participant_rule !== "internal-role-only") {
+    throw new Error(`${label} violates the KillSlopRouter parent identity contract`);
+  }
+  const { identity_digest: digest, ...body } = identity;
+  if (canonicalDigest(body) !== digest) throw new Error(`${label} digest mismatch`);
+}
+
 function verifiedAuthoritySource(filePath, expectedDigest, kind, label) {
   if (!fs.existsSync(filePath)) throw new Error(`${label} is missing: ${filePath}`);
   const stat = fs.lstatSync(filePath);
@@ -1136,6 +1159,8 @@ export function resolveVisualIntent(profile, profilePath, surface) {
     );
     const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
     exactObjectKeys(receipt, VISUAL_INTENT_RECEIPT_KEYS, "visual intent authority receipt");
+    verifyOptionalJourneyIdentity(receipt.journey_identity,
+      "visual intent authority receipt.journey_identity");
     if (receipt.visual_intent_receipt_version !== 1) {
       throw new Error("visual intent authority receipt version must be 1");
     }
@@ -1285,6 +1310,8 @@ export function resolveVisualSignature(profile, profilePath, surface) {
     );
     const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
     exactObjectKeys(receipt, VISUAL_SIGNATURE_RECEIPT_KEYS, "visual signature authority receipt");
+    verifyOptionalJourneyIdentity(receipt.journey_identity,
+      "visual signature authority receipt.journey_identity");
     if (receipt.visual_signature_receipt_version !== 1) {
       throw new Error("visual signature authority receipt version must be 1");
     }

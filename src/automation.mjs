@@ -5,8 +5,10 @@ import {
   dispatchAuditPackets,
   finalizeAudit,
   initializeAudit,
+  rebindLegacyAuditIdentity,
   recordAuditResult,
   recordTriage,
+  verifyAuditJourneyIdentity,
   writeJsonAtomic
 } from "./audit.mjs";
 import { executeAuditPacket, hostReadiness, inspectPacketAdapter } from "./execution.mjs";
@@ -14,6 +16,11 @@ import { canonicalDigest, hashArtifact } from "./integrity.mjs";
 import { PLAYWRIGHT_PROVIDER_TARGET } from "./playwright.mjs";
 import { verifyPlanningGateForAudit } from "./planning.mjs";
 import { RouterError, planRoute, readJson } from "./router.mjs";
+import {
+  createJourneyIdentity,
+  identitiesMatch,
+  verifyJourneyIdentity
+} from "./identity.mjs";
 
 const STEP_FILES = {
   plan: "01-plan-receipt.json",
@@ -109,10 +116,11 @@ function validateStateArtifactSeparation(statePath, artifacts, root) {
   }
 }
 
-function receiptBody(runId, stepId, status, attempt, payload) {
+function receiptBody(journeyIdentity, runId, stepId, status, attempt, payload) {
   const receipt = {
     automation_step_receipt_version: 1,
     run_id: runId,
+    journey_identity: journeyIdentity,
     step_id: stepId,
     status,
     attempt,
@@ -126,7 +134,7 @@ function receiptBody(runId, stepId, status, attempt, payload) {
 function recordStep(state, stepId, status, payload) {
   const previous = state.steps[stepId];
   const attempt = (previous?.attempt || 0) + 1;
-  const receipt = receiptBody(state.run_id, stepId, status, attempt, payload);
+  const receipt = receiptBody(state.journey_identity, state.run_id, stepId, status, attempt, payload);
   const receiptPath = path.join(state.state_directory, "receipts", STEP_FILES[stepId]);
   writeJsonAtomic(receiptPath, receipt);
   state.steps[stepId] = {
@@ -140,7 +148,7 @@ function recordStep(state, stepId, status, payload) {
   return receipt;
 }
 
-function verifyStepReceipt(stepId, step) {
+function verifyStepReceipt(state, stepId, step, migrationReceipt = null) {
   requireValue(fs.existsSync(step.receipt_path), `automation step receipt is missing: ${stepId}`, 4);
   requireValue(hashArtifact(step.receipt_path) === step.file_digest,
     `automation step receipt changed: ${stepId}`, 4);
@@ -150,9 +158,38 @@ function verifyStepReceipt(stepId, step) {
   delete copy.receipt_digest;
   requireValue(canonicalDigest(copy) === expected && expected === step.receipt_digest,
     `automation step receipt digest mismatch: ${stepId}`, 4);
+  if (receipt.journey_identity) {
+    requireValue(identitiesMatch(receipt.journey_identity, state.journey_identity),
+      `automation step receipt journey identity mismatch: ${stepId}`, 4);
+  } else {
+    requireValue(
+      state.journey_identity?.invocation === "legacy-migrated" &&
+      migrationReceipt?.legacy_step_receipts?.[stepId] === step.receipt_digest,
+      `automation step receipt lacks the KillSlopRouter journey identity: ${stepId}`,
+      4
+    );
+  }
 }
 
-export function readAutomationState(statePath) {
+function verifyIdentityMigration(state) {
+  if (!state.identity_migration) return null;
+  const snapshot = state.identity_migration;
+  requireValue(fs.existsSync(snapshot.path), "identity migration receipt is missing", 4);
+  requireValue(hashArtifact(snapshot.path) === snapshot.digest,
+    "identity migration receipt changed", 4);
+  const receipt = readJson(snapshot.path, "identity migration receipt");
+  const copy = { ...receipt };
+  delete copy.receipt_digest;
+  requireValue(canonicalDigest(copy) === receipt.receipt_digest &&
+    receipt.receipt_digest === snapshot.receipt_digest,
+  "identity migration receipt digest mismatch", 4);
+  requireValue(receipt.run_id === state.run_id &&
+    identitiesMatch(receipt.journey_identity, state.journey_identity),
+  "identity migration receipt does not bind the automation run", 4);
+  return receipt;
+}
+
+function readAutomationStateCore(statePath, { allowMissingIdentity = false } = {}) {
   const absolute = path.resolve(statePath);
   const state = readJson(absolute, "automation run");
   requireValue(state?.automation_run_version === 1, "automation_run_version must be 1");
@@ -161,6 +198,15 @@ export function readAutomationState(statePath) {
   const expected = state.state_digest;
   requireValue(canonicalDigest(stateManifest(state)) === expected,
     "automation state digest mismatch", 4);
+  if (state.journey_identity) {
+    verifyJourneyIdentity(state.journey_identity, {
+      runId: state.run_id,
+      label: "automation journey_identity"
+    });
+  } else {
+    requireValue(allowMissingIdentity,
+      "legacy automation state lacks journey_identity; rerun with --migrate-identity", 4);
+  }
   if (state.request?.profile_path && state.request.profile_digest) {
     try {
       requireValue(fs.existsSync(state.request.profile_path), "automation profile is missing", 4);
@@ -171,15 +217,120 @@ export function readAutomationState(statePath) {
       throw new RouterError(`cannot verify automation profile: ${error.message}`, 4);
     }
   }
-  for (const [stepId, step] of Object.entries(state.steps || {})) verifyStepReceipt(stepId, step);
+  const migrationReceipt = state.journey_identity ? verifyIdentityMigration(state) : null;
+  for (const [stepId, step] of Object.entries(state.steps || {})) {
+    if (state.journey_identity) verifyStepReceipt(state, stepId, step, migrationReceipt);
+    else {
+      requireValue(fs.existsSync(step.receipt_path), `automation step receipt is missing: ${stepId}`, 4);
+      requireValue(hashArtifact(step.receipt_path) === step.file_digest,
+        `automation step receipt changed: ${stepId}`, 4);
+      const receipt = readJson(step.receipt_path, `legacy automation ${stepId} receipt`);
+      const copy = { ...receipt };
+      delete copy.receipt_digest;
+      requireValue(canonicalDigest(copy) === receipt.receipt_digest &&
+        receipt.receipt_digest === step.receipt_digest,
+      `automation step receipt digest mismatch: ${stepId}`, 4);
+    }
+  }
   for (const [key, snapshot] of Object.entries(state.paths || {})) {
     if (!snapshot) continue;
     requireValue(fs.existsSync(snapshot.path), `automation ${key} file is missing`, 4);
     requireValue(hashArtifact(snapshot.path) === snapshot.digest,
       `automation ${key} file changed outside the orchestrator`, 4);
   }
-  if (state.baseline_observation) verifyObservationBinding(state.baseline_observation, absolute);
+  if (state.baseline_observation) {
+    requireValue(state.journey_identity,
+      "legacy observation-bound automation cannot be identity-migrated; start a new run", 4);
+    verifyObservationBinding(state.baseline_observation, absolute);
+  }
+  if (state.paths?.audit && state.journey_identity) {
+    const audit = readJson(state.paths.audit.path, "automation audit run");
+    verifyAuditJourneyIdentity(audit);
+    requireValue(identitiesMatch(audit.journey_identity, state.journey_identity),
+      "automation and audit journey identities conflict", 4);
+  }
   return state;
+}
+
+export function readAutomationState(statePath) {
+  return readAutomationStateCore(statePath);
+}
+
+export function migrateAutomationStateIdentity(statePath) {
+  const state = readAutomationStateCore(statePath, { allowMissingIdentity: true });
+  requireValue(!state.journey_identity, "automation state already has journey_identity", 4);
+  requireValue((state.attempts || []).length === 0,
+    "legacy automation contains adapter attempts; start a new KillSlopRouter run so child evidence is identity-bound",
+    4);
+  requireValue(!state.final_receipt_digest && !state.paths?.final && !state.paths?.approval,
+    "legacy automation contains final or approval evidence; start a new KillSlopRouter run", 4);
+  requireValue(!state.baseline_observation,
+    "legacy automation contains an observation binding; start a new KillSlopRouter run", 4);
+  requireValue(state.request?.router_path && fs.existsSync(state.request.router_path),
+    "legacy automation router source is missing", 4);
+  const router = readJson(state.request.router_path, "legacy automation router");
+  const plan = state.paths?.plan ? readJson(state.paths.plan.path, "legacy automation plan") : null;
+  requireValue(!plan || (plan.router_id === router.router_id && plan.router_version === router.router_version),
+    "legacy automation plan conflicts with its router source", 4);
+
+  const previous = {
+    state_digest: state.state_digest,
+    audit_digest: state.paths?.audit?.digest || null,
+    packets_digest: state.paths?.packets?.digest || null
+  };
+  const journeyIdentity = createJourneyIdentity({
+    runId: state.run_id,
+    routerId: router.router_id,
+    routerVersion: router.router_version,
+    invocation: "legacy-migrated"
+  });
+  const legacyStepReceipts = Object.fromEntries(Object.entries(state.steps || {})
+    .map(([stepId, step]) => [stepId, step.receipt_digest]));
+  state.journey_identity = journeyIdentity;
+
+  if (state.paths?.audit) {
+    const legacyAudit = readJson(state.paths.audit.path, "legacy automation audit run");
+    requireValue(legacyAudit.run_id === state.run_id,
+      "legacy automation audit run_id conflicts with the state", 4);
+    const audit = rebindLegacyAuditIdentity(legacyAudit, journeyIdentity);
+    writeJsonAtomic(state.paths.audit.path, audit);
+    state.paths.audit = snapshotPath(state.paths.audit.path);
+    const packetsPath = state.paths?.packets?.path || path.join(state.state_directory, "packets");
+    dispatchAuditPackets(audit, packetsPath);
+    state.paths.packets = { path: packetsPath, digest: hashArtifact(packetsPath) };
+  }
+
+  const receipt = {
+    identity_migration_receipt_version: 1,
+    run_id: state.run_id,
+    status: "migrated",
+    migrated_at: nowIso(),
+    journey_identity: journeyIdentity,
+    previous_state_digest: previous.state_digest,
+    verified: {
+      router_path: path.resolve(state.request.router_path),
+      router_digest: hashArtifact(state.request.router_path),
+      router_id: router.router_id,
+      router_version: router.router_version,
+      plan_digest: state.paths?.plan?.digest || null,
+      previous_audit_digest: previous.audit_digest,
+      previous_packets_digest: previous.packets_digest,
+      prior_attempt_count: 0,
+      prior_result_count: 0,
+      prior_approval_present: false
+    },
+    legacy_step_receipts: legacyStepReceipts
+  };
+  receipt.receipt_digest = canonicalDigest(receipt);
+  const receiptPath = path.join(state.state_directory, "receipts", "00-identity-migration-receipt.json");
+  writeJsonAtomic(receiptPath, receipt);
+  state.identity_migration = {
+    path: receiptPath,
+    digest: hashArtifact(receiptPath),
+    receipt_digest: receipt.receipt_digest
+  };
+  writeState(state);
+  return readAutomationState(state.state_path);
 }
 
 function newState({
@@ -191,13 +342,22 @@ function newState({
   scope,
   creatorActorId,
   observationRunPath,
+  router,
+  invocation,
   root
 }) {
   const absoluteStatePath = path.resolve(statePath);
   const directory = stateDirectory(absoluteStatePath);
+  const runId = crypto.randomUUID();
   return sealState({
     automation_run_version: 1,
-    run_id: crypto.randomUUID(),
+    run_id: runId,
+    journey_identity: createJourneyIdentity({
+      runId,
+      routerId: router.router_id,
+      routerVersion: router.router_version,
+      invocation
+    }),
     status: "running",
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -219,6 +379,7 @@ function newState({
     attempts: [],
     blockers: [],
     pending: [],
+    identity_migration: null,
     baseline_observation: null,
     final_audit_status: null,
     final_receipt_digest: null,
@@ -296,6 +457,8 @@ function verifyObservationBinding(observation, currentStatePath = null) {
     "baseline observation state digest changed", 4);
   requireValue(state.run_id === observation.run_id,
     "baseline observation run id changed", 4);
+  requireValue(identitiesMatch(state.journey_identity, observation.journey_identity),
+    "baseline observation journey identity changed", 4);
   requireValue(state.paths.audit?.digest === observation.audit_digest,
     "baseline observation audit digest changed", 4);
   requireValue(state.paths.final?.digest === observation.final_file_digest,
@@ -377,6 +540,7 @@ function bindObservationRun(observationRunPath, { plan, artifacts, root, current
     state_file_digest: hashArtifact(absolute),
     state_digest: state.state_digest,
     run_id: state.run_id,
+    journey_identity: state.journey_identity,
     audit_digest: state.paths.audit.digest,
     final_file_digest: state.paths.final.digest,
     final_receipt_digest: state.final_receipt_digest,
@@ -405,8 +569,15 @@ export function dryRunAutomation({
   creatorActorId = null,
   observationRunPath = null,
   hostManifest = null,
+  invocation = "explicit",
   root = process.cwd()
 }) {
+  const journeyIdentity = createJourneyIdentity({
+    runId: "dry-run",
+    routerId: router.router_id,
+    routerVersion: router.router_version,
+    invocation
+  });
   const plan = planRoute({
     router,
     profile,
@@ -418,6 +589,8 @@ export function dryRunAutomation({
   });
   const report = {
     automation_dry_run_version: 1,
+    run_id: "dry-run",
+    journey_identity: journeyIdentity,
     status: plan.status === "planned" ? "dry_run" : "blocked",
     generated_at: nowIso(),
     plan: planPayload(plan),
@@ -450,6 +623,7 @@ export function dryRunAutomation({
       artifacts,
       scope,
       creatorActorId,
+      journeyIdentity,
       root,
       runId: "dry-run"
     });
@@ -466,6 +640,9 @@ export function dryRunAutomation({
 }
 
 function updateAudit(state, audit) {
+  verifyAuditJourneyIdentity(audit);
+  requireValue(identitiesMatch(audit.journey_identity, state.journey_identity),
+    "automation and audit journey identities conflict", 4);
   writeJsonAtomic(state.paths.audit.path, audit);
   state.paths.audit = snapshotPath(state.paths.audit.path);
   writeState(state);
@@ -593,6 +770,7 @@ function checkpointExecution(state, audit, consideredPackets) {
     results: audit.results.map((result) => ({
       packet_id: result.packet_id,
       provider_id: result.normalized.provider_id,
+      participant: result.normalized.participant,
       normalized_digest: result.normalized_digest,
       source_digest: result.source.digest
     }))
@@ -698,6 +876,7 @@ function ingestManualResults(state, audit, entries = []) {
     state.attempts.push({
       packet_id: added.packet_id,
       provider_id: added.normalized.provider_id,
+      participant: added.normalized.participant,
       adapter: "manual-v1",
       host_manifest_digest: null,
       permission_scopes: [],
@@ -886,6 +1065,7 @@ export function startAutomation({
   triagePath = null,
   approvalPath = null,
   retry = null,
+  invocation = "explicit",
   root = process.cwd()
 }) {
   const absoluteStatePath = path.resolve(statePath);
@@ -910,6 +1090,8 @@ export function startAutomation({
     scope,
     creatorActorId,
     observationRunPath,
+    router,
+    invocation,
     root
   });
   fs.mkdirSync(state.state_directory, { recursive: true });
@@ -978,6 +1160,7 @@ export function startAutomation({
       artifacts,
       scope,
       creatorActorId,
+      journeyIdentity: state.journey_identity,
       root,
       runId: state.run_id
     });
@@ -1009,6 +1192,7 @@ export function startAutomation({
     packets: audit.packets.map((packet) => ({
       packet_id: packet.packet_id,
       provider_id: packet.provider.id,
+      participant: packet.participant,
       packet_digest: packet.packet_digest
     }))
   });

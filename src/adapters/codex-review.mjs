@@ -9,6 +9,12 @@ import {
   validateOfficialCodexSettings
 } from "../codex.mjs";
 import { hashArtifact, writeJsonAtomic } from "../integrity.mjs";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney,
+  verifyParticipant
+} from "../identity.mjs";
 
 const ownPath = fileURLToPath(import.meta.url);
 const FORBIDDEN_EVENT_ITEMS = new Set([
@@ -142,6 +148,8 @@ function writePacketOutputSchema(sourcePath, isolatedHome, packet) {
 function promptFor(request, skillRoot) {
   const adjudicationPacket = request.packet.stage_id === "adjudication";
   const reviewContract = {
+    journey_identity: request.journey_identity,
+    participant: request.participant,
     packet: request.packet,
     packets: request.packets.map((packet) => ({
       packet_id: packet.packet_id,
@@ -161,6 +169,7 @@ function promptFor(request, skillRoot) {
   };
   return [
     "You are a fresh, independent KillSlopRouter audit reviewer, not the artifact creator or owner approver.",
+    `The active workflow is ${request.journey_identity.display_name}. Your provider ${request.participant.provider_id} is only its internal ${request.participant.role}; never present the child provider as the mode or orchestrator.`,
     "Inspect the exact digest-bound local artifacts in the JSON contract below. Work read-only.",
     "Do not modify files, delegate to another agent, use MCP/apps/browser/web search, access credentials, or contact anything except the Codex model service used for this turn.",
     "Answer the packet stage_question. Check every assigned capability; do not treat transport success, scanner zero hits, or another critic's opinion as a pass.",
@@ -268,8 +277,23 @@ async function main() {
   const source = await readStdin();
   const request = JSON.parse(source);
   requireValue(request?.host_adapter_request_version === 1, "host_adapter_request_version must be 1");
+  verifyJourneyIdentity(request.journey_identity, {
+    runId: request.run_id,
+    label: "host request journey_identity"
+  });
   requireValue(request.packet?.dispatch_packet_version === 1,
     "official Codex review accepts audit dispatch packets only");
+  verifyPacketJourney(request.packet, request.journey_identity,
+    `packet ${request.packet?.packet_id || "unknown"}`);
+  requireValue(identitiesMatch(request.packet.journey_identity, request.journey_identity),
+    "host request and packet journey identities conflict");
+  verifyParticipant(request.participant, {
+    providerId: request.packet.provider.id,
+    stageId: request.packet.stage_id,
+    label: "host request participant"
+  });
+  requireValue(JSON.stringify(request.participant) === JSON.stringify(request.packet.participant),
+    "host request participant conflicts with the packet");
   requireValue(request.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT,
     "official Codex review contract is missing");
   if (request.packet.provider.id === "anti-slop") {
@@ -379,6 +403,8 @@ async function main() {
       skill_digest: request.settings.skill_digest || null,
       output_schema_digest: packetOutputSchema.digest,
       resolution_policy: packetOutputSchema.resolutionPolicy,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant,
       sandbox: "read-only",
       ephemeral: true
     }

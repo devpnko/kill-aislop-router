@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/dispatch-packet.schema.json",
+  "title": "KillSlopRouter Audit Dispatch Packet",
+  "type": "object",
+  "required": [
+    "dispatch_packet_version",
+    "packet_id",
+    "run_id",
+    "stage_id",
+    "provider",
+    "journey_identity",
+    "participant",
+    "assigned_capabilities",
+    "artifact_digests",
+    "packet_digest"
+  ],
+  "properties": {
+    "dispatch_packet_version": {"const": 1},
+    "packet_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "stage_id": {"type": "string", "minLength": 1},
+    "provider": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {"id": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    },
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "participant": {"$ref": "participant.schema.json"},
+    "assigned_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "artifact_digests": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+    },
+    "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "additionalProperties": true
+}

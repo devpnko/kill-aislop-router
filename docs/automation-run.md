@@ -30,6 +30,14 @@ digest. The sibling directory contains:
 - nine phase receipts
 - `audit-receipt.json` after finalization is attempted
 
+The state begins with a `journey_identity` whose digest binds the run ID,
+KillSlopRouter version, namespaced entrypoint, invocation origin, and
+parent-versus-participant presentation rule. The same complete object is copied
+into the audit, packets, phase receipts, owner approval, final receipt, design
+decisions, and every host-adapter request. Provider provenance is separate:
+each packet/request records an internal `participant` role while preserving its
+exact `provider_id`.
+
 If a reviewed artifact is a directory, place the state outside that directory
 or below its `.killsloprouter/` directory. KillSlopRouter rejects other nested
 state locations because writing results there would change the artifact being
@@ -40,6 +48,27 @@ that digest and the SHA-256 digest of the receipt file. See
 `schemas/automation-run.schema.json` and
 `schemas/automation-step-receipt.schema.json`.
 
+Resume never rewrites the parent identity to a child name or changes its
+invocation field. It verifies the state, every existing step receipt, audit,
+packet digest, and approval identity before another child can run.
+
+### Pre-identity state migration
+
+Use `--migrate-identity` only for a verified legacy automation state that has
+no adapter attempts, accepted review/triage evidence, final receipt, owner
+approval, or observation binding:
+
+```bash
+killsloprouter run --resume .killsloprouter/legacy.json \
+  --migrate-identity --host-config .killsloprouter/host-adapters.json --json
+```
+
+The command verifies the legacy state, router, plan, receipts, audit manifest,
+and packet digests; rewrites any evidence-free audit packets; and emits
+`00-identity-migration-receipt.json`. It preserves old phase-receipt digests in
+that migration receipt. If any child execution evidence already exists, start
+a new journey instead—the CLI will not relabel it.
+
 ## Phase behavior
 
 1. **Plan**: resolve every artifact through the profile's surface contract,
@@ -48,7 +77,7 @@ that digest and the SHA-256 digest of the receipt file. See
    independence requirement is unresolved.
 2. **Planning verification**: verify the external planning receipt and required evidence when the route enforces it.
 3. **Audit init**: snapshot the exact plan, both visual authority chains, and artifacts, bind the creator identity, and calculate the owner approval scope.
-4. **Dispatch**: write one immutable packet per selected provider. Every packet carries the exact visual-intent and visual-signature contracts.
+4. **Dispatch**: write one immutable packet per selected provider. Every packet carries the exact parent identity, internal participant role, and visual-intent and visual-signature contracts.
 5. **Execution**: inspect the host allowlist and execute only a compatible adapter. Missing or manual adapters stay pending.
 6. **Result ingest**: apply existing provider, identity, capability, artifact digest, evidence, and timestamp validation.
 7. **Scanner triage**: stop until every scanner candidate has a non-open decision and rationale.

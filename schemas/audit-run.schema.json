@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/audit-run.schema.json",
+  "title": "KillSlopRouter Digest-Bound Audit Run",
+  "type": "object",
+  "required": [
+    "audit_run_version",
+    "run_id",
+    "journey_identity",
+    "status",
+    "route",
+    "creator",
+    "packets",
+    "results",
+    "approval_scope_digest",
+    "manifest_digest"
+  ],
+  "properties": {
+    "audit_run_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "status": {"const": "collecting"},
+    "route": {
+      "type": "object",
+      "required": ["router_id", "router_version", "route_id", "plan_digest"],
+      "properties": {
+        "router_id": {"const": "kill-slop-router"},
+        "router_version": {"type": "string", "minLength": 1},
+        "route_id": {"type": "string", "minLength": 1},
+        "plan_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": true
+    },
+    "creator": {
+      "type": "object",
+      "required": ["provider_id", "actor_id", "participant"],
+      "properties": {
+        "provider_id": {"type": ["string", "null"]},
+        "actor_id": {"type": ["string", "null"]},
+        "participant": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "participant.schema.json"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "packets": {
+      "type": "array",
+      "items": {"$ref": "dispatch-packet.schema.json"}
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["packet_id", "normalized", "normalized_digest"],
+        "properties": {
+          "packet_id": {"type": "string", "minLength": 1},
+          "normalized": {
+            "type": "object",
+            "required": ["provider_id", "participant"],
+            "properties": {
+              "provider_id": {"type": "string", "minLength": 1},
+              "participant": {"$ref": "participant.schema.json"}
+            },
+            "additionalProperties": true
+          },
+          "normalized_digest": {"$ref": "#/$defs/digest"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "approval_scope_digest": {"$ref": "#/$defs/digest"},
+    "manifest_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "additionalProperties": true
+}

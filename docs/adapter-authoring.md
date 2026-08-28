@@ -106,6 +106,8 @@ are `schemas/host-adapter-request.schema.json` and
 
 - `host_adapter_request_version`: currently `1`
 - `run_id` and `attempt`
+- `journey_identity`: the complete digest-verified KillSlopRouter parent identity
+- `participant`: exact provider provenance, internal role, and parent binding
 - `packet`: provider identity, stage question, capability assignment, visual-intent and visual-signature contracts, evidence contract, and artifact digests
 - `packets`: the complete dispatch set, useful to form conflict references
 - `creator`: creator provider and actor identity
@@ -118,6 +120,10 @@ are `schemas/host-adapter-request.schema.json` and
 
 The adapter must perform the review described by `packet.stage_question`. It
 must not emit `pass` merely because the transport succeeded.
+It must not present its provider name as the active mode or orchestrator. It may
+describe itself only as an internal participant of KillSlopRouter, and it must
+not alter either identity object. The host rejects a request/packet mismatch or
+packet digest change before execution.
 
 ### Design exploration adapters
 
@@ -127,6 +133,8 @@ host allowlist. Its packets conform to
 `design_packet_version: 1`, and use `design_task.kind` instead of an audit
 question. Results conform to
 [`design-result.schema.json`](../schemas/design-result.schema.json).
+Design packets use the same `journey_identity` and `participant` fields; this
+applies equally to creators, comparison critics, and browser evidence.
 
 | `design_task.kind` | Adapter type | Minimum strength | Permissions |
 |---|---|---:|---|

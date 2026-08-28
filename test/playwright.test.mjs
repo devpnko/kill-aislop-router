@@ -7,12 +7,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { recordAuditResult } from "../src/audit.mjs";
 import { executeAuditPacket, inspectPacketAdapter, loadHostManifest } from "../src/execution.mjs";
-import { hashArtifact, snapshotArtifact } from "../src/integrity.mjs";
+import { canonicalDigest, hashArtifact, snapshotArtifact } from "../src/integrity.mjs";
 import {
   configurePlaywright,
   playwrightRuntimeDigest,
   resolvePlaywrightRuntimeRoot
 } from "../src/playwright.mjs";
+import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -36,6 +37,12 @@ function runCli(args, cwd) {
     encoding: "utf8",
     timeout: 60_000
   });
+}
+
+function sealPacket(packet) {
+  delete packet.packet_digest;
+  packet.packet_digest = canonicalDigest(packet);
+  return packet;
 }
 
 function bootstrapProject(directory, requiredScenarios = ["root"]) {
@@ -202,8 +209,13 @@ function makePacket(profile, artifactDigests) {
     "contrast-evidence",
     "zoom-evidence"
   ];
-  return {
+  const runId = "playwright-real-child-run";
+  return sealPacket({
+    dispatch_packet_version: 1,
     packet_id: "browser-evidence--browser-evidence--1",
+    run_id: runId,
+    journey_identity: createJourneyIdentity({ runId, routerVersion: "1.0.0" }),
+    participant: createParticipant({ providerId: "browser-evidence", stageId: "browser-evidence" }),
     stage_id: "browser-evidence",
     stage_question: "Do the approved states work in a real browser?",
     provider: {
@@ -219,17 +231,21 @@ function makePacket(profile, artifactDigests) {
     evidence_required: true,
     required_evidence_kinds: ["screenshot", "test-report"],
     evidence_contract: profile.evidence,
-    packet_digest: "fixture-packet-digest"
-  };
+  });
 }
 
 function makeRun(directory, artifact, packet) {
   return {
     audit_run_version: 1,
-    run_id: "playwright-real-child-run",
+    run_id: packet.run_id,
+    journey_identity: packet.journey_identity,
     root: directory,
     packets: [packet],
-    creator: { provider_id: "project-design-system", actor_id: "creator-agent-1" },
+    creator: {
+      provider_id: "project-design-system",
+      actor_id: "creator-agent-1",
+      participant: createParticipant({ providerId: "project-design-system", role: "creator" })
+    },
     scope: { kind: "runtime", claim: "Rendered runtime" },
     artifacts: [snapshotArtifact(artifact, { root: directory })],
     results: [],
@@ -294,6 +310,7 @@ function writeApproval(statePath, directory) {
   writeJson(approval, {
     approval_version: 1,
     run_id: audit.run_id,
+    journey_identity: audit.journey_identity,
     scope_digest: audit.approval_scope_digest,
     owner_id: "playwright-release-owner",
     status: "approved",
@@ -603,6 +620,14 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       design_packet_version: 1,
       packet_id: "browser-design-fixture",
       run_id: "official-design-browser-run",
+      journey_identity: createJourneyIdentity({
+        runId: "official-design-browser-run", routerVersion: "1.0.0"
+      }),
+      participant: createParticipant({
+        providerId: "browser-evidence",
+        stageId: "browser-evidence",
+        designTaskKind: "browser-evidence"
+      }),
       stage_id: "browser-evidence",
       provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
       assigned_capabilities: capabilities,
@@ -624,15 +649,18 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       },
       packet_digest: `sha256:${"1".repeat(64)}`
     };
+    sealPacket(packet);
     const manifest = loadHostManifest(paths.host);
     const unsupportedPacket = structuredClone(packet);
     unsupportedPacket.evidence_contract.required_checks.push("screen-reader", "visual-regression");
+    sealPacket(unsupportedPacket);
     const unsupported = inspectPacketAdapter(unsupportedPacket, manifest);
     assert.equal(unsupported.execution_status, "manual_pending");
     assert.match(unsupported.reason, /screen-reader, visual-regression/);
     assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
     const run = {
       run_id: packet.run_id,
+      journey_identity: packet.journey_identity,
       packets: [packet],
       creator: { provider_id: "design-direction-agent", actor_id: "creator:direction" },
       scope: { kind: "design-exploration" },
@@ -667,12 +695,18 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
 </main></body></html>\n`);
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
+    layoutPacket.run_id = "official-design-browser-layout-run";
+    layoutPacket.journey_identity = createJourneyIdentity({
+      runId: layoutPacket.run_id, routerVersion: "1.0.0"
+    });
     layoutPacket.packet_digest = `sha256:${"4".repeat(64)}`;
     layoutPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    sealPacket(layoutPacket);
     const layoutBlocked = executeAuditPacket({
       run: {
         ...run,
-        run_id: "official-design-browser-layout-run",
+        run_id: layoutPacket.run_id,
+        journey_identity: layoutPacket.journey_identity,
         packets: [layoutPacket],
         artifacts: [snapshotArtifact(prototype, { root: directory })]
       },
@@ -702,11 +736,21 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
 </main></body></html>\n`);
     const blockedPacket = structuredClone(packet);
     blockedPacket.packet_id = "browser-design-unbound-resource";
+    blockedPacket.run_id = "official-design-browser-block-run";
+    blockedPacket.journey_identity = createJourneyIdentity({
+      runId: blockedPacket.run_id, routerVersion: "1.0.0"
+    });
     blockedPacket.packet_digest = `sha256:${"3".repeat(64)}`;
     blockedPacket.evidence_contract.required_checks.push("network");
     blockedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    sealPacket(blockedPacket);
     const blocked = executeAuditPacket({
-      run: { ...run, run_id: "official-design-browser-block-run", packets: [blockedPacket] },
+      run: {
+        ...run,
+        run_id: blockedPacket.run_id,
+        journey_identity: blockedPacket.journey_identity,
+        packets: [blockedPacket]
+      },
       packet: blockedPacket,
       manifest,
       attempt: 1,
@@ -1099,6 +1143,10 @@ test("integrated automation binds a real pre-change observation before the runti
       item.provider_id === "browser-evidence"
     );
     assert.equal(redesignBrowserAttempt.metadata.transport, "official-playwright-json-v1");
+    assert.equal(redesignBrowserAttempt.metadata.observed_journey_identity_digest,
+      redesignState.journey_identity.identity_digest);
+    assert.equal(redesignBrowserAttempt.metadata.observed_participant.provider_id, "browser-evidence");
+    assert.equal(redesignBrowserAttempt.metadata.observed_participant.visibility, "internal");
 
     const redesignApproval = writeApproval(redesignStatePath, directory);
     const redesignCompleted = runCli([

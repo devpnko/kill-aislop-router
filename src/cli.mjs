@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
@@ -27,6 +28,7 @@ import { runKillAiSlop } from "./adapters/kill-ai-slop.mjs";
 import {
   automationExitCode,
   dryRunAutomation,
+  migrateAutomationStateIdentity,
   resumeAutomation,
   startAutomation
 } from "./automation.mjs";
@@ -43,6 +45,7 @@ import {
   startDesignExploration
 } from "./design.mjs";
 import { configureCodexReviewers } from "./codex.mjs";
+import { inspectSkillCatalog } from "./skill-catalog.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -53,7 +56,9 @@ const BOOLEAN_OPTIONS = new Set([
   "json",
   "force",
   "no-activate",
-  "allow-external"
+  "allow-external",
+  "migrate-identity",
+  "migrate-legacy-entry"
 ]);
 
 function parseArgs(argv) {
@@ -111,7 +116,7 @@ function help() {
   return `KillSlopRouter
 
 Usage:
-  killsloprouter plugin install [--dry-run] [--force] [--no-activate] [--home DIR]
+  killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
   killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
   killsloprouter browser configure --base-url URL --required-scenarios ID,ID [--scenario FILE] [options]
@@ -179,6 +184,8 @@ Options:
   --allow-external
   --dry-run
   --resume FILE
+  --migrate-identity (explicitly migrate a pre-execution legacy automation state)
+  --invocation explicit|implicit
   --retry all|PACKET|PROVIDER|STAGE
   --result FILE (repeatable manual audit or design result)
   --triage FILE
@@ -322,6 +329,7 @@ function pluginCommand(args) {
   const installerArgs = [installer];
   if (args["dry-run"]) installerArgs.push("--dry-run");
   if (args.force) installerArgs.push("--force");
+  if (args["migrate-legacy-entry"]) installerArgs.push("--migrate-legacy-entry");
   if (args["no-activate"]) installerArgs.push("--no-activate");
   if (args.home) installerArgs.push("--home", args.home);
   const result = spawnSync(process.execPath, installerArgs, {
@@ -381,13 +389,19 @@ function doctor(args) {
   const visualSignaturesReady = visualSignatures.length > 0 && visualSignatures.every((signature) =>
     signature.status === "approved" && signature.authority_status === "verified"
   );
+  const skillCatalog = inspectSkillCatalog({
+    home: path.resolve(args.home || os.homedir()),
+    assumeCanonical: true
+  });
+  const catalogReady = skillCatalog.status === "ready";
   const report = {
-    status: visualIntentsReady && visualSignaturesReady
+    status: visualIntentsReady && visualSignaturesReady && catalogReady
       ? "automation-ready"
       : "configuration_required",
     router_id: context.router.router_id,
     router_version: context.router.router_version,
     router_path: context.routerPath,
+    skill_catalog: skillCatalog,
     profile_path: context.profilePath,
     project_id: context.profile?.project_id || null,
     surface_contract: context.profile?.surface_contract || null,
@@ -404,13 +418,16 @@ function doctor(args) {
     execution_boundary: "allowlisted-digest-locked-host-adapters-no-arbitrary-profile-commands",
     execution_readiness: "not_evaluated_use_integrated_dry_run",
     completion_eligible: false,
-    next_required_command: visualIntentsReady && visualSignaturesReady
-      ? "killsloprouter run --dry-run"
-      : "resolve and digest-lock project visual authority"
+    next_required_command: !catalogReady
+      ? skillCatalog.migration.command
+      : visualIntentsReady && visualSignaturesReady
+        ? "killsloprouter run --dry-run"
+        : "resolve and digest-lock project visual authority"
   };
   const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
+    `entrypoint: ${report.skill_catalog.canonical_entrypoint} (${report.skill_catalog.status})`,
     `profile: ${report.project_id || "not found"}`,
     `surface: ${report.surface_contract?.primary || "unbound"}`,
     `surface bindings: ${report.surface_boundary?.artifact_bindings.length || 0}`,
@@ -462,6 +479,10 @@ function formatAutomationState(state) {
     `KillSlopRouter automation ${state.run_id || "dry-run"}`,
     `status: ${state.status}`
   ];
+  if (state.journey_identity) {
+    lines.push(`orchestrator: ${state.journey_identity.display_name}`);
+    lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
+  }
   if (state.final_audit_status) lines.push(`audit: ${state.final_audit_status}`);
   if (state.final_receipt_digest) lines.push(`receipt: ${state.final_receipt_digest}`);
   for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
@@ -510,6 +531,7 @@ function runCommand(args) {
     if (args["observation-run"]) {
       throw new RouterError("--observation-run is immutable after a run starts", 2);
     }
+    if (args["migrate-identity"]) migrateAutomationStateIdentity(args.resume);
     const state = resumeAutomation(args.resume, {
       hostManifest,
       resultPaths: args.results,
@@ -542,6 +564,7 @@ function runCommand(args) {
     creatorActorId: args["creator-id"] || null,
     observationRunPath: args["observation-run"] || null,
     hostManifest,
+    invocation: args.invocation || "explicit",
     root: projectRoot
   };
   if (args["dry-run"]) {
@@ -569,6 +592,10 @@ function formatDesignState(state) {
     `KillSlopRouter design exploration ${state.run_id || "dry-run"}`,
     `status: ${state.status}`
   ];
+  if (state.journey_identity) {
+    lines.push(`orchestrator: ${state.journey_identity.display_name}`);
+    lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
+  }
   if (state.phase) lines.push(`phase: ${state.phase}`);
   if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
   if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
@@ -621,10 +648,14 @@ function designCommand(args) {
   if (!args.brief || !args.baseline) {
     throw new RouterError("design run requires --brief and --baseline", 2);
   }
+  const router = readJson(defaultRouterPath, "default router");
   const request = {
     briefPath: args.brief,
     baselinePath: args.baseline,
     hostManifest,
+    routerId: router.router_id,
+    routerVersion: router.router_version,
+    invocation: args.invocation || "explicit",
     root: args.root || process.cwd()
   };
   if (args["dry-run"]) {
@@ -661,12 +692,14 @@ function auditCommand(args) {
       artifacts: args.artifacts,
       scope: args.scope,
       creatorActorId: args["creator-id"] || null,
+      invocation: args.invocation || "explicit",
       root: args.root || process.cwd()
     });
     writeJsonAtomic(args.out, run);
     const dispatched = dispatchAuditPackets(run, args["packets-dir"] || defaultPacketsDir(args.out));
     output({
       run_id: run.run_id,
+      journey_identity: run.journey_identity,
       status: run.status,
       run_file: path.resolve(args.out),
       packets_directory: dispatched.directory,

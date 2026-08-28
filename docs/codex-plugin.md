@@ -31,6 +31,26 @@ npx --yes github:devpnko/kill-aislop-router plugin install --dry-run
 npx --yes github:devpnko/kill-aislop-router plugin install --force
 ```
 
+The preview reports `identity_conflict` when the namespaced plugin would coexist
+with a full legacy `~/.codex/skills/kill-slop-router` entry. Installation then
+stops before mutation. Migrate only with explicit authority:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install \
+  --migrate-legacy-entry
+
+# Refreshing an existing marked plugin:
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install \
+  --force --migrate-legacy-entry
+```
+
+The old directory is moved, not deleted, to a digest-recorded backup under
+`~/.codex/skills/.killsloprouter-backups/`. Its replacement is a two-file,
+explicit-only shim that immediately hands control to
+`$killsloprouter:kill-slop-router`. `doctor` verifies the shim files and backup;
+any change becomes an identity conflict. The separate `$antislop` skill is not
+part of this migration and remains explicitly invokable outside a Router run.
+
 From an existing V1 checkout, the original script remains supported:
 
 ```bash
@@ -59,6 +79,11 @@ This is the single top-level entrypoint. Do not separately invoke a globally
 installed `antislop` skill for the same work. KillSlopRouter binds that skill as
 the `anti-slop` provider and starts it only as a packet-bound read-only child;
 without that binding the stage remains `manual_pending`.
+
+While a Router journey is active, commentary and final output must name
+KillSlopRouter as the workflow. `anti-slop` may be named only as an internal
+critic. Korean correction phrases such as `왠 antislop? 킬슬롭라우터 아니야?`
+and context-compacted continuations resume the existing parent identity.
 
 When the standalone skill is installed in Codex, prevent duplicate automatic
 activation by setting its agent metadata to explicit-only:

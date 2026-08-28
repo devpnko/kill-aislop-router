@@ -2,6 +2,49 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Parent identity and catalog migration
+
+New runs bind `$killsloprouter:kill-slop-router` as the sole parent through a
+digest-bound `journey_identity`. Audit/design packets retain exact provider IDs
+under `participant.visibility: internal`; `anti-slop` is a critic role, not a
+mode. Owner approval and host request schemas now require the same identity for
+new V1 runs.
+
+First inspect a machine that may contain the pre-plugin local router skill:
+
+```bash
+killsloprouter plugin install --dry-run
+```
+
+If it reports `identity_conflict`, use the explicit migration. Add `--force`
+only when the canonical marked plugin already exists:
+
+```bash
+killsloprouter plugin install --migrate-legacy-entry
+killsloprouter plugin install --force --migrate-legacy-entry
+```
+
+The installer moves the full legacy entry to a unique directory under
+`~/.codex/skills/.killsloprouter-backups/`, verifies the original/backup
+digest, and writes an implicit-disabled compatibility shim. It never silently
+deletes the original and does not change standalone `$antislop`. `doctor`
+reports a conflict if the full duplicate remains or the shim/backup is changed.
+
+A pre-identity automation state can be upgraded only before adapter attempts,
+accepted results/triage, approval/final evidence, or observation binding:
+
+```bash
+killsloprouter run --resume .killsloprouter/legacy-run.json \
+  --migrate-identity --host-config .killsloprouter/host-adapters.json --json
+```
+
+The migration verifies and rebinds an evidence-free legacy audit and its
+packets, then emits a digest-bound migration receipt. Evidence-bearing legacy
+runs must start over so old child output cannot be laundered into the new
+identity contract. Raw standalone legacy audit files have no automatic
+migration command; start a new V1 audit or migrate their containing automation
+state.
+
 ## Preserved contracts
 
 - `plan`, `scan`, `doctor`, and every `audit` subcommand remain available.
@@ -19,6 +62,10 @@ bootstrap profile.
 Dispatch packets add `minimum_strength`, `visual_intent_contract`, and
 `visual_signature_contract`. Consumers that allow additive fields need no
 change. Consumers that reject unknown fields should permit all three fields.
+New packets additionally require `journey_identity` and `participant`, and
+their packet digest covers both. New owner approvals and child requests require
+the same identity. This is a deliberate fail-closed compatibility change;
+strict producers must use the current schemas or the verified migration above.
 
 ## New contracts
 
@@ -29,6 +76,7 @@ change. Consumers that reject unknown fields should permit all three fields.
 - host adapter response version 1
 - bootstrap receipt version 1 and `killsloprouter bootstrap`
 - package exports `./automation`, `./bootstrap`, and `./execution`
+- package exports `./identity` and `./skill-catalog`
 - package export `./playwright`, official Playwright adapter contract version 1,
   browser attestation version 1, scenario version 1, and setup receipt version 1
 - package export `./design`, `killsloprouter design` commands, design brief and

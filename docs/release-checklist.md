@@ -54,5 +54,16 @@ GitHub Release.
 - [ ] Threat model names the host child and identity limitations.
 - [ ] Browser runtime, scenario, baseline, origin, and served-artifact boundaries are documented and digest-locked.
 - [ ] Personal-plugin installation preserves unrelated marketplace entries and backs up refreshed installs.
+- [ ] Parent-identity tests cover Korean correction, compaction/resume,
+      duplicate entries, packet/state tamper, permitted internal-critic wording,
+      and standalone explicit `$antislop` compatibility.
+- [ ] Legacy skill migration preserves a digest-identical backup, creates only
+      an implicit-disabled handoff shim, leaves standalone antislop unchanged,
+      and is detected by `doctor` if tampered.
+- [ ] State/audit migration accepts only evidence-free legacy runs and refuses
+      to relabel any prior child execution evidence.
+- [ ] Sidefy parent-identity UAT passes explicit invocation, Korean correction,
+      compaction/resume, official Playwright observation, parent-versus-child
+      wording, tamper refusal, and separate standalone explicit antislop.
 - [ ] No real credentials, private artifacts, screenshots, or owner approvals are packaged.
 - [ ] npm publication and GitHub Release remain separate, explicit owner actions.

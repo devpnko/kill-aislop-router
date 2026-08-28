@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Added a digest-bound KillSlopRouter `journey_identity` across automation and
+  design state, audit manifests, packets, step/final receipts, owner decisions,
+  and child requests; child providers now retain provenance as internal roles.
+- Made resume fail closed on parent identity conflicts and packet identity
+  tamper, including when one state layer is independently re-signed.
+- Added explicit verified migration for evidence-free legacy states plus
+  installer/doctor duplicate-entry detection and a backup-bound,
+  implicit-disabled compatibility shim. Standalone `$antislop` remains
+  explicitly compatible outside an active Router journey.
+- Added presentation regressions for Korean correction, context-compacted
+  resume, permitted internal-critic wording, child-name leakage, duplicate
+  catalog entries, and standalone antislop invocation.
+
 - Kept Codex review uniqueness checks fail-closed at the adapter boundary while
   removing unsupported structured-output schema keywords, and made
   non-adjudication packets require an explicit empty `resolutions` array in both

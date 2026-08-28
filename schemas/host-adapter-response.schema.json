@@ -18,7 +18,12 @@
       "type": "object",
       "properties": {
         "child_pid": {"type": "integer", "minimum": 1},
-        "transport": {"type": "string", "minLength": 1}
+        "transport": {"type": "string", "minLength": 1},
+        "observed_journey_identity_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "observed_participant": {"$ref": "participant.schema.json"}
       },
       "additionalProperties": true
     }

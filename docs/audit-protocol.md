@@ -22,6 +22,15 @@ triage, and owner approval. A route plan is not execution evidence.
 9. The owner approves or rejects the exact `approval_scope_digest`; approval is
    never inferred from critic success.
 
+The audit ledger, every dispatch packet, final receipt, and owner approval bind
+the same `journey_identity`. The public contracts are
+[`audit-run.schema.json`](../schemas/audit-run.schema.json),
+[`dispatch-packet.schema.json`](../schemas/dispatch-packet.schema.json),
+[`audit-receipt.schema.json`](../schemas/audit-receipt.schema.json), and
+[`owner-approval.schema.json`](../schemas/owner-approval.schema.json). A packet
+also keeps the exact child `provider_id` as an `internal` participant role;
+that provenance never changes the active workflow name from KillSlopRouter.
+
 The integrated `run` command persists this lifecycle as nine separately hashed
 phase receipts. It executes non-adjudication critics first, stops for scanner
 triage, then executes adjudication and finalization. See `automation-run.md`.
