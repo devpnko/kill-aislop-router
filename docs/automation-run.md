@@ -30,6 +30,13 @@ digest. The sibling directory contains:
 - nine phase receipts
 - `audit-receipt.json` after finalization is attempted
 
+An atomic state-specific lease lives at `<state path>.lease/lease.json` only
+while a mutating start, resume, migration, or recovery owns the state. Its
+digest binds the owner token, PID, acquisition/update times, operation, current
+and pending state digests, child phase, recovery deadline, and packet attempt.
+The directory rename that publishes the lease is the exclusive acquisition
+point; routing and child spawn occur only after it succeeds.
+
 The state begins with a `journey_identity` whose digest binds the run ID,
 KillSlopRouter version, namespaced entrypoint, invocation origin, and
 parent-versus-participant presentation rule. The same complete object is copied
@@ -51,6 +58,55 @@ that digest and the SHA-256 digest of the receipt file. See
 Resume never rewrites the parent identity to a child name or changes its
 invocation field. It verifies the state, every existing step receipt, audit,
 packet digest, and approval identity before another child can run.
+
+### Concurrent execution and crash recovery
+
+Only one process may mutate one exact automation state. Concurrent `start`,
+`resume`, direct API continuation, `--migrate-identity`, and recovery attempts
+fail closed with exit `5` before a child process is started. Different state
+paths have independent leases.
+
+State writes use a two-phase lease binding: the lease first records the next
+state digest as pending, the state file is atomically replaced, and the lease
+then promotes that digest. Explicit recovery accepts the actual state digest
+only when it is one of those two bound values, so a crash between the two
+writes does not authorize an unrelated state. Normal release also refuses any
+`state-write` phase or non-null pending digest; only explicit stale recovery can
+resolve that interrupted transition.
+
+Use this read-only command to inspect the exact recovery tuple:
+
+```bash
+killsloprouter lease status --state .killsloprouter/v1-run.json --json
+```
+
+Recovery is permitted only when the owner process is no longer alive and all
+three supplied values match the lease. An in-flight child also keeps the lease
+unrecoverable until its adapter timeout plus recovery grace has elapsed:
+
+```bash
+killsloprouter lease recover \
+  --state .killsloprouter/v1-run.json \
+  --owner-token '<lease status owner_token>' \
+  --acquired-at '<lease status acquired_at>' \
+  --state-digest '<lease status state_digest>' \
+  --json
+```
+
+The token, timestamp, and state digest are independent recovery checks. PID is
+bound to an OS process-start identity, so an unrelated process that later
+reuses the number cannot impersonate the owner; PID alone never authorizes or
+blocks recovery. POSIX `ps` identity reads use a fixed C locale and UTC timezone
+so caller environment cannot change the marker. If the OS cannot identify a PID
+that is in use, recovery fails closed. Recovery writes a digest-bound receipt. When the state contains a
+sealed `in_flight` intent, it is converted to an `abandoned_after_crash`
+attempt. KillSlopRouter does not claim the child did or did not finish. A later
+resume leaves that packet blocked until `--retry PACKET|PROVIDER|STAGE` is
+explicit.
+
+This gives one active child start per state and prevents concurrent ledger
+overwrites. It does not claim transactional exactly-once side effects across
+an operating-system crash; unknown external outcomes remain an operator gate.
 
 ### Pre-identity state migration
 
@@ -168,6 +224,9 @@ manifest makes it ready. A child execution error needs explicit authorization:
 ```bash
 killsloprouter run --resume run.json --host-config host.json --retry anti-slop
 ```
+
+`abandoned_after_crash` uses the same explicit retry rule and is never replayed
+merely because a stale lease was recovered.
 
 To complete an explicitly manual packet, use the packet's result template and
 ingest the completed file on resume:

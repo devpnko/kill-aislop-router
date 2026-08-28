@@ -37,6 +37,7 @@ try {
     "src/router.mjs",
     "src/audit.mjs",
     "src/automation.mjs",
+    "src/state-lease.mjs",
     "src/bootstrap.mjs",
     "src/codex.mjs",
     "src/design.mjs",
@@ -48,6 +49,8 @@ try {
     "schemas/automation-run.schema.json",
     "schemas/bootstrap-receipt.schema.json",
     "schemas/automation-step-receipt.schema.json",
+    "schemas/state-lease.schema.json",
+    "schemas/state-lease-recovery-receipt.schema.json",
     "schemas/host-adapter.schema.json",
     "schemas/codex-host-setup-receipt.schema.json",
     "schemas/codex-review-output.schema.json",
@@ -127,12 +130,19 @@ try {
   const help = run(process.execPath, [installedCli, "--help"], { cwd: consumer });
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /host configure-codex/);
+  assert.match(help.stdout, /lease recover/);
   const codexExport = run(process.execPath, [
     "--input-type=module",
     "--eval",
     "import('killsloprouter/codex').then((module) => { if (!module.configureCodexReviewers) process.exit(1); })"
   ], { cwd: consumer });
   assert.equal(codexExport.status, 0, codexExport.stderr || codexExport.stdout);
+  const leaseExport = run(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    "import('killsloprouter/state-lease').then((module) => { if (!module.acquireStateLease || !module.inspectStateLease) process.exit(1); })"
+  ], { cwd: consumer });
+  assert.equal(leaseExport.status, 0, leaseExport.stderr || leaseExport.stdout);
 
   const installedProfile = path.join(installedRoot, "examples", "project-profile.example.json");
   const installedHost = path.join(installedRoot, "examples", "host-adapter.example.json");
@@ -170,7 +180,7 @@ try {
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
-  process.stdout.write("installed consumer: help, Codex export, doctor, manual dry-run passed\n");
+  process.stdout.write("installed consumer: help, Codex/state-lease exports, doctor, manual dry-run passed\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

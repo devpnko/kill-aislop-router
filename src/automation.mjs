@@ -21,6 +21,16 @@ import {
   identitiesMatch,
   verifyJourneyIdentity
 } from "./identity.mjs";
+import {
+  ABSENT_STATE_DIGEST,
+  acquireStateLease,
+  claimStaleStateLease,
+  commitStateLeaseWrite,
+  inspectStateLease,
+  markStateLeaseChildExecution,
+  prepareStateLeaseWrite,
+  releaseStateLease
+} from "./state-lease.mjs";
 
 const STEP_FILES = {
   plan: "01-plan-receipt.json",
@@ -41,6 +51,7 @@ const REQUIRED_OBSERVATION_STEPS = [
   "scanner-triage",
   "conflict-adjudication"
 ];
+const STATE_LEASES = new WeakMap();
 
 function requireValue(condition, message, exitCode = 2) {
   if (!condition) throw new RouterError(message, exitCode);
@@ -74,10 +85,18 @@ function sealState(state) {
   return state;
 }
 
+function bindStateLease(state, lease) {
+  STATE_LEASES.set(state, lease);
+  return state;
+}
+
 function writeState(state) {
   state.updated_at = nowIso();
   sealState(state);
+  const lease = STATE_LEASES.get(state);
+  if (lease) prepareStateLeaseWrite(lease, state.state_digest);
   writeJsonAtomic(state.state_path, state);
+  if (lease) commitStateLeaseWrite(lease, state, { inFlight: Boolean(state.in_flight) });
 }
 
 function snapshotPath(filePath) {
@@ -189,7 +208,39 @@ function verifyIdentityMigration(state) {
   return receipt;
 }
 
-function readAutomationStateCore(statePath, { allowMissingIdentity = false } = {}) {
+function verifyLeaseRecoveries(state, migrationReceipt = null, { allowLegacyIdentity = false } = {}) {
+  for (const [index, snapshot] of (state.lease_recoveries || []).entries()) {
+    requireValue(fs.existsSync(snapshot.path),
+      `state lease recovery receipt is missing: ${index + 1}`, 4);
+    requireValue(hashArtifact(snapshot.path) === snapshot.digest,
+      `state lease recovery receipt changed: ${index + 1}`, 4);
+    const receipt = readJson(snapshot.path, `state lease recovery receipt ${index + 1}`);
+    const copy = { ...receipt };
+    delete copy.receipt_digest;
+    requireValue(canonicalDigest(copy) === receipt.receipt_digest &&
+      receipt.receipt_digest === snapshot.receipt_digest,
+    `state lease recovery receipt digest mismatch: ${index + 1}`, 4);
+    requireValue(receipt.run_id === state.run_id &&
+      path.resolve(receipt.state_path) === path.resolve(state.state_path),
+    `state lease recovery receipt does not bind the automation state: ${index + 1}`, 4);
+    if (!state.journey_identity) {
+      requireValue(allowLegacyIdentity && receipt.journey_identity === null,
+        `legacy state lease recovery receipt has unexpected identity: ${index + 1}`, 4);
+    } else if (receipt.journey_identity) {
+      requireValue(identitiesMatch(receipt.journey_identity, state.journey_identity),
+        `state lease recovery receipt journey identity mismatch: ${index + 1}`, 4);
+    } else {
+      requireValue(state.journey_identity?.invocation === "legacy-migrated" &&
+        (migrationReceipt?.legacy_lease_recoveries || []).includes(receipt.receipt_digest),
+      `state lease recovery receipt lacks the KillSlopRouter journey identity: ${index + 1}`, 4);
+    }
+  }
+}
+
+function readAutomationStateCore(statePath, {
+  allowMissingIdentity = false,
+  allowInFlight = false
+} = {}) {
   const absolute = path.resolve(statePath);
   const state = readJson(absolute, "automation run");
   requireValue(state?.automation_run_version === 1, "automation_run_version must be 1");
@@ -218,6 +269,7 @@ function readAutomationStateCore(statePath, { allowMissingIdentity = false } = {
     }
   }
   const migrationReceipt = state.journey_identity ? verifyIdentityMigration(state) : null;
+  verifyLeaseRecoveries(state, migrationReceipt, { allowLegacyIdentity: allowMissingIdentity });
   for (const [stepId, step] of Object.entries(state.steps || {})) {
     if (state.journey_identity) verifyStepReceipt(state, stepId, step, migrationReceipt);
     else {
@@ -249,6 +301,9 @@ function readAutomationStateCore(statePath, { allowMissingIdentity = false } = {
     requireValue(identitiesMatch(audit.journey_identity, state.journey_identity),
       "automation and audit journey identities conflict", 4);
   }
+  requireValue(allowInFlight || !state.in_flight,
+    "automation state has an unresolved in-flight child; inspect and explicitly recover its state lease before resume",
+    5);
   return state;
 }
 
@@ -256,8 +311,11 @@ export function readAutomationState(statePath) {
   return readAutomationStateCore(statePath);
 }
 
-export function migrateAutomationStateIdentity(statePath) {
-  const state = readAutomationStateCore(statePath, { allowMissingIdentity: true });
+function migrateAutomationStateIdentityWithLease(statePath, lease) {
+  const state = bindStateLease(
+    readAutomationStateCore(statePath, { allowMissingIdentity: true }),
+    lease
+  );
   requireValue(!state.journey_identity, "automation state already has journey_identity", 4);
   requireValue((state.attempts || []).length === 0,
     "legacy automation contains adapter attempts; start a new KillSlopRouter run so child evidence is identity-bound",
@@ -319,7 +377,9 @@ export function migrateAutomationStateIdentity(statePath) {
       prior_result_count: 0,
       prior_approval_present: false
     },
-    legacy_step_receipts: legacyStepReceipts
+    legacy_step_receipts: legacyStepReceipts,
+    legacy_lease_recoveries: (state.lease_recoveries || [])
+      .map((snapshot) => snapshot.receipt_digest)
   };
   receipt.receipt_digest = canonicalDigest(receipt);
   const receiptPath = path.join(state.state_directory, "receipts", "00-identity-migration-receipt.json");
@@ -330,7 +390,16 @@ export function migrateAutomationStateIdentity(statePath) {
     receipt_digest: receipt.receipt_digest
   };
   writeState(state);
-  return readAutomationState(state.state_path);
+  return bindStateLease(readAutomationStateCore(state.state_path), lease);
+}
+
+export function migrateAutomationStateIdentity(statePath) {
+  const lease = acquireStateLease({ statePath, operation: "migrate" });
+  try {
+    return migrateAutomationStateIdentityWithLease(statePath, lease);
+  } finally {
+    releaseStateLease(lease);
+  }
 }
 
 function newState({
@@ -377,6 +446,8 @@ function newState({
     paths: {},
     steps: {},
     attempts: [],
+    in_flight: null,
+    lease_recoveries: [],
     blockers: [],
     pending: [],
     identity_migration: null,
@@ -669,7 +740,7 @@ function shouldAttemptPacket(state, audit, packet, selectors, manifest) {
   const last = lastAttempt(state, packet.packet_id);
   if (recorded) return explicitlySelected(packet, selectors);
   if (!last) return true;
-  if (last.execution_status === "blocked_execution_error") {
+  if (["blocked_execution_error", "abandoned_after_crash"].includes(last.execution_status)) {
     return selectors.has("all") || explicitlySelected(packet, selectors);
   }
   if (last.execution_status === "manual_pending") {
@@ -701,13 +772,42 @@ function runPackets(state, audit, packets, hostManifest, selectors) {
     if (!shouldAttemptPacket(state, nextAudit, packet, selectors, hostManifest)) continue;
     const attempt = attemptNumber(state, packet.packet_id);
     const outputDirectory = path.join(evidenceRoot, packet.packet_id, `attempt-${attempt}`);
-    const executed = executeAuditPacket({
-      run: nextAudit,
-      packet,
-      manifest: hostManifest,
-      attempt,
-      outputDirectory
-    });
+    const inspection = inspectPacketAdapter(packet, hostManifest);
+    let executed = inspection;
+    if (inspection.execution_status === "ready") {
+      state.in_flight = {
+        automation_in_flight_version: 1,
+        packet_id: packet.packet_id,
+        packet_digest: packet.packet_digest,
+        provider_id: packet.provider.id,
+        participant: packet.participant,
+        adapter: inspection.adapter,
+        host_manifest_digest: inspection.host_manifest_digest,
+        permission_scopes: inspection.declaration.permissions,
+        strength: inspection.declaration.strength,
+        capabilities: inspection.declaration.capabilities,
+        attempt,
+        output_directory: outputDirectory,
+        started_at: nowIso()
+      };
+      writeState(state);
+      const lease = STATE_LEASES.get(state);
+      requireValue(lease,
+        "executable automation packets require an active state lease", 5);
+      markStateLeaseChildExecution(lease, {
+        packetId: packet.packet_id,
+        providerId: packet.provider.id,
+        attempt,
+        timeoutMs: inspection.declaration.timeout_ms
+      });
+      executed = executeAuditPacket({
+        run: nextAudit,
+        packet,
+        manifest: hostManifest,
+        attempt,
+        outputDirectory
+      });
+    }
     const record = {
       ...executionAttemptSummary(executed),
       recorded_at: nowIso(),
@@ -731,6 +831,7 @@ function runPackets(state, audit, packets, hostManifest, selectors) {
         record.error = error.message;
       }
     }
+    state.in_flight = null;
     state.attempts.push(record);
     updateAudit(state, nextAudit);
   }
@@ -750,7 +851,8 @@ function pendingForPackets(state, packets) {
 }
 
 function hasExecutionError(state, packets) {
-  return packets.some((packet) => lastAttempt(state, packet.packet_id)?.execution_status === "blocked_execution_error");
+  return packets.some((packet) => ["blocked_execution_error", "abandoned_after_crash"]
+    .includes(lastAttempt(state, packet.packet_id)?.execution_status));
 }
 
 function checkpointExecution(state, audit, consideredPackets) {
@@ -946,13 +1048,15 @@ function finalizeAutomation(state, audit, approvalPath) {
   return stop(state, "blocked", receipt.blockers, receipt.missing);
 }
 
-export function continueAutomation(state, {
+function continueAutomationWithLease(state, {
   hostManifest = null,
   resultPaths = [],
   triagePath = null,
   approvalPath = null,
   retry = null
 } = {}) {
+  requireValue(STATE_LEASES.has(state),
+    "automation continuation requires an active state lease", 5);
   let audit = readJson(state.paths.audit.path, "automation audit run");
   const tamper = tamperBlockers(audit);
   if (tamper.length) {
@@ -1049,8 +1153,9 @@ export function continueAutomation(state, {
   }
 }
 
-export function startAutomation({
+function startAutomationWithLease({
   statePath,
+  lease,
   router,
   profile,
   routerPath,
@@ -1081,7 +1186,7 @@ export function startAutomation({
       "runtime redesign requires --observation-run from the completed pre-change UI audit", 5);
   }
   validateStateArtifactSeparation(absoluteStatePath, artifacts, root);
-  const state = newState({
+  const state = bindStateLease(newState({
     statePath: absoluteStatePath,
     routerPath,
     profilePath,
@@ -1093,7 +1198,7 @@ export function startAutomation({
     router,
     invocation,
     root
-  });
+  }), lease);
   fs.mkdirSync(state.state_directory, { recursive: true });
   writeState(state);
 
@@ -1196,12 +1301,192 @@ export function startAutomation({
       packet_digest: packet.packet_digest
     }))
   });
-  return continueAutomation(state, { hostManifest, resultPaths, triagePath, approvalPath, retry });
+  return continueAutomationWithLease(state, {
+    hostManifest,
+    resultPaths,
+    triagePath,
+    approvalPath,
+    retry
+  });
+}
+
+export function startAutomation(options) {
+  const lease = acquireStateLease({ statePath: options.statePath, operation: "start" });
+  try {
+    return startAutomationWithLease({ ...options, lease });
+  } finally {
+    releaseStateLease(lease);
+  }
 }
 
 export function resumeAutomation(statePath, options = {}) {
-  const state = readAutomationState(statePath);
-  return continueAutomation(state, options);
+  const operation = options.migrateIdentity ? "migrate-resume" : "resume";
+  const lease = acquireStateLease({ statePath, operation });
+  try {
+    const state = options.migrateIdentity
+      ? migrateAutomationStateIdentityWithLease(statePath, lease)
+      : bindStateLease(readAutomationStateCore(statePath), lease);
+    const { migrateIdentity: _migrateIdentity, ...continueOptions } = options;
+    return continueAutomationWithLease(state, continueOptions);
+  } finally {
+    releaseStateLease(lease);
+  }
+}
+
+export function continueAutomation(state, options = {}) {
+  requireValue(state?.state_path,
+    "automation continuation requires a state with state_path", 2);
+  const lease = acquireStateLease({
+    statePath: state.state_path,
+    operation: "continue"
+  });
+  try {
+    const current = bindStateLease(readAutomationStateCore(state.state_path), lease);
+    requireValue(current.state_digest === state.state_digest,
+      "automation continuation input is stale or changed; read the current state before continuing",
+      4);
+    return continueAutomationWithLease(current, options);
+  } finally {
+    releaseStateLease(lease);
+  }
+}
+
+export function inspectAutomationStateLease(statePath) {
+  return inspectStateLease(statePath);
+}
+
+function leaseRecoveryReceiptPath(statePath, state = null) {
+  const directory = state
+    ? path.join(state.state_directory, "receipts")
+    : `${path.resolve(statePath)}.recoveries`;
+  return path.join(
+    directory,
+    `state-lease-recovery-${Date.now()}-${crypto.randomUUID()}.json`
+  );
+}
+
+export function recoverAutomationStateLease(statePath, {
+  ownerToken,
+  acquiredAt,
+  stateDigest
+}) {
+  const absolute = path.resolve(statePath);
+  const claimed = claimStaleStateLease({
+    statePath: absolute,
+    ownerToken,
+    acquiredAt,
+    stateDigest
+  });
+  let recovered = false;
+  try {
+    const stateExists = stateDigest !== ABSENT_STATE_DIGEST;
+    const state = stateExists
+      ? bindStateLease(readAutomationStateCore(absolute, {
+        allowMissingIdentity: true,
+        allowInFlight: true
+      }), claimed.controller)
+      : null;
+    const inFlight = state?.in_flight || null;
+    if (inFlight && claimed.previous.active_packet) {
+      requireValue(inFlight.packet_id === claimed.previous.active_packet.packet_id &&
+        inFlight.provider_id === claimed.previous.active_packet.provider_id &&
+        inFlight.attempt === claimed.previous.active_packet.attempt,
+      "state lease and automation in-flight child bindings conflict", 4);
+    }
+
+    const recoveredAt = nowIso();
+    const abandoned = inFlight ? {
+      packet_id: inFlight.packet_id,
+      provider_id: inFlight.provider_id,
+      participant: inFlight.participant,
+      adapter: inFlight.adapter,
+      host_manifest_digest: inFlight.host_manifest_digest,
+      permission_scopes: inFlight.permission_scopes,
+      strength: inFlight.strength,
+      capabilities: inFlight.capabilities,
+      attempt: inFlight.attempt,
+      execution_status: "abandoned_after_crash",
+      started_at: inFlight.started_at,
+      finished_at: recoveredAt,
+      child_pid: null,
+      exit_code: null,
+      signal: null,
+      recorded_at: recoveredAt,
+      result_path: null,
+      result_digest: null,
+      ingest_status: "not-recorded",
+      reason: "child outcome is unknown after orchestrator termination; explicit retry is required"
+    } : null;
+    const receipt = {
+      state_lease_recovery_receipt_version: 1,
+      status: "recovered",
+      run_id: state?.run_id || null,
+      journey_identity: state?.journey_identity || null,
+      state_path: absolute,
+      recovered_at: recoveredAt,
+      recovered_lease: {
+        lease_digest: claimed.previous.lease_digest,
+        owner_token_digest: canonicalDigest({ owner_token: claimed.previous.owner_token }),
+        owner_pid: claimed.previous.owner_pid,
+        owner_process_identity: claimed.previous.owner_process_identity,
+        acquired_at: claimed.previous.acquired_at,
+        operation: claimed.previous.operation,
+        phase: claimed.previous.phase,
+        state_digest: stateDigest,
+        recover_after: claimed.previous.recover_after,
+        active_packet: claimed.previous.active_packet
+      },
+      abandoned_attempt: abandoned,
+      receipt_digest: null
+    };
+    const receiptBody = { ...receipt };
+    delete receiptBody.receipt_digest;
+    receipt.receipt_digest = canonicalDigest(receiptBody);
+    const receiptPath = leaseRecoveryReceiptPath(absolute, state);
+    writeJsonAtomic(receiptPath, receipt);
+
+    let nextStateDigest = stateDigest;
+    if (state) {
+      state.lease_recoveries ||= [];
+      state.lease_recoveries.push({
+        path: receiptPath,
+        digest: hashArtifact(receiptPath),
+        receipt_digest: receipt.receipt_digest
+      });
+      if (abandoned) {
+        state.in_flight = null;
+        state.attempts.push({
+          ...abandoned,
+          recovery_receipt_digest: receipt.receipt_digest
+        });
+        state.status = "blocked";
+        state.blockers = unique([
+          ...(state.blockers || []),
+          `${abandoned.packet_id} has an unknown crash outcome; retry requires an explicit selector`
+        ]);
+        state.pending = [];
+      }
+      writeState(state);
+      nextStateDigest = state.state_digest;
+    }
+    recovered = true;
+    return {
+      state_lease_recovery_result_version: 1,
+      status: "recovered",
+      state_path: absolute,
+      previous_state_digest: stateDigest,
+      state_digest: nextStateDigest,
+      abandoned_packet: abandoned ? {
+        packet_id: abandoned.packet_id,
+        provider_id: abandoned.provider_id,
+        attempt: abandoned.attempt
+      } : null,
+      receipt_path: receiptPath,
+      receipt_digest: receipt.receipt_digest
+    };
+  } finally {
+    if (recovered) releaseStateLease(claimed.controller);
+  }
 }
 
 export function automationExitCode(state) {

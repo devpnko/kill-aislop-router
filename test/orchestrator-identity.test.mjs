@@ -25,6 +25,7 @@ import {
 import { initializeAudit, rebindLegacyAuditIdentity } from "../src/audit.mjs";
 import { planRoute, readJson } from "../src/router.mjs";
 import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
+import { acquireStateLease, releaseStateLease } from "../src/state-lease.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -178,6 +179,73 @@ test("verified legacy state migration binds identity and its receipt before resu
     assert.equal(started.status, 5, started.stderr || started.stdout);
     const legacy = legacyizeState(statePath);
     assert.equal(legacy.attempts.length, 0);
+
+    const recoveryReceiptPath = path.join(
+      legacy.state_directory,
+      "receipts",
+      "legacy-state-lease-recovery.json"
+    );
+    const recoveryReceipt = {
+      state_lease_recovery_receipt_version: 1,
+      status: "recovered",
+      run_id: legacy.run_id,
+      journey_identity: null,
+      state_path: statePath,
+      recovered_at: "2026-08-28T00:00:00.000Z",
+      recovered_lease: {
+        lease_digest: canonicalDigest({ fixture: "legacy-lease" }),
+        owner_token_digest: canonicalDigest({ fixture: "legacy-owner" }),
+        owner_pid: 4242,
+        owner_process_identity: {
+          process_identity_version: 1,
+          method: "fixture-start-time",
+          marker: canonicalDigest({ fixture: "legacy-process" })
+        },
+        acquired_at: "2026-08-28T00:00:00.000Z",
+        operation: "resume",
+        phase: "state-write",
+        state_digest: legacy.state_digest,
+        recover_after: "2026-08-28T00:00:00.000Z",
+        active_packet: null
+      },
+      abandoned_attempt: null,
+      receipt_digest: null
+    };
+    const recoveryBody = { ...recoveryReceipt };
+    delete recoveryBody.receipt_digest;
+    recoveryReceipt.receipt_digest = canonicalDigest(recoveryBody);
+    writeJson(recoveryReceiptPath, recoveryReceipt);
+    legacy.lease_recoveries = [{
+      path: recoveryReceiptPath,
+      digest: hashArtifact(recoveryReceiptPath),
+      receipt_digest: recoveryReceipt.receipt_digest
+    }];
+    delete legacy.state_digest;
+    legacy.state_digest = canonicalDigest(legacy);
+    writeJson(statePath, legacy);
+
+    const recoveryReceiptSource = fs.readFileSync(recoveryReceiptPath, "utf8");
+    fs.appendFileSync(recoveryReceiptPath, " ");
+    const tamperedMigration = runNode(cli, [
+      "run", "--resume", statePath, "--migrate-identity", "--json"
+    ], directory);
+    assert.equal(tamperedMigration.status, 4,
+      tamperedMigration.stderr || tamperedMigration.stdout);
+    assert.match(tamperedMigration.stderr, /state lease recovery receipt changed/i);
+    assert.equal(JSON.parse(fs.readFileSync(statePath, "utf8")).journey_identity, undefined,
+      "tampered legacy recovery evidence must block before identity migration");
+    fs.writeFileSync(recoveryReceiptPath, recoveryReceiptSource);
+
+    const beforeConflict = hashArtifact(statePath);
+    const conflictingLease = acquireStateLease({ statePath, operation: "resume" });
+    try {
+      assert.throws(() => migrateAutomationStateIdentity(statePath),
+        /active automation state lease/);
+      assert.equal(hashArtifact(statePath), beforeConflict,
+        "a conflicting migration must not rewrite the legacy state");
+    } finally {
+      releaseStateLease(conflictingLease);
+    }
     const migrated = migrateAutomationStateIdentity(statePath);
     assert.equal(migrated.journey_identity.invocation, "legacy-migrated");
     assert.equal(migrated.journey_identity.run_id, migrated.run_id);
@@ -186,6 +254,8 @@ test("verified legacy state migration binds identity and its receipt before resu
     const migrationReceipt = JSON.parse(fs.readFileSync(migrated.identity_migration.path, "utf8"));
     assert.equal(migrationReceipt.verified.prior_attempt_count, 0);
     assert.equal(migrationReceipt.previous_state_digest, legacy.state_digest);
+    assert.deepEqual(migrationReceipt.legacy_lease_recoveries,
+      [recoveryReceipt.receipt_digest]);
     assert.equal(readAutomationState(statePath).journey_identity.identity_digest,
       migrated.journey_identity.identity_digest);
 

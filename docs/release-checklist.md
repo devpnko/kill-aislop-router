@@ -62,6 +62,12 @@ GitHub Release.
       and is detected by `doctor` if tampered.
 - [ ] State/audit migration accepts only evidence-free legacy runs and refuses
       to relabel any prior child execution evidence.
+- [ ] Real child-process E2E proves concurrent resume starts only one reviewer,
+      normal resume releases its lease, start/resume/migrate conflicts fail
+      before mutation, and crash recovery requires token + timestamp + state
+      digest followed by an explicit retry for an unknown child outcome.
+- [ ] Fault injection proves a lease cannot release after prepare-before-write
+      failure or after state replacement-before-commit failure.
 - [ ] Sidefy parent-identity UAT passes explicit invocation, Korean correction,
       compaction/resume, official Playwright observation, parent-versus-child
       wording, tamper refusal, and separate standalone explicit antislop.

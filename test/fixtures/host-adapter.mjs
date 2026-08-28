@@ -20,6 +20,10 @@ if (settings.write_started_marker) {
   fs.writeFileSync(path.join(request.output_directory, "started.marker"), `${process.pid}\n`);
 }
 
+if (settings.write_pid_marker) {
+  fs.writeFileSync(path.join(request.output_directory, `started.${process.pid}.marker`), `${process.pid}\n`);
+}
+
 if (settings.delay_ms) {
   await new Promise((resolve) => setTimeout(resolve, settings.delay_ms));
 }

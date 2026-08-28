@@ -28,7 +28,8 @@ import { runKillAiSlop } from "./adapters/kill-ai-slop.mjs";
 import {
   automationExitCode,
   dryRunAutomation,
-  migrateAutomationStateIdentity,
+  inspectAutomationStateLease,
+  recoverAutomationStateLease,
   resumeAutomation,
   startAutomation
 } from "./automation.mjs";
@@ -76,7 +77,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "design", "host", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "host", "lease", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -130,6 +131,8 @@ Usage:
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
   killsloprouter run --task redesign --scope runtime --observation-run FILE [options]
   killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
+  killsloprouter lease status --state FILE [--json]
+  killsloprouter lease recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
   killsloprouter scan --adapter kill-ai-slop --adapter-root DIR --target PATH
   killsloprouter digest --target PATH [--json]
   killsloprouter doctor [--profile FILE] [--format text|json]
@@ -185,6 +188,10 @@ Options:
   --dry-run
   --resume FILE
   --migrate-identity (explicitly migrate a pre-execution legacy automation state)
+  --state FILE (automation state target for lease status/recovery)
+  --owner-token TOKEN (exact stale lease owner token)
+  --acquired-at TIMESTAMP (exact stale lease acquisition time)
+  --state-digest DIGEST|absent (exact current lease-bound state digest)
   --invocation explicit|implicit
   --retry all|PACKET|PROVIDER|STAGE
   --result FILE (repeatable manual audit or design result)
@@ -531,13 +538,13 @@ function runCommand(args) {
     if (args["observation-run"]) {
       throw new RouterError("--observation-run is immutable after a run starts", 2);
     }
-    if (args["migrate-identity"]) migrateAutomationStateIdentity(args.resume);
     const state = resumeAutomation(args.resume, {
       hostManifest,
       resultPaths: args.results,
       triagePath: args.triage || null,
       approvalPath: args.approval || null,
-      retry: args.retry || null
+      retry: args.retry || null,
+      migrateIdentity: Boolean(args["migrate-identity"])
     });
     automationOutput(state, args);
     process.exitCode = automationExitCode(state);
@@ -585,6 +592,50 @@ function runCommand(args) {
   });
   automationOutput(state, args);
   process.exitCode = automationExitCode(state);
+}
+
+function leaseCommand(args) {
+  if (!args.subcommand || !["status", "recover"].includes(args.subcommand)) {
+    throw new RouterError("lease requires status or recover", 2);
+  }
+  if (!args.state) throw new RouterError(`lease ${args.subcommand} requires --state`, 2);
+  if (args.subcommand === "status") {
+    output(inspectAutomationStateLease(args.state), args, (value) => [
+      "KillSlopRouter automation state lease",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.status === "locked" ? [
+        `operation: ${value.operation}`,
+        `phase: ${value.phase}`,
+        `owner pid: ${value.owner_pid}`,
+        `owner pid in use: ${value.owner_pid_in_use}`,
+        `owner process alive: ${value.owner_process_alive}`,
+        `owner process identity matches: ${value.owner_process_identity_matches}`,
+        `acquired at: ${value.acquired_at}`,
+        `recover after: ${value.recover_after}`,
+        `lease digest: ${value.lease_digest}`
+      ] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  const result = recoverAutomationStateLease(args.state, {
+    ownerToken: args["owner-token"],
+    acquiredAt: args["acquired-at"],
+    stateDigest: args["state-digest"]
+  });
+  output(result, args, (value) => [
+    "KillSlopRouter automation state lease recovery",
+    `status: ${value.status}`,
+    `state: ${value.state_path}`,
+    `state digest: ${value.state_digest}`,
+    `receipt: ${value.receipt_path}`,
+    `receipt digest: ${value.receipt_digest}`,
+    ...(value.abandoned_packet ? [
+      `abandoned child: ${value.abandoned_packet.packet_id} attempt ${value.abandoned_packet.attempt}`,
+      "retry: explicit selector required"
+    ] : [])
+  ].join("\n") + "\n");
 }
 
 function formatDesignState(state) {
@@ -797,6 +848,10 @@ export async function main(argv) {
   }
   if (args.command === "audit") {
     auditCommand(args);
+    return;
+  }
+  if (args.command === "lease") {
+    leaseCommand(args);
     return;
   }
   if (args.command === "run") {

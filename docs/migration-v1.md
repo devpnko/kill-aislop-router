@@ -52,6 +52,9 @@ state.
 - Audit run, audit result, triage, owner approval, and final audit receipt all remain version 1.
 - Package exports for `.`, `./audit`, `./integrity`, and `./planning` remain unchanged.
 - Existing audit final statuses and their meanings remain unchanged.
+- Existing automation run version 1 remains readable. New states add optional
+  `in_flight` and `lease_recoveries` fields; strict consumers must update their
+  local schema before accepting those additive fields.
 
 `doctor` reports `automation-ready` instead of `core-ready` only when the
 runtime profile boundary and every visual-intent and visual-signature authority
@@ -76,6 +79,8 @@ strict producers must use the current schemas or the verified migration above.
 - host adapter response version 1
 - bootstrap receipt version 1 and `killsloprouter bootstrap`
 - package exports `./automation`, `./bootstrap`, and `./execution`
+- package export `./state-lease`, atomic state lease version 1, and state lease
+  recovery receipt version 1
 - package exports `./identity` and `./skill-catalog`
 - package export `./playwright`, official Playwright adapter contract version 1,
   browser attestation version 1, scenario version 1, and setup receipt version 1
@@ -91,6 +96,12 @@ mutually exclusive `{ execution_status: "manual_pending", reason }` envelope
 for the official Codex bridge. Existing `{ result }` responses are unchanged.
 Consumers with a local strict copy of the schema should update it; consumers
 that only emit existing result envelopes require no change.
+
+Concurrent mutation is now a deliberate fail-closed behavior change. A second
+`start`, `resume`, or `--migrate-identity` for the same state exits `5` before
+child spawn. Do not delete `<state>.lease` manually. After a real crash, use
+`lease status` and `lease recover` with the exact owner token, acquisition
+timestamp, and state digest; an in-flight packet then requires explicit retry.
 
 The official Codex bridge is opt-in and does not migrate manual declarations
 automatically. Configuration requires explicit external-network authority and

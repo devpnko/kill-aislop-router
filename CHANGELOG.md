@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Added an atomic exclusive lease per automation state across start, resume,
+  identity migration, and child execution so a concurrent caller fails before
+  spawning a second reviewer or overwriting the ledger.
+- Added two-phase current/pending state-digest binding, sealed in-flight child
+  intents, explicit token + timestamp + state-digest stale recovery, recovery
+  receipts, PID-plus-process-start liveness, and `abandoned_after_crash` retry
+  gating. PID state alone never clears or permanently blocks a lease, legacy
+  recovery receipts are verified before identity migration, and unresolved
+  `state-write`/pending transitions cannot use the normal release path.
 - Added a digest-bound KillSlopRouter `journey_identity` across automation and
   design state, audit manifests, packets, step/final receipts, owner decisions,
   and child requests; child providers now retain provenance as internal roles.

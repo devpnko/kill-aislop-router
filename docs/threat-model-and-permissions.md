@@ -12,6 +12,7 @@ independence, required proof, or artifact integrity is missing.
 - visual-signature receipts, per-aspect coverage, and exact palette/type/density/elevation evidence;
 - reviewer and owner provenance;
 - the selected KillSlopRouter parent identity and child-role boundary;
+- state leases, in-flight child intents, and crash-recovery receipts;
 - screenshots, browser traces, and test reports;
 - the distinction between dispatchable work and completed work.
 
@@ -54,6 +55,32 @@ Participant provider IDs are provenance, not workflow selection. A creator,
 critic, scanner, browser provider, or adjudicator remains
 `visibility: internal`; standalone `$antislop` compatibility applies only when
 there is no active KillSlopRouter identity.
+
+### Automation state lease
+
+Mutating start, resume, direct API continuation, identity migration, and
+recovery acquire one atomic directory lease for the exact automation state
+before routing or child spawn.
+The digest-bound record carries a random owner token, PID plus OS process-start
+identity, timestamps, the current/pending state-digest transition, operation,
+and active packet attempt. A second process cannot treat a readable state as
+available while the first reviewer is still running.
+
+No stale lease is removed automatically. Explicit recovery requires the exact
+owner token, acquisition timestamp, and current lease-bound state digest,
+refuses while the owner PID is alive, and waits beyond the bound child timeout.
+The exact recorded process identity must no longer be live; an unrelated
+process that reused its PID does not keep the lease stuck. If liveness cannot
+be distinguished, recovery fails closed. A recovery claimant is itself
+exclusive, carries the same process-start binding, and writes a receipt before
+releasing the lease. POSIX process-start queries force `LC_ALL=C`, `LANG=C`,
+and `TZ=UTC`, preventing caller locale or timezone from changing the marker.
+
+If termination happens after child spawn but before result ingestion, external
+completion cannot be proven transactionally. The sealed in-flight intent is
+recorded as `abandoned_after_crash`, never `ran`; retry remains a separate
+operator authorization. V1 guarantees non-overlapping starts and ledger
+serialization, not exactly-once effects in an external provider.
 
 ### Project profile
 
@@ -221,6 +248,11 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Child critic is presented as the selected workflow | Digest-bound parent identity stays KillSlopRouter; child provider metadata is internal-only and presentation regressions cover correction and resume wording |
 | Legacy local router wins catalog precedence | Installer and doctor detect the duplicate; only an explicit backup-bound, implicit-disabled shim migration clears the conflict |
 | State is re-signed with another parent before resume | Step receipts, audit, packets, approval, and migration receipt must all match the same identity before another child runs |
+| Two start/resume/migrate calls use one state | Atomic state-path lease acquisition precedes every mutation and child spawn; the loser exits `5` |
+| Dead or reused PID causes the wrong lease decision | No automatic deletion; recovery requires the exact token, timestamp, bound state digest, recovery deadline, and PID-bound OS process-start identity |
+| Orchestrator dies while a child is running | Sealed in-flight intent becomes a receipt-bound `abandoned_after_crash` attempt and requires explicit retry |
+| Crash lands between lease and state-file digest writes | Current and pending digests bind the two-phase transition; recovery accepts only the actual bound value |
+| State prepare succeeds but file replacement or lease commit fails | Normal release refuses `state-write` and every non-null pending digest, preserving the recovery boundary |
 | Operator/ERP artifact routed as a consumer product | Required artifact-root surface contract resolves before creator selection; ambiguity, CLI mismatch, and mixed-surface runs block |
 | Surface contract changed after planning | Plan records the profile digest; audit and resume re-hash the same profile source |
 | Anti-slop critique laundered into a paper/editorial house style | Surface and visual intent are separate; editorial treatment requires a verified `bounded` or `required` contract and an independent intent review |

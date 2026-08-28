@@ -76,10 +76,12 @@ assert.equal(router.invariants.design_shortlist_and_palette_require_owner_select
 assert.equal(router.invariants.parent_orchestrator_identity_is_digest_bound, true);
 assert.equal(router.invariants.child_provider_names_are_internal_roles_not_modes, true);
 assert.equal(router.invariants.legacy_skill_entry_conflicts_fail_closed, true);
+assert.equal(router.invariants.automation_state_leases_are_exclusive, true);
 assert.equal(packageJson.exports["./design"], "./src/design.mjs");
 assert.equal(packageJson.exports["./codex"], "./src/codex.mjs");
 assert.equal(packageJson.exports["./identity"], "./src/identity.mjs");
 assert.equal(packageJson.exports["./skill-catalog"], "./src/skill-catalog.mjs");
+assert.equal(packageJson.exports["./state-lease"], "./src/state-lease.mjs");
 const skillMetadata = fs.readFileSync(
   path.join(root, "skills", "kill-slop-router", "agents", "openai.yaml"),
   "utf8"
@@ -120,6 +122,8 @@ assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,
   "official Codex host child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/orchestrator-identity\.test\.mjs/,
   "orchestrator identity and catalog migration coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/state-lease\.test\.mjs/,
+  "state lease concurrency and recovery coverage must remain in the E2E script");
 assert.ok(fs.existsSync(path.join(root, "src", "adapters", "codex-review.mjs")),
   "official Codex review adapter is missing");
 assert.ok(fs.existsSync(path.join(root, "schemas", "codex-review-output.schema.json")),
@@ -129,7 +133,9 @@ for (const schema of [
   "participant.schema.json",
   "audit-run.schema.json",
   "audit-receipt.schema.json",
-  "identity-migration-receipt.schema.json"
+  "identity-migration-receipt.schema.json",
+  "state-lease.schema.json",
+  "state-lease-recovery-receipt.schema.json"
 ]) {
   assert.ok(fs.existsSync(path.join(root, "schemas", schema)),
     `orchestrator identity contract schema is missing: ${schema}`);

@@ -208,6 +208,18 @@ async function waitForPath(filePath, timeoutMs = 5_000) {
   throw new Error(`timed out waiting for ${filePath}`);
 }
 
+async function waitForMatchingFiles(directory, pattern, count = 1, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const files = fs.existsSync(directory)
+      ? fs.readdirSync(directory).filter((name) => pattern.test(name))
+      : [];
+    if (files.length >= count) return files;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`timed out waiting for ${count} matching files in ${directory}`);
+}
+
 test("integrated run executes allowlisted child adapters, resumes for owner approval, and completes", () => {
   const fixture = makeFixture();
   try {
@@ -221,6 +233,11 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     assert.equal(state.journey_identity.presentation.participant_rule, "internal-role-only");
     assert.equal(state.status, "manual_pending");
     assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
+    const firstLeaseStatus = runCli([
+      "lease", "status", "--state", fixture.state, "--json"
+    ], fixture.directory);
+    assert.equal(firstLeaseStatus.status, 0, firstLeaseStatus.stderr || firstLeaseStatus.stdout);
+    assert.equal(JSON.parse(firstLeaseStatus.stdout).status, "unlocked");
     assert.equal(state.steps.plan.status, "completed");
     assert.equal(state.steps.dispatch.status, "completed");
     assert.equal(state.steps.execution.status, "completed");
@@ -309,6 +326,11 @@ test("integrated run executes allowlisted child adapters, resumes for owner appr
     const finalReceipt = JSON.parse(fs.readFileSync(state.paths.final.path, "utf8"));
     assert.equal(finalReceipt.journey_identity.identity_digest, journeyDigest);
     assert.equal(finalReceipt.owner_approval.journey_identity.identity_digest, journeyDigest);
+    const resumedLeaseStatus = runCli([
+      "lease", "status", "--state", fixture.state, "--json"
+    ], fixture.directory);
+    assert.equal(resumedLeaseStatus.status, 0, resumedLeaseStatus.stderr || resumedLeaseStatus.stdout);
+    assert.equal(JSON.parse(resumedLeaseStatus.stdout).status, "unlocked");
   } finally {
     cleanup(fixture);
   }
@@ -735,12 +757,12 @@ test("returned evidence cannot escape its granted output directory", () => {
   }
 });
 
-test("a terminated orchestrator resumes from its last sealed child-process checkpoint", {
+test("a terminated orchestrator requires explicit lease recovery and retry for an in-flight child", {
   skip: process.platform === "win32"
 }, async () => {
   const fixture = makeFixture({
     settings: { "anti-slop": { delay_ms: 10_000, write_started_marker: true } },
-    timeouts: { "anti-slop": 20_000 }
+    timeouts: { "anti-slop": 500 }
   });
   let running = null;
   try {
@@ -768,6 +790,72 @@ test("a terminated orchestrator resumes from its last sealed child-process check
     assert.equal(state.status, "running");
     assert.equal(state.attempts.some((item) => item.provider_id === "anti-slop"), false);
     assert.ok(state.attempts.some((item) => item.provider_id === "visual-intent-review"));
+    assert.equal(state.in_flight.provider_id, "anti-slop");
+    assert.equal(state.in_flight.attempt, 1);
+
+    const leaseStatusResult = runCli([
+      "lease", "status", "--state", fixture.state, "--json"
+    ], fixture.directory);
+    assert.equal(leaseStatusResult.status, 0, leaseStatusResult.stderr || leaseStatusResult.stdout);
+    const leaseStatus = JSON.parse(leaseStatusResult.stdout);
+    assert.equal(leaseStatus.status, "locked");
+    assert.equal(leaseStatus.owner_process_alive, false);
+    assert.equal(leaseStatus.phase, "child-execution");
+
+    const refusedResume = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(refusedResume.status, 5, refusedResume.stderr || refusedResume.stdout);
+    assert.match(refusedResume.stderr, /active automation state lease/i);
+
+    const recoveryDelay = Math.max(0, Date.parse(leaseStatus.recover_after) - Date.now()) + 50;
+    await new Promise((resolve) => setTimeout(resolve, recoveryDelay));
+    const recovery = runCli([
+      "lease", "recover", "--state", fixture.state,
+      "--owner-token", leaseStatus.owner_token,
+      "--acquired-at", leaseStatus.acquired_at,
+      "--state-digest", leaseStatus.state_digest,
+      "--json"
+    ], fixture.directory);
+    assert.equal(recovery.status, 0, recovery.stderr || recovery.stdout);
+    const recoveryResult = JSON.parse(recovery.stdout);
+    assert.equal(recoveryResult.status, "recovered");
+    assert.equal(recoveryResult.abandoned_packet.provider_id, "anti-slop");
+
+    state = readState(fixture);
+    assert.equal(state.in_flight, null);
+    assert.equal(state.lease_recoveries.length, 1);
+    assert.equal(
+      state.attempts.find((item) => item.provider_id === "anti-slop").execution_status,
+      "abandoned_after_crash"
+    );
+
+    const recoveryReceiptPath = state.lease_recoveries[0].path;
+    const recoveryReceiptSource = fs.readFileSync(recoveryReceiptPath, "utf8");
+    fs.appendFileSync(recoveryReceiptPath, " ");
+    const tamperedRecovery = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(tamperedRecovery.status, 4, tamperedRecovery.stderr || tamperedRecovery.stdout);
+    assert.match(tamperedRecovery.stderr, /state lease recovery receipt changed/i);
+    fs.writeFileSync(recoveryReceiptPath, recoveryReceiptSource);
+
+    const withoutRetry = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(withoutRetry.status, 5, withoutRetry.stderr || withoutRetry.stdout);
+    state = readState(fixture);
+    assert.equal(
+      state.attempts.filter((item) => item.provider_id === "anti-slop").length,
+      1,
+      "crash recovery must not implicitly replay an unknown child outcome"
+    );
 
     const host = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
     host.providers["anti-slop"].settings = {};
@@ -776,11 +864,99 @@ test("a terminated orchestrator resumes from its last sealed child-process check
     const resumed = runCli([
       "run", "--resume", fixture.state,
       "--host-config", fixture.host,
+      "--retry", "anti-slop",
       "--json"
     ], fixture.directory);
     assert.equal(resumed.status, 6, resumed.stderr || resumed.stdout);
     state = readState(fixture);
     assert.equal(state.final_audit_status, "critic_pass_owner_review_pending");
+    assert.equal(
+      state.attempts.filter((item) => item.provider_id === "anti-slop" && item.execution_status === "ran").length,
+      1
+    );
+  } finally {
+    if (running?.pid) {
+      try {
+        process.kill(-running.pid, "SIGKILL");
+      } catch {
+        // The process group already exited.
+      }
+    }
+    cleanup(fixture);
+  }
+});
+
+test("concurrent resume fails closed before a second reviewer child starts", {
+  skip: process.platform === "win32"
+}, async () => {
+  const fixture = makeFixture({
+    settings: { "anti-slop": { delay_ms: 1_500, write_pid_marker: true } },
+    timeouts: { "anti-slop": 5_000 }
+  });
+  let running = null;
+  try {
+    const readyHost = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
+    const manualHost = structuredClone(readyHost);
+    manualHost.allowed_providers = manualHost.allowed_providers.filter((id) => id !== "anti-slop");
+    delete manualHost.providers["anti-slop"];
+    writeJson(fixture.host, manualHost);
+
+    const started = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(started.status, 6, started.stderr || started.stdout);
+    writeJson(fixture.host, readyHost);
+
+    running = spawn(process.execPath, [
+      cli,
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], {
+      cwd: fixture.directory,
+      detached: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const evidenceDirectory = path.join(
+      fixture.directory,
+      "automation.d",
+      "evidence",
+      "functional-human-review--anti-slop--1",
+      "attempt-2"
+    );
+    await waitForMatchingFiles(evidenceDirectory, /^started\.\d+\.marker$/);
+
+    const overlappingStart = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(overlappingStart.status, 5, overlappingStart.stderr || overlappingStart.stdout);
+    assert.match(overlappingStart.stderr, /active automation state lease/i);
+
+    const overlappingMigration = runCli([
+      "run", "--resume", fixture.state,
+      "--migrate-identity",
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(overlappingMigration.status, 5,
+      overlappingMigration.stderr || overlappingMigration.stdout);
+    assert.match(overlappingMigration.stderr, /active automation state lease/i);
+
+    const overlapping = runCli([
+      "run", "--resume", fixture.state,
+      "--host-config", fixture.host,
+      "--json"
+    ], fixture.directory);
+    assert.equal(overlapping.status, 5, overlapping.stderr || overlapping.stdout);
+    assert.match(overlapping.stderr, /active automation state lease/i);
+
+    const [exitCode, signal] = await once(running, "exit");
+    assert.equal(signal, null);
+    assert.equal(exitCode, 6);
+    running = null;
+
+    const markers = await waitForMatchingFiles(
+      evidenceDirectory,
+      /^started\.\d+\.marker$/
+    );
+    assert.equal(markers.length, 1, "only the lease owner may start the reviewer child");
+    const state = readState(fixture);
     assert.equal(
       state.attempts.filter((item) => item.provider_id === "anti-slop" && item.execution_status === "ran").length,
       1

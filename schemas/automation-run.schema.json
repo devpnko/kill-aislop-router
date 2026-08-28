@@ -31,6 +31,16 @@
     "paths": {"type": "object"},
     "steps": {"type": "object"},
     "attempts": {"type": "array", "items": {"type": "object"}},
+    "in_flight": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/in_flight"}
+      ]
+    },
+    "lease_recoveries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/receipt_snapshot"}
+    },
     "blockers": {"type": "array", "items": {"type": "string"}},
     "pending": {"type": "array", "items": {"type": "string"}},
     "identity_migration": {
@@ -63,6 +73,40 @@
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "receipt_snapshot": {
+      "type": "object",
+      "required": ["path", "digest", "receipt_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "receipt_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "in_flight": {
+      "type": "object",
+      "required": [
+        "automation_in_flight_version", "packet_id", "packet_digest", "provider_id",
+        "participant", "adapter", "host_manifest_digest", "permission_scopes",
+        "strength", "capabilities", "attempt", "output_directory", "started_at"
+      ],
+      "properties": {
+        "automation_in_flight_version": {"const": 1},
+        "packet_id": {"type": "string", "minLength": 1},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
+        "adapter": {"type": "string", "minLength": 1},
+        "host_manifest_digest": {"$ref": "#/$defs/digest"},
+        "permission_scopes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+        "capabilities": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "attempt": {"type": "integer", "minimum": 1},
+        "output_directory": {"type": "string", "minLength": 1},
+        "started_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
     "baseline_observation": {
       "type": "object",
       "required": [

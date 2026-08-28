@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/state-lease-recovery-receipt.schema.json",
+  "title": "KillSlopRouter State Lease Recovery Receipt",
+  "type": "object",
+  "required": [
+    "state_lease_recovery_receipt_version", "status", "run_id", "journey_identity",
+    "state_path", "recovered_at", "recovered_lease", "abandoned_attempt", "receipt_digest"
+  ],
+  "properties": {
+    "state_lease_recovery_receipt_version": {"const": 1},
+    "status": {"const": "recovered"},
+    "run_id": {"type": ["string", "null"]},
+    "journey_identity": {
+      "oneOf": [{"type": "null"}, {"$ref": "journey-identity.schema.json"}]
+    },
+    "state_path": {"type": "string", "minLength": 1},
+    "recovered_at": {"type": "string", "format": "date-time"},
+    "recovered_lease": {
+      "type": "object",
+      "required": [
+        "lease_digest", "owner_token_digest", "owner_pid", "owner_process_identity",
+        "acquired_at", "operation",
+        "phase", "state_digest", "recover_after", "active_packet"
+      ],
+      "properties": {
+        "lease_digest": {"$ref": "#/$defs/digest"},
+        "owner_token_digest": {"$ref": "#/$defs/digest"},
+        "owner_pid": {"type": "integer", "minimum": 1},
+        "owner_process_identity": {"$ref": "#/$defs/process_identity"},
+        "acquired_at": {"type": "string", "format": "date-time"},
+        "operation": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "state_digest": {"$ref": "#/$defs/state_digest"},
+        "recover_after": {"type": "string", "format": "date-time"},
+        "active_packet": {"type": ["object", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "abandoned_attempt": {"type": ["object", "null"]},
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "process_identity": {
+      "type": "object",
+      "required": ["process_identity_version", "method", "marker"],
+      "properties": {
+        "process_identity_version": {"const": 1},
+        "method": {"type": "string", "minLength": 1},
+        "marker": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "state_digest": {
+      "oneOf": [
+        {"const": "absent"},
+        {"$ref": "#/$defs/digest"}
+      ]
+    }
+  },
+  "additionalProperties": false
+}

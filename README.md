@@ -369,6 +369,35 @@ packet also records a digest-bound `participant` with the exact `provider_id`,
 role, `visibility: internal`, and parent orchestrator. Resume rejects a changed
 identity even if an attacker recomputes only the state digest.
 
+Every state-changing `run --out`, `run --resume`, and identity migration first
+acquires an atomic lease beside the exact state path. The lease stays held
+through child execution and is released only after the next checkpoint is
+sealed. A concurrent caller exits `5` before it can start another reviewer.
+Inspect a lease without changing it:
+
+```bash
+node bin/killsloprouter.mjs lease status \
+  --state .killsloprouter/post-change-ui.json --json
+```
+
+After an orchestrator crash, wait until `recover_after`, then repeat the exact
+owner token, acquisition timestamp, and current state digest reported by
+`lease status`:
+
+```bash
+node bin/killsloprouter.mjs lease recover \
+  --state .killsloprouter/post-change-ui.json \
+  --owner-token '<exact local token>' \
+  --acquired-at '<exact timestamp>' \
+  --state-digest 'sha256:<exact digest>' \
+  --json
+```
+
+Recovery refuses a live owner and never clears a lease from PID state alone.
+If a child was in flight, the receipt records `abandoned_after_crash`; its
+outcome remains unknown and replay requires an explicit `--retry` selector.
+Keep the owner token local rather than posting it in a public issue or PR log.
+
 If a scanner returns candidates, supply a triage file and resume:
 
 ```bash

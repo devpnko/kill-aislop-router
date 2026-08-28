@@ -46,6 +46,11 @@
       "type": "object",
       "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
     },
+    "legacy_lease_recoveries": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+      "uniqueItems": true
+    },
     "receipt_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
   },
   "additionalProperties": false
