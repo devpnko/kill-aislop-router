@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/plugin-install-marker.schema.json",
+  "title": "KillSlopRouter Codex Plugin Install Marker",
+  "type": "object",
+  "required": [
+    "plugin_install_marker_version",
+    "name",
+    "version",
+    "install_contract",
+    "canonical_entrypoint",
+    "payload_digest",
+    "runtime_digest",
+    "canonical_skill_digest",
+    "marker_digest"
+  ],
+  "properties": {
+    "plugin_install_marker_version": {"const": 2},
+    "name": {"const": "killsloprouter"},
+    "version": {"type": "string", "minLength": 1},
+    "install_contract": {"const": "trusted-package-payload-v1"},
+    "canonical_entrypoint": {"const": "killsloprouter:kill-slop-router"},
+    "payload_digest": {"$ref": "#/$defs/digest"},
+    "runtime_digest": {"$ref": "#/$defs/digest"},
+    "canonical_skill_digest": {"$ref": "#/$defs/digest"},
+    "marker_digest": {"$ref": "#/$defs/digest"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

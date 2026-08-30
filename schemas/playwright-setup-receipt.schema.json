@@ -22,13 +22,15 @@
     "host_manifest": {"$ref": "#/$defs/file_with_backup"},
     "adapter": {
       "type": "object",
-      "required": ["contract", "entrypoint", "entrypoint_digest", "runtime_root", "runtime_digest", "playwright_version", "axe_version"],
+      "required": ["contract", "entrypoint", "entrypoint_digest", "entrypoint_graph_digest", "runtime_root", "runtime_digest", "runtime_physical_identity_digest", "playwright_version", "axe_version"],
       "properties": {
         "contract": {"const": "killsloprouter-playwright-v1"},
         "entrypoint": {"type": "string", "minLength": 1},
         "entrypoint_digest": {"$ref": "#/$defs/digest"},
+        "entrypoint_graph_digest": {"$ref": "#/$defs/digest"},
         "runtime_root": {"type": "string", "minLength": 1},
         "runtime_digest": {"$ref": "#/$defs/digest"},
+        "runtime_physical_identity_digest": {"$ref": "#/$defs/digest"},
         "playwright_version": {"type": "string", "minLength": 1},
         "axe_version": {"type": "string", "minLength": 1}
       },

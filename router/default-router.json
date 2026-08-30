@@ -29,7 +29,9 @@
     "parent_orchestrator_identity_is_digest_bound": true,
     "child_provider_names_are_internal_roles_not_modes": true,
     "legacy_skill_entry_conflicts_fail_closed": true,
-    "automation_state_leases_are_exclusive": true
+    "automation_state_leases_are_exclusive": true,
+    "latest_version_never_promotes_parent_baseline": true,
+    "slice_lineage_is_digest_bound_to_parent_and_candidate": true
   },
   "provider_capabilities": {
     "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},

@@ -5,6 +5,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { canonicalDigest, hashArtifact, sha256, snapshotArtifact } from "../integrity.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
@@ -27,6 +28,53 @@ const VISUAL_COMPARISON = Object.freeze({
   threshold: 0.2,
   maxDiffPixels: 0
 });
+const CHILD_AUTHORITY_KEYS = new Set([
+  "playwright_child_authority_version",
+  "runtime_digest",
+  "runtime_source_physical_identity_digest",
+  "runtime_seal_physical_identity_digest",
+  "scenario",
+  "baselines",
+  "authority_digest"
+]);
+const RUNTIME_PACKAGES = Object.freeze({
+  "axe-core": "4.13.0",
+  "playwright-core": "1.62.1"
+});
+
+function runtimePackagePath(runtimeRoot, packageName) {
+  return path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
+}
+
+function runtimeDigest(runtimeRoot) {
+  const packages = {};
+  for (const [packageName, expectedVersion] of Object.entries(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    const metadata = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+    requireValue(metadata.version === expectedVersion,
+      `sealed runtime package ${packageName} version mismatch`);
+    packages[packageName] = {
+      version: metadata.version,
+      digest: hashArtifact(directory, { ignores: [] })
+    };
+  }
+  return canonicalDigest({ playwright_runtime_version: 1, packages });
+}
+
+function runtimePhysicalIdentityDigest(runtimeRoot) {
+  const packages = {};
+  for (const packageName of Object.keys(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    packages[packageName] = snapshotArtifact(directory, {
+      root: path.dirname(directory),
+      ignores: []
+    }).physical_identity_digest;
+  }
+  return canonicalDigest({
+    playwright_runtime_physical_identity_version: 1,
+    packages
+  });
+}
 
 function requireValue(condition, message) {
   if (!condition) throw new Error(message);
@@ -34,14 +82,6 @@ function requireValue(condition, message) {
 
 function safeId(value) {
   return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "item";
-}
-
-function readJson(file, label) {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new Error(`cannot read ${label} at ${file}: ${error.message}`);
-  }
 }
 
 function validateScenarioDocument(value) {
@@ -108,6 +148,95 @@ function validateScenarioDocument(value) {
     }
   }
   return value.scenarios;
+}
+
+function exactKeys(value, expected) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)) &&
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key));
+}
+
+function readPlaywrightChildAuthority(request, settings) {
+  const authority = request.playwright_authority;
+  requireValue(exactKeys(authority, CHILD_AUTHORITY_KEYS),
+    "Playwright child authority has an invalid shape");
+  const body = Object.fromEntries(
+    Object.entries(authority).filter(([key]) => key !== "authority_digest")
+  );
+  requireValue(authority.playwright_child_authority_version === 1,
+    "Playwright child authority version must be 1");
+  requireValue(authority.authority_digest === canonicalDigest(body),
+    "Playwright child authority digest mismatch");
+  requireValue(authority.runtime_digest === settings.runtime_digest,
+    "Playwright child runtime authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_source_physical_identity_digest || "") &&
+    authority.runtime_source_physical_identity_digest ===
+      settings.runtime_physical_identity_digest,
+  "Playwright child runtime source physical authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_seal_physical_identity_digest || ""),
+    "Playwright child runtime seal physical authority is invalid");
+  requireValue(runtimeDigest(settings.runtime_root) === authority.runtime_digest,
+    "sealed Playwright child runtime digest mismatch");
+  requireValue(runtimePhysicalIdentityDigest(settings.runtime_root) ===
+    authority.runtime_seal_physical_identity_digest,
+  "sealed Playwright child runtime physical identity mismatch");
+  const runtime = loadRuntime(settings.runtime_root);
+  requireValue(exactKeys(authority.scenario, new Set([
+    "digest", "bytes", "physical_identity_digest", "source_base64"
+  ])),
+    "Playwright child scenario authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.scenario.physical_identity_digest || ""),
+    "Playwright child scenario physical identity is invalid");
+  const scenarioSource = Buffer.from(authority.scenario.source_base64, "base64");
+  requireValue(scenarioSource.length === authority.scenario.bytes,
+    "Playwright child scenario authority byte count mismatch");
+  requireValue(sha256(scenarioSource) === authority.scenario.digest &&
+    authority.scenario.digest === settings.scenario_digest,
+  "Playwright child scenario authority digest mismatch");
+  let scenarioDocument;
+  try {
+    scenarioDocument = JSON.parse(scenarioSource.toString("utf8"));
+  } catch (error) {
+    throw new Error(`cannot parse Playwright child scenario authority: ${error.message}`);
+  }
+
+  requireValue(exactKeys(authority.baselines,
+    new Set(["directory_digest", "physical_identity_digest", "total_bytes", "files"])),
+  "Playwright child baseline authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.baselines.physical_identity_digest || ""),
+    "Playwright child baseline physical identity is invalid");
+  requireValue(Array.isArray(authority.baselines.files),
+    "Playwright child baseline files must be an array");
+  const baselineFiles = new Map();
+  let totalBytes = 0;
+  const manifest = [];
+  for (const file of authority.baselines.files) {
+    requireValue(exactKeys(file, new Set([
+      "name", "bytes", "digest", "physical_identity_digest", "source_base64"
+    ])),
+      "Playwright child baseline file has an invalid shape");
+    requireValue(DIGEST_PATTERN.test(file.physical_identity_digest || ""),
+      `Playwright child baseline physical identity is invalid: ${file.name}`);
+    requireValue(/^[A-Za-z0-9._-]+\.png$/.test(file.name) && !baselineFiles.has(file.name),
+      `Playwright child baseline filename is invalid or duplicated: ${file.name}`);
+    const source = Buffer.from(file.source_base64, "base64");
+    requireValue(source.length === file.bytes && sha256(source) === file.digest,
+      `Playwright child baseline digest mismatch: ${file.name}`);
+    totalBytes += source.length;
+    baselineFiles.set(file.name, source);
+    manifest.push({ type: "file", path: file.name, bytes: file.bytes, digest: file.digest });
+  }
+  requireValue(totalBytes === authority.baselines.total_bytes,
+    "Playwright child baseline total byte count mismatch");
+  const directoryDigest = canonicalDigest({ type: "directory", entries: manifest });
+  requireValue(directoryDigest === authority.baselines.directory_digest &&
+    directoryDigest === settings.baseline_digest,
+  "Playwright child baseline directory digest mismatch");
+  return {
+    scenarios: validateScenarioDocument(scenarioDocument),
+    baselineFiles,
+    runtime
+  };
 }
 
 function findingFactory() {
@@ -599,7 +728,7 @@ async function designMarkers(page, locales, states) {
   }, { requiredLocales: locales, requiredStates: states });
 }
 
-async function runDesignBrowser(request) {
+async function runDesignBrowser(request, runtime) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   const task = packet.design_task;
   requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
@@ -629,7 +758,7 @@ async function runDesignBrowser(request) {
   }
   fs.mkdirSync(outputDirectory, { recursive: true });
 
-  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource } = runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const evidence = [];
@@ -813,11 +942,13 @@ async function run(request) {
     "output_directory is required");
   fs.mkdirSync(outputDirectory, { recursive: true });
 
+  const childAuthority = readPlaywrightChildAuthority(request, settings);
+
   if (packet.design_task?.kind === "browser-evidence") {
-    return runDesignBrowser(request);
+    return runDesignBrowser(request, childAuthority.runtime);
   }
 
-  const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
+  const scenarios = childAuthority.scenarios;
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
   const requiredScenarios = packet.evidence_contract?.required_scenarios || [];
@@ -859,7 +990,7 @@ async function run(request) {
   requireValue(sameDigestMap(attestation.artifact_digests, packet.artifact_digests),
     "served artifact attestation does not match the audit packet digests");
 
-  const { playwright, axeSource, comparePng } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource, comparePng } = childAuthority.runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const { findings, add } = findingFactory();
@@ -1121,7 +1252,8 @@ async function run(request) {
               scenarios: [scenario.id]
             });
             const baselinePath = path.join(settings.baseline_directory, screenshotName);
-            if (!fs.existsSync(baselinePath)) {
+            const baseline = childAuthority.baselineFiles.get(screenshotName);
+            if (!baseline) {
               execution.visual_regression = { status: "baseline-missing", baseline: baselinePath };
               add({
                 category: "visual-regression",
@@ -1130,7 +1262,6 @@ async function run(request) {
                 suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
               });
             } else {
-              const baseline = fs.readFileSync(baselinePath);
               const actual = fs.readFileSync(screenshotPath);
               const exact = baseline.equals(actual);
               const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
@@ -1244,8 +1375,15 @@ async function run(request) {
     host_adapter_response_version: 1,
     result: {
       audit_result_version: 1,
+      run_id: request.run_id,
       packet_id: packet.packet_id,
+      packet_digest: packet.packet_digest,
+      journey_identity: request.journey_identity,
       provider_id: packet.provider.id,
+      participant: request.participant,
+      ...(request.baseline_lineage
+        ? { baseline_lineage_digest: request.baseline_lineage.lineage_digest }
+        : {}),
       reviewer: { actor_id: `playwright:official-v1:${process.pid}`, kind: "browser" },
       verdict: report.status === "blocked" ? "block" : findings.length ? "pass_with_findings" : "pass",
       capabilities_checked: packet.assigned_capabilities,

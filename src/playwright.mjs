@@ -1,11 +1,21 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { canonicalDigest, hashArtifact, snapshotArtifact, writeJsonAtomic } from "./integrity.mjs";
+import {
+  canonicalDigest,
+  hashArtifact,
+  readFilePinned,
+  readJsonPinned,
+  snapshotArtifact,
+  writeJsonAtomic
+} from "./integrity.mjs";
 import { RouterError, readJson, validateProfile } from "./router.mjs";
+import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 
 export const PLAYWRIGHT_ADAPTER_CONTRACT = "killsloprouter-playwright-v1";
 export const PLAYWRIGHT_PROVIDER_TARGET = "official:playwright-browser-v1";
@@ -41,6 +51,7 @@ export const DEFAULT_PLAYWRIGHT_CHECKS = [
   "console",
   "network"
 ];
+export const MAX_PLAYWRIGHT_BASELINE_BYTES = 64 * 1024 * 1024;
 
 export function playwrightVerificationContractDigest(settings) {
   return canonicalDigest({
@@ -78,6 +89,7 @@ const SETTINGS_KEYS = new Set([
   "locale",
   "runtime_root",
   "runtime_digest",
+  "runtime_physical_identity_digest",
   "scenario_file",
   "scenario_digest",
   "baseline_directory",
@@ -147,6 +159,79 @@ export function playwrightRuntimeDigest(runtimeRoot) {
   return canonicalDigest({ playwright_runtime_version: 1, packages });
 }
 
+export function playwrightRuntimePhysicalIdentityDigest(runtimeRoot) {
+  const root = realDirectory(runtimeRoot, "Playwright runtime root");
+  const packages = {};
+  for (const packageName of PLAYWRIGHT_RUNTIME_PACKAGES) {
+    const directory = realDirectory(runtimePackagePath(root, packageName),
+      `runtime package ${packageName}`);
+    const snapshot = snapshotArtifact(directory, {
+      root: path.dirname(directory),
+      ignores: []
+    });
+    packages[packageName] = snapshot.physical_identity_digest;
+  }
+  return canonicalDigest({
+    playwright_runtime_physical_identity_version: 1,
+    packages
+  });
+}
+
+export function createPlaywrightRuntimeSeal(settings, { faultInjector = null } = {}) {
+  const sourceRoot = realDirectory(settings.runtime_root, "Playwright runtime root");
+  const before = {
+    digest: playwrightRuntimeDigest(sourceRoot),
+    physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(sourceRoot)
+  };
+  requireValue(before.digest === settings.runtime_digest,
+    "official Playwright runtime digest mismatch before sealing", 4);
+  requireValue(before.physical_identity_digest === settings.runtime_physical_identity_digest,
+    "official Playwright runtime physical identity mismatch before sealing", 4);
+  const sealedRoot = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-runtime-"));
+  fs.chmodSync(sealedRoot, 0o700);
+  const nodeModules = path.join(sealedRoot, "node_modules");
+  fs.mkdirSync(nodeModules, { mode: 0o700 });
+  let retained = false;
+  try {
+    for (const packageName of PLAYWRIGHT_RUNTIME_PACKAGES) {
+      const source = runtimePackagePath(sourceRoot, packageName);
+      const destination = runtimePackagePath(sealedRoot, packageName);
+      fs.mkdirSync(path.dirname(destination), { recursive: true, mode: 0o700 });
+      fs.cpSync(source, destination, {
+        recursive: true,
+        dereference: false,
+        preserveTimestamps: true,
+        force: false,
+        errorOnExist: true,
+        mode: fs.constants.COPYFILE_FICLONE || 0
+      });
+    }
+    faultInjector?.("after-playwright-runtime-copy-before-source-revalidation", {
+      runtime_root: sourceRoot,
+      sealed_runtime_root: sealedRoot
+    });
+    const after = {
+      digest: playwrightRuntimeDigest(sourceRoot),
+      physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(sourceRoot)
+    };
+    requireValue(canonicalDigest(after) === canonicalDigest(before),
+      "official Playwright runtime changed while its private execution seal was being created", 4);
+    requireValue(playwrightRuntimeDigest(sealedRoot) === settings.runtime_digest,
+      "sealed Playwright runtime content does not match configured authority", 4);
+    const result = {
+      runtimeRoot: sealedRoot,
+      runtimePhysicalIdentityDigest: playwrightRuntimePhysicalIdentityDigest(sealedRoot),
+      cleanup() {
+        fs.rmSync(sealedRoot, { recursive: true, force: true });
+      }
+    };
+    retained = true;
+    return result;
+  } finally {
+    if (!retained) fs.rmSync(sealedRoot, { recursive: true, force: true });
+  }
+}
+
 export function isLoopbackUrl(value) {
   let parsed;
   try {
@@ -188,7 +273,8 @@ function validateViewportMap(value) {
 export function validateOfficialPlaywrightSettings(settings, {
   entrypoint,
   permissionScopes = [],
-  manifestPath = process.cwd()
+  manifestPath = process.cwd(),
+  faultInjector = null
 } = {}) {
   requireValue(settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT,
     `official Playwright adapter requires settings.contract ${PLAYWRIGHT_ADAPTER_CONTRACT}`);
@@ -202,26 +288,60 @@ export function validateOfficialPlaywrightSettings(settings, {
   const runtimeRoot = path.isAbsolute(settings.runtime_root || "")
     ? path.resolve(settings.runtime_root)
     : path.resolve(path.dirname(path.resolve(manifestPath)), settings.runtime_root || "");
+  const trustedRuntimeRoot = resolvePlaywrightRuntimeRoot();
+  requireValue(realDirectory(runtimeRoot, "Playwright runtime root") === trustedRuntimeRoot,
+    "official Playwright runtime must use the bundled trusted runtime root", 4);
   const actualRuntimeDigest = playwrightRuntimeDigest(runtimeRoot);
   requireValue(settings.runtime_digest === actualRuntimeDigest,
     "official Playwright runtime digest mismatch", 4);
+  const actualRuntimePhysicalIdentityDigest =
+    playwrightRuntimePhysicalIdentityDigest(runtimeRoot);
+  requireValue(settings.runtime_physical_identity_digest ===
+    actualRuntimePhysicalIdentityDigest,
+  "official Playwright runtime physical identity mismatch", 4);
 
   const scenarioFile = path.isAbsolute(settings.scenario_file || "")
     ? path.resolve(settings.scenario_file)
     : path.resolve(path.dirname(path.resolve(manifestPath)), settings.scenario_file || "");
   realRegularFile(scenarioFile, "Playwright scenario file");
-  requireValue(hashArtifact(scenarioFile) === settings.scenario_digest,
+  const pinnedScenario = readJsonPinned(scenarioFile, {
+    label: "Playwright scenario file",
+    faultInjector
+  });
+  requireValue(pinnedScenario.digest === settings.scenario_digest,
     "Playwright scenario file digest mismatch", 4);
   const scenarioDocument = validatePlaywrightScenarioDocument(
-    readJson(scenarioFile, "Playwright scenario file")
+    pinnedScenario.input
   );
 
   const baselineDirectory = path.isAbsolute(settings.baseline_directory || "")
     ? path.resolve(settings.baseline_directory)
     : path.resolve(path.dirname(path.resolve(manifestPath)), settings.baseline_directory || "");
   realDirectory(baselineDirectory, "Playwright baseline directory");
-  requireValue(hashArtifact(baselineDirectory, { ignores: [] }) === settings.baseline_digest,
+  const baselineSnapshot = snapshotArtifact(baselineDirectory, {
+    root: path.dirname(baselineDirectory),
+    ignores: []
+  });
+  requireValue(baselineSnapshot.digest === settings.baseline_digest,
     "Playwright baseline directory digest mismatch", 4);
+  const pinnedBaselines = pinnedBaselineFiles(
+    baselineDirectory,
+    faultInjector,
+    { includeSource: false }
+  );
+  requireValue(baselineDirectoryDigest(pinnedBaselines.files) === settings.baseline_digest,
+    "Playwright baseline directory cannot be represented by the child authority", 4);
+  const confirmedBaselineSnapshot = snapshotArtifact(baselineDirectory, {
+    root: path.dirname(baselineDirectory),
+    ignores: []
+  });
+  requireValue(
+    confirmedBaselineSnapshot.digest === baselineSnapshot.digest &&
+      confirmedBaselineSnapshot.physical_identity_digest ===
+        baselineSnapshot.physical_identity_digest,
+    "Playwright baseline directory changed while it was being validated",
+    4
+  );
 
   const baseOrigin = normalizedOrigin(settings.base_url, "Playwright base_url");
   requireValue(typeof settings.attestation_path === "string" && settings.attestation_path.startsWith("/") &&
@@ -256,7 +376,9 @@ export function validateOfficialPlaywrightSettings(settings, {
 
   return {
     runtimeRoot: realDirectory(runtimeRoot, "Playwright runtime root"),
-    scenarioFile: realRegularFile(scenarioFile, "Playwright scenario file"),
+    runtimePhysicalIdentityDigest: actualRuntimePhysicalIdentityDigest,
+    scenarioFile: pinnedScenario.path,
+    scenarioSnapshot: pinnedScenario.source_snapshot,
     scenarioIds: scenarioDocument.scenarios.map((scenario) => scenario.id),
     scenarioAssertions: Object.fromEntries(scenarioDocument.scenarios.map((scenario) => [
       scenario.id,
@@ -264,10 +386,166 @@ export function validateOfficialPlaywrightSettings(settings, {
     ])),
     verificationContractDigest: playwrightVerificationContractDigest(settings),
     baselineDirectory: realDirectory(baselineDirectory, "Playwright baseline directory"),
+    baselineSnapshot,
     baseOrigin,
     allowedOrigins,
     external
   };
+}
+
+function baselineDirectoryDigest(files) {
+  return canonicalDigest({
+    type: "directory",
+    entries: files.map((file) => ({
+      type: "file",
+      path: file.name,
+      bytes: file.bytes,
+      digest: file.digest
+    }))
+  });
+}
+
+function pinnedBaselineFiles(directory, faultInjector = null, { includeSource = true } = {}) {
+  const baselineRoot = realDirectory(directory, "Playwright baseline directory");
+  const files = [];
+  let totalBytes = 0;
+  for (const entry of fs.readdirSync(baselineRoot, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name))) {
+    requireValue(entry.isFile() && !entry.isSymbolicLink(),
+      `Playwright baseline authority accepts flat regular files only: ${entry.name}`, 4);
+    requireValue(/^[A-Za-z0-9._-]+\.png$/.test(entry.name),
+      `Playwright baseline authority accepts safe PNG filenames only: ${entry.name}`, 4);
+    const pinned = readFilePinned(path.join(baselineRoot, entry.name), {
+      label: `Playwright baseline ${entry.name}`,
+      faultInjector
+    });
+    totalBytes += pinned.bytes;
+    requireValue(totalBytes <= MAX_PLAYWRIGHT_BASELINE_BYTES,
+      `Playwright baseline authority exceeds ${MAX_PLAYWRIGHT_BASELINE_BYTES} bytes`, 4);
+    const file = {
+      name: entry.name,
+      bytes: pinned.bytes,
+      digest: pinned.digest,
+      physical_identity_digest: pinned.physical_identity_digest
+    };
+    if (includeSource) file.source_base64 = pinned.source.toString("base64");
+    files.push(file);
+  }
+  return { baselineRoot, files, totalBytes };
+}
+
+export function createPlaywrightChildAuthority(settings, verified, {
+  faultInjector = null,
+  runtimeSeal = null
+} = {}) {
+  requireValue(verified?.scenarioFile && verified?.baselineDirectory,
+    "verified Playwright authority is required before child handoff", 4);
+  requireValue(runtimeSeal?.runtimeRoot &&
+    DIGEST_PATTERN.test(runtimeSeal.runtimePhysicalIdentityDigest || ""),
+  "sealed Playwright runtime authority is required before child handoff", 4);
+  requireValue(playwrightRuntimeDigest(runtimeSeal.runtimeRoot) === settings.runtime_digest,
+    "sealed Playwright runtime digest changed before child handoff", 4);
+  requireValue(playwrightRuntimePhysicalIdentityDigest(runtimeSeal.runtimeRoot) ===
+    runtimeSeal.runtimePhysicalIdentityDigest,
+  "sealed Playwright runtime physical identity changed before child handoff", 4);
+  const pinnedScenario = readFilePinned(verified.scenarioFile, {
+    label: "Playwright scenario authority for child handoff",
+    faultInjector
+  });
+  requireValue(pinnedScenario.digest === settings.scenario_digest,
+    "Playwright scenario authority changed before child handoff", 4);
+  requireValue(
+    pinnedScenario.physical_identity_digest === verified.scenarioSnapshot?.physical_identity_digest,
+    "Playwright scenario physical identity changed before child handoff",
+    4
+  );
+  let scenarioDocument;
+  try {
+    scenarioDocument = JSON.parse(pinnedScenario.source.toString("utf8"));
+  } catch (error) {
+    throw new RouterError(`cannot parse Playwright scenario authority: ${error.message}`, 4);
+  }
+  validatePlaywrightScenarioDocument(scenarioDocument);
+
+  const baselineBefore = snapshotArtifact(verified.baselineDirectory, {
+    root: path.dirname(verified.baselineDirectory),
+    ignores: []
+  });
+  requireValue(
+    baselineBefore.digest === verified.baselineSnapshot?.digest &&
+      baselineBefore.physical_identity_digest === verified.baselineSnapshot?.physical_identity_digest,
+    "Playwright baseline physical identity changed before child handoff",
+    4
+  );
+  const baselines = pinnedBaselineFiles(verified.baselineDirectory, faultInjector);
+  const directoryDigest = baselineDirectoryDigest(baselines.files);
+  requireValue(directoryDigest === settings.baseline_digest,
+    "Playwright baseline authority changed before child handoff", 4);
+  const confirmedScenario = readFilePinned(verified.scenarioFile, {
+    label: "Playwright scenario authority immediately before child handoff"
+  });
+  requireValue(
+    confirmedScenario.digest === pinnedScenario.digest &&
+      confirmedScenario.physical_identity_digest === pinnedScenario.physical_identity_digest,
+    "Playwright scenario path identity changed before child handoff",
+    4
+  );
+  const baselineAfter = snapshotArtifact(verified.baselineDirectory, {
+    root: path.dirname(verified.baselineDirectory),
+    ignores: []
+  });
+  requireValue(
+    baselineAfter.digest === directoryDigest &&
+      baselineAfter.physical_identity_digest === baselineBefore.physical_identity_digest,
+    "Playwright baseline path identity changed before child handoff",
+    4
+  );
+  const body = {
+    playwright_child_authority_version: 1,
+    runtime_digest: settings.runtime_digest,
+    runtime_source_physical_identity_digest: settings.runtime_physical_identity_digest,
+    runtime_seal_physical_identity_digest: runtimeSeal.runtimePhysicalIdentityDigest,
+    scenario: {
+      digest: pinnedScenario.digest,
+      bytes: pinnedScenario.bytes,
+      physical_identity_digest: pinnedScenario.physical_identity_digest,
+      source_base64: pinnedScenario.source.toString("base64")
+    },
+    baselines: {
+      directory_digest: directoryDigest,
+      physical_identity_digest: baselineAfter.physical_identity_digest,
+      total_bytes: baselines.totalBytes,
+      files: baselines.files
+    }
+  };
+  return { ...body, authority_digest: canonicalDigest(body) };
+}
+
+export function verifyPlaywrightChildAuthoritySources(settings, authority) {
+  requireValue(authority?.playwright_child_authority_version === 1,
+    "Playwright child authority is missing before source confirmation", 4);
+  const scenario = readFilePinned(settings.scenario_file, {
+    label: "Playwright scenario authority at final child boundary"
+  });
+  requireValue(
+    scenario.digest === authority.scenario?.digest &&
+      scenario.physical_identity_digest === authority.scenario?.physical_identity_digest,
+    "Playwright scenario content or physical identity changed at the final child boundary", 4);
+  const baseline = snapshotArtifact(settings.baseline_directory, {
+    root: path.dirname(settings.baseline_directory),
+    ignores: []
+  });
+  requireValue(
+    baseline.digest === authority.baselines?.directory_digest &&
+      baseline.physical_identity_digest === authority.baselines?.physical_identity_digest,
+  "Playwright baseline content or physical identity changed at the final child boundary", 4);
+  requireValue(playwrightRuntimeDigest(settings.runtime_root) === authority.runtime_digest,
+    "Playwright runtime authority changed at the final child boundary", 4);
+  requireValue(playwrightRuntimePhysicalIdentityDigest(settings.runtime_root) ===
+    authority.runtime_source_physical_identity_digest &&
+    authority.runtime_source_physical_identity_digest ===
+      settings.runtime_physical_identity_digest,
+  "Playwright runtime physical authority changed at the final child boundary", 4);
 }
 
 function safeJsonFile(file, label) {
@@ -458,8 +736,11 @@ export function configurePlaywright({
   const scenarioFile = path.resolve(scenarioPath || path.join(configDirectory, "playwright-scenarios.json"));
   if (!fs.existsSync(scenarioFile)) writeJsonAtomic(scenarioFile, defaultScenario());
   realRegularFile(scenarioFile, "Playwright scenario file");
+  const pinnedScenario = readJsonPinned(scenarioFile, {
+    label: "Playwright scenario file"
+  });
   const scenarioDocument = validatePlaywrightScenarioDocument(
-    readJson(scenarioFile, "Playwright scenario file")
+    pinnedScenario.input
   );
   requireValue(requestedRequiredScenarios === null || (
     Array.isArray(requestedRequiredScenarios) &&
@@ -512,8 +793,9 @@ export function configurePlaywright({
     locale: profileSource.value.default_locale,
     runtime_root: runtimeRoot,
     runtime_digest: playwrightRuntimeDigest(runtimeRoot),
+    runtime_physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(runtimeRoot),
     scenario_file: scenarioFile,
-    scenario_digest: hashArtifact(scenarioFile),
+    scenario_digest: pinnedScenario.digest,
     baseline_directory: baselineRoot,
     baseline_digest: hashArtifact(baselineRoot, { ignores: [] }),
     viewports: Object.fromEntries(requiredViewports.map((name) => {
@@ -559,6 +841,9 @@ export function configurePlaywright({
     adapter: "browser-json-v1",
     entrypoint,
     entrypoint_digest: hashArtifact(entrypoint),
+    entrypoint_graph_digest: sealedEntrypointGraphDigest(entrypoint, {
+      trustedPackageRoot: packageRoot
+    }),
     strength: 3,
     capabilities,
     permissions,
@@ -575,8 +860,12 @@ export function configurePlaywright({
   const hostBackup = backupFile(hostSource.absolute);
   const receiptPath = path.join(configDirectory, "playwright-setup-receipt.json");
   try {
-    writeJsonAtomic(profileSource.absolute, profile);
-    writeJsonAtomic(hostSource.absolute, host);
+    if (canonicalDigest(profile) !== canonicalDigest(profileSource.value)) {
+      writeJsonAtomic(profileSource.absolute, profile);
+    }
+    if (canonicalDigest(host) !== canonicalDigest(hostSource.value)) {
+      writeJsonAtomic(hostSource.absolute, host);
+    }
     const receipt = {
       playwright_setup_receipt_version: 1,
       status: "configured",
@@ -587,8 +876,12 @@ export function configurePlaywright({
         contract: PLAYWRIGHT_ADAPTER_CONTRACT,
         entrypoint,
         entrypoint_digest: hashArtifact(entrypoint),
+        entrypoint_graph_digest: sealedEntrypointGraphDigest(entrypoint, {
+          trustedPackageRoot: packageRoot
+        }),
         runtime_root: runtimeRoot,
         runtime_digest: playwrightRuntimeDigest(runtimeRoot),
+        runtime_physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(runtimeRoot),
         playwright_version: PLAYWRIGHT_CORE_VERSION,
         axe_version: AXE_CORE_VERSION
       },
@@ -598,7 +891,7 @@ export function configurePlaywright({
         allowed_origins: [...new Set(normalizedAllowedOrigins)],
         browser_channel: browserChannel,
         scenario_file: scenarioFile,
-        scenario_digest: hashArtifact(scenarioFile),
+        scenario_digest: browserSettings.scenario_digest,
         required_scenarios: requiredScenarios,
         verification_contract_digest: profile.evidence.browser_contract_digest,
         baseline_directory: baselineRoot,

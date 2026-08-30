@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 let input = "";
 for await (const chunk of process.stdin) input += chunk;
@@ -15,6 +16,10 @@ if (request.participant?.provider_id !== packet.provider?.id ||
   request.participant?.orchestrator_id !== "kill-slop-router") {
   throw new Error("fixture child received an invalid internal participant binding");
 }
+if ((request.baseline_lineage?.lineage_digest || null) !==
+  (packet.baseline_lineage?.lineage_digest || null)) {
+  throw new Error("fixture child received conflicting parent/slice baseline lineage");
+}
 
 if (settings.write_started_marker) {
   fs.writeFileSync(path.join(request.output_directory, "started.marker"), `${process.pid}\n`);
@@ -24,8 +29,45 @@ if (settings.write_pid_marker) {
   fs.writeFileSync(path.join(request.output_directory, `started.${process.pid}.marker`), `${process.pid}\n`);
 }
 
+if (settings.parent_authority_mutation) {
+  const mutation = settings.parent_authority_mutation;
+  const stateDirectory = path.resolve(request.output_directory, "..", "..", "..");
+  const inferredStatePath = stateDirectory.endsWith(".d")
+    ? `${stateDirectory.slice(0, -2)}.json`
+    : `${stateDirectory}.json`;
+  const authorityDirectory = mutation.authority_directory || `${inferredStatePath}.authorities`;
+  const filename = mutation.target === "start"
+    ? `${request.run_id}.json`
+    : `${request.run_id}.initialization.json`;
+  const target = path.join(authorityDirectory, filename);
+  if (mutation.action === "delete") {
+    fs.copyFileSync(target, path.join(request.output_directory, `${filename}.saved`));
+    fs.rmSync(target);
+  } else if (mutation.action === "replace") {
+    fs.writeFileSync(target, "{\"tampered_by_fixture_child\":true}\n");
+  } else if (mutation.action === "add") {
+    fs.writeFileSync(path.join(authorityDirectory, "child-added-authority.json"), "{}\n");
+  } else {
+    throw new Error(`unsupported parent authority mutation: ${mutation.action}`);
+  }
+}
+
 if (settings.delay_ms) {
   await new Promise((resolve) => setTimeout(resolve, settings.delay_ms));
+}
+
+if (["results", "receipts"].includes(settings.parent_sidecar_symlink)) {
+  const stateDirectory = path.resolve(request.output_directory, "..", "..", "..");
+  const sidecarName = settings.parent_sidecar_symlink;
+  const sidecar = path.join(stateDirectory, sidecarName);
+  const retained = path.join(stateDirectory, `${sidecarName}-child-original-${process.pid}`);
+  const redirected = path.join(
+    path.dirname(stateDirectory),
+    `${sidecarName}-child-redirect-${process.pid}`
+  );
+  fs.renameSync(sidecar, retained);
+  fs.mkdirSync(redirected);
+  fs.symlinkSync(redirected, sidecar, "dir");
 }
 
 if ((settings.fail_attempts || []).includes(request.attempt)) {
@@ -53,6 +95,11 @@ const startedAt = new Date().toISOString();
 const evidence = [];
 
 if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence) {
+  if (settings.evidence_root_replacement) {
+    const original = `${request.output_directory}-original`;
+    fs.renameSync(request.output_directory, original);
+    fs.mkdirSync(request.output_directory, { recursive: true });
+  }
   const scenarios = packet.evidence_contract?.required_scenarios || [];
   for (const scenario of scenarios.length ? scenarios : [null]) {
     for (const viewport of packet.evidence_contract?.required_viewports || []) {
@@ -86,6 +133,48 @@ if (packet.stage_id === "browser-evidence" && !settings.browser_missing_evidence
     fs.writeFileSync(escaped, "fixture attempted to escape its evidence grant\n");
     evidence.push({
       path: "../escaped-evidence.txt",
+      kind: "test-report",
+      covers: packet.assigned_capabilities,
+      viewports: packet.evidence_contract?.required_viewports || [],
+      checks: packet.evidence_contract?.required_checks || [],
+      scenarios: packet.evidence_contract?.required_scenarios || []
+    });
+  }
+  if (settings.evidence_symlink_escape) {
+    const outside = path.join(request.output_directory, "..", "outside-symlink-target");
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, "report.json"), "{\"outside\":true}\n");
+    const link = path.join(request.output_directory, "linked-evidence");
+    fs.symlinkSync(outside, link, "dir");
+    evidence.push({
+      path: "linked-evidence/report.json",
+      kind: "test-report",
+      covers: packet.assigned_capabilities,
+      viewports: packet.evidence_contract?.required_viewports || [],
+      checks: packet.evidence_contract?.required_checks || [],
+      scenarios: packet.evidence_contract?.required_scenarios || []
+    });
+  }
+  if (settings.evidence_hardlink_escape) {
+    const outside = path.join(request.output_directory, "..", "outside-hardlink-report.json");
+    fs.writeFileSync(outside, "{\"outside\":true}\n");
+    const linked = path.join(request.output_directory, "hardlinked-evidence.json");
+    fs.linkSync(outside, linked);
+    evidence.push({
+      path: "hardlinked-evidence.json",
+      kind: "test-report",
+      covers: packet.assigned_capabilities,
+      viewports: packet.evidence_contract?.required_viewports || [],
+      checks: packet.evidence_contract?.required_checks || [],
+      scenarios: packet.evidence_contract?.required_scenarios || []
+    });
+  }
+  if (settings.evidence_special_file) {
+    const fifo = path.join(request.output_directory, "special-evidence.fifo");
+    const created = spawnSync("mkfifo", [fifo], { shell: false, encoding: "utf8" });
+    if (created.status !== 0) throw new Error(created.stderr || "mkfifo failed");
+    evidence.push({
+      path: "special-evidence.fifo",
       kind: "test-report",
       covers: packet.assigned_capabilities,
       viewports: packet.evidence_contract?.required_viewports || [],
@@ -162,8 +251,15 @@ const reviewerActorId = settings.reviewer_actor_id === "__creator__"
 
 const result = {
   audit_result_version: 1,
+  run_id: request.run_id,
   packet_id: packet.packet_id,
+  packet_digest: packet.packet_digest,
+  journey_identity: request.journey_identity,
   provider_id: packet.provider.id,
+  participant: request.participant,
+  ...(request.baseline_lineage
+    ? { baseline_lineage_digest: request.baseline_lineage.lineage_digest }
+    : {}),
   reviewer: {
     actor_id: reviewerActorId,
     kind: packet.provider.kind || "agent"
@@ -187,6 +283,7 @@ process.stdout.write(JSON.stringify({
     observed_journey_identity_digest: request.journey_identity.identity_digest,
     observed_participant: request.participant,
     observed_visual_signature_digest: packet.visual_signature_contract?.contract_digest || null,
-    observed_primary_color: packet.visual_signature_contract?.palette?.primary?.[0]?.value || null
+    observed_primary_color: packet.visual_signature_contract?.palette?.primary?.[0]?.value || null,
+    observed_baseline_lineage_digest: request.baseline_lineage?.lineage_digest || null
   }
 }));

@@ -1,0 +1,20 @@
+{
+  "legacy_capture_version": 1,
+  "source_commit": "9045fce382dc9ffae65aa492eddaa1d7a7996d4d",
+  "source_router_digest": "sha256:13c66a553e5a57f6f21b32275498362bd3cd0ec8fb9e56139041ed6c7c8b9d84",
+  "captured_root": "/private/tmp/killsloprouter-legacy-capture.t5piGa",
+  "source_checkout_root": "/tmp/killsloprouter-9045fce.UXR6Df",
+  "capture_boundary": "process exited at dispatchAuditPackets entry after the historical audit-init state checkpoint",
+  "capture_method": "The historical checkout received one test-only early exit at dispatchAuditPackets entry; routing, planning, audit initialization, receipt serialization, and state serialization were unchanged.",
+  "state_file_digest": "sha256:9e8586652c0b67c8d1bc8a411c67d009e0400618b0a3a49ceaa4d88e84777d28",
+  "plan_file_digest": "sha256:f495faf96cd0e93a43d08ab9800c12612b56d0988cb3986c0a8ca2c62f452667",
+  "audit_file_digest": "sha256:403cd7a976d6634e90fe3f836a58d236458f1066a883a885922671dc51183884",
+  "serialization_fingerprints": {
+    "state": "sha256:ea9c4b30daaeae563bbb205f62f1b8c3aa664ce0e8b0b4baaa7b43dc9768ab76",
+    "plan": "sha256:e7f707778b4c860f58ed21a787b41b974e887a0cfbd3b18ed141a257e6e733f2",
+    "audit": "sha256:ed0d84e61e9a41b3a71721b871aa6b07c419584ec96d3dbc54f9019903cf6a7d"
+  },
+  "profile_file_digest": "sha256:a05009b4f94e7c8588b8ed450ed7bb21bf66778e61d90c8f5b07f00af87bea6e",
+  "prior_child_execution": false,
+  "prior_result_count": 0
+}

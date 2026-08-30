@@ -29,6 +29,7 @@
         "contract",
         "entrypoint",
         "entrypoint_digest",
+        "entrypoint_graph_digest",
         "output_schema",
         "output_schema_digest"
       ],
@@ -36,6 +37,7 @@
         "contract": {"const": "killsloprouter-codex-review-v1"},
         "entrypoint": {"$ref": "#/$defs/path"},
         "entrypoint_digest": {"$ref": "#/$defs/digest"},
+        "entrypoint_graph_digest": {"$ref": "#/$defs/digest"},
         "output_schema": {"$ref": "#/$defs/path"},
         "output_schema_digest": {"$ref": "#/$defs/digest"}
       },
@@ -46,8 +48,10 @@
       "required": [
         "path",
         "digest",
+        "physical_identity_digest",
         "root",
         "root_digest",
+        "root_physical_identity_digest",
         "version",
         "model",
         "sandbox",
@@ -56,8 +60,10 @@
       "properties": {
         "path": {"$ref": "#/$defs/path"},
         "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"},
         "root": {"$ref": "#/$defs/path"},
         "root_digest": {"$ref": "#/$defs/digest"},
+        "root_physical_identity_digest": {"$ref": "#/$defs/digest"},
         "version": {
           "type": "string",
           "pattern": "^codex-cli [0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"

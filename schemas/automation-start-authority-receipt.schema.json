@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/automation-start-authority-receipt.schema.json",
+  "title": "KillSlopRouter Automation Start Authority Receipt",
+  "type": "object",
+  "required": [
+    "automation_start_authority_receipt_version",
+    "run_id",
+    "journey_identity",
+    "state_path",
+    "issued_at",
+    "resume_authority_digest",
+    "authority",
+    "receipt_digest"
+  ],
+  "properties": {
+    "automation_start_authority_receipt_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "state_path": {"type": "string", "minLength": 1},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "resume_authority_digest": {"$ref": "#/$defs/digest"},
+    "authority": {
+      "type": "object",
+      "required": [
+        "automation_resume_authority_version",
+        "state_path",
+        "run_id",
+        "journey_identity_digest",
+        "router",
+        "profile",
+        "project_root",
+        "input",
+        "artifacts",
+        "scope",
+        "creator_actor_id",
+        "initial_plan_authority_digest",
+        "observation_run_path",
+        "parent_owned_path_contract"
+      ],
+      "properties": {
+        "automation_resume_authority_version": {"const": 5},
+        "state_path": {"type": "string", "minLength": 1},
+        "run_id": {"type": "string", "minLength": 1},
+        "journey_identity_digest": {"$ref": "#/$defs/digest"},
+        "router": {"$ref": "#/$defs/source"},
+        "profile": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/source"}]
+        },
+        "project_root": {"type": "string", "minLength": 1},
+        "input": {"type": "object"},
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source"}
+        },
+        "scope": {"enum": ["mockup", "runtime", "source", "document"]},
+        "creator_actor_id": {"type": ["string", "null"]},
+        "initial_plan_authority_digest": {"$ref": "#/$defs/digest"},
+        "observation_run_path": {"type": ["string", "null"]},
+        "parent_owned_path_contract": {"$ref": "#/$defs/parent_owned_path_contract"},
+        "identity_migration_authority": {
+          "$ref": "identity-migration-receipt.schema.json#/$defs/migration_authority"
+        }
+      },
+      "additionalProperties": false
+    },
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "source": {
+      "type": "object",
+      "required": ["path", "digest", "physical_identity_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "step_receipts": {
+      "type": "object",
+      "required": [
+        "plan", "planning-verification", "audit-init", "dispatch", "execution",
+        "result-ingest", "scanner-triage", "conflict-adjudication", "finalize"
+      ],
+      "properties": {
+        "plan": {"type": "string", "minLength": 1},
+        "planning-verification": {"type": "string", "minLength": 1},
+        "audit-init": {"type": "string", "minLength": 1},
+        "dispatch": {"type": "string", "minLength": 1},
+        "execution": {"type": "string", "minLength": 1},
+        "result-ingest": {"type": "string", "minLength": 1},
+        "scanner-triage": {"type": "string", "minLength": 1},
+        "conflict-adjudication": {"type": "string", "minLength": 1},
+        "finalize": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "external_input_policy": {
+      "type": "object",
+      "required": ["approval", "manual_result", "triage"],
+      "properties": {
+        "approval": {"const": "caller-supplied-read-only-final-receipt-bound"},
+        "manual_result": {"const": "caller-supplied-read-only-audit-bound"},
+        "triage": {"const": "caller-supplied-read-only-audit-bound"}
+      },
+      "additionalProperties": false
+    },
+    "parent_owned_path_contract": {
+      "type": "object",
+      "required": [
+        "automation_parent_path_contract_version", "state_path", "state_directory",
+        "resume_authorities_directory", "resume_authority_receipt_path",
+        "initialization_authority_receipt_path", "route_directory", "plan_path",
+        "audit_path", "packets_directory", "results_directory", "evidence_directory",
+        "receipts_directory", "step_receipts", "migration_receipts_directory",
+        "migrated_step_receipts", "identity_migration_receipt_path", "final_receipt_path",
+        "external_input_policy"
+      ],
+      "properties": {
+        "automation_parent_path_contract_version": {"const": 3},
+        "state_path": {"type": "string", "minLength": 1},
+        "state_directory": {"type": "string", "minLength": 1},
+        "resume_authorities_directory": {"type": "string", "minLength": 1},
+        "resume_authority_receipt_path": {"type": "string", "minLength": 1},
+        "initialization_authority_receipt_path": {"type": "string", "minLength": 1},
+        "route_directory": {"type": "string", "minLength": 1},
+        "plan_path": {"type": "string", "minLength": 1},
+        "audit_path": {"type": "string", "minLength": 1},
+        "packets_directory": {"type": "string", "minLength": 1},
+        "results_directory": {"type": "string", "minLength": 1},
+        "evidence_directory": {"type": "string", "minLength": 1},
+        "receipts_directory": {"type": "string", "minLength": 1},
+        "step_receipts": {"$ref": "#/$defs/step_receipts"},
+        "migration_receipts_directory": {"type": ["string", "null"], "minLength": 1},
+        "migrated_step_receipts": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/step_receipts"}
+          ]
+        },
+        "identity_migration_receipt_path": {"type": ["string", "null"], "minLength": 1},
+        "final_receipt_path": {"type": "string", "minLength": 1},
+        "external_input_policy": {"$ref": "#/$defs/external_input_policy"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

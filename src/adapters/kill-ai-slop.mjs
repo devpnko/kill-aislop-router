@@ -1,15 +1,73 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { RouterError } from "../router.mjs";
-import { hashArtifact } from "../integrity.mjs";
+import {
+  DEFAULT_HASH_IGNORES,
+  hashArtifact,
+  readFilePinned,
+  snapshotArtifact,
+  verifySnapshot
+} from "../integrity.mjs";
+import {
+  createSealedEntrypointAuthority,
+  sealedEntrypointGraphDigest,
+  spawnSealedNodeEntrypoint
+} from "../sealed-entrypoint.mjs";
 
-function prepareScanTarget(target) {
-  const stat = fs.statSync(target);
-  if (stat.isDirectory()) return { scanTarget: target, cleanup: () => {} };
+function copyPinnedTree(source, destination, ignores) {
+  const stat = fs.lstatSync(source);
+  if (stat.isSymbolicLink()) {
+    throw new RouterError(`scan target contains a symlink: ${source}`, 4);
+  }
+  if (stat.isDirectory()) {
+    fs.mkdirSync(destination, { recursive: false, mode: 0o700 });
+    for (const entry of fs.readdirSync(source, { withFileTypes: true })
+      .filter((item) => !ignores.has(item.name))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      copyPinnedTree(path.join(source, entry.name), path.join(destination, entry.name), ignores);
+    }
+    return;
+  }
+  if (!stat.isFile()) throw new RouterError(`scan target contains an unsupported entry: ${source}`, 4);
+  const pinned = readFilePinned(source, {
+    label: `kill-ai-slop scan source ${source}`,
+    requireCallerOwned: false
+  });
+  fs.writeFileSync(destination, pinned.source, { mode: 0o400, flag: "wx" });
+}
+
+function prepareScanTarget(target, expectedSnapshot) {
+  const verification = verifySnapshot(expectedSnapshot);
+  if (!verification.ok) {
+    throw new RouterError(`scan target changed before sealing: ${verification.reason}`, 4);
+  }
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-scan-"));
-  fs.copyFileSync(target, path.join(temp, path.basename(target)));
+  const stat = fs.lstatSync(target);
+  const sealedArtifact = stat.isDirectory() ? temp : path.join(temp, path.basename(target));
+  if (stat.isDirectory()) {
+    for (const entry of fs.readdirSync(target, { withFileTypes: true })
+      .filter((item) => !DEFAULT_HASH_IGNORES.has(item.name))
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      copyPinnedTree(
+        path.join(target, entry.name),
+        path.join(temp, entry.name),
+        DEFAULT_HASH_IGNORES
+      );
+    }
+  } else {
+    copyPinnedTree(target, sealedArtifact, DEFAULT_HASH_IGNORES);
+  }
+  const confirmed = verifySnapshot(expectedSnapshot);
+  if (!confirmed.ok) {
+    fs.rmSync(temp, { recursive: true, force: true });
+    throw new RouterError(`scan target changed while it was being sealed: ${confirmed.reason}`, 4);
+  }
+  const sealedDigest = hashArtifact(sealedArtifact);
+  if (sealedDigest !== expectedSnapshot.digest) {
+    fs.rmSync(temp, { recursive: true, force: true });
+    throw new RouterError("sealed scan target digest conflicts with its audit authority", 4);
+  }
   return {
     scanTarget: temp,
     cleanup: () => fs.rmSync(temp, { recursive: true, force: true })
@@ -29,7 +87,9 @@ export function runKillAiSlop({
   target,
   version = null,
   scannerPath = null,
-  environment = null
+  environment = null,
+  entrypointAuthority = null,
+  expectedArtifactSnapshot = null
 }) {
   const absoluteRoot = path.resolve(adapterRoot);
   const absoluteTarget = path.resolve(target);
@@ -49,11 +109,25 @@ export function runKillAiSlop({
   }
 
   const startedAt = new Date().toISOString();
-  const artifactDigest = hashArtifact(absoluteTarget);
-  const prepared = prepareScanTarget(absoluteTarget);
+  const artifactSnapshot = expectedArtifactSnapshot || snapshotArtifact(absoluteTarget, {
+    root: path.dirname(absoluteTarget)
+  });
+  if (path.resolve(artifactSnapshot.resolved_path || "") !== absoluteTarget) {
+    throw new RouterError("scan target does not match its audit artifact authority", 4);
+  }
+  const artifactDigest = artifactSnapshot.digest;
+  const prepared = prepareScanTarget(absoluteTarget, artifactSnapshot);
+  const sealedEntrypoint = entrypointAuthority || createSealedEntrypointAuthority(
+    scanner,
+    hashArtifact(scanner),
+    {
+      label: "kill-ai-slop scanner entrypoint",
+      expectedGraphDigest: sealedEntrypointGraphDigest(scanner)
+    }
+  );
   let result;
   try {
-    result = spawnSync(process.execPath, [scanner, prepared.scanTarget, "--json"], {
+    result = spawnSealedNodeEntrypoint(sealedEntrypoint, [prepared.scanTarget, "--json"], {
       encoding: "utf8",
       env: environment || process.env,
       shell: false,

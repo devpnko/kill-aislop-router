@@ -38,6 +38,7 @@ try {
     "src/audit.mjs",
     "src/automation.mjs",
     "src/state-lease.mjs",
+    "src/state-lease-public.mjs",
     "src/bootstrap.mjs",
     "src/codex.mjs",
     "src/design.mjs",
@@ -49,6 +50,9 @@ try {
     "schemas/automation-run.schema.json",
     "schemas/bootstrap-receipt.schema.json",
     "schemas/automation-step-receipt.schema.json",
+    "schemas/baseline-lineage-declaration.schema.json",
+    "schemas/baseline-lineage-owner-approval.schema.json",
+    "schemas/baseline-lineage.schema.json",
     "schemas/state-lease.schema.json",
     "schemas/state-lease-recovery-receipt.schema.json",
     "schemas/host-adapter.schema.json",
@@ -69,10 +73,13 @@ try {
     "schemas/browser-attestation.schema.json",
     "schemas/playwright-scenarios.schema.json",
     "schemas/playwright-setup-receipt.schema.json",
+    "schemas/plugin-install-marker.schema.json",
+    "schemas/legacy-skill-shim-marker.schema.json",
     "schemas/project-profile.schema.json",
     "schemas/visual-intent-receipt.schema.json",
     "schemas/visual-signature-receipt.schema.json",
     "docs/adapter-authoring.md",
+    "docs/baseline-lineage.md",
     "docs/design-exploration.md",
     "docs/codex-plugin.md",
     "docs/codex-review-host.md",
@@ -86,6 +93,10 @@ try {
     "skills/kill-slop-router/SKILL.md",
     "skills/kill-slop-router/agents/openai.yaml",
     "examples/planning-evidence/visual-signature-approval.json",
+    "examples/service-planning-lineage.example.json",
+    "examples/planning-evidence/parent-baseline.html",
+    "examples/planning-evidence/policy-slice.html",
+    "examples/planning-evidence/policy-slice-owner-approval.json",
     "examples/design-brief.example.json",
     "examples/playwright-scenarios.example.json",
     "README.md",
@@ -131,6 +142,19 @@ try {
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /host configure-codex/);
   assert.match(help.stdout, /lease recover/);
+  assert.match(help.stdout, /--module-graph/);
+  const installedGraphDigest = run(process.execPath, [
+    installedCli,
+    "digest",
+    "--target", path.join(installedRoot, "src", "adapters", "codex-review.mjs"),
+    "--module-graph",
+    "--json"
+  ], { cwd: consumer });
+  assert.equal(installedGraphDigest.status, 0,
+    installedGraphDigest.stderr || installedGraphDigest.stdout);
+  const installedGraphReceipt = JSON.parse(installedGraphDigest.stdout);
+  assert.equal(installedGraphReceipt.kind, "sealed-entrypoint-module-graph");
+  assert.match(installedGraphReceipt.digest, /^sha256:[a-f0-9]{64}$/);
   const codexExport = run(process.execPath, [
     "--input-type=module",
     "--eval",
@@ -140,17 +164,32 @@ try {
   const leaseExport = run(process.execPath, [
     "--input-type=module",
     "--eval",
-    "import('killsloprouter/state-lease').then((module) => { if (!module.acquireStateLease || !module.inspectStateLease) process.exit(1); })"
+    "import('killsloprouter/state-lease').then((module) => { if (!module.acquireStateLease || !module.inspectStateLease || module.claimStaleStateLease || module.completeStateLeaseRecovery) process.exit(1); })"
   ], { cwd: consumer });
   assert.equal(leaseExport.status, 0, leaseExport.stderr || leaseExport.stdout);
 
   const installedProfile = path.join(installedRoot, "examples", "project-profile.example.json");
   const installedHost = path.join(installedRoot, "examples", "host-adapter.example.json");
   const installedArtifact = path.join(installedRoot, "examples", "planning-evidence", "mockup.html");
+  const isolatedHome = path.join(temporary, "isolated-codex-home");
+  const pluginInstall = run(process.execPath, [
+    installedCli,
+    "plugin", "install",
+    "--home", isolatedHome,
+    "--no-activate"
+  ], { cwd: consumer });
+  assert.equal(pluginInstall.status, 0, pluginInstall.stderr || pluginInstall.stdout);
+  const pluginReceipt = JSON.parse(pluginInstall.stdout);
+  assert.equal(pluginReceipt.skill_catalog.status, "ready");
+  assert.equal(pluginReceipt.skill_catalog.canonical.status, "installed");
+  assert.match(pluginReceipt.skill_catalog.canonical.marker_digest, /^sha256:[a-f0-9]{64}$/);
+  assert.match(pluginReceipt.skill_catalog.canonical.payload_digest, /^sha256:[a-f0-9]{64}$/);
+  assert.match(pluginReceipt.skill_catalog.canonical.runtime_digest, /^sha256:[a-f0-9]{64}$/);
   const doctor = run(process.execPath, [
     installedCli,
     "doctor",
     "--profile", installedProfile,
+    "--home", isolatedHome,
     "--json"
   ], { cwd: consumer });
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
@@ -180,7 +219,7 @@ try {
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
-  process.stdout.write("installed consumer: help, Codex/state-lease exports, doctor, manual dry-run passed\n");
+  process.stdout.write("installed consumer: help/module-graph digest, Codex/state-lease exports, integrity-bound plugin install, doctor, manual dry-run passed\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

@@ -11,6 +11,7 @@
     "technical_status",
     "route",
     "manifest_digest",
+    "audit_authority_digest",
     "creator",
     "results",
     "owner_approval",
@@ -21,6 +22,7 @@
     "audit_receipt_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
     "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "baseline_lineage": {"$ref": "baseline-lineage.schema.json"},
     "status": {
       "enum": [
         "blocked",
@@ -34,26 +36,43 @@
     "technical_status": {"enum": ["blocked", "incomplete", "pass"]},
     "route": {
       "type": "object",
-      "required": ["router_id", "router_version", "route_id", "plan_digest"],
+      "required": ["router_id", "router_version", "route_id", "plan_digest", "plan_source"],
       "properties": {
         "router_id": {"const": "kill-slop-router"},
         "router_version": {"type": "string", "minLength": 1},
         "route_id": {"type": "string", "minLength": 1},
-        "plan_digest": {"$ref": "#/$defs/digest"}
+        "plan_digest": {"$ref": "#/$defs/digest"},
+        "plan_source": {"$ref": "#/$defs/plan_source"}
       },
       "additionalProperties": true
     },
     "manifest_digest": {"$ref": "#/$defs/digest"},
+    "audit_authority_digest": {"$ref": "#/$defs/digest"},
     "creator": {"type": "object"},
     "results": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["packet_id", "provider_id", "participant", "normalized_digest"],
+        "required": [
+          "run_id",
+          "packet_id",
+          "packet_digest",
+          "journey_identity",
+          "provider_id",
+          "participant",
+          "normalized_digest"
+        ],
         "properties": {
+          "run_id": {"type": "string", "minLength": 1},
           "packet_id": {"type": "string", "minLength": 1},
+          "packet_digest": {"$ref": "#/$defs/digest"},
+          "journey_identity": {"$ref": "journey-identity.schema.json"},
+          "baseline_lineage_digest": {"$ref": "#/$defs/digest"},
           "provider_id": {"type": "string", "minLength": 1},
           "participant": {"$ref": "participant.schema.json"},
+          "receipt_binding": {
+            "enum": ["packet-bound", "standalone-compatibility-bound-at-ingest"]
+          },
           "normalized_digest": {"$ref": "#/$defs/digest"}
         },
         "additionalProperties": true
@@ -65,7 +84,8 @@
       "properties": {
         "status": {"enum": ["approved", "rejected", "pending", "not-required"]},
         "journey_identity": {"$ref": "journey-identity.schema.json"},
-        "scope_digest": {"$ref": "#/$defs/digest"}
+        "scope_digest": {"$ref": "#/$defs/digest"},
+        "baseline_lineage_digest": {"$ref": "#/$defs/digest"}
       },
       "additionalProperties": true
     },
@@ -76,7 +96,20 @@
     "receipt_digest": {"$ref": "#/$defs/digest"}
   },
   "$defs": {
-    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "plan_source": {
+      "type": "object",
+      "required": ["path", "resolved_path", "kind", "digest", "physical_identity_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "resolved_path": {"type": "string", "minLength": 1},
+        "kind": {"const": "file"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": true
 }

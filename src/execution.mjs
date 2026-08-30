@@ -1,25 +1,53 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { runKillAiSlop, findKillAiSlopScanner } from "./adapters/kill-ai-slop.mjs";
-import { hashArtifact, publicSnapshot, sha256, snapshotArtifact } from "./integrity.mjs";
+import {
+  canonicalDigest,
+  hashArtifact,
+  publicSnapshot,
+  readFilePinned,
+  readJsonPinned,
+  snapshotArtifact
+} from "./integrity.mjs";
 import { RouterError } from "./router.mjs";
+import {
+  ensureSecureDirectory,
+  secureExistingDirectory
+} from "./path-security.mjs";
 import {
   PLAYWRIGHT_ADAPTER_CONTRACT,
   PLAYWRIGHT_PROVIDER_TARGET,
   PLAYWRIGHT_SUPPORTED_CHECKS,
-  validateOfficialPlaywrightSettings
+  createPlaywrightChildAuthority,
+  createPlaywrightRuntimeSeal,
+  validateOfficialPlaywrightSettings,
+  verifyPlaywrightChildAuthoritySources
 } from "./playwright.mjs";
 import {
   CODEX_REVIEW_ADAPTER_CONTRACT,
-  validateOfficialCodexSettings
+  validateOfficialCodexSettings,
+  verifyOfficialCodexRuntimeSources
 } from "./codex.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
   verifyPacketJourney
 } from "./identity.mjs";
+import {
+  baselineLineagesMatch,
+  planningAuthoritiesMatch,
+  verifyBaselineLineage,
+  verifyPlanningGateForAudit
+} from "./planning.mjs";
+import { verifyAuditJourneyIdentity } from "./audit.mjs";
+import {
+  createSealedEntrypointAuthority,
+  spawnSealedNodeEntrypoint,
+  verifySealedEntrypointAuthority
+} from "./sealed-entrypoint.mjs";
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const HOST_ADAPTER_TYPES = new Set([
   "kill-ai-slop-v1",
@@ -38,6 +66,14 @@ export const HOST_PERMISSION_SCOPES = new Set([
 
 const PROCESS_ADAPTERS = new Set(["agent-json-v1", "skill-json-v1", "browser-json-v1"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+
+function readPinnedExecutionJson(target, label, faultInjector = null) {
+  try {
+    return readJsonPinned(target, { label, faultInjector });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+}
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 900_000;
 const HOST_KEYS = new Set([
@@ -50,6 +86,7 @@ const PROVIDER_KEYS = new Set([
   "adapter",
   "entrypoint",
   "entrypoint_digest",
+  "entrypoint_graph_digest",
   "adapter_root",
   "capabilities",
   "strength",
@@ -69,6 +106,194 @@ function unique(values = []) {
 function inside(candidate, parent) {
   const relative = path.relative(path.resolve(parent), path.resolve(candidate));
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function physicalDirectoryIdentity(directory) {
+  const absolute = path.resolve(directory);
+  let realPath;
+  try {
+    realPath = secureExistingDirectory(absolute, "granted output directory");
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+  const physicalStat = fs.statSync(realPath, { bigint: true });
+  return {
+    lexical_path: absolute,
+    real_path: realPath,
+    device: String(physicalStat.dev),
+    inode: String(physicalStat.ino)
+  };
+}
+
+function samePhysicalDirectory(left, right) {
+  return left.lexical_path === right.lexical_path &&
+    left.real_path === right.real_path &&
+    left.device === right.device &&
+    left.inode === right.inode;
+}
+
+function verifyPhysicalPathComponents(grantRoot, target, { allowMissing = false } = {}) {
+  const absoluteGrant = path.resolve(grantRoot);
+  const absoluteTarget = path.resolve(target);
+  requireValue(inside(absoluteTarget, absoluteGrant),
+    `output path escapes its granted root: ${absoluteTarget}`, 4);
+  const relative = path.relative(absoluteGrant, absoluteTarget);
+  let cursor = absoluteGrant;
+  for (const component of relative ? relative.split(path.sep) : []) {
+    cursor = path.join(cursor, component);
+    if (!fs.existsSync(cursor)) {
+      requireValue(allowMissing, `granted output path is missing: ${cursor}`, 4);
+      break;
+    }
+    const stat = fs.lstatSync(cursor);
+    requireValue(!stat.isSymbolicLink(),
+      `granted output path contains a symlink component: ${cursor}`, 4);
+  }
+}
+
+function defaultOutputGrantRoot(outputDirectory) {
+  let cursor = path.dirname(path.resolve(outputDirectory));
+  while (!fs.existsSync(cursor)) {
+    const parent = path.dirname(cursor);
+    requireValue(parent !== cursor,
+      `adapter output directory has no existing filesystem anchor: ${outputDirectory}`, 4);
+    cursor = parent;
+  }
+  return cursor;
+}
+
+function createOutputBoundary(outputDirectory, outputGrantRoot) {
+  const grantRoot = outputGrantRoot
+    ? path.resolve(outputGrantRoot)
+    : defaultOutputGrantRoot(outputDirectory);
+  const grantBoundary = physicalDirectoryIdentity(grantRoot);
+  verifyPhysicalPathComponents(grantBoundary.lexical_path, outputDirectory, { allowMissing: true });
+  try {
+    ensureSecureDirectory(outputDirectory, "adapter output directory", {
+      boundary: grantBoundary.real_path
+    });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+  verifyPhysicalPathComponents(grantBoundary.lexical_path, outputDirectory);
+  const outputBoundary = physicalDirectoryIdentity(outputDirectory);
+  requireValue(inside(outputBoundary.real_path, grantBoundary.real_path),
+    `granted output directory escapes its physical grant root: ${outputDirectory}`, 4);
+  return { ...outputBoundary, grant: grantBoundary };
+}
+
+function verifyPreparedOutputBoundary(outputBoundary, outputDirectory, outputGrantRoot) {
+  requireValue(outputBoundary?.lexical_path && outputBoundary?.grant,
+    "prepared execution output boundary is missing", 4);
+  requireValue(
+    path.resolve(outputBoundary.lexical_path) === path.resolve(outputDirectory),
+    "prepared execution output boundary targets a different directory",
+    4
+  );
+  if (outputGrantRoot) {
+    requireValue(
+      path.resolve(outputBoundary.grant.lexical_path) === path.resolve(outputGrantRoot),
+      "prepared execution output boundary targets a different grant root",
+      4
+    );
+  } else {
+    requireValue(
+      inside(path.dirname(path.resolve(outputDirectory)), outputBoundary.grant.lexical_path),
+      "prepared execution output boundary does not retain an ancestor grant root",
+      4
+    );
+  }
+  verifyPhysicalEvidencePath(outputBoundary.lexical_path, outputBoundary);
+  return outputBoundary;
+}
+
+export function prepareExecutionOutputBoundary(outputDirectory, outputGrantRoot = null) {
+  return createOutputBoundary(outputDirectory, outputGrantRoot);
+}
+
+function verifyPhysicalEvidenceTree(target) {
+  const stat = fs.lstatSync(target);
+  requireValue(!stat.isSymbolicLink(),
+    `returned evidence contains a symlink component: ${target}`, 4);
+  if (stat.isFile()) {
+    requireValue(stat.nlink === 1,
+      `returned evidence must not be a hard-linked file: ${target}`, 4);
+    return;
+  }
+  requireValue(stat.isDirectory(),
+    `returned evidence must be a regular file or directory: ${target}`, 4);
+  for (const entry of fs.readdirSync(target)) {
+    verifyPhysicalEvidenceTree(path.join(target, entry));
+  }
+}
+
+function verifyPhysicalEvidencePath(resolved, outputBoundary) {
+  const currentGrant = physicalDirectoryIdentity(outputBoundary.grant.lexical_path);
+  requireValue(samePhysicalDirectory(currentGrant, outputBoundary.grant),
+    "granted output root changed across the child process boundary", 4);
+  verifyPhysicalPathComponents(outputBoundary.grant.lexical_path, outputBoundary.lexical_path);
+  const currentBoundary = physicalDirectoryIdentity(outputBoundary.lexical_path);
+  requireValue(samePhysicalDirectory(currentBoundary, outputBoundary),
+    "granted output directory changed across the child process boundary",
+    4
+  );
+  const relative = path.relative(outputBoundary.lexical_path, resolved);
+  const components = relative === "" ? [] : relative.split(path.sep);
+  let cursor = outputBoundary.lexical_path;
+  for (const component of components) {
+    cursor = path.join(cursor, component);
+    requireValue(fs.existsSync(cursor), `returned evidence is missing: ${cursor}`, 4);
+    const stat = fs.lstatSync(cursor);
+    requireValue(!stat.isSymbolicLink(),
+      `returned evidence contains a symlink component: ${cursor}`, 4);
+  }
+  const realTarget = fs.realpathSync.native(resolved);
+  requireValue(inside(realTarget, outputBoundary.real_path),
+    `returned evidence escapes the physical output directory: ${resolved}`, 4);
+  verifyPhysicalEvidenceTree(resolved);
+}
+
+function physicalEvidenceIdentity(target) {
+  const entries = [];
+  function walk(current, relative = ".") {
+    const stat = fs.lstatSync(current, { bigint: true });
+    entries.push({
+      path: relative,
+      type: stat.isDirectory() ? "directory" : stat.isFile() ? "file" : "other",
+      device: String(stat.dev),
+      inode: String(stat.ino),
+      links: String(stat.nlink),
+      size: String(stat.size),
+      mtime_ns: String(stat.mtimeNs)
+    });
+    if (!stat.isDirectory()) return;
+    for (const entry of fs.readdirSync(current).sort()) {
+      walk(path.join(current, entry), relative === "." ? entry : path.join(relative, entry));
+    }
+  }
+  walk(target);
+  return canonicalDigest(entries);
+}
+
+export function createBoundEvidenceSnapshotter(outputBoundary) {
+  requireValue(outputBoundary?.lexical_path && outputBoundary?.grant,
+    "bound evidence snapshotter requires an execution output boundary", 4);
+  const sealedBoundary = structuredClone(outputBoundary);
+  return (target, options = {}) => {
+    const absolute = path.resolve(target);
+    requireValue(inside(absolute, sealedBoundary.lexical_path),
+      `returned evidence escapes the granted output directory at ingest: ${absolute}`, 4);
+    verifyPhysicalEvidencePath(absolute, sealedBoundary);
+    const before = physicalEvidenceIdentity(absolute);
+    const snapshot = snapshotArtifact(absolute, options);
+    verifyPhysicalEvidencePath(absolute, sealedBoundary);
+    const after = physicalEvidenceIdentity(absolute);
+    requireValue(before === after,
+      `returned evidence changed while it was being ingested: ${absolute}`, 4);
+    requireValue(hashArtifact(absolute) === snapshot.digest,
+      `returned evidence changed after its ingest snapshot: ${absolute}`, 4);
+    return snapshot;
+  };
 }
 
 function resolveManifestPath(value, manifestPath) {
@@ -125,6 +350,7 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
   }
 
   let entrypoint = null;
+  let entrypointAuthority = null;
   let adapterRoot = null;
   if (PROCESS_ADAPTERS.has(declaration.adapter)) {
     requireValue(typeof declaration.entrypoint === "string" && declaration.entrypoint.length > 0,
@@ -148,9 +374,19 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
       `host provider ${providerId} kill-ai-slop scanner is missing under ${adapterRoot}`, 4);
   }
   if (entrypoint) {
-    const actualDigest = hashArtifact(entrypoint);
-    requireValue(actualDigest === declaration.entrypoint_digest,
-      `host provider ${providerId} entrypoint digest mismatch`, 4);
+    const bundledContract = [
+      CODEX_REVIEW_ADAPTER_CONTRACT,
+      PLAYWRIGHT_ADAPTER_CONTRACT
+    ].includes(declaration.settings?.contract);
+    entrypointAuthority = createSealedEntrypointAuthority(
+      entrypoint,
+      declaration.entrypoint_digest,
+      {
+        label: `host provider ${providerId} entrypoint`,
+        expectedGraphDigest: declaration.entrypoint_graph_digest || null,
+        trustedPackageRoot: bundledContract ? packageRoot : null
+      }
+    );
   }
 
   const timeoutMs = declaration.timeout_ms ?? DEFAULT_TIMEOUT_MS;
@@ -159,6 +395,9 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
   requireValue(declaration.settings === undefined || (
     declaration.settings && typeof declaration.settings === "object" && !Array.isArray(declaration.settings)
   ), `host provider ${providerId} settings must be an object`);
+  let normalizedSettings = declaration.settings
+    ? structuredClone(declaration.settings)
+    : {};
   let officialPlaywright = null;
   if (declaration.adapter === "browser-json-v1" &&
     declaration.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
@@ -167,6 +406,12 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
       permissionScopes: permissions,
       manifestPath
     });
+    normalizedSettings = {
+      ...normalizedSettings,
+      runtime_root: officialPlaywright.runtimeRoot,
+      scenario_file: officialPlaywright.scenarioFile,
+      baseline_directory: officialPlaywright.baselineDirectory
+    };
   }
   let officialCodex = null;
   if (PROCESS_ADAPTERS.has(declaration.adapter) &&
@@ -185,9 +430,10 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
     capabilities,
     permissions,
     entrypoint,
+    entrypoint_authority: entrypointAuthority,
     adapter_root: adapterRoot,
     timeout_ms: timeoutMs,
-    settings: declaration.settings || {},
+    settings: normalizedSettings,
     official_playwright: officialPlaywright,
     official_codex: officialCodex
   };
@@ -201,8 +447,10 @@ export function loadHostManifest(manifestPath) {
     "host adapter manifest must be a regular non-symlink file", 4);
   let raw;
   let source;
+  let pinned;
   try {
-    source = fs.readFileSync(absolute, "utf8");
+    pinned = readFilePinned(absolute, { label: "host adapter manifest" });
+    source = pinned.source.toString("utf8");
     raw = JSON.parse(source);
   } catch (error) {
     throw new RouterError(`cannot read host adapter manifest at ${absolute}: ${error.message}`, 2);
@@ -232,11 +480,25 @@ export function loadHostManifest(manifestPath) {
   return {
     host_adapter_version: 1,
     manifest_path: absolute,
-    manifest_digest: sha256(source),
+    manifest_digest: pinned.digest,
+    manifest_physical_identity_digest: pinned.physical_identity_digest,
+    manifest_source: publicSnapshot(pinned.source_snapshot),
     allowed_providers: allowedProviders,
     granted_permissions: grantedPermissions,
     providers
   };
+}
+
+function verifyHostManifestBoundary(manifest) {
+  const pinned = readFilePinned(manifest.manifest_path, {
+    label: "host adapter manifest at final child boundary"
+  });
+  requireValue(
+    pinned.digest === manifest.manifest_digest &&
+      pinned.physical_identity_digest === manifest.manifest_physical_identity_digest,
+    "host adapter manifest changed before child execution",
+    4
+  );
 }
 
 function manualPending(packet, reason, manifest = null) {
@@ -380,7 +642,7 @@ export function inspectPacketAdapter(packet, manifest) {
   };
 }
 
-function normalizeReturnedEvidence(result, outputDirectory) {
+function normalizeReturnedEvidence(result, outputDirectory, outputBoundary) {
   const normalized = structuredClone(result);
   normalized.evidence = (normalized.evidence || []).map((item, index) => {
     requireValue(item?.path, `returned evidence ${index + 1} requires path`, 4);
@@ -390,18 +652,35 @@ function normalizeReturnedEvidence(result, outputDirectory) {
     requireValue(inside(resolved, outputDirectory),
       `returned evidence escapes the granted output directory: ${item.path}`, 4);
     requireValue(fs.existsSync(resolved), `returned evidence is missing: ${resolved}`, 4);
+    verifyPhysicalEvidencePath(resolved, outputBoundary);
     return { ...item, path: resolved };
   });
   return normalized;
 }
 
-function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) {
+function runJsonProcess({
+  declaration,
+  manifest,
+  packet,
+  run,
+  attempt,
+  outputDirectory,
+  outputGrantRoot,
+  preparedOutputBoundary = null,
+  authorityFaultInjector = null
+}) {
   verifyJourneyIdentity(run.journey_identity, { runId: run.run_id, label: "host run journey_identity" });
   verifyPacketJourney(packet, run.journey_identity, `packet ${packet.packet_id}`);
   if (!identitiesMatch(packet.journey_identity, run.journey_identity)) {
     throw new RouterError("host packet journey identity conflicts with the run", 4);
   }
-  fs.mkdirSync(outputDirectory, { recursive: true });
+  const outputBoundary = preparedOutputBoundary
+    ? verifyPreparedOutputBoundary(
+      preparedOutputBoundary,
+      outputDirectory,
+      outputGrantRoot
+    )
+    : createOutputBoundary(outputDirectory, outputGrantRoot);
   const request = {
     host_adapter_request_version: 1,
     run_id: run.run_id,
@@ -416,8 +695,9 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
     prior_results: run.results.map((record) => record.normalized),
     output_directory: outputDirectory,
     permission_scopes: declaration.permissions,
-    settings: declaration.settings
+    settings: structuredClone(declaration.settings)
   };
+  if (run.baseline_lineage) request.baseline_lineage = run.baseline_lineage;
   const startedAt = new Date().toISOString();
   const childEnvironment = {
     PATH: process.env.PATH || "",
@@ -427,17 +707,109 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
     if (process.env.CODEX_HOME) childEnvironment.CODEX_HOME = process.env.CODEX_HOME;
     if (process.env.HOME) childEnvironment.HOME = process.env.HOME;
   }
-  const child = spawnSync(process.execPath, [declaration.entrypoint], {
-    input: `${JSON.stringify(request)}\n`,
-    encoding: "utf8",
-    cwd: outputDirectory,
-    env: childEnvironment,
-    shell: false,
-    timeout: declaration.timeout_ms,
-    maxBuffer: 16 * 1024 * 1024
+  verifyExecutionLineageBoundary(run, packet, authorityFaultInjector);
+  if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT) {
+    verifyOfficialCodexRuntimeSources(declaration.settings, declaration.official_codex);
+    authorityFaultInjector?.("after-codex-runtime-authority-before-final-confirmation", {
+      runtime_path: declaration.official_codex.sourceRuntimePath,
+      runtime_root: declaration.official_codex.sourceRuntimeRoot,
+      runtime_digest: declaration.settings.runtime_digest,
+      runtime_physical_identity_digest:
+        declaration.settings.runtime_physical_identity_digest
+    });
+  }
+  let verifiedPlaywright = null;
+  if (declaration.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
+    verifiedPlaywright = validateOfficialPlaywrightSettings(declaration.settings, {
+      entrypoint: declaration.entrypoint,
+      permissionScopes: declaration.permissions,
+      manifestPath: manifest.manifest_path,
+      faultInjector: authorityFaultInjector
+    });
+    requireValue(
+      verifiedPlaywright.runtimeRoot === declaration.official_playwright.runtimeRoot &&
+        verifiedPlaywright.scenarioFile === declaration.official_playwright.scenarioFile &&
+        verifiedPlaywright.baselineDirectory === declaration.official_playwright.baselineDirectory &&
+        verifiedPlaywright.verificationContractDigest ===
+          declaration.official_playwright.verificationContractDigest,
+      "official Playwright authority paths or verification contract changed before child execution",
+      4
+    );
+    requireValue(
+      verifiedPlaywright.scenarioSnapshot?.physical_identity_digest ===
+        declaration.official_playwright.scenarioSnapshot?.physical_identity_digest,
+      "official Playwright scenario physical identity changed before child execution",
+      4
+    );
+    requireValue(
+      verifiedPlaywright.baselineSnapshot?.physical_identity_digest ===
+        declaration.official_playwright.baselineSnapshot?.physical_identity_digest,
+      "official Playwright baseline physical identity changed before child execution",
+      4
+    );
+  }
+  authorityFaultInjector?.("after-child-authority-preflight-before-final-confirmation", {
+    run_id: run.run_id,
+    packet_id: packet.packet_id,
+    entrypoint: declaration.entrypoint
   });
+  verifyExecutionLineageBoundary(run, packet);
+  verifyHostManifestBoundary(manifest);
+  if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT) {
+    verifyOfficialCodexRuntimeSources(declaration.settings, declaration.official_codex);
+  }
+  verifySealedEntrypointAuthority(declaration.entrypoint_authority);
+  let playwrightRuntimeSeal = null;
+  if (verifiedPlaywright) {
+    try {
+      playwrightRuntimeSeal = createPlaywrightRuntimeSeal(declaration.settings, {
+        faultInjector: authorityFaultInjector
+      });
+      request.playwright_authority = createPlaywrightChildAuthority(
+        declaration.settings,
+        verifiedPlaywright,
+        {
+          faultInjector: authorityFaultInjector,
+          runtimeSeal: playwrightRuntimeSeal
+        }
+      );
+      authorityFaultInjector?.("after-playwright-authority-handoff-before-final-confirmation", {
+        scenario_file: verifiedPlaywright.scenarioFile,
+        baseline_directory: verifiedPlaywright.baselineDirectory,
+        runtime_root: declaration.settings.runtime_root,
+        authority_digest: request.playwright_authority.authority_digest
+      });
+      verifyPlaywrightChildAuthoritySources(declaration.settings, request.playwright_authority);
+      verifyExecutionLineageBoundary(run, packet);
+      verifyHostManifestBoundary(manifest);
+      verifySealedEntrypointAuthority(declaration.entrypoint_authority);
+      request.settings.runtime_root = playwrightRuntimeSeal.runtimeRoot;
+    } catch (error) {
+      playwrightRuntimeSeal?.cleanup();
+      throw error;
+    }
+  }
+  let child;
+  try {
+    child = spawnSealedNodeEntrypoint(declaration.entrypoint_authority, [], {
+      input: `${JSON.stringify(request)}\n`,
+      encoding: "utf8",
+      cwd: outputDirectory,
+      env: childEnvironment,
+      shell: false,
+      timeout: declaration.timeout_ms,
+      maxBuffer: 16 * 1024 * 1024
+    });
+  } finally {
+    playwrightRuntimeSeal?.cleanup();
+  }
   const finishedAt = new Date().toISOString();
+  verifyPreparedOutputBoundary(outputBoundary, outputDirectory, outputGrantRoot);
   if (child.error || child.status !== 0) {
+    const rawError = child.error?.message || child.stderr?.trim() || `child exited ${child.status}`;
+    const boundaryError = child.error?.code === "ENOBUFS" ||
+      /(?:EAGAIN|resource temporarily unavailable)[\s\S]*(?:write|buffer)|(?:write|buffer)[\s\S]*(?:EAGAIN|resource temporarily unavailable)/i
+        .test(rawError);
     return {
       execution_status: "blocked_execution_error",
       started_at: startedAt,
@@ -445,7 +817,9 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
       child_pid: child.pid || null,
       exit_code: child.status,
       signal: child.signal || null,
-      error: child.error?.message || child.stderr?.trim() || `child exited ${child.status}`
+      error: boundaryError
+        ? `child output exceeded the maxBuffer process boundary: ${rawError}`
+        : rawError
     };
   }
   let response;
@@ -497,7 +871,8 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
       exit_code: child.status,
       signal: child.signal || null,
       metadata: response.metadata || {},
-      result: normalizeReturnedEvidence(response.result, outputDirectory)
+      result: normalizeReturnedEvidence(response.result, outputDirectory, outputBoundary),
+      evidence_boundary: outputBoundary
     };
   } catch (error) {
     return {
@@ -512,16 +887,27 @@ function runJsonProcess({ declaration, packet, run, attempt, outputDirectory }) 
   }
 }
 
-function runScanner({ declaration, packet, run }) {
+function runScanner({ declaration, manifest, packet, run, authorityFaultInjector = null }) {
   if (run.artifacts.length !== 1) {
     return {
       execution_status: "blocked_execution_error",
       error: "kill-ai-slop-v1 requires exactly one root artifact"
     };
   }
+  verifyExecutionLineageBoundary(run, packet, authorityFaultInjector);
+  authorityFaultInjector?.("after-child-authority-preflight-before-final-confirmation", {
+    run_id: run.run_id,
+    packet_id: packet.packet_id,
+    entrypoint: declaration.entrypoint
+  });
+  verifyExecutionLineageBoundary(run, packet);
+  verifyHostManifestBoundary(manifest);
+  verifySealedEntrypointAuthority(declaration.entrypoint_authority);
   const receipt = runKillAiSlop({
     adapterRoot: declaration.adapter_root,
     scannerPath: declaration.entrypoint,
+    entrypointAuthority: declaration.entrypoint_authority,
+    expectedArtifactSnapshot: run.artifacts[0],
     target: run.artifacts[0].resolved_path,
     version: packet.provider.version || null,
     environment: {
@@ -548,19 +934,137 @@ function runScanner({ declaration, packet, run }) {
     exit_code: 0,
     signal: null,
     metadata: { transport: "built-in-kill-ai-slop" },
-    result: receipt
+    result: {
+      ...receipt,
+      run_id: run.run_id,
+      packet_digest: packet.packet_digest,
+      journey_identity: run.journey_identity,
+      participant: packet.participant,
+      ...(run.baseline_lineage
+        ? { baseline_lineage_digest: run.baseline_lineage.lineage_digest }
+        : {})
+    }
   };
 }
 
-export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, outputDirectory }) {
+function verifyExecutionLineageBoundary(run, packet, authorityFaultInjector = null) {
+  if (run?.audit_run_version === 1) {
+    verifyAuditJourneyIdentity(run, {
+      faultInjector: authorityFaultInjector,
+      verifyExternalAuthorities: true
+    });
+  }
+  const runLineage = run.baseline_lineage || null;
+  const packetLineage = packet.baseline_lineage || null;
+  requireValue(
+    baselineLineagesMatch(packetLineage, runLineage),
+    "packet baseline_lineage conflicts with the run at the child execution boundary",
+    4
+  );
+  if (runLineage) {
+    try {
+      verifyBaselineLineage(runLineage, "execution baseline_lineage");
+    } catch (error) {
+      throw new RouterError(error.message, 4);
+    }
+    requireValue(Boolean(run.planning_gate),
+      "lineaged child execution requires verified planning authority", 4);
+  }
+  if (run.audit_run_version === 1) {
+    requireValue(Boolean(run.route?.plan_source),
+      "audit child execution requires a digest-bound canonical route plan source", 4);
+  }
+  let sourcePlan = null;
+  if (run.route?.plan_source) {
+    const pinnedPlan = readPinnedExecutionJson(
+      run.route.plan_source.resolved_path,
+      "route plan authority before child execution",
+      authorityFaultInjector
+    );
+  requireValue(pinnedPlan.digest === run.route.plan_source.digest,
+      "route plan authority changed before child execution: digest-mismatch", 4);
+    requireValue(
+      pinnedPlan.physical_identity_digest === run.route.plan_source.physical_identity_digest,
+      "route plan authority changed before child execution: physical-identity-mismatch",
+      4
+    );
+    sourcePlan = pinnedPlan.input;
+    requireValue(canonicalDigest(sourcePlan) === run.route.plan_digest,
+      "route plan digest changed before child execution", 4);
+    requireValue(
+      sourcePlan.router_id === run.route.router_id &&
+      sourcePlan.router_version === run.route.router_version &&
+      sourcePlan.route_id === run.route.route_id &&
+      sourcePlan.project_id === run.route.project_id,
+      "run route identity conflicts with the digest-bound route plan before child execution",
+      4
+    );
+    requireValue(canonicalDigest(sourcePlan.input) === canonicalDigest(run.route.input),
+      "run route input conflicts with the digest-bound route plan before child execution", 4);
+    if (sourcePlan.input?.scope) {
+      requireValue(sourcePlan.input.scope === run.scope?.kind,
+        "run scope conflicts with the digest-bound route plan before child execution", 4);
+    }
+    requireValue(
+      baselineLineagesMatch(sourcePlan.baseline_lineage || null, runLineage),
+      "run baseline_lineage conflicts with the digest-bound route plan before child execution",
+      4
+    );
+  }
+  if (!sourcePlan && !run.planning_gate) return;
+  if (sourcePlan?.baseline_lineage) {
+    requireValue(Boolean(sourcePlan.input?.scope),
+      "lineaged route plan must bind its audit scope before child execution", 4);
+  }
+  const planningPlan = sourcePlan || {
+    project_id: run.route?.project_id,
+    input: run.route?.input,
+    planning_gate: run.planning_gate
+  };
+  const planningScope = sourcePlan?.input?.scope || run.scope?.kind;
+  let verifiedPlanning;
+  try {
+    verifiedPlanning = verifyPlanningGateForAudit(planningPlan, planningScope, {
+      artifacts: run.artifacts,
+      root: run.root || process.cwd()
+    });
+  } catch (error) {
+    throw new RouterError(`child execution planning verification failed: ${error.message}`, 4);
+  }
+  requireValue(
+    baselineLineagesMatch(verifiedPlanning?.baseline_lineage || null, runLineage),
+    "run baseline_lineage conflicts with verified planning authority before child execution",
+    4
+  );
+  requireValue(
+    planningAuthoritiesMatch(verifiedPlanning || null, run.planning_gate || null),
+    "run planning authority conflicts with the digest-bound route plan before child execution",
+    4
+  );
+  if (run?.audit_run_version === 1) {
+    verifyAuditJourneyIdentity(run, { verifyExternalAuthorities: true });
+  }
+}
+
+export function executeAuditPacket({
+  run,
+  packet,
+  manifest = null,
+  attempt = 1,
+  outputDirectory,
+  outputGrantRoot = null,
+  outputBoundary = null,
+  authorityFaultInjector = null
+}) {
   verifyJourneyIdentity(run?.journey_identity, { runId: run?.run_id, label: "execution journey_identity" });
   verifyPacketJourney(packet, run.journey_identity, `packet ${packet?.packet_id || "unknown"}`);
   const inspection = inspectPacketAdapter(packet, manifest);
   if (inspection.execution_status !== "ready") return inspection;
   const declaration = inspection.declaration;
   if (declaration.entrypoint) {
-    const actualDigest = hashArtifact(declaration.entrypoint);
-    if (actualDigest !== declaration.entrypoint_digest) {
+    try {
+      verifySealedEntrypointAuthority(declaration.entrypoint_authority);
+    } catch (error) {
       return {
         packet_id: packet.packet_id,
         provider_id: packet.provider.id,
@@ -568,7 +1072,7 @@ export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, 
         host_manifest_digest: manifest.manifest_digest,
         attempt,
         execution_status: "blocked_execution_error",
-        error: "host adapter entrypoint changed after manifest verification"
+        error: error.message
       };
     }
   }
@@ -578,7 +1082,14 @@ export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, 
     participant: packet.participant,
     adapter: declaration.adapter,
     adapter_entrypoint: declaration.entrypoint
-      ? publicSnapshot(snapshotArtifact(declaration.entrypoint, { root: path.dirname(declaration.entrypoint) }))
+      ? publicSnapshot({
+        path: declaration.entrypoint,
+        resolved_path: declaration.entrypoint,
+        kind: "file",
+        bytes: declaration.entrypoint_authority.bytes,
+        digest: declaration.entrypoint_authority.digest,
+        physical_identity_digest: declaration.entrypoint_authority.physical_identity_digest
+      })
       : null,
     host_manifest_digest: manifest.manifest_digest,
     permission_scopes: declaration.permissions,
@@ -588,8 +1099,18 @@ export function executeAuditPacket({ run, packet, manifest = null, attempt = 1, 
   };
   try {
     const executed = declaration.adapter === "kill-ai-slop-v1"
-      ? runScanner({ declaration, packet, run })
-      : runJsonProcess({ declaration, packet, run, attempt, outputDirectory });
+      ? runScanner({ declaration, manifest, packet, run, authorityFaultInjector })
+      : runJsonProcess({
+        declaration,
+        manifest,
+        packet,
+        run,
+        attempt,
+        outputDirectory,
+        outputGrantRoot,
+        preparedOutputBoundary: outputBoundary,
+        authorityFaultInjector
+      });
     return { ...base, ...executed };
   } catch (error) {
     return {

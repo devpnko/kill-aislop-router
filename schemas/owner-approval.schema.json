@@ -9,6 +9,7 @@
     "run_id": {"type": "string", "minLength": 1},
     "journey_identity": {"$ref": "journey-identity.schema.json"},
     "scope_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "baseline_lineage_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "owner_id": {"type": "string", "minLength": 1},
     "status": {"enum": ["approved", "rejected"]},
     "note": {"type": "string", "minLength": 1},

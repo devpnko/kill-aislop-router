@@ -18,7 +18,9 @@ triage, and owner approval. A route plan is not execution evidence.
 6. `audit triage` gives every scanner candidate an explicit disposition.
 7. The adjudication provider records conflict resolutions against project or
    browser evidence. Scores are never averaged.
-8. `audit finalize` re-hashes every source and emits the final receipt.
+8. `audit finalize` re-hashes every source and emits the final receipt. The
+   receipt retains the canonical route plan `resolved_path` so a resume or
+   verifier can dereference and re-hash the exact planning authority.
 9. The owner approves or rejects the exact `approval_scope_digest`; approval is
    never inferred from critic success.
 
@@ -31,6 +33,24 @@ the same `journey_identity`. The public contracts are
 also keeps the exact child `provider_id` as an `internal` participant role;
 that provenance never changes the active workflow name from KillSlopRouter.
 
+`audit init` also emits an `audit_authority_digest`. Retain it outside the
+mutable audit JSON and pass it to every public `audit dispatch`, `audit record`,
+`audit triage`, `audit status`, and `audit finalize` call with
+`--authority-digest`. The value
+binds the canonical plan source, creator actor, journey identity, artifacts,
+packet scope, and optional parent/slice lineage. Recomputing a replacement from
+an edited run is not authority.
+
+Standalone audit paths use the same fail-closed filesystem boundary as the
+integrated runner. `audit init` validates the ledger and packet directory before
+its first write; dispatch validates the output root and every generated packet;
+record, triage, status, and finalize reject an audit run below a symlinked
+ancestor. Result, triage, approval, and explicit `--out` receipt-file paths are
+also validated as regular or safe writable paths. A rejected filesystem path
+leaves the symlink target empty and the original ledger unchanged. JSON/text on
+stdout remains intentionally pipeable for automation; it is not a path opened
+or trusted by KillSlopRouter and does not replace the digest-bound receipt file.
+
 The integrated `run` command persists this lifecycle as nine separately hashed
 phase receipts. It executes non-adjudication critics first, stops for scanner
 triage, then executes adjudication and finalization. See `automation-run.md`.
@@ -40,8 +60,13 @@ triage, then executes adjudication and finalization. See `automation-run.md`.
 Each dispatch packet includes a valid result template. The provider must keep
 these values unchanged:
 
+- `run_id`
 - `packet_id`
+- `packet_digest`
 - `provider_id`
+- `journey_identity`
+- `participant`
+- `baseline_lineage_digest` when the packet carries lineage
 - `artifact_digests`
 - the assigned capability set
 
@@ -52,8 +77,11 @@ shape, elevation, imagery, motion, and forbidden transformations. A clean
 scanner result does not satisfy that packet.
 
 The reviewer supplies a stable actor identity, verdict, findings, evidence,
-and timestamps. A stage that needs multiple fallback providers passes only
-when the union of recorded results covers the stage contract.
+and timestamps. Finalization reconstructs every normalized result from its
+unchanged source file and revalidates reviewer/provider independence; a
+coordinated ledger rewrite cannot turn the creator into an independent critic.
+A stage that needs multiple fallback providers passes only when the union of
+recorded results covers the stage contract.
 
 Browser evidence items declare which capabilities, viewports, checks, and
 scenarios they cover. The example profile requires mobile and desktop evidence
@@ -96,6 +124,11 @@ upgrade an already planned route; the caller must generate a new plan.
 
 Symlink artifacts are rejected because hashing only a link path would not bind
 the receipt to changing target content. Pass the resolved file or directory.
+Child evidence must be newly created inside its granted physical output
+directory. KillSlopRouter verifies the directory's real path and filesystem
+identity before and after execution, rejects every symlink component,
+hard-linked regular file, and special file, and rechecks physical containment
+before ingestion. Lexical `../` containment alone is never accepted.
 
 This detects stale or accidentally modified evidence. It is not a signature or
 identity service. Use immutable CI storage and signed approvals when the threat

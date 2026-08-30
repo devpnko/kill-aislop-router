@@ -31,6 +31,15 @@ npx --yes github:devpnko/kill-aislop-router plugin install --dry-run
 npx --yes github:devpnko/kill-aislop-router plugin install --force
 ```
 
+`--force` refreshes only a verified current install or a recognized
+pre-integrity marker whose payload/runtime/skill still exactly match the trusted
+package, and preserves the previous directory as a backup. The
+current deterministic marker binds the complete packaged payload, copied browser runtime,
+canonical namespaced skill, package version, and marker body. It does not claim
+an authenticated installer actor, source checkout path, or installation time;
+those facts cannot be proven by a same-user local marker. An empty marker
+or different payload is an identity conflict and is never silently replaced.
+
 The preview reports `identity_conflict` when the namespaced plugin would coexist
 with a full legacy `~/.codex/skills/kill-slop-router` entry. Installation then
 stops before mutation. Migrate only with explicit authority:
@@ -48,7 +57,10 @@ The old directory is moved, not deleted, to a digest-recorded backup under
 `~/.codex/skills/.killsloprouter-backups/`. Its replacement is a two-file,
 explicit-only shim that immediately hands control to
 `$killsloprouter:kill-slop-router`. `doctor` verifies the shim files and backup;
-any change becomes an identity conflict. The separate `$antislop` skill is not
+it also requires the shim marker to bind the actually installed canonical
+marker, payload, runtime, and canonical skill digests. An orphaned or copied
+shim is therefore an identity conflict even when its public handoff bytes are
+exact. Any later change becomes an identity conflict. The separate `$antislop` skill is not
 part of this migration and remains explicitly invokable outside a Router run.
 
 From an existing V1 checkout, the original script remains supported:

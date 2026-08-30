@@ -20,11 +20,57 @@ import {
   prepareStateLeaseWrite,
   releaseStateLease
 } from "../src/state-lease.mjs";
+import * as publicStateLease from "../src/state-lease-public.mjs";
 import { canonicalDigest } from "../src/integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const crashHolder = path.join(root, "test", "fixtures", "lease-crash-holder.mjs");
+const recoveryCrashHolder = path.join(root, "test", "fixtures", "recovery-crash-holder.mjs");
 const processIdentityProbe = path.join(root, "test", "fixtures", "process-identity-probe.mjs");
+
+test("public state-lease package surface cannot claim stale authority or forge a controller", () => {
+  assert.equal("claimStaleStateLease" in publicStateLease, false);
+  assert.equal("completeStateLeaseRecovery" in publicStateLease, false);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-public-lease-"));
+  const statePath = path.join(directory, "run.json");
+  const controller = publicStateLease.acquireStateLease({
+    statePath,
+    operation: "public-controller-fixture"
+  });
+  try {
+    const status = publicStateLease.inspectStateLease(statePath);
+    assert.throws(() => publicStateLease.releaseStateLease({
+      state_path: statePath,
+      owner_token: status.owner_token,
+      owner_pid: status.owner_pid
+    }), /controller was not issued to this process/);
+    assert.equal(publicStateLease.inspectStateLease(statePath).status, "locked");
+    publicStateLease.releaseStateLease(controller);
+    assert.equal(publicStateLease.inspectStateLease(statePath).status, "unlocked");
+  } finally {
+    if (fs.existsSync(`${statePath}.lease`)) {
+      fs.rmSync(`${statePath}.lease`, { recursive: true, force: true });
+    }
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("lease acquisition rejects a pre-existing state-path symlink ancestor before writing", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lease-path-boundary-"));
+  const redirected = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lease-redirected-"));
+  const alias = path.join(directory, "state-alias");
+  const statePath = path.join(alias, "run.json");
+  try {
+    fs.symlinkSync(redirected, alias, "dir");
+    assert.throws(() => acquireStateLease({ statePath, operation: "fixture-owner" }),
+      /automation state path contains a symlink ancestor/);
+    assert.deepEqual(fs.readdirSync(redirected), [],
+      "lease acquisition must not write through a redirected state ancestor");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+    fs.rmSync(redirected, { recursive: true, force: true });
+  }
+});
 
 test("one atomic state lease excludes start, resume, and identity migration before state work", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lease-exclusive-"));
@@ -219,6 +265,93 @@ test("stale lease recovery requires owner token, timestamp, and state digest ins
     assert.equal(recovered.abandoned_packet, null);
     assert.ok(fs.existsSync(recovered.receipt_path));
     assert.equal(inspectAutomationStateLease(statePath).status, "unlocked");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("a crash after recovery lease replacement adopts the exact orphan claim and completes", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lease-claim-crash-"));
+  const statePath = path.join(directory, "crashed.json");
+  try {
+    const holder = spawnSync(process.execPath, [crashHolder, statePath], {
+      cwd: directory,
+      encoding: "utf8",
+      shell: false
+    });
+    assert.equal(holder.status, 0, holder.stderr || holder.stdout);
+    const stale = inspectAutomationStateLease(statePath);
+    const crashedRecovery = spawnSync(process.execPath, [
+      recoveryCrashHolder,
+      statePath,
+      stale.owner_token,
+      stale.acquired_at,
+      stale.state_digest,
+      canonicalDigest({ fixture: "absent-state-authority" }),
+      "after-recovery-lease-replacement-before-claim-cleanup"
+    ], {
+      cwd: directory,
+      encoding: "utf8",
+      shell: false
+    });
+    assert.equal(crashedRecovery.status, 91, crashedRecovery.stderr || crashedRecovery.stdout);
+
+    const claimPath = path.join(`${statePath}.lease`, "recovery-claim.json");
+    assert.equal(fs.existsSync(claimPath), true);
+    const replacement = inspectAutomationStateLease(statePath);
+    assert.equal(replacement.operation, "recover");
+    assert.equal(replacement.phase, "recovery");
+    assert.equal(replacement.owner_process_alive, false);
+
+    const recovered = recoverAutomationStateLease(statePath, {
+      ownerToken: replacement.owner_token,
+      acquiredAt: replacement.acquired_at,
+      stateDigest: replacement.state_digest
+    });
+    assert.equal(recovered.status, "recovered");
+    assert.equal(recovered.previous_state_digest, "absent");
+    assert.equal(fs.existsSync(claimPath), false);
+    assert.equal(inspectAutomationStateLease(statePath).status, "unlocked");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("an orphan recovery claim that does not bind the committed recovery lease remains fail closed", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lease-claim-conflict-"));
+  const statePath = path.join(directory, "crashed.json");
+  try {
+    const holder = spawnSync(process.execPath, [crashHolder, statePath], {
+      cwd: directory,
+      encoding: "utf8",
+      shell: false
+    });
+    assert.equal(holder.status, 0, holder.stderr || holder.stdout);
+    const stale = inspectAutomationStateLease(statePath);
+    const crashedRecovery = spawnSync(process.execPath, [
+      recoveryCrashHolder,
+      statePath,
+      stale.owner_token,
+      stale.acquired_at,
+      stale.state_digest,
+      canonicalDigest({ fixture: "absent-state-authority" }),
+      "after-recovery-lease-replacement-before-claim-cleanup"
+    ], { cwd: directory, encoding: "utf8", shell: false });
+    assert.equal(crashedRecovery.status, 91, crashedRecovery.stderr || crashedRecovery.stdout);
+
+    const claimPath = path.join(`${statePath}.lease`, "recovery-claim.json");
+    const claim = JSON.parse(fs.readFileSync(claimPath, "utf8"));
+    claim.target_lease_digest = canonicalDigest({ conflicting: "lease" });
+    delete claim.claim_digest;
+    claim.claim_digest = canonicalDigest(claim);
+    fs.writeFileSync(claimPath, `${JSON.stringify(claim, null, 2)}\n`);
+    const replacement = inspectAutomationStateLease(statePath);
+    assert.throws(() => recoverAutomationStateLease(statePath, {
+      ownerToken: replacement.owner_token,
+      acquiredAt: replacement.acquired_at,
+      stateDigest: replacement.state_digest
+    }), /conflicting recovery claim/);
+    assert.equal(inspectAutomationStateLease(statePath).status, "locked");
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

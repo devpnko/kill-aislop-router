@@ -3,6 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { canonicalDigest, writeJsonAtomic } from "./integrity.mjs";
+import {
+  ensureSecureDirectory,
+  secureWritablePath,
+  verifySecureDirectoryIdentity
+} from "./path-security.mjs";
 import { RouterError } from "./router.mjs";
 
 export const ABSENT_STATE_DIGEST = "absent";
@@ -12,6 +17,20 @@ const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const CHILD_RECOVERY_GRACE_MS = 1_000;
 const LEASE_RECORD = "lease.json";
 const RECOVERY_CLAIM = "recovery-claim.json";
+const ISSUED_CONTROLLERS = new WeakSet();
+const RECOVERY_ORIGIN_KEYS = [
+  "lease_digest",
+  "owner_token_digest",
+  "owner_pid",
+  "owner_process_identity",
+  "acquired_at",
+  "operation",
+  "phase",
+  "state_digest",
+  "active_packet",
+  "recover_after",
+  "recovery_started_at"
+].sort();
 
 function nowIso(now = null) {
   return (now ? new Date(now) : new Date()).toISOString();
@@ -33,6 +52,39 @@ function requireValue(condition, message, exitCode = 5) {
 
 function validStateDigest(value) {
   return value === ABSENT_STATE_DIGEST || DIGEST_PATTERN.test(value || "");
+}
+
+function sameExactKeys(value, keys) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
+}
+
+function recoveryOrigin(record, recoveryStartedAt, observedStateDigest) {
+  if (record.operation === "recover" && record.recovered_from) {
+    return structuredClone(record.recovered_from);
+  }
+  return {
+    lease_digest: record.lease_digest,
+    owner_token_digest: canonicalDigest({ owner_token: record.owner_token }),
+    owner_pid: record.owner_pid,
+    owner_process_identity: record.owner_process_identity,
+    acquired_at: record.acquired_at,
+    operation: record.operation,
+    phase: record.phase,
+    state_digest: observedStateDigest,
+    active_packet: record.active_packet,
+    recover_after: record.recover_after,
+    recovery_started_at: recoveryStartedAt
+  };
+}
+
+function secureStatePath(statePath) {
+  try {
+    secureWritablePath(statePath, "automation state path");
+    return path.resolve(statePath);
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
 }
 
 function stateBody(state) {
@@ -203,6 +255,23 @@ function readLeaseRecord(statePath) {
   requireValue(DIGEST_PATTERN.test(record.lease_digest || "") &&
     canonicalDigest(leaseBody(record)) === record.lease_digest,
   "automation state lease digest mismatch", 4);
+  if (record.recovered_from !== null) {
+    const origin = record.recovered_from;
+    requireValue(sameExactKeys(origin, RECOVERY_ORIGIN_KEYS) &&
+      DIGEST_PATTERN.test(origin.lease_digest || "") &&
+      DIGEST_PATTERN.test(origin.owner_token_digest || "") &&
+      Number.isInteger(origin.owner_pid) && origin.owner_pid >= 1 &&
+      origin.owner_process_identity?.process_identity_version === 1 &&
+      DIGEST_PATTERN.test(origin.owner_process_identity?.marker || "") &&
+      typeof origin.owner_process_identity?.method === "string" &&
+      !Number.isNaN(Date.parse(origin.acquired_at || "")) &&
+      typeof origin.operation === "string" && origin.operation.length > 0 &&
+      typeof origin.phase === "string" && origin.phase.length > 0 &&
+      validStateDigest(origin.state_digest) &&
+      !Number.isNaN(Date.parse(origin.recover_after || "")) &&
+      !Number.isNaN(Date.parse(origin.recovery_started_at || "")),
+    "automation state lease recovery origin is invalid", 4);
+  }
   return record;
 }
 
@@ -226,14 +295,20 @@ function activeLeaseError(statePath, operation) {
 }
 
 function controllerFor(record) {
-  return {
+  const controller = {
     state_path: record.state_path,
     owner_token: record.owner_token,
     owner_pid: record.owner_pid
   };
+  ISSUED_CONTROLLERS.add(controller);
+  return controller;
 }
 
 function ownedRecord(controller) {
+  requireValue(controller && typeof controller === "object" && ISSUED_CONTROLLERS.has(controller),
+    "automation state lease controller was not issued to this process", 4);
+  requireValue(controller.owner_pid === process.pid,
+    "automation state lease controller belongs to a different process", 4);
   const record = readLeaseRecord(controller.state_path);
   requireValue(record.owner_token === controller.owner_token &&
     record.owner_pid === controller.owner_pid,
@@ -241,8 +316,12 @@ function ownedRecord(controller) {
   return record;
 }
 
-export function acquireStateLease({ statePath, operation }) {
-  const absolute = path.resolve(statePath);
+export function acquireStateLease({ statePath, operation, faultInjector = null }) {
+  const absolute = secureStatePath(statePath);
+  faultInjector?.("after-state-path-preflight", {
+    state_path: absolute,
+    lease_directory: stateLeaseDirectory(absolute)
+  });
   requireValue(typeof operation === "string" && operation.length > 0,
     "automation state lease operation is required", 2);
   const acquiredAt = nowIso();
@@ -270,13 +349,38 @@ export function acquireStateLease({ statePath, operation }) {
 
   const directory = stateLeaseDirectory(absolute);
   const staging = `${directory}.pending.${process.pid}.${crypto.randomUUID()}`;
+  let stagingIdentity = null;
   try {
-    fs.mkdirSync(path.dirname(directory), { recursive: true });
-    fs.mkdirSync(staging, { mode: 0o700 });
+    const parentIdentity = ensureSecureDirectory(
+      path.dirname(directory),
+      "automation state lease parent",
+      { faultInjector }
+    );
+    stagingIdentity = ensureSecureDirectory(staging, "automation state lease staging", {
+      faultInjector
+    });
+    verifySecureDirectoryIdentity(parentIdentity, "automation state lease parent");
     writeJsonAtomic(path.join(staging, LEASE_RECORD), record);
+    verifySecureDirectoryIdentity(stagingIdentity, "automation state lease staging");
+    verifySecureDirectoryIdentity(parentIdentity, "automation state lease parent");
     fs.renameSync(staging, directory);
+    const committedIdentity = verifySecureDirectoryIdentity({
+      ...stagingIdentity,
+      lexical_path: directory,
+      real_path: path.join(path.dirname(stagingIdentity.real_path), path.basename(directory))
+    }, "automation state lease");
+    requireValue(committedIdentity.device === stagingIdentity.device &&
+      committedIdentity.inode === stagingIdentity.inode,
+    "automation state lease directory identity changed during commit", 4);
   } catch (error) {
-    if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });
+    if (stagingIdentity) {
+      try {
+        verifySecureDirectoryIdentity(stagingIdentity, "automation state lease staging cleanup");
+        fs.rmSync(staging, { recursive: true, force: true });
+      } catch {
+        // Fail closed without following a moved or replaced cleanup path.
+      }
+    }
     if (["EEXIST", "ENOTEMPTY", "EPERM"].includes(error?.code) && fs.existsSync(directory)) {
       throw activeLeaseError(absolute, operation);
     }
@@ -343,14 +447,29 @@ export function markStateLeaseChildExecution(controller, {
 
 export function releaseStateLease(controller) {
   const record = ownedRecord(controller);
-  requireValue(!["state-write", "child-intent", "child-execution"].includes(record.phase) &&
+  requireValue(!["state-write", "child-intent", "child-execution", "recovery"].includes(record.phase) &&
     record.pending_state_digest === null,
   "automation state lease remains held because a state write or child outcome is unresolved", 5);
   fs.rmSync(stateLeaseDirectory(controller.state_path), { recursive: true, force: false });
+  ISSUED_CONTROLLERS.delete(controller);
+}
+
+export function completeStateLeaseRecovery(controller) {
+  const record = ownedRecord(controller);
+  requireValue(record.phase === "recovery" && record.pending_state_digest === null,
+    "automation state lease is not ready to complete recovery", 5);
+  requireValue(observedStateDigest(controller.state_path) === record.state_digest,
+    "automation state changed before lease recovery completion", 5);
+  return writeLeaseRecord(controller.state_path, {
+    ...record,
+    phase: "checkpoint",
+    active_packet: null,
+    recover_after: nowIso()
+  });
 }
 
 export function inspectStateLease(statePath) {
-  const absolute = path.resolve(statePath);
+  const absolute = secureStatePath(statePath);
   const directory = stateLeaseDirectory(absolute);
   if (!fs.existsSync(directory)) {
     return {
@@ -417,23 +536,66 @@ function readRecoveryClaim(statePath) {
 }
 
 function writeRecoveryClaim(statePath, claim) {
-  const target = path.join(stateLeaseDirectory(statePath), RECOVERY_CLAIM);
-  const fd = fs.openSync(target, "wx", 0o600);
+  const directory = stateLeaseDirectory(statePath);
+  const parentIdentity = ensureSecureDirectory(directory, "automation state lease recovery root");
+  const target = secureWritablePath(
+    path.join(directory, RECOVERY_CLAIM),
+    "automation state lease recovery claim",
+    { boundary: parentIdentity.real_path }
+  );
+  const flags = fs.constants.O_WRONLY |
+    fs.constants.O_CREAT |
+    fs.constants.O_EXCL |
+    (fs.constants.O_NOFOLLOW || 0);
+  const fd = fs.openSync(target, flags, 0o600);
+  const identity = fs.fstatSync(fd, { bigint: true });
+  let completed = false;
   try {
+    verifySecureDirectoryIdentity(parentIdentity, "automation state lease recovery root");
+    const lexical = fs.lstatSync(target, { bigint: true });
+    requireValue(lexical.isFile() && !lexical.isSymbolicLink() &&
+      lexical.dev === identity.dev && lexical.ino === identity.ino,
+    "automation state lease recovery claim identity changed before write", 4);
     fs.writeFileSync(fd, `${JSON.stringify(claim, null, 2)}\n`);
+    fs.fsyncSync(fd);
+    verifySecureDirectoryIdentity(parentIdentity, "automation state lease recovery root");
+    completed = true;
   } finally {
     fs.closeSync(fd);
+    if (!completed) {
+      try {
+        const current = fs.lstatSync(target, { bigint: true });
+        if (current.dev === identity.dev && current.ino === identity.ino) fs.rmSync(target);
+      } catch {
+        // Never follow a replaced recovery-claim path during cleanup.
+      }
+    }
   }
   return target;
+}
+
+function orphanClaimMatchesCommittedRecoveryLease(claim, record) {
+  return record.operation === "recover" &&
+    record.phase === "recovery" &&
+    record.pending_state_digest === null &&
+    record.active_packet === null &&
+    record.owner_token === claim.claimant_token &&
+    record.owner_pid === claim.claimant_pid &&
+    sameProcessIdentity(record.owner_process_identity, claim.claimant_process_identity) &&
+    record.acquired_at === claim.claimed_at &&
+    record.recover_after === claim.claimed_at &&
+    record.recovered_from?.lease_digest === claim.target_lease_digest &&
+    record.recovered_from?.recovery_started_at === claim.claimed_at;
 }
 
 export function claimStaleStateLease({
   statePath,
   ownerToken,
   acquiredAt,
-  stateDigest
+  stateDigest,
+  faultInjector = null
 }) {
-  const absolute = path.resolve(statePath);
+  const absolute = secureStatePath(statePath);
   requireValue(typeof ownerToken === "string" && ownerToken.length > 0,
     "lease recovery requires --owner-token", 2);
   requireValue(typeof acquiredAt === "string" && acquiredAt.length > 0,
@@ -463,7 +625,9 @@ export function claimStaleStateLease({
   const claimPath = path.join(stateLeaseDirectory(absolute), RECOVERY_CLAIM);
   const existingClaim = readRecoveryClaim(absolute);
   if (existingClaim) {
-    requireValue(existingClaim.target_lease_digest === record.lease_digest,
+    const targetsCurrentLease = existingClaim.target_lease_digest === record.lease_digest;
+    const orphanedCommittedClaim = orphanClaimMatchesCommittedRecoveryLease(existingClaim, record);
+    requireValue(targetsCurrentLease || orphanedCommittedClaim,
       "automation state lease has a conflicting recovery claim", 5);
     const claimant = observeOwnerProcess(
       existingClaim.claimant_pid,
@@ -516,24 +680,23 @@ export function claimStaleStateLease({
       phase: "recovery",
       active_packet: null,
       recover_after: claimedAt,
-      recovered_from: {
-        lease_digest: record.lease_digest,
-        owner_token_digest: canonicalDigest({ owner_token: record.owner_token }),
-        owner_pid: record.owner_pid,
-        owner_process_identity: record.owner_process_identity,
-        acquired_at: record.acquired_at,
-        operation: record.operation,
-        phase: record.phase,
-        state_digest: observed,
-        active_packet: record.active_packet,
-        recover_after: record.recover_after
-      },
+      recovered_from: recoveryOrigin(record, claimedAt, observed),
       lease_digest: null
     };
     replacement.lease_digest = canonicalDigest(leaseBody(replacement));
     writeJsonAtomic(recordPath(absolute), replacement);
+    faultInjector?.("after-recovery-lease-replacement-before-claim-cleanup", {
+      state_path: absolute,
+      previous_lease_digest: record.lease_digest,
+      replacement_lease_digest: replacement.lease_digest,
+      recovery_claim_digest: claim.claim_digest
+    });
     fs.rmSync(claimPath);
-    return { controller: controllerFor(replacement), previous: record };
+    return {
+      controller: controllerFor(replacement),
+      previous: record,
+      recovery_origin: replacement.recovered_from
+    };
   } catch (error) {
     if (fs.existsSync(claimPath)) fs.rmSync(claimPath);
     throw error;

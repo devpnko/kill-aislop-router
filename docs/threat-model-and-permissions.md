@@ -12,6 +12,7 @@ independence, required proof, or artifact integrity is missing.
 - visual-signature receipts, per-aspect coverage, and exact palette/type/density/elevation evidence;
 - reviewer and owner provenance;
 - the selected KillSlopRouter parent identity and child-role boundary;
+- the caller-retained modern resume authority digest;
 - state leases, in-flight child intents, and crash-recovery receipts;
 - screenshots, browser traces, and test reports;
 - the distinction between dispatchable work and completed work.
@@ -33,13 +34,20 @@ still require the project profile, explicit `--host-config`, and audit ledger.
 The installer copies exact `playwright-core` and `axe-core` runtime packages,
 but it neither downloads a browser nor starts one.
 
-The installer and `doctor` also inspect the runtime skill catalog. A full local
-`kill-slop-router` entry alongside the namespaced plugin is an identity
-conflict. Migration is never implicit: the operator must pass
-`--migrate-legacy-entry`, after which the original directory is preserved in a
-digest-verified backup and only an implicit-disabled handoff shim remains.
-Changing the shim or backup fails closed. Standalone antislop is outside this
-migration boundary.
+The installer and `doctor` also inspect the runtime skill catalog. The
+canonical install marker is not a presence flag: its deterministic body binds
+the trusted packaged payload, copied browser runtime, canonical skill bytes,
+version, and entrypoint. It does not claim an authenticated local installer,
+source path, or timestamp. An old unbound marker is refreshable only when its
+payload/runtime/skill still exactly match the trusted package, and requires an explicit backed-up `--force`
+refresh; an arbitrary marker/payload is unsafe. A full local `kill-slop-router`
+entry alongside the namespaced plugin is an identity conflict. Migration is
+never implicit: the operator must pass `--migrate-legacy-entry`, after which the
+original directory is preserved in a digest-verified, shaped backup and only
+the exact packaged implicit-disabled handoff shim remains. Its marker must bind
+the actually installed canonical marker, payload, runtime, and skill digests;
+an orphaned public shim and fabricated backup remain a conflict. Changing the
+shim or backup fails closed. Standalone antislop is outside this migration boundary.
 
 ### Journey identity
 
@@ -56,6 +64,104 @@ critic, scanner, browser provider, or adjudicator remains
 `visibility: internal`; standalone `$antislop` compatibility applies only when
 there is no active KillSlopRouter identity.
 
+### Modern resume authority
+
+After acquiring the state lease, an identity-bound integrated start writes a
+durable authority receipt to `<state>.authorities/<run-id>.json` before the
+first state write. Its version-5 `resume_authority_digest` covers the state
+path, run and journey identity, router/profile paths and digests, project root,
+original route input, initial artifact paths and digests, scope, creator actor,
+initial canonical plan-authority digest, observation-run path, and deterministic parent-owned path contract for the
+canonical state directory, authority receipt, active plan/audit/packet tree,
+results, evidence, phase and migration receipts, and final receipt. A later
+resume must present the exact value retained by the original caller before the
+state is allowed to select the router or profile that will be re-read.
+
+The authority does not claim a canonical plan file exists before initialization,
+but it freezes the complete initial plan-authority digest, including the
+external planning receipt and optional lineage. The later plan file, audit, and
+packet graph are additionally bound by state transitions, phase receipts, and
+the audit authority. Once that graph is complete, but before child execution,
+`<state>.authorities/<run-id>.initialization.json` commits its immutable plan,
+packet, audit-path, and step-receipt anchors and is cross-bound into state. This
+second caller-retained file is a monotonic progress floor: a fully deleted
+mutable state tree cannot silently become a fresh initialization. Initialization
+is idempotent across a verified crash only
+when replanning reproduces that exact digest:
+the explicit stale-lease recovery revalidates and seals orphan sidecars written
+before their state transition, while committed steps are not replayed. Normal
+resume rejects every unbound canonical initialization sidecar and fixed receipt,
+even when state retains an older unrelated recovery receipt. Recovery receipt
+version 3 binds the root stale lease, recovered state digest, deterministic
+reconciled anchor IDs and steps, and the durable initialization graph digest.
+The state binds that receipt, avoiding a circular final-state digest claim. A crash after authority issue
+but before the first state leaves the receipt and stale absent-state lease; the
+operator recovers that lease and starts a fresh journey without overwriting the
+abandoned receipt.
+
+Resume reconstructs that path contract from the requested state path. Normal
+runs may use only the fixed sibling `.d/` layout. Verified legacy migrations
+may use only their digest-bound, direct-child transaction for the rebound
+plan/audit/packet tree and migrated phase receipts. A coherently re-signed
+state that points a parent-owned sidecar or phase receipt elsewhere is rejected
+before a child or ledger write. Approval, triage, and manual-result files are
+caller-supplied read-only inputs. They must be single-link regular files owned
+by the invoking user, outside both the state file and its `.d/` directory, not
+group/world writable, and have no symlink ancestor. The Router opens them with
+a read-only non-following descriptor, pins device, inode, link count, size,
+mtime, and ctime across the read, parses that exact snapshot, and never treats
+their paths as writable state sidecars. The normalized manual result, scanner
+decision, or owner decision and the stored source digest are constructed from
+the same descriptor bytes. Final integrity verification pins and reparses the
+recorded source and reconstructs triage and approval normalization. A path
+replacement between preflight and consumption therefore blocks rather than
+sealing different bytes as authority. Fresh starts perform this before
+state/lease creation; resumes perform it before ledger write or child spawn.
+The same descriptor rule applies to every parsed parent authority: routed
+router/profile JSON, canonical route plans, visual intent/signature receipts,
+phase and migration receipts, start/initialization authorities, recovery and
+final receipts, and Playwright scenarios. In particular, the last planning
+check before a reviewer process opens the same digest-bound bytes; it cannot
+hash one path image and parse a replacement.
+
+The declarative router JSON alone may be root-owned or hard-linked when it is a
+global/content-addressed package asset. Its exact descriptor bytes and physical
+identity are still bound at start and revalidated on resume, recovery, and
+legacy migration. The exception does not extend to the project profile,
+approvals, manual evidence, or executable authority.
+
+The digest is an integrity assertion, not an authentication secret. Copies in
+the state and phase receipts allow cross-checking but are not an independent
+trust root. The operator or CI caller must retain the original start authority,
+the initialization authority once issued, and the digest outside the mutable
+state boundary. If normal start output
+is lost in a crash, the digest is read from that receipt, not recomputed from
+state. If an adversary controls both every local artifact and the resume
+invocation or its caller-held record, V1 cannot distinguish the forgery. An
+identity-bound pre-release state without the durable version-5 start receipt
+must restart; locally deriving a new digest would simply trust the compromised
+inputs.
+
+Standalone audit initialization similarly emits an
+`audit_authority_digest` over its source plan, journey identity, creator actor,
+artifact and packet scope, and optional baseline lineage. Dispatch, result
+recording, triage, status, and finalization require the original caller-retained value.
+Standalone result, triage, and approval sources use the same single pinned
+descriptor for parsing and provenance; a path replacement between the pinned
+read and provenance binding blocks rather than allowing two reads to disagree.
+Finalization reconstructs every result from its immutable source and reruns
+reviewer/provider independence checks, preventing a coordinated run/result
+rewrite from making the creator its own reviewer.
+
+Pre-identity migration uses a separate one-time anchor: a byte-identical
+pre-mutation state backup outside the mutable state directory and the
+caller-retained SHA-256 of that backup file. It accepts only an allowlisted
+historical router digest and exact serialized old shape with canonical
+plan/audit sources, replans under the current router, and emits a new modern
+resume authority. The backup remains a durable migration-receipt dependency.
+This still is not authentication; an attacker who also controls the caller-held
+record and backup remains outside V1's local integrity model.
+
 ### Automation state lease
 
 Mutating start, resume, direct API continuation, identity migration, and
@@ -69,11 +175,23 @@ available while the first reviewer is still running.
 No stale lease is removed automatically. Explicit recovery requires the exact
 owner token, acquisition timestamp, and current lease-bound state digest,
 refuses while the owner PID is alive, and waits beyond the bound child timeout.
+For a modern state it also requires the original caller-retained
+`resume_authority_digest`, and verifies the state and authority before claiming
+the stale lease.
 The exact recorded process identity must no longer be live; an unrelated
 process that reused its PID does not keep the lease stuck. If liveness cannot
 be distinguished, recovery fails closed. A recovery claimant is itself
 exclusive, carries the same process-start binding, and writes a receipt before
-releasing the lease. POSIX process-start queries force `LC_ALL=C`, `LANG=C`,
+releasing the lease. A post-claim failure leaves phase `recovery`, `state-write`,
+or its pending digest locked; only a later authorized recovery may resolve it.
+If a process dies after atomically installing its recovery lease but before
+removing `recovery-claim.json`, the next recovery adopts that orphan only when
+the dead claimant token, PID/process-start identity, timestamps, state digest,
+recovery origin, and committed replacement lease match exactly. A modified or
+unrelated claim remains an exclusive conflict instead of being deleted.
+The public package facade omits the internal stale-claim and recovery-completion
+primitives, and an issued controller is process-local rather than reproducible
+from the status tuple. POSIX process-start queries force `LC_ALL=C`, `LANG=C`,
 and `TZ=UTC`, preventing caller locale or timezone from changing the marker.
 
 If termination happens after child spawn but before result ingestion, external
@@ -81,6 +199,19 @@ completion cannot be proven transactionally. The sealed in-flight intent is
 recorded as `abandoned_after_crash`, never `ran`; retry remains a separate
 operator authorization. V1 guarantees non-overlapping starts and ledger
 serialization, not exactly-once effects in an external provider.
+
+Parent/slice lineage treats filesystem aliases as hostile input. Receipt and
+route paths are canonicalized, symlink components inside the controlled
+authority roots and hard-linked files are rejected, and recursive device/inode
+identity overlap is blocked. Both artifact sets and the planning authority are
+re-hashed and compared by physical identity at the last child-execution
+boundary, so an automation preflight alone cannot create a time-of-check/time-of-use
+permission gap.
+The resume boundary additionally reconstructs the route from the bound
+router/profile/request, requires its plan at the deterministic state path, and
+rechecks final and owner receipts even for an already-complete run. Deleting or
+re-signing local lineage copies cannot turn an externally lineaged journey into
+a legacy no-lineage journey.
 
 ### Project profile
 
@@ -119,6 +250,18 @@ means the operator trusts the allowlisted provider IDs and the exact
 digest-locked entrypoints. The manifest cannot lower the route's capability or
 strength requirements.
 
+Each custom Node entrypoint and every explicit local dependency must be a
+caller-owned, single-link regular file no larger than 512 KiB per module.
+KillSlopRouter pins the complete graph's bytes, digests, and physical identities
+when loading the manifest, rechecks them at the final child boundary, and starts
+Node through a descriptor-fed sealed-graph loader. Replacement bytes at the
+original paths are therefore never selected. Exact bundled package assets are a
+bounded exception because global and content-addressed installers may make them
+root-owned or hard-linked. They remain restricted to the packaged root and are
+still content/graph-digest locked with their observed physical identity. This
+exception never applies to project profiles, approvals, manual evidence, or
+custom executable adapters.
+
 ### CI workflow
 
 Pull-request code executes in CI, but the workflow has read-only repository
@@ -138,9 +281,19 @@ publication, or release authority.
 The child is trusted code running with the operating-system privileges of the
 KillSlopRouter process. The host fixes the Node executable, disables shell
 interpretation, removes profile arguments, reduces the environment, enforces a
-timeout, and confines accepted evidence paths. It does not provide an OS or
-network sandbox. Run third-party adapters in a container, VM, or restricted CI
-worker when the entrypoint itself is not fully trusted.
+timeout, rechecks the complete local module graph, and executes its
+manifest-time bytes through a descriptor-fed sealed loader. It confines
+accepted evidence paths and snapshots the output root's
+real path and filesystem identity across execution and rejects symlink
+components, hard-linked regular evidence, special files, root replacement, and
+physical escape. It does not provide an OS or network sandbox. Run third-party
+adapters in a container, VM, or restricted CI worker when the entrypoint itself
+is not fully trusted.
+
+The official Playwright private seal covers `playwright-core` and `axe-core`,
+not the selected browser executable or its shared libraries. Channel and
+observed version are provenance only. A threat model that includes browser
+binary substitution requires a pinned image or external binary attestation.
 
 ### Official Codex review boundary
 
@@ -162,6 +315,11 @@ actor to the JSONL thread ID, and rechecks artifact and runtime locks before
 execution. It rechecks artifact locks after execution before result ingestion.
 Authentication/runtime/skill absence is `manual_pending`; changed locked bytes
 or invalid output block.
+
+Manifest validation does not create a private runtime copy per provider. It
+checks the configured source identities and caches only the resulting readiness
+probe under those identities. The private clone is deferred to the actual
+adapter child, where it is created and reverified for that execution.
 
 This is not a container boundary. The nested runtime uses Codex's platform
 read-only sandbox, which prevents writes but may permit reads outside the
@@ -199,8 +357,16 @@ server's build attestation to the packet and blocks accidental or stale-build
 mixups. It does not cryptographically prove that an actively malicious server
 derived every response byte from that artifact; use a signed build attestation
 when that attacker is in scope. The adapter entrypoint, complete npm runtime
-package directories, scenario file, and visual baseline directory are
-independently digest-locked. A mismatch blocks before evidence ingestion.
+package directories, scenario file, and visual baseline directory are bound by
+content and physical identity. The executable runtime is restricted to the
+bundled trust boundary. Immediately before child spawn the parent copies only
+the pinned `playwright-core` and `axe-core` trees to a private mode-`0700`
+runtime, rechecks the source, and binds the seal identity in child authority.
+The child hashes and loads that seal before network access or browser launch.
+Parent-pinned scenario and baseline bytes are sealed in
+the child request, confirmed once more before spawn, and consumed from memory
+instead of mutable project paths. Baselines are flat safe PNG files with a
+64 MiB aggregate handoff cap. A mismatch blocks before evidence ingestion.
 
 Visual baselines are compared byte-for-byte first. A byte mismatch then uses
 Playwright's antialias-aware pixelmatch comparator with its standard `0.2`
@@ -246,13 +412,38 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Threat | Control |
 |---|---|
 | Child critic is presented as the selected workflow | Digest-bound parent identity stays KillSlopRouter; child provider metadata is internal-only and presentation regressions cover correction and resume wording |
+| Forged plugin or legacy-shim marker claims the parent identity | Canonical readiness requires trusted payload/runtime/skill digests and a deterministic marker with no self-asserted provenance fields; legacy readiness additionally binds the exact shim and shaped backup to the actually installed canonical marker/payload/runtime/skill digests. Orphaned or self-consistent arbitrary markers remain conflicts. |
 | Legacy local router wins catalog precedence | Installer and doctor detect the duplicate; only an explicit backup-bound, implicit-disabled shim migration clears the conflict |
 | State is re-signed with another parent before resume | Step receipts, audit, packets, approval, and migration receipt must all match the same identity before another child runs |
+| State and its local anchors are coherently re-signed to another route | Resume requires the caller-retained original authority digest before trusting state-selected router/profile paths, then reconstructs and compares the complete route and audit enforcement graph |
+| A lineaged run crashes after its first state but before `plan.json` | The version-5 start receipt binds the full initial plan-authority digest, including planning receipt and lineage; recovery refuses a changed replan before plan, ledger, or child commit |
+| A re-signed state deletes completed initialization pointers to replay children | Normal resume always rejects unbound canonical plan/audit/packet sidecars and fixed initialization receipts. Only the current stale-lease recovery may revalidate and seal them, and its version-3 receipt binds the root stale lease, recovered state, deterministic anchor IDs, and initialization graph digest; an older unrelated receipt grants nothing. |
+| State bindings and every mutable initialization anchor are deleted together | Before any child starts, `<run-id>.initialization.json` commits the immutable initialization graph outside `<state>.d/`. Resume requires the caller-retained file and exact state cross-binding; only the active stale lease may adopt an orphan created by a crash. |
+| A child deletes or replaces caller-visible start/initialization authority | The entire `<state>.authorities/` tree is recursively snapshotted before spawn and reverified after exit. Any change leaves `in_flight` unresolved and the lease held; no attempt/result is accepted. |
+| A parsed router, profile, plan, owner, visual, phase, migration, recovery, final, or browser-scenario JSON path is replaced between digest and parse | One read-only descriptor supplies both parsed bytes and SHA-256; inode/path revalidation rejects replacement before a gate, resume, recovery, or reviewer child can proceed. |
+| Profile, visual authority/evidence, or reviewed artifact changes after audit initialization | The parent re-pins every file authority and artifact immediately before each reviewer spawn; changed content or inode/path identity blocks without starting the child. Historical completed observations retain their sealed receipts instead of requiring the old live artifact to remain at its former path. |
+| Playwright settings validate relative to one directory but the child resolves them from another | Host-relative paths are normalized in the parent; the runtime must be bundled, and exact parent-pinned scenario/baseline bytes cross in a digest-bound child authority. The child never reopens those project paths. |
+| Standalone audit creator actor and ledger are coherently re-signed | Dispatch, record, triage, status, and finalization require the caller-retained audit authority; finalization reconstructs source results and revalidates reviewer independence |
+| A valid child result is replayed into another run or parent baseline | Result schema and ingestion require the exact run ID, packet digest, journey identity, internal participant, and optional lineage digest from the dispatch packet |
+| Modern state strips identity fields to enter legacy migration | Migration requires a byte-identical external backup, a positively supported historical router digest, and matching captured state/plan/audit fingerprints; an allowlisted router digest alone is insufficient |
+| Migration crashes after writing rebound sidecars | Migration is copy-on-write: new plan/audit/packet/receipt files are staged under a bound transaction directory and only the state pointer commits; active legacy sources remain byte-identical before commit |
+| Migration receipt or backup provenance is redirected | The caller-retained resume authority includes the migration authority, external backup path/digest, retained legacy sidecar digests, capture fingerprints, and transaction directory |
+| Re-signed state redirects plan, audit, packets, final, or a phase receipt outside `<state>.d/` | Resume reconstructs the authority-bound canonical parent path contract, rejects the redirect before child spawn or ledger write, and independently includes the active audit ledger in the child-boundary snapshot |
+| A newer feature version silently becomes the product parent | Optional planning lineage fixes the relationship to `slice-of`; version strings have no precedence and `supersedes_parent` must remain `false` |
+| Parent or slice bytes change after lineage planning | Both artifact sets, the exact routed candidate set, state, packets, child requests, phase receipts, and owner scope share one lineage digest and are reverified before child execution |
+| Lineage bypasses G7, or G7 approves/promotes a different slice | Declaring lineage adds G7 to every effective route requirement; `approved-artifact` evidence must exactly equal the candidate set, and separate owner evidence binds the lineage ID, digest, complete candidate, candidate-only decision scope, and `parent_promotion: false` |
 | Two start/resume/migrate calls use one state | Atomic state-path lease acquisition precedes every mutation and child spawn; the loser exits `5` |
 | Dead or reused PID causes the wrong lease decision | No automatic deletion; recovery requires the exact token, timestamp, bound state digest, recovery deadline, and PID-bound OS process-start identity |
 | Orchestrator dies while a child is running | Sealed in-flight intent becomes a receipt-bound `abandoned_after_crash` attempt and requires explicit retry |
 | Crash lands between lease and state-file digest writes | Current and pending digests bind the two-phase transition; recovery accepts only the actual bound value |
 | State prepare succeeds but file replacement or lease commit fails | Normal release refuses `state-write` and every non-null pending digest, preserving the recovery boundary |
+| Recovery tuple is copied from `lease status` without journey authority | A modern state is fully verified against the original caller-retained `resume_authority_digest` before the stale lease can be claimed or the ledger changed |
+| Initial `--out`, router, or profile path crosses a pre-existing symlink ancestor | Trusted-root physical resolution and component checks run before lease/state creation; the run writes no parent state through the redirected path |
+| An ancestor is swapped after writable-path preflight | Secure directory creation and atomic JSON replacement bind parent and temp-file device/inode identities and recheck at every write/commit boundary; deterministic after-preflight and pre-commit fault injections leave redirect targets empty |
+| Standalone audit ledger, packet, or receipt `--out` path crosses a symlink ancestor | Initialization preflights both ledger and packet roots; dispatch rechecks the root and each generated file; ledger mutations require a real single-link run file; symlink targets remain untouched; stdout remains an intentionally pipeable caller-controlled transport |
+| `run --dry-run --out` or `digest --out` crosses a pre-existing symlink ancestor | The common explicit-output preflight rejects the path before writing and leaves the redirected target empty; stdout remains caller-controlled transport |
+| Child swaps its evidence root after returning success | Execution binds physical grant/output identities; audit ingestion rechecks them and every evidence tree immediately around the digest snapshot |
+| A pre-existing symlink ancestor redirects evidence writes | Every component from the automation-state grant to packet output is checked before and after directory creation; symlink ancestors block before child spawn |
 | Operator/ERP artifact routed as a consumer product | Required artifact-root surface contract resolves before creator selection; ambiguity, CLI mismatch, and mixed-surface runs block |
 | Surface contract changed after planning | Plan records the profile digest; audit and resume re-hash the same profile source |
 | Anti-slop critique laundered into a paper/editorial house style | Surface and visual intent are separate; editorial treatment requires a verified `bounded` or `required` contract and an independent intent review |
@@ -267,16 +458,21 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Palette harmony is treated as owner approval | OKLCH/HCT and harmony metadata are generation evidence only; independent color review and exact owner approval remain required |
 | Marketing palette leaks into an operator product | Signatures are keyed and verified per routed surface; cross-surface evidence is not merged implicitly |
 | Visual-signature receipt or evidence replaced | Profile, audit, approval scope, and final receipt bind and re-hash the complete signature chain |
+| Final receipt points only to a display path | The final audit receipt retains the canonical plan `resolved_path` and digest; receipts are local security artifacts, so publish a separately redacted, non-authoritative report instead of rewriting the signed receipt |
+| Child redirects parent `results/`, `receipts/`, plan, audit, or state paths before ingestion | The parent snapshots the complete state/sidecar tree outside the one attempt output grant, rechecks physical identities and digests immediately after the child exits, writes nothing through a changed tree, and keeps the state lease unresolved for explicit recovery |
+| Re-signed audit redirects an automated result or evidence to an external copy | Every result-bearing automated attempt retains its physical grant/output identity; resume requires the audit source to equal the latest recorded result and re-snapshots every evidence item through that exact boundary before any child or ledger write |
+| Approval, scanner triage, or manual review is supplied from child-writable state | Integrated start/resume accepts only an invoking-user-owned, non-group/world-writable, symlink-free, single-link regular file outside the state file and `.d/` tree; a pinned read-only descriptor must retain one identity through parse, or the input exits with integrity code 4 before initial state creation, acceptance, or another child start |
+| Legacy migration stages through a pre-existing `identity-migrations` symlink | The transaction path is physically preflighted against the canonical state directory before its first directory or sidecar write |
 | Profile command injection | Execution fields are rejected; the executor never reads a profile command |
 | CI action tag substitution | Checkout and Node setup actions use immutable full commit SHAs under read-only workflow permissions |
 | Vulnerable or stale dependency silently lands | Dependabot proposes npm and Actions updates; production high-severity advisories fail CI; every proposal still requires normal review |
 | Unapproved provider execution | Provider ID must be in the explicit host allowlist |
-| Entrypoint substitution | Regular non-symlink file plus exact SHA-256 digest |
+| Entrypoint or imported-helper substitution | Exact entrypoint and module-graph digests; every explicit local module is content/physical-identity checked immediately before spawn and loaded from descriptor-fed sealed bytes |
 | Shell injection | Fixed Node executable, fixed single entrypoint argument, `shell:false` |
 | Project selects a nested Codex command | Only `host configure-codex` can bind the bundled bridge; runtime, root, model, schema, and skill settings are strictly validated and digest-locked |
 | Codex reviewer reuses the creator session | Every packet starts one fresh ephemeral thread; result actor identity is derived from its JSONL thread ID and the ledger still checks provider/actor independence |
 | Missing Codex auth or runtime reported as execution | Readiness and nested preflight return explicit `manual_pending`; no result is ingested and no attempt is labeled `ran` |
-| Codex runtime, skill, or schema substitution | Complete roots and individual executable/schema/entrypoint files are digest-checked at configuration, manifest load, and child execution |
+| Codex runtime, skill, schema, or adapter dependency substitution | Complete roots and individual executable/schema files plus the full local adapter module graph are content- and physical-identity checked. The runtime root is privately cloned, rechecked around the copy and immediately before spawn, and only the sealed binary and sealed adapter graph execute. |
 | Codex reviewer mutates or expands authority | Read-only sandbox, fixed capability set, forbidden event rejection, and separate scanner/browser/design/owner gates |
 | Artifact prompt injection biases a model verdict | Treat the response as a bounded critic claim; retain independent stages, conflict adjudication, deterministic evidence, and owner authority |
 | Capability downgrade | Runtime declaration must cover the packet assignment and minimum strength |
@@ -297,6 +493,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Browser data exfiltration | Loopback default, explicit external-network authority, and per-request origin blocking |
 | Static design prototype reads mutable or unrelated resources | Official design Playwright requires one self-contained digest-bound HTML file; only that exact `file:` URL plus `data:`, `blob:`, and `about:` are allowed, while all other local and network requests are blocked |
 | Artifact or evidence replacement | SHA-256 snapshots are rechecked at finalization and resume |
+| Lexically in-root evidence escapes through a symlink or hard link | The child output root, its implicit or explicit grant, every ancestor, and every evidence component are checked by real path plus lossless device/inode identity; only verified root-owned macOS `/tmp` and `/var` aliases are canonicalized, while other symlinks, multi-link regular files, special files, and root replacement are rejected |
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
 | Approval reuse | Approval must match the run ID, journey identity, and exact approval-scope digest |
 | Privacy or authority bypass | Required locale, domain, privacy, browser, and owner packets remain required |

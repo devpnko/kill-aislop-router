@@ -5,14 +5,19 @@
   "type": "object",
   "required": [
     "state_lease_recovery_receipt_version", "status", "run_id", "journey_identity",
-    "state_path", "recovered_at", "recovered_lease", "abandoned_attempt", "receipt_digest"
+    "resume_authority_digest",
+    "state_path", "recovered_at", "recovered_lease", "abandoned_attempt",
+    "initialization_reconciliation", "receipt_digest"
   ],
   "properties": {
-    "state_lease_recovery_receipt_version": {"const": 1},
+    "state_lease_recovery_receipt_version": {"const": 3},
     "status": {"const": "recovered"},
     "run_id": {"type": ["string", "null"]},
     "journey_identity": {
       "oneOf": [{"type": "null"}, {"$ref": "journey-identity.schema.json"}]
+    },
+    "resume_authority_digest": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]
     },
     "state_path": {"type": "string", "minLength": 1},
     "recovered_at": {"type": "string", "format": "date-time"},
@@ -38,6 +43,64 @@
       "additionalProperties": false
     },
     "abandoned_attempt": {"type": ["object", "null"]},
+    "initialization_reconciliation": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": [
+            "initialization_reconciliation_version", "previous_state_digest",
+            "reconciled_anchor_ids", "reconciled_steps", "initialization_authority",
+            "reconciled_initialization_graph_digest"
+          ],
+          "properties": {
+            "initialization_reconciliation_version": {"const": 3},
+            "previous_state_digest": {"$ref": "#/$defs/digest"},
+            "reconciled_anchor_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "plan-sidecar", "plan-receipt",
+                  "planning-verification-receipt", "audit-sidecar",
+                  "audit-init-receipt", "packets-sidecar", "dispatch-receipt"
+                ]
+              }
+            },
+            "reconciled_steps": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": ["plan", "planning-verification", "audit-init", "dispatch"]
+              }
+            },
+            "initialization_authority": {
+              "type": "object",
+              "required": ["status", "snapshot"],
+              "properties": {
+                "status": {"const": "bound"},
+                "snapshot": {
+                  "type": "object",
+                  "required": [
+                    "path", "digest", "receipt_digest", "initialization_graph_digest"
+                  ],
+                  "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "digest": {"$ref": "#/$defs/digest"},
+                    "receipt_digest": {"$ref": "#/$defs/digest"},
+                    "initialization_graph_digest": {"$ref": "#/$defs/digest"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "reconciled_initialization_graph_digest": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "receipt_digest": {"$ref": "#/$defs/digest"}
   },
   "$defs": {

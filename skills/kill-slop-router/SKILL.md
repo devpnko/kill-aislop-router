@@ -71,6 +71,7 @@ override the verified visual intent and signature.
 13. For an existing UI improvement, follow `<plugin-root>/docs/existing-ui-closed-loop.md`: before any edit, complete a runtime `task audit` through execution, result ingest, scanner triage, conflict adjudication, and finalization. The browser result must come from the official Playwright child adapter and cover every required scenario × viewport. Use that state as `--observation-run` for the later runtime `task redesign`; a manual/custom browser result cannot substitute.
 14. Start each `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID. Resume the same state until it is complete or an exact external action is required.
 15. Never overlap `run --out`, `run --resume`, or identity migration for the same state. An active state lease is a hard blocker. After a real orchestrator crash, inspect it with `lease status`; recover only with the exact owner token, acquisition timestamp, and state digest after `recover_after`. If recovery records `abandoned_after_crash`, require an explicit packet/provider/stage retry and never report the unknown child as `ran`.
+16. Retain the `resume_authority_digest` printed by a modern start outside the mutable state directory. Every integrated `run --resume` must pass that original value with `--authority-digest`. Never obtain a replacement value from the state being verified; if the original caller-held value is unavailable, fail closed and start a new journey from verified sources. The evidence-free `--migrate-identity` path is the only legacy bridge: it requires a byte-identical pre-mutation state backup outside the state directory plus that backup file's caller-retained SHA-256, accepts only a positively supported historical source and exact pre-identity shape, and emits a new resume authority for later resumes. Retain the backup because migration verification remains bound to it.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.
@@ -82,8 +83,11 @@ When the user gives only a short request such as `KillSlopRouter로 ./src 전체
 currently eligible stage without asking the user to restate CLI flags.
 
 1. Reuse a matching active automation state below `.killsloprouter/`; resume it
-   instead of starting a duplicate run. Ask only when multiple active states make
-   the intended artifact ambiguous.
+   instead of starting a duplicate run, but only with the original caller-held
+   resume authority. Ask only when multiple active states make the intended
+   artifact ambiguous. If a modern state's authority value is unavailable, do
+   not derive it from that state; report the blocker and start over only when
+   the owner has authorized a new journey.
 2. Read external planning, visual-intent, and visual-signature evidence. If product intent,
    artifact scope, visual character, exact signature, editorial boundary, or the required
    planning receipt is absent, stop with the exact missing evidence. Do not
@@ -91,6 +95,13 @@ currently eligible stage without asking the user to restate CLI flags.
    When product evidence is sufficient but visual direction is not, offer or
    resume the design exploration instead of routing directly to a generic taste
    creator. Preserve all owner stops.
+   When planning declares `baseline_lineage`, keep the original all-product
+   parent and the newer scoped candidate together: route only the exact slice
+   artifact set, make exact G7 owner scope binding mandatory, preserve named
+   inherited dimensions, and never promote the candidate by version number.
+   The G7 decision must be `candidate-slice-binding` with
+   `parent_promotion: false`. Parent replacement requires a separate all-scope
+   planning proposal and explicit owner authority.
 3. For an existing UI improvement, collect and finalize the official pre-change
    runtime observation before changing any artifact. Then verify the redesign
    route with that `--observation-run` and hand the exact artifact plus both
@@ -164,6 +175,9 @@ editorial may describe evidence but never choose concrete values by themselves.
 - Treat service planning as an external authority. Read its gate receipt; do
   not recreate PRD, UAC, IA, ERD, or owner approval inside this router.
 - Run `systemize` only after G6T and exact G7 approval evidence pass.
+- Preserve a verified parent/slice `baseline_lineage` through state, packets,
+  child requests, receipts, and owner scope. Parent or candidate tamper and any
+  `supersedes_parent: true` slice declaration fail closed.
 
 ## Run contract
 
@@ -172,7 +186,7 @@ editorial may describe evidence but never choose concrete values by themselves.
 3. Require every stage to be `ready_primary` or `ready_with_fallback` before execution.
 4. Execute only adapters accepted by the explicit host manifest.
 5. On `manual_pending`, use the emitted packet and a genuinely separate reviewer. If this session created the artifact, it must not author or approve that review result.
-6. Ingest manual results with `run --resume ... --result`; they remain `manual_recorded`, never `ran`.
+6. Ingest manual results with `run --resume ... --authority-digest ... --result`; they remain `manual_recorded`, never `ran`.
 7. Classify every scanner candidate before adjudication. A clean scan cannot replace visual-intent/signature review. Resolve referenced critic conflicts without score averaging; the critic cannot override the exact signature.
 8. Require browser screenshots plus non-screenshot check evidence when the packet requests them. For scoped UI work, verify every required scenario × viewport and preserve the same inventory before and after implementation.
 9. Ask the real owner for the generated approval scope. Never manufacture approval.

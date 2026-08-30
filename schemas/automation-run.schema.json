@@ -22,15 +22,73 @@
     "automation_run_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
     "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "baseline_lineage": {"$ref": "baseline-lineage.schema.json"},
+    "resume_authority_digest": {"$ref": "#/$defs/digest"},
+    "resume_authority_receipt": {"$ref": "#/$defs/receipt_snapshot"},
+    "initialization_authority_receipt": {
+      "$ref": "#/$defs/initialization_authority_snapshot"
+    },
     "status": {"enum": ["running", "manual_pending", "blocked", "complete"]},
     "created_at": {"type": "string", "format": "date-time"},
     "updated_at": {"type": "string", "format": "date-time"},
     "state_path": {"type": "string", "minLength": 1},
     "state_directory": {"type": "string", "minLength": 1},
-    "request": {"type": "object"},
-    "paths": {"type": "object"},
+    "request": {
+      "type": "object",
+      "required": [
+        "router_path", "router_digest", "router_physical_identity_digest",
+        "profile_path", "profile_digest", "profile_physical_identity_digest", "root",
+        "input", "artifacts", "artifact_digests", "artifact_physical_identity_digests",
+        "scope", "creator_actor_id",
+        "initial_plan_authority_digest", "observation_run_path"
+      ],
+      "properties": {
+        "router_path": {"type": "string", "minLength": 1},
+        "router_digest": {"$ref": "#/$defs/digest"},
+        "router_physical_identity_digest": {"$ref": "#/$defs/digest"},
+        "profile_path": {"type": ["string", "null"]},
+        "profile_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+        "profile_physical_identity_digest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "root": {"type": "string", "minLength": 1},
+        "input": {"type": "object"},
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "artifact_digests": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/digest"}
+        },
+        "artifact_physical_identity_digests": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/digest"}
+        },
+        "scope": {"enum": ["mockup", "runtime", "source", "document"]},
+        "creator_actor_id": {"type": ["string", "null"]},
+        "initial_plan_authority_digest": {"$ref": "#/$defs/digest"},
+        "observation_run_path": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "paths": {
+      "type": "object",
+      "properties": {
+        "plan": {"$ref": "#/$defs/path_snapshot"},
+        "audit": {"$ref": "#/$defs/path_snapshot"},
+        "packets": {"$ref": "#/$defs/path_snapshot"},
+        "final": {"$ref": "#/$defs/path_snapshot"},
+        "approval": {"$ref": "#/$defs/approval_source_snapshot"}
+      },
+      "additionalProperties": false
+    },
     "steps": {"type": "object"},
-    "attempts": {"type": "array", "items": {"type": "object"}},
+    "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
     "in_flight": {
       "oneOf": [
         {"type": "null"},
@@ -48,10 +106,14 @@
         {"type": "null"},
         {
           "type": "object",
-          "required": ["path", "digest", "receipt_digest"],
+          "required": ["authority", "path", "digest", "physical_identity_digest", "receipt_digest"],
           "properties": {
+            "authority": {
+              "$ref": "identity-migration-receipt.schema.json#/$defs/migration_authority"
+            },
             "path": {"type": "string", "minLength": 1},
             "digest": {"$ref": "#/$defs/digest"},
+            "physical_identity_digest": {"$ref": "#/$defs/digest"},
             "receipt_digest": {"$ref": "#/$defs/digest"}
           },
           "additionalProperties": false
@@ -73,6 +135,31 @@
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "physical_identity_marker": {
+      "anyOf": [
+        {"type": "string", "pattern": "^(0|[1-9][0-9]*)$"},
+        {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      ]
+    },
+    "path_snapshot": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "approval_source_snapshot": {
+      "type": "object",
+      "required": ["path", "digest", "physical_identity_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
     "receipt_snapshot": {
       "type": "object",
       "required": ["path", "digest", "receipt_digest"],
@@ -80,6 +167,114 @@
         "path": {"type": "string", "minLength": 1},
         "digest": {"$ref": "#/$defs/digest"},
         "receipt_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "initialization_authority_snapshot": {
+      "type": "object",
+      "required": [
+        "path", "digest", "receipt_digest", "initialization_graph_digest"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "receipt_digest": {"$ref": "#/$defs/digest"},
+        "initialization_graph_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "public_snapshot": {
+      "type": "object",
+      "required": ["path", "kind", "bytes", "digest", "physical_identity_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["file", "directory"]},
+        "bytes": {"type": ["integer", "null"], "minimum": 0},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "directory_identity": {
+      "type": "object",
+      "required": ["lexical_path", "real_path", "device", "inode"],
+      "properties": {
+        "lexical_path": {"type": "string", "minLength": 1},
+        "real_path": {"type": "string", "minLength": 1},
+        "device": {"$ref": "#/$defs/physical_identity_marker"},
+        "inode": {"$ref": "#/$defs/physical_identity_marker"}
+      },
+      "additionalProperties": false
+    },
+    "evidence_boundary": {
+      "type": "object",
+      "required": ["lexical_path", "real_path", "device", "inode", "grant"],
+      "properties": {
+        "lexical_path": {"type": "string", "minLength": 1},
+        "real_path": {"type": "string", "minLength": 1},
+        "device": {"$ref": "#/$defs/physical_identity_marker"},
+        "inode": {"$ref": "#/$defs/physical_identity_marker"},
+        "grant": {"$ref": "#/$defs/directory_identity"}
+      },
+      "additionalProperties": false
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "packet_id", "provider_id", "participant", "adapter", "host_manifest_digest",
+        "attempt", "execution_status", "recorded_at", "result_path", "result_digest",
+        "ingest_status"
+      ],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
+        "adapter": {"type": ["string", "null"]},
+        "adapter_entrypoint": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/public_snapshot"}
+          ]
+        },
+        "host_manifest_digest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "permission_scopes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "strength": {"type": ["integer", "null"], "minimum": 1, "maximum": 4},
+        "capabilities": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "attempt": {"type": "integer", "minimum": 1},
+        "execution_status": {
+          "enum": [
+            "ran", "manual_pending", "manual_recorded", "blocked_execution_error",
+            "abandoned_after_crash"
+          ]
+        },
+        "started_at": {"type": "string", "format": "date-time"},
+        "finished_at": {"type": "string", "format": "date-time"},
+        "child_pid": {"type": ["integer", "null"], "minimum": 1},
+        "exit_code": {"type": ["integer", "null"]},
+        "signal": {"type": ["string", "null"]},
+        "metadata": {"type": "object"},
+        "reason": {"type": "string", "minLength": 1},
+        "error": {"type": "string", "minLength": 1},
+        "recorded_at": {"type": "string", "format": "date-time"},
+        "result_path": {"type": ["string", "null"]},
+        "result_digest": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "ingest_status": {"enum": ["recorded", "rejected", "not-recorded"]},
+        "evidence_boundary": {"$ref": "#/$defs/evidence_boundary"},
+        "recovery_receipt_digest": {"$ref": "#/$defs/digest"}
       },
       "additionalProperties": false
     },

@@ -34,4 +34,5 @@ jobs:
         timeout-minutes: 10
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run check
+      - run: npm run test:e2e
       - run: npm run pack:check

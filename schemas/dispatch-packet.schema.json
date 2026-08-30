@@ -27,6 +27,7 @@
       "additionalProperties": true
     },
     "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "baseline_lineage": {"$ref": "baseline-lineage.schema.json"},
     "participant": {"$ref": "participant.schema.json"},
     "assigned_capabilities": {
       "type": "array",

@@ -15,6 +15,7 @@ import {
 import { loadHostManifest } from "../src/execution.mjs";
 import { hashArtifact } from "../src/integrity.mjs";
 import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
+import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = path.join(root, "test", "fixtures", "design-host-adapter.mjs");
@@ -36,6 +37,7 @@ function provider(adapter, capabilities, strength, permissions, settings = {}) {
     adapter,
     entrypoint: fixture,
     entrypoint_digest: hashArtifact(fixture),
+    entrypoint_graph_digest: sealedEntrypointGraphDigest(fixture),
     capabilities,
     strength,
     permissions,

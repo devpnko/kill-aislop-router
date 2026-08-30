@@ -28,7 +28,7 @@
     },
     "recover_after": {"type": "string", "format": "date-time"},
     "recovered_from": {
-      "oneOf": [{"type": "null"}, {"type": "object"}]
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/recovery_origin"}]
     },
     "lease_digest": {"$ref": "#/$defs/digest"}
   },
@@ -58,6 +58,30 @@
         "provider_id": {"type": "string", "minLength": 1},
         "attempt": {"type": "integer", "minimum": 1},
         "marked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "recovery_origin": {
+      "type": "object",
+      "required": [
+        "lease_digest", "owner_token_digest", "owner_pid", "owner_process_identity",
+        "acquired_at", "operation", "phase", "state_digest", "active_packet",
+        "recover_after", "recovery_started_at"
+      ],
+      "properties": {
+        "lease_digest": {"$ref": "#/$defs/digest"},
+        "owner_token_digest": {"$ref": "#/$defs/digest"},
+        "owner_pid": {"type": "integer", "minimum": 1},
+        "owner_process_identity": {"$ref": "#/$defs/process_identity"},
+        "acquired_at": {"type": "string", "format": "date-time"},
+        "operation": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "state_digest": {"$ref": "#/$defs/state_digest"},
+        "active_packet": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/active_packet"}]
+        },
+        "recover_after": {"type": "string", "format": "date-time"},
+        "recovery_started_at": {"type": "string", "format": "date-time"}
       },
       "additionalProperties": false
     }

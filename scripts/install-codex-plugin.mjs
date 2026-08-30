@@ -7,27 +7,14 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { inspectSkillCatalog, migrateLegacySkillEntry } from "../src/skill-catalog.mjs";
+import {
+  createPluginInstallMarker,
+  inspectSkillCatalog,
+  migrateLegacySkillEntry,
+  PLUGIN_BUNDLE_ENTRIES
+} from "../src/skill-catalog.mjs";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BUNDLE_ENTRIES = [
-  ".codex-plugin",
-  "bin",
-  "src",
-  "router",
-  "schemas",
-  "registry",
-  "skills",
-  "scripts",
-  "docs",
-  "examples",
-  "package.json",
-  "README.md",
-  "SECURITY.md",
-  "LICENSE",
-  "THIRD_PARTY.md",
-  "CHANGELOG.md"
-];
 const MARKER = ".killsloprouter-plugin-installed.json";
 const RUNTIME_PACKAGES = ["axe-core", "playwright-core"];
 const requireFromSource = createRequire(path.join(sourceRoot, "package.json"));
@@ -104,7 +91,7 @@ function nextMarketplace(file) {
 }
 
 function copyBundle(target, { force }) {
-  for (const entry of BUNDLE_ENTRIES) {
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
     if (!fs.existsSync(path.join(sourceRoot, entry))) throw new Error(`plugin bundle is missing ${entry}`);
   }
   if (fs.existsSync(target)) {
@@ -119,7 +106,7 @@ function copyBundle(target, { force }) {
   fs.mkdirSync(staging, { recursive: false });
   let backup = null;
   try {
-    for (const entry of BUNDLE_ENTRIES) {
+    for (const entry of PLUGIN_BUNDLE_ENTRIES) {
       fs.cpSync(path.join(sourceRoot, entry), path.join(staging, entry), {
         recursive: true,
         errorOnExist: true,
@@ -145,13 +132,10 @@ function copyBundle(target, { force }) {
       version: "1.0.0"
     });
     const packageJson = readJson(path.join(sourceRoot, "package.json"), "package metadata");
-    writeJsonAtomic(path.join(staging, MARKER), {
-      name: "killsloprouter",
-      version: packageJson.version,
-      installed_by: "scripts/install-codex-plugin.mjs",
-      installed_at: new Date().toISOString(),
-      source: sourceRoot
-    });
+    writeJsonAtomic(path.join(staging, MARKER), createPluginInstallMarker({
+      root: staging,
+      version: packageJson.version
+    }));
 
     if (fs.existsSync(target)) {
       const backupRoot = path.join(path.dirname(target), ".killsloprouter-backups");
@@ -215,12 +199,24 @@ function main() {
   const marketplaceValue = nextMarketplace(marketplace);
   const isDefaultHome = installHome === path.resolve(os.homedir());
   const catalogBefore = inspectSkillCatalog({ home: installHome, assumeCanonical: true });
-  if (catalogBefore.identity_conflict && !args.migrateLegacyEntry) {
+  const canonicalBlocked = catalogBefore.canonical.status === "unsafe-or-incomplete" ||
+    (catalogBefore.canonical.status === "refresh-required" && !args.force);
+  const legacyConflict = ["full-entry", "invalid-shim", "refresh-required-shim", "unsafe"].includes(
+    catalogBefore.legacy.status
+  );
+  const legacyBlocked = legacyConflict && !args.migrateLegacyEntry;
+  if (canonicalBlocked || legacyBlocked) {
     process.stdout.write(`${JSON.stringify({
       ok: false,
       status: "identity_conflict",
       skill_catalog: catalogBefore,
-      next: catalogBefore.migration.command
+      next: catalogBefore.canonical.status === "refresh-required"
+        ? (legacyBlocked
+            ? "killsloprouter plugin install --force --migrate-legacy-entry"
+            : "killsloprouter plugin install --force")
+        : canonicalBlocked
+          ? "move the unverified canonical plugin aside, then reinstall"
+        : catalogBefore.migration.command
     }, null, 2)}\n`);
     process.exitCode = 5;
     return;

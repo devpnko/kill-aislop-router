@@ -6,6 +6,7 @@ import {
   canonicalDigest,
   hashArtifact,
   publicSnapshot,
+  readJsonPinned,
   snapshotArtifact,
   verifySnapshot,
   writeJsonAtomic
@@ -16,7 +17,6 @@ import {
   VALID_SURFACES,
   VALID_VISUAL_DEPTH,
   VALID_VISUAL_ENERGY,
-  readJson,
   resolveVisualIntent,
   resolveVisualSignature,
   validateVisualIntentContract,
@@ -43,6 +43,30 @@ export const DESIGN_RESULT_KINDS = new Set([
 
 const ZERO_DIGEST = `sha256:${"0".repeat(64)}`;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function readPinnedDesignJson(target, label) {
+  try {
+    return readJsonPinned(target, { label });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+}
+
+function pinnedDesignSnapshot(pinned, root) {
+  const absoluteRoot = path.resolve(root || process.cwd());
+  const relative = path.relative(absoluteRoot, pinned.path);
+  const display = relative && !relative.startsWith("..") && !path.isAbsolute(relative)
+    ? relative.split(path.sep).join("/")
+    : (!relative ? "." : pinned.path);
+  return {
+    path: display,
+    resolved_path: pinned.path,
+    kind: "file",
+    bytes: pinned.bytes,
+    digest: pinned.digest,
+    physical_identity_digest: pinned.physical_identity_digest
+  };
+}
 const HEX_PATTERN = /^#[0-9A-F]{6}$/;
 const CSS_TOKEN_PATTERN = /^--[a-z0-9][a-z0-9-]*$/;
 const DESIGN_EVIDENCE_KINDS = new Set([
@@ -921,7 +945,7 @@ function snapshotResultEvidence(result, root) {
   }));
 }
 
-function recordResult(state, packet, input, sourcePath) {
+function recordResult(state, packet, input, sourcePath, sourceSnapshotOverride = null) {
   requireValue(!resultForPacket(state, packet.packet_id),
     `design result already exists for packet: ${packet.packet_id}`, 4);
   const absoluteSource = path.resolve(sourcePath);
@@ -931,7 +955,7 @@ function recordResult(state, packet, input, sourcePath) {
     provider_id: packet.provider.id,
     participant: structuredClone(packet.participant),
     result_digest: canonicalDigest(normalized),
-    source: snapshotArtifact(absoluteSource, { root: state.state_directory }),
+    source: sourceSnapshotOverride || snapshotArtifact(absoluteSource, { root: state.state_directory }),
     evidence: snapshotResultEvidence(normalized, state.state_directory),
     normalized,
     recorded_at: nowIso()
@@ -949,7 +973,7 @@ function verifyBoundSnapshot(snapshot, label) {
 
 export function readDesignState(statePath) {
   const absolute = path.resolve(statePath);
-  const state = readJson(absolute, "design exploration run");
+  const state = readPinnedDesignJson(absolute, "design exploration run").input;
   requireValue(state.design_exploration_run_version === 1,
     "design_exploration_run_version must be 1");
   requireValue(path.resolve(state.state_path) === absolute,
@@ -1071,7 +1095,8 @@ function approvalScope(state) {
 function ingestShortlist(state, shortlistPath) {
   requireValue(!state.shortlist, "design shortlist is already recorded", 4);
   const absolute = path.resolve(shortlistPath);
-  const input = readJson(absolute, "design shortlist");
+  const pinned = readPinnedDesignJson(absolute, "design shortlist");
+  const input = pinned.input;
   exact(input, new Set([
     "design_shortlist_version", "run_id", "journey_identity", "selection_scope_digest", "owner_id",
     "candidate_ids", "rationale", "decided_at"
@@ -1096,7 +1121,7 @@ function ingestShortlist(state, shortlistPath) {
   state.shortlist = {
     normalized: structuredClone(input),
     shortlist_digest: canonicalDigest(input),
-    source: snapshotArtifact(absolute, { root: state.state_directory })
+    source: pinnedDesignSnapshot(pinned, state.state_directory)
   };
   writeState(state);
 }
@@ -1104,7 +1129,8 @@ function ingestShortlist(state, shortlistPath) {
 function ingestApproval(state, approvalPath) {
   requireValue(!state.approval, "design owner decision is already recorded", 4);
   const absolute = path.resolve(approvalPath);
-  const input = readJson(absolute, "design owner decision");
+  const pinned = readPinnedDesignJson(absolute, "design owner decision");
+  const input = pinned.input;
   exact(input, new Set([
     "design_owner_decision_version", "run_id", "journey_identity", "approval_scope_digest", "owner_id", "status",
     "selected_design_candidate_id", "selected_color_candidate_id", "note", "decided_at"
@@ -1140,7 +1166,7 @@ function ingestApproval(state, approvalPath) {
   state.approval = {
     normalized: structuredClone(input),
     approval_digest: canonicalDigest(input),
-    source: snapshotArtifact(absolute, { root: state.state_directory })
+    source: pinnedDesignSnapshot(pinned, state.state_directory)
   };
   writeState(state);
 }
@@ -1456,9 +1482,15 @@ function runPacket(state, packet, manifest, selectors) {
     packet,
     manifest,
     attempt,
-    outputDirectory
+    outputDirectory,
+    outputGrantRoot: state.state_directory
   });
-  const { result, declaration: _declaration, ...attemptRecord } = executed;
+  const {
+    result,
+    declaration: _declaration,
+    evidence_boundary: _evidenceBoundary,
+    ...attemptRecord
+  } = executed;
   const stored = { ...attemptRecord, attempted_at: nowIso() };
   if (executed.execution_status === "ran") {
     const resultPath = path.join(outputDirectory, "design-result.json");
@@ -1507,10 +1539,16 @@ function haltForPackets(state, phase, packets) {
   }));
 }
 
-function manualEntries(resultPaths) {
+function manualEntries(resultPaths, snapshotRoot) {
   return resultPaths.map((file) => {
     const absolute = path.resolve(file);
-    return { path: absolute, input: readJson(absolute, "manual design result"), consumed: false };
+    const pinned = readPinnedDesignJson(absolute, "manual design result");
+    return {
+      path: absolute,
+      input: pinned.input,
+      source: pinnedDesignSnapshot(pinned, snapshotRoot),
+      consumed: false
+    };
   });
 }
 
@@ -1521,7 +1559,7 @@ function ingestKnownManual(state, entries) {
     if (!packet) continue;
     requireValue(!resultForPacket(state, packet.packet_id),
       `manual design result duplicates an existing packet: ${packet.packet_id}`, 4);
-    recordResult(state, packet, entry.input, entry.path);
+    recordResult(state, packet, entry.input, entry.path, entry.source);
     state.attempts.push({
       packet_id: packet.packet_id,
       provider_id: packet.provider.id,
@@ -1622,7 +1660,7 @@ export function continueDesignExploration(state, {
   state.blockers = [];
   state.pending = [];
   writeState(state);
-  const manual = manualEntries(resultPaths);
+  const manual = manualEntries(resultPaths, state.state_directory);
 
   ingestKnownManual(state, manual);
   const directionCreation = packetsOfStage(state, "design-direction-generation");
@@ -1780,7 +1818,8 @@ export function startDesignExploration({
   const absoluteBrief = path.resolve(briefPath);
   const absoluteBaseline = path.resolve(baselinePath);
   validateStateLocation(absoluteState, absoluteBaseline);
-  const brief = validateDesignBrief(readJson(absoluteBrief, "design brief"));
+  const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
+  const brief = validateDesignBrief(pinnedBrief.input);
   const runId = crypto.randomUUID();
   const state = sealState({
     design_exploration_run_version: 1,
@@ -1793,7 +1832,7 @@ export function startDesignExploration({
     state_path: absoluteState,
     state_directory: stateDirectory(absoluteState),
     brief,
-    brief_source: snapshotArtifact(absoluteBrief, { root }),
+    brief_source: pinnedDesignSnapshot(pinnedBrief, root),
     baseline: snapshotArtifact(absoluteBaseline, { root }),
     packets: [],
     packet_files: {},
@@ -1847,14 +1886,15 @@ export function dryRunDesignExploration({
 }) {
   const absoluteBrief = path.resolve(briefPath);
   const absoluteBaseline = path.resolve(baselinePath);
-  const brief = validateDesignBrief(readJson(absoluteBrief, "design brief"));
+  const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
+  const brief = validateDesignBrief(pinnedBrief.input);
   const state = {
     run_id: "dry-run",
     journey_identity: createJourneyIdentity({
       runId: "dry-run", routerId, routerVersion, invocation
     }),
     brief,
-    brief_source: snapshotArtifact(absoluteBrief, { root }),
+    brief_source: pinnedDesignSnapshot(pinnedBrief, root),
     baseline: snapshotArtifact(absoluteBaseline, { root })
   };
   const packets = [

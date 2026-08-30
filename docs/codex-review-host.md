@@ -15,7 +15,8 @@ default.
 review declaration. It writes no executable data to the project profile. For
 every selected provider it binds:
 
-- the bundled `src/adapters/codex-review.mjs` entrypoint and SHA-256 digest;
+- the bundled `src/adapters/codex-review.mjs` entrypoint, its SHA-256 digest,
+  and the complete explicit local module-graph digest;
 - the exact Codex executable and its digest;
 - the complete operator-selected runtime root and directory digest;
 - the bundled structured-output schema and digest;
@@ -116,11 +117,19 @@ killsloprouter run \
 
 ## Execution boundary
 
-For each eligible packet, KillSlopRouter starts its digest-locked Node adapter
-with `shell:false`. That adapter rechecks the runtime, runtime-root, schema,
-skill, and artifact digests immediately before starting the nested Codex
-process, then rechecks artifact digests again before accepting its output. The
+For each eligible packet, KillSlopRouter rechecks the content and physical
+identity of every module in its configured adapter graph and starts that graph
+from descriptor-fed sealed bytes with `shell:false`. The adapter rechecks the
+runtime, runtime-root, schema, skill, and artifact digests immediately before
+starting the nested Codex process, then rechecks artifact digests again before
+accepting its output. The
 nested invocation has a fixed argument list:
+
+Loading or dry-running a host manifest validates the source runtime and reuses
+a cache keyed by its content and physical identities; it does not clone the
+complete runtime once per configured provider. This readiness optimization
+does not cross the execution boundary: every actual reviewer adapter creates,
+verifies, uses, and removes its own private runtime seal.
 
 - one new `codex exec --json --ephemeral` thread per packet;
 - `--sandbox read-only` and non-interactive `approval_policy="never"`;
@@ -162,12 +171,21 @@ reviewer context without copying credential bytes into router artifacts or
 receipts. If the isolated auth link cannot be created, readiness remains
 `manual_pending`.
 
+The configured runtime has a separate execution seal. Configuration records
+both content digests and filesystem identity digests for the executable and
+complete runtime root. Each probe and review copies that root into a private
+mode-`0700` directory, rewrites internal symlinks to remain inside the copy,
+checks the configured source before and after copying, and executes only the
+copied binary. The source pathname is never the nested execution target. A
+same-byte inode replacement therefore blocks; changing the source after the
+seal is complete cannot change the running reviewer.
+
 The setup and runtime have three distinct failure classes:
 
 | Condition | Result |
 |---|---|
 | Adapter not configured, Codex runtime absent/not executable, skill absent, or authentication unavailable | `manual_pending`, exit `6` in an incomplete run |
-| Runtime, runtime root, adapter, schema, skill, artifact, state, result, or evidence digest changed | tamper/block, non-zero |
+| Runtime, runtime root, adapter, schema, skill, artifact, state, result, or evidence content/physical identity changed | tamper/block, non-zero |
 | Codex starts but fails, times out, exceeds output, emits invalid JSONL/schema, or uses a forbidden event capability | `blocked_execution_error`, non-zero |
 
 A late authentication failure returned by the nested runtime is still
@@ -211,7 +229,8 @@ container boundary or authenticate remote model identity.
 ## Upgrade and removal
 
 Changing the Codex binary, runtime root, bundled adapter, output schema, or
-skill root intentionally invalidates the previous lock. Rerun the configure
-command, review the backup and new receipt, then rerun `--dry-run`. To disable
+skill root intentionally invalidates the previous lock. Runtime locks made by a
+pre-seal V1 preview also lack required physical-identity fields. Rerun the
+configure command, review the backup and new receipt, then rerun `--dry-run`. To disable
 the integration, restore the provider to `manual-v1`; do not leave stale
 runtime paths while claiming the provider executed.

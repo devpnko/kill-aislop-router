@@ -1,0 +1,21 @@
+{
+  "status": "approved",
+  "owner_id": "example-owner",
+  "lineage_id": "operator-product/policy",
+  "baseline_lineage_digest": "sha256:19ca98f3b3c707b5ff0d0bc62851fa9009f6f6b4f5418737bcfeb39ce335255f",
+  "decision_scope": "candidate-slice-binding",
+  "parent_promotion": false,
+  "candidate": {
+    "id": "operator-product-policy-slice",
+    "version": "2.2.84",
+    "slice_id": "policy-source-to-setting",
+    "artifacts": [
+      {
+        "path": "planning-evidence/policy-slice.html",
+        "digest": "sha256:40f53428b39f94293b10fe06ce4381747ef44ed82f79de01fbb74383e924078b"
+      }
+    ]
+  },
+  "decided_at": "2026-08-29T00:00:00.000Z",
+  "note": "Approve this policy slice only; do not promote or replace the parent baseline."
+}

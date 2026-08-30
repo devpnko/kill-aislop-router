@@ -34,7 +34,7 @@ import {
   startAutomation
 } from "./automation.mjs";
 import { loadHostManifest } from "./execution.mjs";
-import { hashArtifact } from "./integrity.mjs";
+import { hashArtifact, readJsonPinned } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
 import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
 import {
@@ -47,6 +47,8 @@ import {
 } from "./design.mjs";
 import { configureCodexReviewers } from "./codex.mjs";
 import { inspectSkillCatalog } from "./skill-catalog.mjs";
+import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
+import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -59,7 +61,8 @@ const BOOLEAN_OPTIONS = new Set([
   "no-activate",
   "allow-external",
   "migrate-identity",
-  "migrate-legacy-entry"
+  "migrate-legacy-entry",
+  "module-graph"
 ]);
 
 function parseArgs(argv) {
@@ -130,18 +133,18 @@ Usage:
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
   killsloprouter run --task redesign --scope runtime --observation-run FILE [options]
-  killsloprouter run --resume FILE [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
+  killsloprouter run --resume FILE --authority-digest SHA256 [--host-config FILE] [--triage FILE] [--approval FILE] [--retry SELECTOR]
   killsloprouter lease status --state FILE [--json]
-  killsloprouter lease recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
+  killsloprouter lease recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--authority-digest SHA256] [--legacy-backup FILE] [--json]
   killsloprouter scan --adapter kill-ai-slop --adapter-root DIR --target PATH
-  killsloprouter digest --target PATH [--json]
+  killsloprouter digest --target PATH [--module-graph] [--json]
   killsloprouter doctor [--profile FILE] [--format text|json]
   killsloprouter audit init --plan FILE --artifact PATH --scope SCOPE --out FILE [options]
-  killsloprouter audit dispatch --run FILE --out-dir DIR
-  killsloprouter audit record --run FILE --result FILE [--replace]
-  killsloprouter audit triage --run FILE --triage FILE [--replace]
-  killsloprouter audit status --run FILE [--format text|json]
-  killsloprouter audit finalize --run FILE [--approval FILE] [--out FILE] [--require-owner]
+  killsloprouter audit dispatch --run FILE --out-dir DIR --authority-digest SHA256
+  killsloprouter audit record --run FILE --result FILE --authority-digest SHA256 [--replace]
+  killsloprouter audit triage --run FILE --triage FILE --authority-digest SHA256 [--replace]
+  killsloprouter audit status --run FILE --authority-digest SHA256 [--format text|json]
+  killsloprouter audit finalize --run FILE --authority-digest SHA256 [--approval FILE] [--out FILE] [--require-owner]
 
 Surfaces:
   operator-product-ui
@@ -185,9 +188,12 @@ Options:
   --baseline-dir DIR
   --allowed-origins URL,URL
   --allow-external
+  --module-graph (digest the explicit local adapter dependency graph)
   --dry-run
   --resume FILE
-  --migrate-identity (explicitly migrate a pre-execution legacy automation state)
+  --authority-digest SHA256  Original modern/audit authority, or SHA-256 of the external legacy backup
+  --legacy-backup FILE (byte-identical pre-mutation state backup outside the state directory)
+  --migrate-identity (migrate a genuine supported pre-identity state; requires both values above)
   --state FILE (automation state target for lease status/recovery)
   --owner-token TOKEN (exact stale lease owner token)
   --acquired-at TIMESTAMP (exact stale lease acquisition time)
@@ -426,7 +432,7 @@ function doctor(args) {
     execution_readiness: "not_evaluated_use_integrated_dry_run",
     completion_eligible: false,
     next_required_command: !catalogReady
-      ? skillCatalog.migration.command
+      ? (skillCatalog.migration.command || skillCatalog.migration.reason)
       : visualIntentsReady && visualSignaturesReady
         ? "killsloprouter run --dry-run"
         : "resolve and digest-lock project visual authority"
@@ -460,7 +466,11 @@ function doctor(args) {
 }
 
 function output(value, args, textFormatter = null) {
-  if (args.out) writeJsonAtomic(args.out, value);
+  let outputPath = null;
+  if (args.out) {
+    outputPath = secureCliWritablePath(args.out, "CLI JSON output path");
+    writeJsonAtomic(outputPath, value);
+  }
   if (args.format === "json") {
     process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
   } else if (textFormatter) {
@@ -469,9 +479,45 @@ function output(value, args, textFormatter = null) {
     const lines = Object.entries(value)
       .filter(([, item]) => ["string", "number", "boolean"].includes(typeof item))
       .map(([key, item]) => `${key}: ${item}`);
-    if (args.out) lines.push(`written: ${path.resolve(args.out)}`);
+    if (outputPath) lines.push(`written: ${outputPath}`);
     process.stdout.write(`${lines.join("\n") || "ok"}\n`);
   }
+}
+
+function secureCliExistingFile(target, label) {
+  try {
+    return secureExistingRegularFile(target, label, { singleLink: true });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+}
+
+function secureCliWritablePath(target, label) {
+  try {
+    return secureWritablePath(target, label);
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+}
+
+export function readCliPinnedJson(target, label, {
+  faultInjector = null
+} = {}) {
+  try {
+    return readJsonPinned(target, {
+      label,
+      faultInjector,
+      securePath: (candidate, candidateLabel) =>
+        secureCliExistingFile(candidate, candidateLabel)
+    });
+  } catch (error) {
+    if (error instanceof RouterError) throw error;
+    throw new RouterError(error.message, 4);
+  }
+}
+
+export function readAuditRunForCommand(target, options = {}) {
+  return readCliPinnedJson(target, "audit run path", options);
 }
 
 function defaultPacketsDir(runPath) {
@@ -492,6 +538,12 @@ function formatAutomationState(state) {
   }
   if (state.final_audit_status) lines.push(`audit: ${state.final_audit_status}`);
   if (state.final_receipt_digest) lines.push(`receipt: ${state.final_receipt_digest}`);
+  if (state.resume_authority_digest) {
+    lines.push(`resume authority: ${state.resume_authority_digest}`);
+  }
+  if (state.resume_authority_receipt?.path) {
+    lines.push(`resume authority receipt: ${state.resume_authority_receipt.path}`);
+  }
   for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
   for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
   if (state.state_path) lines.push(`state: ${state.state_path}`);
@@ -544,6 +596,8 @@ function runCommand(args) {
       triagePath: args.triage || null,
       approvalPath: args.approval || null,
       retry: args.retry || null,
+      authorityDigest: args["authority-digest"] || null,
+      legacyBackupPath: args["legacy-backup"] || null,
       migrateIdentity: Boolean(args["migrate-identity"])
     });
     automationOutput(state, args);
@@ -576,7 +630,12 @@ function runCommand(args) {
   };
   if (args["dry-run"]) {
     const report = dryRunAutomation(request);
-    if (args.out) writeJsonAtomic(args.out, report);
+    if (args.out) {
+      writeJsonAtomic(
+        secureCliWritablePath(args.out, "CLI JSON output path"),
+        report
+      );
+    }
     automationOutput(report, args);
     process.exitCode = automationExitCode(report);
     return;
@@ -622,7 +681,9 @@ function leaseCommand(args) {
   const result = recoverAutomationStateLease(args.state, {
     ownerToken: args["owner-token"],
     acquiredAt: args["acquired-at"],
-    stateDigest: args["state-digest"]
+    stateDigest: args["state-digest"],
+    authorityDigest: args["authority-digest"] || null,
+    legacyBackupPath: args["legacy-backup"] || null
   });
   output(result, args, (value) => [
     "KillSlopRouter automation state lease recovery",
@@ -736,7 +797,12 @@ function auditCommand(args) {
     if (!args.plan || !args.out || !args.scope || !args.artifacts.length) {
       throw new RouterError("audit init requires --plan, --artifact, --scope, and --out", 2);
     }
-    const planPath = path.resolve(args.plan);
+    const planPath = secureCliExistingFile(args.plan, "audit route plan source");
+    const runPath = secureCliWritablePath(args.out, "audit run output path");
+    const packetsPath = secureCliWritablePath(
+      args["packets-dir"] || defaultPacketsDir(runPath),
+      "audit packet output directory"
+    );
     const run = initializeAudit({
       plan: readJson(planPath, "route plan"),
       planPath,
@@ -746,26 +812,40 @@ function auditCommand(args) {
       invocation: args.invocation || "explicit",
       root: args.root || process.cwd()
     });
-    writeJsonAtomic(args.out, run);
-    const dispatched = dispatchAuditPackets(run, args["packets-dir"] || defaultPacketsDir(args.out));
+    writeJsonAtomic(runPath, run);
+    const dispatched = dispatchAuditPackets(
+      run,
+      packetsPath,
+      { authorityDigest: run.audit_authority_digest }
+    );
     output({
       run_id: run.run_id,
       journey_identity: run.journey_identity,
       status: run.status,
-      run_file: path.resolve(args.out),
+      run_file: runPath,
       packets_directory: dispatched.directory,
       packet_count: dispatched.packets.length,
+      audit_authority_digest: run.audit_authority_digest,
       approval_scope_digest: run.approval_scope_digest
     }, { ...args, out: null });
     return;
   }
 
   if (!args.run) throw new RouterError(`audit ${command} requires --run`, 2);
-  const runPath = path.resolve(args.run);
-  const run = readJson(runPath, "audit run");
+  const runAuthority = readAuditRunForCommand(args.run);
+  const runPath = runAuthority.path;
+  const run = runAuthority.input;
 
   if (command === "dispatch") {
-    const dispatched = dispatchAuditPackets(run, args["out-dir"] || defaultPacketsDir(runPath));
+    const packetsPath = secureCliWritablePath(
+      args["out-dir"] || defaultPacketsDir(runPath),
+      "audit packet output directory"
+    );
+    const dispatched = dispatchAuditPackets(
+      run,
+      packetsPath,
+      { authorityDigest: args["authority-digest"] || null }
+    );
     output({
       run_id: run.run_id,
       packets_directory: dispatched.directory,
@@ -777,9 +857,11 @@ function auditCommand(args) {
 
   if (command === "record") {
     if (!args.result) throw new RouterError("audit record requires --result", 2);
-    const resultPath = path.resolve(args.result);
-    const next = recordAuditResult(run, readJson(resultPath, "audit result"), resultPath, {
-      replace: Boolean(args.replace)
+    const resultEvidence = readCliPinnedJson(args.result, "audit result source");
+    const next = recordAuditResult(run, resultEvidence.input, resultEvidence.path, {
+      replace: Boolean(args.replace),
+      authorityDigest: args["authority-digest"] || null,
+      sourceSnapshot: resultEvidence.source_snapshot
     });
     writeJsonAtomic(runPath, next);
     output({ run_id: next.run_id, status: next.status, recorded_results: next.results.length }, args);
@@ -788,9 +870,11 @@ function auditCommand(args) {
 
   if (command === "triage") {
     if (!args.triage) throw new RouterError("audit triage requires --triage", 2);
-    const triagePath = path.resolve(args.triage);
-    const next = recordTriage(run, readJson(triagePath, "triage result"), triagePath, {
-      replace: Boolean(args.replace)
+    const triageEvidence = readCliPinnedJson(args.triage, "audit triage source");
+    const next = recordTriage(run, triageEvidence.input, triageEvidence.path, {
+      replace: Boolean(args.replace),
+      authorityDigest: args["authority-digest"] || null,
+      sourceSnapshot: triageEvidence.source_snapshot
     });
     writeJsonAtomic(runPath, next);
     output({
@@ -804,11 +888,19 @@ function auditCommand(args) {
   if (command === "status" || command === "finalize") {
     let approval = null;
     let approvalPath = null;
+    let approvalSourceSnapshot = null;
     if (args.approval) {
-      approvalPath = path.resolve(args.approval);
-      approval = readJson(approvalPath, "owner approval");
+      const approvalEvidence = readCliPinnedJson(args.approval, "audit owner approval source");
+      approvalPath = approvalEvidence.path;
+      approval = approvalEvidence.input;
+      approvalSourceSnapshot = approvalEvidence.source_snapshot;
     }
-    const receipt = finalizeAudit(run, { approval, approvalPath });
+    const receipt = finalizeAudit(run, {
+      approval,
+      approvalPath,
+      approvalSourceSnapshot,
+      authorityDigest: args["authority-digest"] || null
+    });
     output(receipt, args, formatAuditReceipt);
     if (command === "finalize") {
       process.exitCode = auditExitCode(receipt, { requireOwner: Boolean(args["require-owner"]) });
@@ -867,8 +959,27 @@ export async function main(argv) {
   if (args.command === "digest") {
     if (!args.target) throw new RouterError("digest requires --target", 2);
     const target = path.resolve(args.target);
-    const receipt = { target, digest: hashArtifact(target) };
-    if (args.out) writeJsonAtomic(args.out, receipt);
+    const receipt = {
+      target,
+      digest: args["module-graph"]
+        ? sealedEntrypointGraphDigest(target, {
+            trustedPackageRoot: (() => {
+              const relative = path.relative(packageRoot, target);
+              return relative !== ".." && !relative.startsWith(`..${path.sep}`) &&
+                !path.isAbsolute(relative)
+                ? packageRoot
+                : null;
+            })()
+          })
+        : hashArtifact(target)
+    };
+    if (args["module-graph"]) receipt.kind = "sealed-entrypoint-module-graph";
+    if (args.out) {
+      writeJsonAtomic(
+        secureCliWritablePath(args.out, "CLI JSON output path"),
+        receipt
+      );
+    }
     if (args.format === "json") process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
     else process.stdout.write(`${receipt.digest}  ${receipt.target}\n`);
     return;

@@ -69,9 +69,33 @@ If `planning.required` is `false`, findings are reported as warnings for normal
 tasks. `systemize` always requires G6T and exact G7 evidence, regardless of that
 setting.
 
+## Parent baseline with evolving slices
+
+An all-product parent and a newer feature slice do not have to compete for one
+baseline slot. Add the optional `baseline_lineage` contract when the external
+planning authority wants both:
+
+- the parent remains the immutable shell, navigation, and global visual
+  reference;
+- the candidate owns only its named slice workflow and states;
+- a higher candidate version never promotes itself to parent;
+- global changes return to planning as a separate all-scope proposal.
+
+Once declared, lineage is a hard integrity boundary even when
+`planning.required` is `false`, and G7 becomes an effective requirement for
+every route. The planning receipt, G7 evidence, parent artifacts, and exact
+routed candidate set are recorded as content- and physical-identity-bound
+authority sources. The G7 owner record binds the lineage digest and full candidate,
+limits the decision to `candidate-slice-binding`, and explicitly denies parent
+promotion. See [Parent baseline and slice
+lineage](baseline-lineage.md),
+`schemas/baseline-lineage-owner-approval.schema.json`, and
+`examples/service-planning-lineage.example.json`.
+
 ## Commands
 
-Audit a complete mockup after G6:
+Audit a complete unlineaged mockup after G6. If the receipt declares
+`baseline_lineage`, bind the exact candidate through G7 first:
 
 ```bash
 killsloprouter plan \

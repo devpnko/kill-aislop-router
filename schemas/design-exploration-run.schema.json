@@ -35,13 +35,17 @@
   "$defs": {
     "snapshot": {
       "type": "object",
-      "required": ["path", "resolved_path", "kind", "digest"],
+      "required": ["path", "resolved_path", "kind", "digest", "physical_identity_digest"],
       "properties": {
         "path": {"type": "string"},
         "resolved_path": {"type": "string", "minLength": 1},
         "kind": {"enum": ["file", "directory"]},
         "bytes": {"type": ["integer", "null"]},
-        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "physical_identity_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
       },
       "additionalProperties": true
     }

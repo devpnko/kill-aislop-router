@@ -110,7 +110,9 @@ Pass conditions:
 - a conflicting or edited identity stops non-zero before any child process;
 - prior evidence is not relabeled through `--migrate-identity`;
 - an evidence-free legacy run may migrate only with the explicit flag and a
-  verified `00-identity-migration-receipt.json`.
+  verified `00-identity-migration-receipt.json` bound to a byte-identical
+  external pre-mutation backup, its caller-retained file digest, and a
+  supported historical source.
 
 ## 5. Verify browser and approval gates
 

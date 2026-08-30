@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/baseline-lineage.schema.json",
+  "title": "KillSlopRouter Bound Parent Baseline And Slice Lineage",
+  "allOf": [
+    {"$ref": "baseline-lineage-declaration.schema.json"},
+    {
+      "type": "object",
+      "required": ["lineage_digest"]
+    }
+  ]
+}

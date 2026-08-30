@@ -7,7 +7,13 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
 import { inspectPacketAdapter, loadHostManifest } from "../src/execution.mjs";
-import { codexRuntimeRootDigest } from "../src/codex.mjs";
+import {
+  codexRuntimePhysicalIdentityDigest,
+  codexRuntimeRootDigest,
+  codexRuntimeRootPhysicalIdentityDigest,
+  createCodexRuntimeSeal,
+  verifyCodexRuntimeSeal
+} from "../src/codex.mjs";
 import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -99,9 +105,32 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function replaceWithSameBytes(target) {
+  const replacement = `${target}.same-bytes`;
+  const displaced = `${target}.displaced`;
+  const mode = fs.statSync(target).mode & 0o777;
+  fs.copyFileSync(target, replacement);
+  fs.chmodSync(replacement, mode);
+  fs.renameSync(target, displaced);
+  fs.renameSync(replacement, target);
+  fs.rmSync(displaced);
+}
+
 function runCli(args, cwd) {
+  const commandArgs = [...args];
+  const resumeIndex = commandArgs.indexOf("--resume");
+  if (resumeIndex >= 0 && !commandArgs.includes("--migrate-identity") &&
+    !commandArgs.includes("--authority-digest")) {
+    const statePath = path.resolve(cwd, commandArgs[resumeIndex + 1]);
+    if (fs.existsSync(statePath)) {
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      if (state.resume_authority_digest) {
+        commandArgs.push("--authority-digest", state.resume_authority_digest);
+      }
+    }
+  }
   const fixtureCodexHome = path.join(cwd, "codex-auth");
-  return spawnSync(process.execPath, [cli, ...args], {
+  return spawnSync(process.execPath, [cli, ...commandArgs], {
     cwd,
     encoding: "utf8",
     shell: false,
@@ -300,6 +329,7 @@ test("official Codex host configures digest-locked agent and skill reviewers and
     assert.equal(receipt.status, "configured");
     assert.equal(receipt.runtime.sandbox, "read-only");
     assert.equal(receipt.runtime.ephemeral, true);
+    assert.match(receipt.adapter.entrypoint_graph_digest, /^sha256:/);
     assert.match(receipt.runtime.root_digest, /^sha256:/);
     assert.equal(receipt.privacy.credentials_stored, false);
     assert.equal(receipt.privacy.browser_or_owner_gate_substitution, false);
@@ -315,8 +345,12 @@ test("official Codex host configures digest-locked agent and skill reviewers and
       const declaration = host.providers[providerId];
       assert.equal(declaration.settings.contract, "killsloprouter-codex-review-v1");
       assert.match(declaration.entrypoint_digest, /^sha256:/);
+      assert.equal(declaration.entrypoint_graph_digest,
+        receipt.adapter.entrypoint_graph_digest);
       assert.match(declaration.settings.runtime_digest, /^sha256:/);
+      assert.match(declaration.settings.runtime_physical_identity_digest, /^sha256:/);
       assert.match(declaration.settings.runtime_root_digest, /^sha256:/);
+      assert.match(declaration.settings.runtime_root_physical_identity_digest, /^sha256:/);
       assert.equal("command" in declaration, false);
       assert.equal("args" in declaration, false);
       assert.equal("credentials" in declaration.settings, false);
@@ -361,6 +395,44 @@ test("official Codex host configures digest-locked agent and skill reviewers and
     state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));
     assert.equal(state.status, "complete");
     assert.equal(state.final_audit_status, "approved");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("multi-provider manifest validation defers private Codex runtime sealing to the child boundary", () => {
+  const fixture = projectFixture();
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract", "visual-intent-review"],
+      skill: true
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+
+    const first = loadFixtureManifest(fixture);
+    for (const providerId of ["project-contract", "visual-intent-review", "anti-slop"]) {
+      const inspection = first.providers[providerId].official_codex;
+      assert.equal(inspection.readiness.status, "ready");
+      assert.equal(inspection.runtimePath, fs.realpathSync.native(fixture.runtime));
+      assert.equal(inspection.runtimeRoot, fs.realpathSync.native(fixture.runtimeRoot));
+      assert.equal("cleanup" in inspection, false);
+      assert.equal("sealedRuntimePhysicalIdentityDigest" in inspection, false);
+      assert.equal("sealedRuntimeRootPhysicalIdentityDigest" in inspection, false);
+    }
+
+    // The first validation populated the digest-bound readiness cache. A
+    // second validation must not attempt an otherwise observable os.tmpdir()
+    // runtime clone for every provider.
+    const previousTmpdir = process.env.TMPDIR;
+    process.env.TMPDIR = path.join(fixture.directory, "missing-validation-tmp");
+    try {
+      const second = loadFixtureManifest(fixture);
+      assert.ok(["project-contract", "visual-intent-review", "anti-slop"].every((providerId) =>
+        second.providers[providerId].official_codex.readiness.status === "ready"));
+    } finally {
+      if (previousTmpdir === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTmpdir;
+    }
   } finally {
     cleanup(fixture);
   }
@@ -734,6 +806,84 @@ test("Codex runtime digest locks internal symlinks and rejects links outside the
     fs.symlinkSync(fixture.artifact, path.join(fixture.runtimeRoot, "outside-artifact"));
     assert.throws(() => codexRuntimeRootDigest(fixture.runtimeRoot), /symlink escapes its locked root/);
   } finally {
+    cleanup(fixture);
+  }
+});
+
+test("Codex executes a private runtime seal and rejects same-byte source replacement", () => {
+  const fixture = projectFixture();
+  let seal = null;
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    let settings = JSON.parse(fs.readFileSync(fixture.host, "utf8"))
+      .providers["project-contract"].settings;
+    assert.equal(settings.runtime_physical_identity_digest,
+      codexRuntimePhysicalIdentityDigest(fixture.runtime));
+    assert.equal(settings.runtime_root_physical_identity_digest,
+      codexRuntimeRootPhysicalIdentityDigest(fixture.runtimeRoot));
+    seal = createCodexRuntimeSeal({
+      runtimeRoot: fixture.runtimeRoot,
+      runtimePath: fixture.runtime,
+      runtimeRootDigest: settings.runtime_root_digest,
+      runtimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+      runtimeDigest: settings.runtime_digest,
+      runtimePhysicalIdentityDigest: settings.runtime_physical_identity_digest
+    });
+    assert.notEqual(seal.runtimePath, fixture.runtime);
+    assert.equal(hashArtifact(seal.runtimePath), settings.runtime_digest);
+    assert.deepEqual(verifyCodexRuntimeSeal(seal, settings), {
+      runtimeRoot: seal.runtimeRoot,
+      runtimePath: seal.runtimePath
+    }, "the exported seal creator and verifier must share one object contract");
+
+    replaceWithSameBytes(fixture.runtime);
+    assert.throws(() => createCodexRuntimeSeal({
+      runtimeRoot: fixture.runtimeRoot,
+      runtimePath: fixture.runtime,
+      runtimeRootDigest: settings.runtime_root_digest,
+      runtimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+      runtimeDigest: settings.runtime_digest,
+      runtimePhysicalIdentityDigest: settings.runtime_physical_identity_digest
+    }), /physical identity mismatch before sealing/);
+    const sealedVersion = spawnSync(seal.runtimePath, ["--version"], {
+      encoding: "utf8",
+      shell: false
+    });
+    assert.equal(sealedVersion.status, 0, sealedVersion.stderr);
+    assert.match(sealedVersion.stdout, /^codex-cli 0\.144\.1/m);
+    replaceWithSameBytes(seal.runtimePath);
+    assert.throws(() => verifyCodexRuntimeSeal(seal, settings),
+      /sealed Codex runtime root physical identity changed before child execution/);
+
+    const reconfigured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(reconfigured.status, 0, reconfigured.stderr || reconfigured.stdout);
+    settings = JSON.parse(fs.readFileSync(fixture.host, "utf8"))
+      .providers["project-contract"].settings;
+    let injected = false;
+    assert.throws(() => createCodexRuntimeSeal({
+      runtimeRoot: fixture.runtimeRoot,
+      runtimePath: fixture.runtime,
+      runtimeRootDigest: settings.runtime_root_digest,
+      runtimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+      runtimeDigest: settings.runtime_digest,
+      runtimePhysicalIdentityDigest: settings.runtime_physical_identity_digest,
+      faultInjector(checkpoint) {
+        if (injected || checkpoint !==
+          "after-codex-runtime-copy-before-source-revalidation") return;
+        injected = true;
+        replaceWithSameBytes(fixture.runtime);
+      }
+    }), /changed while its private execution seal was being created/);
+    assert.equal(injected, true);
+  } finally {
+    seal?.cleanup();
     cleanup(fixture);
   }
 });

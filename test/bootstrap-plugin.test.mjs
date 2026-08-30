@@ -15,6 +15,11 @@ function runNode(script, args, cwd) {
   return spawnSync(process.execPath, [script, ...args], {
     cwd,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: cwd,
+      USERPROFILE: cwd
+    },
     timeout: 30_000
   });
 }
@@ -337,7 +342,8 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--json"
     ], directory);
     assert.equal(started.status, 6, started.stderr || started.stdout);
-    assert.equal(readJson(statePath).status, "manual_pending");
+    const startedState = readJson(statePath);
+    assert.equal(startedState.status, "manual_pending");
 
     const changedProfile = readJson(profilePath);
     changedProfile.surface_contract = {
@@ -350,6 +356,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     const resumed = runNode(cli, [
       "run",
       "--resume", statePath,
+      "--authority-digest", startedState.resume_authority_digest,
       "--host-config", hostPath,
       "--json"
     ], directory);

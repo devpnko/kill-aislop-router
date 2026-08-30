@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -6,7 +7,8 @@ import {
   CODEX_REVIEW_ADAPTER_CONTRACT,
   codexRuntimeEnvironment,
   createIsolatedCodexHome,
-  validateOfficialCodexSettings
+  validateOfficialCodexSettings,
+  verifyCodexRuntimeSeal
 } from "../codex.mjs";
 import { hashArtifact, writeJsonAtomic } from "../integrity.mjs";
 import {
@@ -62,6 +64,31 @@ function pending(reason, metadata = {}) {
 function isAuthenticationFailure(child) {
   if (child.error || child.signal || child.status === 0 || child.status === null) return false;
   return AUTHENTICATION_FAILURE_PATTERN.test(`${child.stderr || ""}\n${child.stdout || ""}`);
+}
+
+function createPromptInput(prompt) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-codex-prompt-"));
+  fs.chmodSync(directory, 0o700);
+  const promptPath = path.join(directory, "prompt.txt");
+  let descriptor = null;
+  try {
+    fs.writeFileSync(promptPath, prompt, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    descriptor = fs.openSync(promptPath, fs.constants.O_RDONLY);
+    return {
+      descriptor,
+      cleanup() {
+        if (descriptor !== null) {
+          fs.closeSync(descriptor);
+          descriptor = null;
+        }
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    };
+  } catch (error) {
+    if (descriptor !== null) fs.closeSync(descriptor);
+    fs.rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function artifactRoot(artifacts) {
@@ -313,9 +340,11 @@ async function main() {
     entrypoint: ownPath,
     adapterType,
     permissionScopes: request.permission_scopes,
-    manifestPath: process.cwd()
+    manifestPath: process.cwd(),
+    retainRuntimeSeal: true
   });
   if (inspection.readiness.status !== "ready") {
+    inspection.cleanup?.();
     pending(inspection.readiness.reason, {
       runtime_digest: request.settings.runtime_digest,
       model: request.settings.model
@@ -328,6 +357,7 @@ async function main() {
   const startedAt = new Date().toISOString();
   const isolatedHome = createIsolatedCodexHome();
   if (isolatedHome.status !== "ready") {
+    inspection.cleanup?.();
     pending(isolatedHome.reason, {
       runtime_digest: request.settings.runtime_digest,
       model: request.settings.model
@@ -336,18 +366,21 @@ async function main() {
   }
   let child;
   let packetOutputSchema;
+  let promptInput;
   try {
     packetOutputSchema = writePacketOutputSchema(
       inspection.outputSchema,
       isolatedHome.path,
       request.packet
     );
-    child = spawnSync(inspection.runtimePath, fixedExecArgs(
+    promptInput = createPromptInput(promptFor(request, inspection.skillRoot));
+    const sealedRuntime = verifyCodexRuntimeSeal(inspection, request.settings);
+    child = spawnSync(sealedRuntime.runtimePath, fixedExecArgs(
       request.settings,
       packetOutputSchema.path,
       reviewRoot
     ), {
-      input: promptFor(request, inspection.skillRoot),
+      stdio: [promptInput.descriptor, "pipe", "pipe"],
       encoding: "utf8",
       cwd: reviewRoot,
       env: codexRuntimeEnvironment({ isolatedHome: isolatedHome.path }),
@@ -356,7 +389,9 @@ async function main() {
       maxBuffer: request.settings.max_output_bytes
     });
   } finally {
+    promptInput?.cleanup();
     isolatedHome.cleanup();
+    inspection.cleanup?.();
   }
   const finishedAt = new Date().toISOString();
   if (child.error || child.status !== 0) {
@@ -374,8 +409,15 @@ async function main() {
   const review = normalizeReview(rawReview, request.packet);
   const result = {
     audit_result_version: 1,
+    run_id: request.run_id,
     packet_id: request.packet.packet_id,
+    packet_digest: request.packet.packet_digest,
+    journey_identity: request.journey_identity,
     provider_id: request.packet.provider.id,
+    participant: request.participant,
+    ...(request.baseline_lineage
+      ? { baseline_lineage_digest: request.baseline_lineage.lineage_digest }
+      : {}),
     reviewer: {
       actor_id: `codex:thread:${threadId}`,
       kind: request.settings.reviewer_mode
@@ -397,7 +439,13 @@ async function main() {
       transport: "codex-exec-jsonl-v1",
       thread_id: threadId,
       runtime_digest: request.settings.runtime_digest,
+      runtime_physical_identity_digest: request.settings.runtime_physical_identity_digest,
       runtime_root_digest: request.settings.runtime_root_digest,
+      runtime_root_physical_identity_digest:
+        request.settings.runtime_root_physical_identity_digest,
+      sealed_runtime_physical_identity_digest: inspection.sealedRuntimePhysicalIdentityDigest,
+      sealed_runtime_root_physical_identity_digest:
+        inspection.sealedRuntimeRootPhysicalIdentityDigest,
       runtime_version: request.settings.runtime_version,
       model: request.settings.model,
       skill_digest: request.settings.skill_digest || null,

@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { canonicalDigest, hashArtifact, writeJsonAtomic } from "./integrity.mjs";
 import { RouterError, readJson, validateProfile } from "./router.mjs";
+import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -21,8 +22,10 @@ const SETTINGS_KEYS = new Set([
   "contract",
   "runtime_path",
   "runtime_digest",
+  "runtime_physical_identity_digest",
   "runtime_root",
   "runtime_root_digest",
+  "runtime_root_physical_identity_digest",
   "runtime_version",
   "model",
   "reviewer_mode",
@@ -44,6 +47,7 @@ const PROVIDER_KEYS = new Set([
   "adapter",
   "entrypoint",
   "entrypoint_digest",
+  "entrypoint_graph_digest",
   "adapter_root",
   "capabilities",
   "strength",
@@ -129,12 +133,247 @@ function runtimeTree(root, relative = "") {
   return manifest;
 }
 
+function runtimeEntryIdentity(stat) {
+  return {
+    device: String(stat.dev),
+    inode: String(stat.ino),
+    links: String(stat.nlink),
+    owner_uid: String(stat.uid),
+    mode: Number(stat.mode & 0o777n),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs)
+  };
+}
+
+function runtimePhysicalTree(root, relative = "") {
+  const directory = path.join(root, relative);
+  const entries = fs.readdirSync(directory, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const manifest = [];
+  for (const entry of entries) {
+    const entryRelative = path.join(relative, entry.name);
+    const absolute = path.join(root, entryRelative);
+    const portablePath = entryRelative.split(path.sep).join("/");
+    const stat = fs.lstatSync(absolute, { bigint: true });
+    if (entry.isSymbolicLink()) {
+      const target = fs.readlinkSync(absolute);
+      const resolvedTarget = path.resolve(path.dirname(absolute), target);
+      requireValue(inside(resolvedTarget, root),
+        `Codex runtime symlink escapes its locked root: ${absolute}`, 4);
+      requireValue(fs.existsSync(resolvedTarget),
+        `Codex runtime symlink target is missing: ${absolute}`, 4);
+      requireValue(inside(fs.realpathSync(resolvedTarget), root),
+        `Codex runtime symlink resolves outside its locked root: ${absolute}`, 4);
+      manifest.push({
+        type: "symlink",
+        path: portablePath,
+        target,
+        identity: runtimeEntryIdentity(stat)
+      });
+    } else if (entry.isDirectory()) {
+      manifest.push({ type: "directory", path: portablePath, identity: runtimeEntryIdentity(stat) });
+      manifest.push(...runtimePhysicalTree(root, entryRelative));
+    } else if (entry.isFile()) {
+      manifest.push({ type: "file", path: portablePath, identity: runtimeEntryIdentity(stat) });
+    } else {
+      throw new RouterError(`unsupported entry in Codex runtime root: ${absolute}`, 4);
+    }
+  }
+  return manifest;
+}
+
 export function codexRuntimeRootDigest(runtimeRoot) {
   const root = realDirectory(runtimeRoot, "Codex runtime root");
   return canonicalDigest({
     codex_runtime_root_digest_version: 1,
     entries: runtimeTree(root)
   });
+}
+
+export function codexRuntimeRootPhysicalIdentityDigest(runtimeRoot) {
+  const root = realDirectory(runtimeRoot, "Codex runtime root");
+  return canonicalDigest({
+    codex_runtime_root_physical_identity_version: 1,
+    root: runtimeEntryIdentity(fs.lstatSync(root, { bigint: true })),
+    entries: runtimePhysicalTree(root)
+  });
+}
+
+export function codexRuntimePhysicalIdentityDigest(runtimePath) {
+  const runtime = realRegularFile(runtimePath, "Codex runtime");
+  return canonicalDigest({
+    codex_runtime_physical_identity_version: 1,
+    identity: runtimeEntryIdentity(fs.lstatSync(runtime, { bigint: true }))
+  });
+}
+
+function copyRuntimeTree(sourceRoot, destinationRoot, relative = "") {
+  const sourceDirectory = path.join(sourceRoot, relative);
+  const entries = fs.readdirSync(sourceDirectory, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    const entryRelative = path.join(relative, entry.name);
+    const source = path.join(sourceRoot, entryRelative);
+    const destination = path.join(destinationRoot, entryRelative);
+    const sourceStat = fs.lstatSync(source);
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destination, { mode: sourceStat.mode & 0o777 });
+      copyRuntimeTree(sourceRoot, destinationRoot, entryRelative);
+      fs.chmodSync(destination, sourceStat.mode & 0o777);
+      continue;
+    }
+    if (entry.isFile()) {
+      fs.copyFileSync(source, destination,
+        fs.constants.COPYFILE_EXCL | (fs.constants.COPYFILE_FICLONE || 0));
+      fs.chmodSync(destination, sourceStat.mode & 0o777);
+      continue;
+    }
+    if (entry.isSymbolicLink()) {
+      const target = fs.readlinkSync(source);
+      const resolvedTarget = path.resolve(path.dirname(source), target);
+      requireValue(inside(resolvedTarget, sourceRoot),
+        `Codex runtime symlink escapes its locked root: ${source}`, 4);
+      const sealedTarget = path.join(destinationRoot, path.relative(sourceRoot, resolvedTarget));
+      const sealedLink = path.relative(path.dirname(destination), sealedTarget) || ".";
+      fs.symlinkSync(sealedLink, destination);
+      continue;
+    }
+    throw new RouterError(`unsupported entry in Codex runtime root: ${source}`, 4);
+  }
+}
+
+export function createCodexRuntimeSeal({
+  runtimeRoot,
+  runtimePath,
+  runtimeRootDigest,
+  runtimeRootPhysicalIdentityDigest,
+  runtimeDigest,
+  runtimePhysicalIdentityDigest: expectedRuntimePhysicalIdentityDigest,
+  faultInjector = null
+}) {
+  const sourceRoot = realDirectory(runtimeRoot, "Codex runtime root");
+  const sourceRuntime = realRegularFile(runtimePath, "Codex runtime");
+  requireValue(inside(sourceRuntime, sourceRoot),
+    "Codex runtime must be inside its digest-locked runtime root", 4);
+  const runtimeRelative = path.relative(sourceRoot, sourceRuntime);
+  const before = {
+    root_digest: codexRuntimeRootDigest(sourceRoot),
+    root_physical_identity_digest: codexRuntimeRootPhysicalIdentityDigest(sourceRoot),
+    runtime_digest: hashArtifact(sourceRuntime),
+    runtime_physical_identity_digest: codexRuntimePhysicalIdentityDigest(sourceRuntime)
+  };
+  requireValue(before.root_digest === runtimeRootDigest,
+    "official Codex runtime root digest mismatch before sealing", 4);
+  requireValue(before.root_physical_identity_digest === runtimeRootPhysicalIdentityDigest,
+    "official Codex runtime root physical identity mismatch before sealing", 4);
+  requireValue(before.runtime_digest === runtimeDigest,
+    "official Codex runtime digest mismatch before sealing", 4);
+  requireValue(before.runtime_physical_identity_digest === expectedRuntimePhysicalIdentityDigest,
+    "official Codex runtime physical identity mismatch before sealing", 4);
+
+  const container = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-codex-runtime-"));
+  fs.chmodSync(container, 0o700);
+  const sealedRoot = path.join(container, "runtime");
+  const sourceRootStat = fs.lstatSync(sourceRoot);
+  fs.mkdirSync(sealedRoot, { mode: sourceRootStat.mode & 0o777 });
+  let retained = false;
+  try {
+    copyRuntimeTree(sourceRoot, sealedRoot);
+    fs.chmodSync(sealedRoot, sourceRootStat.mode & 0o777);
+    faultInjector?.("after-codex-runtime-copy-before-source-revalidation", {
+      runtime_path: sourceRuntime,
+      runtime_root: sourceRoot,
+      sealed_runtime_path: path.join(sealedRoot, runtimeRelative)
+    });
+    const after = {
+      root_digest: codexRuntimeRootDigest(sourceRoot),
+      root_physical_identity_digest: codexRuntimeRootPhysicalIdentityDigest(sourceRoot),
+      runtime_digest: hashArtifact(sourceRuntime),
+      runtime_physical_identity_digest: codexRuntimePhysicalIdentityDigest(sourceRuntime)
+    };
+    requireValue(canonicalDigest(after) === canonicalDigest(before),
+      "official Codex runtime changed while its private execution seal was being created", 4);
+    const sealedCanonicalRoot = realDirectory(sealedRoot, "sealed Codex runtime root");
+    const sealedRuntime = realRegularFile(path.join(sealedRoot, runtimeRelative),
+      "sealed Codex runtime");
+    requireValue(codexRuntimeRootDigest(sealedCanonicalRoot) === runtimeRootDigest,
+      "sealed Codex runtime root content does not match configured authority", 4);
+    requireValue(hashArtifact(sealedRuntime) === runtimeDigest,
+      "sealed Codex runtime content does not match configured authority", 4);
+    const result = {
+      runtimeRoot: sealedCanonicalRoot,
+      runtimePath: sealedRuntime,
+      sealedRuntimeRootPhysicalIdentityDigest:
+        codexRuntimeRootPhysicalIdentityDigest(sealedCanonicalRoot),
+      sealedRuntimePhysicalIdentityDigest: codexRuntimePhysicalIdentityDigest(sealedRuntime),
+      cleanup() {
+        fs.rmSync(container, { recursive: true, force: true });
+      }
+    };
+    retained = true;
+    return result;
+  } finally {
+    if (!retained) fs.rmSync(container, { recursive: true, force: true });
+  }
+}
+
+export function verifyCodexRuntimeSeal(seal, settings) {
+  requireValue(seal && typeof seal === "object",
+    "official Codex runtime seal is missing at the child boundary", 4);
+  const sealedRoot = realDirectory(seal.runtimeRoot, "sealed Codex runtime root");
+  const sealedRuntime = realRegularFile(seal.runtimePath, "sealed Codex runtime");
+  requireValue(inside(sealedRuntime, sealedRoot),
+    "sealed Codex runtime escaped its private runtime root", 4);
+  requireValue(codexRuntimeRootDigest(sealedRoot) === settings.runtime_root_digest,
+    "sealed Codex runtime root content changed before child execution", 4);
+  requireValue(codexRuntimeRootPhysicalIdentityDigest(sealedRoot) ===
+    seal.sealedRuntimeRootPhysicalIdentityDigest,
+  "sealed Codex runtime root physical identity changed before child execution", 4);
+  requireValue(hashArtifact(sealedRuntime) === settings.runtime_digest,
+    "sealed Codex runtime content changed before child execution", 4);
+  requireValue(codexRuntimePhysicalIdentityDigest(sealedRuntime) ===
+    seal.sealedRuntimePhysicalIdentityDigest,
+  "sealed Codex runtime physical identity changed before child execution", 4);
+  return {
+    runtimeRoot: sealedRoot,
+    runtimePath: sealedRuntime
+  };
+}
+
+export function verifyOfficialCodexRuntimeSources(settings, expected = null) {
+  const runtimeRoot = realDirectory(settings.runtime_root, "Codex runtime root");
+  const runtimePath = realRegularFile(settings.runtime_path, "Codex runtime");
+  requireValue(inside(runtimePath, runtimeRoot),
+    "Codex runtime must be inside its digest-locked runtime root", 4);
+  const observed = {
+    runtimeRoot,
+    runtimePath,
+    runtimeRootDigest: codexRuntimeRootDigest(runtimeRoot),
+    runtimeRootPhysicalIdentityDigest: codexRuntimeRootPhysicalIdentityDigest(runtimeRoot),
+    runtimeDigest: hashArtifact(runtimePath),
+    runtimePhysicalIdentityDigest: codexRuntimePhysicalIdentityDigest(runtimePath)
+  };
+  requireValue(observed.runtimeRootDigest === settings.runtime_root_digest,
+    "official Codex runtime root changed at the final child boundary", 4);
+  requireValue(observed.runtimeRootPhysicalIdentityDigest ===
+    settings.runtime_root_physical_identity_digest,
+  "official Codex runtime root physical identity changed at the final child boundary", 4);
+  requireValue(observed.runtimeDigest === settings.runtime_digest,
+    "official Codex runtime changed at the final child boundary", 4);
+  requireValue(observed.runtimePhysicalIdentityDigest ===
+    settings.runtime_physical_identity_digest,
+  "official Codex runtime physical identity changed at the final child boundary", 4);
+  if (expected) {
+    requireValue(observed.runtimeRoot === expected.sourceRuntimeRoot &&
+      observed.runtimePath === expected.sourceRuntimePath,
+    "official Codex runtime path authority changed before child execution", 4);
+    requireValue(observed.runtimeRootPhysicalIdentityDigest ===
+      expected.sourceRuntimeRootPhysicalIdentityDigest &&
+      observed.runtimePhysicalIdentityDigest === expected.sourceRuntimePhysicalIdentityDigest,
+    "official Codex runtime physical authority changed before child execution", 4);
+  }
+  return observed;
 }
 
 function resolveFromManifest(value, manifestPath) {
@@ -270,8 +509,8 @@ function runtimeVersion(runtimePath) {
   return value;
 }
 
-function probeRuntime(runtimePath, runtimeDigest) {
-  const cacheKey = `${runtimePath}\n${runtimeDigest}\n${process.env.CODEX_HOME || "<default>"}`;
+function probeRuntime(runtimePath, runtimeAuthorityDigest) {
+  const cacheKey = `${runtimeAuthorityDigest}\n${process.env.CODEX_HOME || "<default>"}`;
   if (runtimeProbeCache.has(cacheKey)) return runtimeProbeCache.get(cacheKey);
   const version = runtimeVersion(runtimePath);
   const isolated = createIsolatedCodexHome();
@@ -398,7 +637,8 @@ export function validateOfficialCodexSettings(settings, {
   adapterType,
   permissionScopes = [],
   manifestPath = process.cwd(),
-  probeAuthentication = true
+  probeAuthentication = true,
+  retainRuntimeSeal = false
 } = {}) {
   requireValue(settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT,
     `official Codex adapter requires settings.contract ${CODEX_REVIEW_ADAPTER_CONTRACT}`);
@@ -423,12 +663,16 @@ export function validateOfficialCodexSettings(settings, {
     "official Codex runtime_path must be absolute");
   requireValue(DIGEST_PATTERN.test(settings.runtime_digest || ""),
     "official Codex settings require runtime_digest");
+  requireValue(DIGEST_PATTERN.test(settings.runtime_physical_identity_digest || ""),
+    "official Codex settings require runtime_physical_identity_digest");
   requireValue(typeof settings.runtime_root === "string" && settings.runtime_root.length > 0,
     "official Codex settings require runtime_root");
   requireValue(path.isAbsolute(settings.runtime_root),
     "official Codex runtime_root must be absolute");
   requireValue(DIGEST_PATTERN.test(settings.runtime_root_digest || ""),
     "official Codex settings require runtime_root_digest");
+  requireValue(DIGEST_PATTERN.test(settings.runtime_root_physical_identity_digest || ""),
+    "official Codex settings require runtime_root_physical_identity_digest");
   requireValue(typeof settings.runtime_version === "string" && CODEX_VERSION_PATTERN.test(settings.runtime_version),
     "official Codex settings require a codex-cli runtime_version");
   requireValue(MODEL_PATTERN.test(settings.model || ""),
@@ -475,8 +719,14 @@ export function validateOfficialCodexSettings(settings, {
   requireValue(inside(realRuntime, realRoot), "Codex runtime must be inside its digest-locked runtime root", 4);
   requireValue(codexRuntimeRootDigest(realRoot) === settings.runtime_root_digest,
     "official Codex runtime root digest mismatch", 4);
+  requireValue(codexRuntimeRootPhysicalIdentityDigest(realRoot) ===
+    settings.runtime_root_physical_identity_digest,
+  "official Codex runtime root physical identity mismatch", 4);
   requireValue(hashArtifact(realRuntime) === settings.runtime_digest,
     "official Codex runtime digest mismatch", 4);
+  requireValue(codexRuntimePhysicalIdentityDigest(realRuntime) ===
+    settings.runtime_physical_identity_digest,
+  "official Codex runtime physical identity mismatch", 4);
   try {
     fs.accessSync(realRuntime, fs.constants.X_OK);
   } catch {
@@ -520,20 +770,73 @@ export function validateOfficialCodexSettings(settings, {
     "official Codex agent reviewer cannot declare skill settings");
   }
 
-  const probe = probeAuthentication
-    ? probeRuntime(realRuntime, settings.runtime_digest)
-    : { version: runtimeVersion(realRuntime), authenticated: true, auth_reason: null };
-  requireValue(probe.version === settings.runtime_version,
-    `official Codex runtime version changed: expected ${settings.runtime_version}, got ${probe.version}`, 4);
-  return {
-    runtimePath: realRuntime,
+  const probeCacheIdentity = canonicalDigest({
+    runtime_digest: settings.runtime_digest,
+    runtime_physical_identity_digest: settings.runtime_physical_identity_digest,
+    runtime_root_digest: settings.runtime_root_digest,
+    runtime_root_physical_identity_digest: settings.runtime_root_physical_identity_digest
+  });
+
+  // Manifest validation is read-only readiness inspection. The source runtime
+  // was content- and physical-identity checked above, and the adapter creates a
+  // retained private seal at the actual child boundary. Cloning the complete
+  // runtime here would repeat once per configured provider even when the probe
+  // result is cached.
+  if (!retainRuntimeSeal) {
+    const probe = probeAuthentication
+      ? probeRuntime(realRuntime, probeCacheIdentity)
+      : { version: runtimeVersion(realRuntime), authenticated: true, auth_reason: null };
+    requireValue(probe.version === settings.runtime_version,
+      `official Codex runtime version changed: expected ${settings.runtime_version}, got ${probe.version}`, 4);
+    return {
+      runtimePath: realRuntime,
+      runtimeRoot: realRoot,
+      sourceRuntimePath: realRuntime,
+      sourceRuntimeRoot: realRoot,
+      sourceRuntimePhysicalIdentityDigest: settings.runtime_physical_identity_digest,
+      sourceRuntimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+      outputSchema,
+      skillRoot,
+      readiness: probe.authenticated
+        ? { status: "ready", reason: null }
+        : { status: "manual_pending", reason: `Codex authentication is unavailable: ${probe.auth_reason}` }
+    };
+  }
+
+  const runtimeSeal = createCodexRuntimeSeal({
     runtimeRoot: realRoot,
-    outputSchema,
-    skillRoot,
-    readiness: probe.authenticated
-      ? { status: "ready", reason: null }
-      : { status: "manual_pending", reason: `Codex authentication is unavailable: ${probe.auth_reason}` }
-  };
+    runtimePath: realRuntime,
+    runtimeRootDigest: settings.runtime_root_digest,
+    runtimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+    runtimeDigest: settings.runtime_digest,
+    runtimePhysicalIdentityDigest: settings.runtime_physical_identity_digest
+  });
+  try {
+    const probe = probeAuthentication
+      ? probeRuntime(runtimeSeal.runtimePath, probeCacheIdentity)
+      : { version: runtimeVersion(runtimeSeal.runtimePath), authenticated: true, auth_reason: null };
+    requireValue(probe.version === settings.runtime_version,
+      `official Codex runtime version changed: expected ${settings.runtime_version}, got ${probe.version}`, 4);
+    return {
+      runtimePath: runtimeSeal.runtimePath,
+      runtimeRoot: runtimeSeal.runtimeRoot,
+      sourceRuntimePath: realRuntime,
+      sourceRuntimeRoot: realRoot,
+      sourceRuntimePhysicalIdentityDigest: settings.runtime_physical_identity_digest,
+      sourceRuntimeRootPhysicalIdentityDigest: settings.runtime_root_physical_identity_digest,
+      sealedRuntimePhysicalIdentityDigest: runtimeSeal.sealedRuntimePhysicalIdentityDigest,
+      sealedRuntimeRootPhysicalIdentityDigest: runtimeSeal.sealedRuntimeRootPhysicalIdentityDigest,
+      outputSchema,
+      skillRoot,
+      readiness: probe.authenticated
+        ? { status: "ready", reason: null }
+        : { status: "manual_pending", reason: `Codex authentication is unavailable: ${probe.auth_reason}` },
+      cleanup: runtimeSeal.cleanup
+    };
+  } catch (error) {
+    runtimeSeal.cleanup();
+    throw error;
+  }
 }
 
 export function configureCodexReviewers({
@@ -568,7 +871,6 @@ export function configureCodexReviewers({
   validateRuntimeBoundary(resolvedRuntimeRoot);
   requireValue(inside(resolvedRuntime, resolvedRuntimeRoot),
     "Codex runtime must be inside --runtime-root", 4);
-  const version = runtimeVersion(resolvedRuntime);
   const outputSchema = realRegularFile(codexReviewOutputSchemaPath(), "official Codex output schema");
   const entrypoint = realRegularFile(codexReviewAdapterPath(), "official Codex review adapter");
 
@@ -598,8 +900,28 @@ export function configureCodexReviewers({
 
   const runtimeDigest = hashArtifact(resolvedRuntime);
   const runtimeRootDigest = codexRuntimeRootDigest(resolvedRuntimeRoot);
+  const runtimePhysicalIdentityDigest = codexRuntimePhysicalIdentityDigest(resolvedRuntime);
+  const runtimeRootPhysicalIdentityDigest =
+    codexRuntimeRootPhysicalIdentityDigest(resolvedRuntimeRoot);
+  const configurationSeal = createCodexRuntimeSeal({
+    runtimeRoot: resolvedRuntimeRoot,
+    runtimePath: resolvedRuntime,
+    runtimeRootDigest,
+    runtimeRootPhysicalIdentityDigest,
+    runtimeDigest,
+    runtimePhysicalIdentityDigest
+  });
+  let version;
+  try {
+    version = runtimeVersion(configurationSeal.runtimePath);
+  } finally {
+    configurationSeal.cleanup();
+  }
   const outputSchemaDigest = hashArtifact(outputSchema);
   const entrypointDigest = hashArtifact(entrypoint);
+  const entrypointGraphDigest = sealedEntrypointGraphDigest(entrypoint, {
+    trustedPackageRoot: packageRoot
+  });
   const host = structuredClone(hostSource.value);
   host.allowed_providers = unique([...(host.allowed_providers || []), ...providerIds]);
   host.granted_permissions = unique([
@@ -623,8 +945,10 @@ export function configureCodexReviewers({
       contract: CODEX_REVIEW_ADAPTER_CONTRACT,
       runtime_path: resolvedRuntime,
       runtime_digest: runtimeDigest,
+      runtime_physical_identity_digest: runtimePhysicalIdentityDigest,
       runtime_root: resolvedRuntimeRoot,
       runtime_root_digest: runtimeRootDigest,
+      runtime_root_physical_identity_digest: runtimeRootPhysicalIdentityDigest,
       runtime_version: version,
       model,
       reviewer_mode: skillBinding ? "skill" : "agent",
@@ -642,6 +966,7 @@ export function configureCodexReviewers({
       adapter,
       entrypoint,
       entrypoint_digest: entrypointDigest,
+      entrypoint_graph_digest: entrypointGraphDigest,
       strength: contract.strength,
       capabilities: contract.capabilities,
       permissions,
@@ -688,14 +1013,17 @@ export function configureCodexReviewers({
         contract: CODEX_REVIEW_ADAPTER_CONTRACT,
         entrypoint,
         entrypoint_digest: entrypointDigest,
+        entrypoint_graph_digest: entrypointGraphDigest,
         output_schema: outputSchema,
         output_schema_digest: outputSchemaDigest
       },
       runtime: {
         path: resolvedRuntime,
         digest: runtimeDigest,
+        physical_identity_digest: runtimePhysicalIdentityDigest,
         root: resolvedRuntimeRoot,
         root_digest: runtimeRootDigest,
+        root_physical_identity_digest: runtimeRootPhysicalIdentityDigest,
         version,
         model,
         sandbox: "read-only",

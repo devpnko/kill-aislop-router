@@ -1,0 +1,71 @@
+{
+  "automation_run_version": 1,
+  "run_id": "54c13809-4db5-4f50-951d-36e2e074854a",
+  "status": "running",
+  "created_at": "2026-08-29T09:25:32.759Z",
+  "updated_at": "2026-08-29T09:25:32.764Z",
+  "state_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.json",
+  "state_directory": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d",
+  "request": {
+    "router_path": "/tmp/killsloprouter-9045fce.UXR6Df/router/default-router.json",
+    "profile_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/profile.json",
+    "profile_digest": "sha256:a05009b4f94e7c8588b8ed450ed7bb21bf66778e61d90c8f5b07f00af87bea6e",
+    "root": "/private/tmp/killsloprouter-legacy-capture.t5piGa",
+    "input": {
+      "surface": "operator-product-ui",
+      "task": "pr-hygiene",
+      "direction": "approved",
+      "changes": [
+        "source"
+      ],
+      "risk": "standard",
+      "scope": "source"
+    },
+    "artifacts": [
+      "/private/tmp/killsloprouter-legacy-capture.t5piGa/artifact.txt"
+    ],
+    "scope": "source",
+    "creator_actor_id": null,
+    "observation_run_path": null
+  },
+  "paths": {
+    "plan": {
+      "path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/plan.json",
+      "digest": "sha256:f495faf96cd0e93a43d08ab9800c12612b56d0988cb3986c0a8ca2c62f452667"
+    },
+    "audit": {
+      "path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/audit-run.json",
+      "digest": "sha256:403cd7a976d6634e90fe3f836a58d236458f1066a883a885922671dc51183884"
+    }
+  },
+  "steps": {
+    "plan": {
+      "status": "completed",
+      "attempt": 1,
+      "receipt_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/receipts/01-plan-receipt.json",
+      "receipt_digest": "sha256:0a1b37151ccdfc5bb402d953eb22d18ccdf542f87fbd21775abc6041e3b21ecc",
+      "file_digest": "sha256:9b14b5549fe635c59e0e61d7ef5180a72f01b3c311af15ffc15af5d7cde1fe29"
+    },
+    "planning-verification": {
+      "status": "completed",
+      "attempt": 1,
+      "receipt_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/receipts/02-planning-verification-receipt.json",
+      "receipt_digest": "sha256:ee1319096fc711e2367c94c2e981e0283ef070b6642898fbffa9700b53c99ebb",
+      "file_digest": "sha256:3878250a603fbe6a18ef2db709970ce3a85b234ffdbcd35a831926e287c4b37c"
+    },
+    "audit-init": {
+      "status": "completed",
+      "attempt": 1,
+      "receipt_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/receipts/03-audit-init-receipt.json",
+      "receipt_digest": "sha256:78b1d5bc84823f53e50353f881021b2c4a5d928d6eabc9a66865a2d197efb004",
+      "file_digest": "sha256:7d0c05dc758e22ba938beea41d8c589680b8bf4f0dc9ef4ee0bba054e9ebc8e1"
+    }
+  },
+  "attempts": [],
+  "blockers": [],
+  "pending": [],
+  "baseline_observation": null,
+  "final_audit_status": null,
+  "final_receipt_digest": null,
+  "state_digest": "sha256:11a0337637911d933171e4b1a79af826f02acbdb99973c440f12f6932e5322f8"
+}

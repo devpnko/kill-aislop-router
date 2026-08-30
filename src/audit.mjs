@@ -3,19 +3,27 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   RouterError,
-  readJson,
   resolveVisualIntent,
   resolveVisualSignature,
   visualIntentRequired
 } from "./router.mjs";
 import {
   canonicalDigest,
+  physicalIdentityDigest,
   publicSnapshot,
+  readFilePinned,
+  readJsonPinned,
+  sha256,
   snapshotArtifact,
   verifySnapshot,
   writeJsonAtomic
 } from "./integrity.mjs";
-import { verifyPlanningGateForAudit } from "./planning.mjs";
+import {
+  baselineLineagesMatch,
+  planningAuthoritiesMatch,
+  verifyBaselineLineage,
+  verifyPlanningGateForAudit
+} from "./planning.mjs";
 import {
   createJourneyIdentity,
   createParticipant,
@@ -24,6 +32,11 @@ import {
   verifyPacketJourney,
   verifyParticipant
 } from "./identity.mjs";
+import {
+  ensureSecureDirectory,
+  secureExistingRegularFile,
+  secureWritablePath
+} from "./path-security.mjs";
 
 const VALID_SCOPES = new Set(["mockup", "runtime", "source", "document"]);
 const VALID_VERDICTS = new Set(["pass", "pass_with_findings", "block"]);
@@ -36,6 +49,119 @@ const VALID_DISPOSITIONS = new Set([
   "informational",
   "deferred"
 ]);
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+
+function readPinnedAuditJson(target, label, faultInjector = null) {
+  try {
+    return readJsonPinned(target, { label, faultInjector });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+}
+
+function pinnedAuditSnapshot(pinned, sourcePath, root) {
+  const absoluteRoot = path.resolve(root || process.cwd());
+  const absoluteSource = path.resolve(sourcePath);
+  const relative = path.relative(absoluteRoot, absoluteSource);
+  const display = relative && !relative.startsWith("..") && !path.isAbsolute(relative)
+    ? relative.split(path.sep).join("/")
+    : (!relative ? "." : absoluteSource);
+  return {
+    path: display,
+    resolved_path: absoluteSource,
+    kind: "file",
+    bytes: pinned.bytes,
+    digest: pinned.digest,
+    physical_identity_digest: pinned.physical_identity_digest
+  };
+}
+
+function verifyPinnedAuditFileSnapshot(snapshot, label, faultInjector = null) {
+  requireValue(snapshot?.kind === "file" && typeof snapshot.resolved_path === "string",
+    `${label} requires a canonical file snapshot`, 4);
+  requireValue(DIGEST_PATTERN.test(snapshot.physical_identity_digest || ""),
+    `${label} lacks a physical identity binding`, 4);
+  let pinned;
+  try {
+    pinned = readFilePinned(snapshot.resolved_path, { label, faultInjector });
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+  requireValue(pinned.digest === snapshot.digest,
+    `${label} changed before child execution: digest-mismatch`, 4);
+  requireValue(snapshot.bytes === null || snapshot.bytes === pinned.bytes,
+    `${label} changed before child execution: size-mismatch`, 4);
+  requireValue(pinned.physical_identity_digest === snapshot.physical_identity_digest,
+    `${label} changed before child execution: physical-identity-mismatch`, 4);
+  return pinned;
+}
+
+function verifyAuditExternalAuthoritiesOnce(run, sourcePlan, faultInjector = null) {
+  if (run.route.profile_source) {
+    const pinnedProfile = readPinnedAuditJson(
+      run.route.profile_source.resolved_path,
+      "routed project profile before child execution",
+      faultInjector
+    );
+    requireValue(pinnedProfile.digest === run.route.profile_source.digest &&
+      pinnedProfile.digest === sourcePlan.profile_digest,
+    "routed project profile changed before child execution", 4);
+    requireValue(
+      pinnedProfile.physical_identity_digest === run.route.profile_source.physical_identity_digest,
+      "routed project profile physical identity changed before child execution",
+      4
+    );
+  }
+  for (const source of run.visual_intent_sources || []) {
+    verifyPinnedAuditFileSnapshot(
+      source,
+      `visual-intent authority ${source.authority_kind || source.path} before child execution`,
+      faultInjector
+    );
+  }
+  for (const source of run.visual_signature_sources || []) {
+    verifyPinnedAuditFileSnapshot(
+      source,
+      `visual-signature authority ${source.authority_kind || source.path} before child execution`,
+      faultInjector
+    );
+  }
+  for (const artifact of run.artifacts || []) {
+    if (artifact.kind === "file") {
+      verifyPinnedAuditFileSnapshot(
+        artifact,
+        `audit artifact ${artifact.path} before child execution`,
+        faultInjector
+      );
+      continue;
+    }
+    const verification = verifySnapshot(artifact);
+    requireValue(verification.ok,
+      `audit artifact ${artifact.path} changed before child execution: ${verification.reason}`, 4);
+  }
+}
+
+function verifyAuditExternalAuthorities(run, sourcePlan, faultInjector = null) {
+  verifyAuditExternalAuthoritiesOnce(run, sourcePlan, faultInjector);
+  faultInjector?.("after-audit-authority-preflight-before-final-confirmation", {
+    run_id: run.run_id,
+    artifact_paths: (run.artifacts || []).map((artifact) => artifact.resolved_path)
+  });
+  verifyPinnedAuditFileSnapshot(
+    run.route.plan_source,
+    "route plan authority at final child boundary"
+  );
+  verifyAuditExternalAuthoritiesOnce(run, sourcePlan);
+}
+
+function finalPlanSourceSnapshot(snapshot) {
+  requireValue(typeof snapshot?.resolved_path === "string" && snapshot.resolved_path.length > 0,
+    "final audit receipt requires the canonical route plan resolved_path");
+  return {
+    ...publicSnapshot(snapshot),
+    resolved_path: path.resolve(snapshot.resolved_path)
+  };
+}
 
 function requireValue(condition, message, exitCode = 2) {
   if (!condition) throw new RouterError(message, exitCode);
@@ -74,8 +200,27 @@ function artifactDigestMap(artifacts) {
   return Object.fromEntries(artifacts.map((artifact) => [artifact.path, artifact.digest]));
 }
 
+function auditStagesFromPlan(plan) {
+  return (plan.stages || []).map((stage) => ({
+    id: stage.id,
+    question: stage.question,
+    optional: Boolean(stage.optional),
+    required_capabilities: stage.required_capabilities || [],
+    evidence_required: Boolean(stage.evidence_required),
+    required_evidence_kinds: stage.required_evidence_kinds || []
+  }));
+}
+
+function ownerApprovalRequiredFromPlan(plan) {
+  return (plan.stages || []).some((stage) => stage.id === "approval" && !stage.optional);
+}
+
+function sameJson(left, right) {
+  return canonicalDigest(left) === canonicalDigest(right);
+}
+
 function auditManifest(run) {
-  return {
+  const manifest = {
     audit_run_version: run.audit_run_version,
     run_id: run.run_id,
     journey_identity: run.journey_identity,
@@ -95,8 +240,11 @@ function auditManifest(run) {
     owner_approval_required: run.owner_approval_required,
     stages: run.stages,
     packets: run.packets,
+    audit_authority_digest: run.audit_authority_digest,
     approval_scope_digest: run.approval_scope_digest
   };
+  if (Object.hasOwn(run, "baseline_lineage")) manifest.baseline_lineage = run.baseline_lineage;
+  return manifest;
 }
 
 function sameDigestMap(actual, expected) {
@@ -112,8 +260,44 @@ function packetBody(packet) {
   return body;
 }
 
-function approvalScopeForRun(run) {
+function auditAuthorityForRun(run) {
   return canonicalDigest({
+    audit_authority_version: 1,
+    run_id: run.run_id,
+    journey_identity: run.journey_identity,
+    route: {
+      router_id: run.route.router_id,
+      router_version: run.route.router_version,
+      route_id: run.route.route_id,
+      project_id: run.route.project_id,
+      plan_digest: run.route.plan_digest,
+      plan_source_digest: run.route.plan_source?.digest || null
+    },
+    scope: run.scope.kind,
+    creator: run.creator,
+    artifact_digests: artifactDigestMap(run.artifacts || []),
+    baseline_lineage_digest: run.baseline_lineage?.lineage_digest || null
+  });
+}
+
+export function auditAuthorityDigestForRun(run) {
+  return auditAuthorityForRun(run);
+}
+
+export function verifyAuditAuthority(run, authorityDigest, label = "audit operation") {
+  requireValue(DIGEST_PATTERN.test(authorityDigest || ""),
+    `${label} requires the caller-retained audit authority digest`, 4);
+  requireValue(DIGEST_PATTERN.test(run?.audit_authority_digest || ""),
+    "audit run lacks its external audit authority digest", 4);
+  requireValue(auditAuthorityForRun(run) === run.audit_authority_digest,
+    "audit authority no longer binds the creator actor and canonical run scope", 4);
+  requireValue(authorityDigest === run.audit_authority_digest,
+    `${label} authority digest does not match the original audit initialization`, 4);
+  return run.audit_authority_digest;
+}
+
+function approvalScopeForRun(run) {
+  const scope = {
     run_id: run.run_id,
     journey_identity: run.journey_identity,
     plan_digest: run.route.plan_digest,
@@ -126,11 +310,63 @@ function approvalScopeForRun(run) {
     baseline_observation: run.baseline_observation || null,
     creator: run.creator,
     artifacts: artifactDigestMap(run.artifacts),
-    packets: run.packets.map((packet) => packet.packet_digest)
-  });
+    evidence_contract: run.evidence_contract || null,
+    hard_blockers: run.hard_blockers || [],
+    invariants: run.invariants || {},
+    owner_approval_required: Boolean(run.owner_approval_required),
+    stages: run.stages || [],
+    packets: run.packets.map((packet) => packet.packet_digest),
+    audit_authority_digest: run.audit_authority_digest
+  };
+  if (Object.hasOwn(run, "baseline_lineage")) scope.baseline_lineage = run.baseline_lineage;
+  return canonicalDigest(scope);
 }
 
-export function verifyAuditJourneyIdentity(run) {
+function verifyPlanEnforcementGraph(run, sourcePlan) {
+  requireValue(sourcePlan.creator === run.creator?.provider_id,
+    "audit creator conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.surface_resolution || null, run.route.surface_resolution || null),
+    "audit surface resolution conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.visual_intent || null, run.visual_intent || null),
+    "audit visual-intent contract conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.visual_signature || null, run.visual_signature || null),
+    "audit visual-signature contract conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.evidence_contract || null, run.evidence_contract || null),
+    "audit evidence contract conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.baseline_observation || null, run.baseline_observation || null),
+    "audit baseline observation conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.adjudication?.hard_blockers || [], run.hard_blockers || []),
+    "audit hard-blocker policy conflicts with the digest-bound route plan", 4);
+  requireValue(sameJson(sourcePlan.invariants || {}, run.invariants || {}),
+    "audit invariant policy conflicts with the digest-bound route plan", 4);
+  requireValue(
+    ownerApprovalRequiredFromPlan(sourcePlan) === Boolean(run.owner_approval_required),
+    "audit owner approval requirement conflicts with the digest-bound route plan",
+    4
+  );
+  requireValue(sameJson(auditStagesFromPlan(sourcePlan), run.stages || []),
+    "audit stage enforcement graph conflicts with the digest-bound route plan", 4);
+  const expectedPackets = makePackets(sourcePlan, run.artifacts || [], run.journey_identity);
+  requireValue(sameJson(expectedPackets, run.packets || []),
+    "audit packet enforcement graph conflicts with the digest-bound route plan", 4);
+  if (sourcePlan.profile_path || sourcePlan.profile_digest) {
+    requireValue(
+      run.route.profile_source &&
+      path.resolve(run.route.profile_source.resolved_path) === path.resolve(sourcePlan.profile_path) &&
+      run.route.profile_source.digest === sourcePlan.profile_digest,
+      "audit profile authority conflicts with the digest-bound route plan",
+      4
+    );
+  } else {
+    requireValue(run.route.profile_source === null,
+      "audit added a profile authority absent from the digest-bound route plan", 4);
+  }
+}
+
+export function verifyAuditJourneyIdentity(run, {
+  faultInjector = null,
+  verifyExternalAuthorities = false
+} = {}) {
   verifyJourneyIdentity(run?.journey_identity, {
     runId: run?.run_id,
     routerId: run?.route?.router_id,
@@ -147,15 +383,107 @@ export function verifyAuditJourneyIdentity(run) {
     requireValue(run.creator?.participant === null,
       "audit creator participant must be null when no creator is routed", 4);
   }
+  if (run.baseline_lineage) {
+    try {
+      verifyBaselineLineage(run.baseline_lineage, "audit baseline_lineage");
+    } catch (error) {
+      throw new RouterError(error.message, 4);
+    }
+  }
+  requireValue(
+    baselineLineagesMatch(
+      run.planning_gate?.baseline_lineage || null,
+      run.baseline_lineage || null
+    ),
+    "audit baseline_lineage conflicts with verified planning authority",
+    4
+  );
+  if (run.planning_gate?.lineage_required) {
+    requireValue(Boolean(run.baseline_lineage),
+      "audit removed baseline_lineage required by planning authority", 4);
+  }
+  requireValue(run.scope?.claim === scopeClaim(run.scope?.kind),
+    "audit scope claim conflicts with its scope kind", 4);
+  requireValue(Boolean(run.route?.plan_source),
+    "audit requires a digest-bound canonical route plan source", 4);
+  const pinnedPlan = readPinnedAuditJson(
+    run.route.plan_source.resolved_path,
+    "route plan authority",
+    faultInjector
+  );
+  requireValue(pinnedPlan.digest === run.route.plan_source.digest,
+    "route plan authority changed: digest-mismatch", 4);
+  requireValue(
+    pinnedPlan.physical_identity_digest === run.route.plan_source.physical_identity_digest,
+    "route plan authority changed: physical-identity-mismatch",
+    4
+  );
+  const sourcePlan = pinnedPlan.input;
+  requireValue(canonicalDigest(sourcePlan) === run.route.plan_digest,
+    "route plan digest no longer matches its authority source", 4);
+  requireValue(
+    sourcePlan.router_id === run.route.router_id &&
+    sourcePlan.router_version === run.route.router_version &&
+    sourcePlan.route_id === run.route.route_id &&
+    sourcePlan.project_id === run.route.project_id,
+    "audit route identity conflicts with the digest-bound route plan",
+    4
+  );
+  requireValue(canonicalDigest(sourcePlan.input) === canonicalDigest(run.route.input),
+    "audit route input conflicts with the digest-bound route plan", 4);
+  if (sourcePlan.input?.scope) {
+    requireValue(sourcePlan.input.scope === run.scope.kind,
+      "audit scope conflicts with the digest-bound route plan", 4);
+  }
+  requireValue(
+    baselineLineagesMatch(sourcePlan.baseline_lineage || null, run.baseline_lineage || null),
+    "audit baseline_lineage conflicts with the digest-bound route plan",
+    4
+  );
+  requireValue(
+    baselineLineagesMatch(
+      sourcePlan.planning_gate?.baseline_lineage || null,
+      run.planning_gate?.baseline_lineage || null
+    ),
+    "audit planning baseline_lineage conflicts with the digest-bound route plan",
+    4
+  );
+  requireValue(
+    (sourcePlan.planning_gate?.receipt_digest || null) ===
+      (run.planning_gate?.receipt_digest || null),
+    "audit planning receipt conflicts with the digest-bound route plan",
+    4
+  );
+  requireValue(
+    planningAuthoritiesMatch(sourcePlan.planning_gate || null, run.planning_gate || null),
+    "audit planning authority conflicts with the digest-bound route plan",
+    4
+  );
+  verifyPlanEnforcementGraph(run, sourcePlan);
+  if (verifyExternalAuthorities) {
+    verifyAuditExternalAuthorities(run, sourcePlan, faultInjector);
+  }
   for (const packet of run.packets || []) {
     verifyPacketJourney(packet, run.journey_identity, `packet ${packet.packet_id}`);
     requireValue(canonicalDigest(packetBody(packet)) === packet.packet_digest,
       `packet ${packet.packet_id} digest mismatch`, 4);
+    requireValue(
+      baselineLineagesMatch(packet.baseline_lineage || null, run.baseline_lineage || null),
+      `packet ${packet.packet_id} baseline_lineage conflicts with the audit run`,
+      4
+    );
   }
+  requireValue(DIGEST_PATTERN.test(run.audit_authority_digest || ""),
+    "audit run requires an external audit authority digest", 4);
+  requireValue(auditAuthorityForRun(run) === run.audit_authority_digest,
+    "audit authority no longer binds the creator actor and canonical run scope", 4);
   return run;
 }
 
-export function rebindLegacyAuditIdentity(run, journeyIdentity) {
+export function rebindLegacyAuditIdentity(run, journeyIdentity, {
+  plan = null,
+  planPath = null
+} = {}) {
   requireValue(run?.audit_run_version === 1, "legacy audit migration requires audit_run_version 1", 4);
   requireValue(!run.journey_identity, "audit run already has journey_identity", 4);
   requireValue((run.results || []).length === 0 && (run.triage || []).length === 0,
@@ -169,6 +497,52 @@ export function rebindLegacyAuditIdentity(run, journeyIdentity) {
   });
   const next = structuredClone(run);
   next.journey_identity = journeyIdentity;
+  const refreshLegacySnapshot = (snapshot, label) => {
+    requireValue(snapshot?.resolved_path && DIGEST_PATTERN.test(snapshot.digest || ""),
+      `legacy ${label} requires a canonical digest-bound source`, 4);
+    const refreshed = snapshotArtifact(snapshot.resolved_path, {
+      root: next.root || process.cwd(),
+      label: snapshot.path
+    });
+    requireValue(refreshed.digest === snapshot.digest,
+      `legacy ${label} changed before identity migration`, 4);
+    return {
+      ...snapshot,
+      ...refreshed,
+      path: snapshot.path,
+      resolved_path: snapshot.resolved_path
+    };
+  };
+  if (plan || planPath) {
+    requireValue(plan && planPath,
+      "legacy audit migration requires both the canonical plan and its source path", 4);
+    const pinnedPlan = readPinnedAuditJson(planPath, "legacy audit migration plan");
+    const planSource = pinnedAuditSnapshot(
+      pinnedPlan,
+      planPath,
+      next.root || process.cwd()
+    );
+    requireValue(
+      canonicalDigest(pinnedPlan.input) === canonicalDigest(plan),
+      "legacy audit migration plan does not match its canonical source", 4);
+    next.route.plan_digest = canonicalDigest(plan);
+    next.route.plan_source = planSource;
+    next.planning_gate = structuredClone(plan.planning_gate || null);
+  } else {
+    next.route.plan_source = refreshLegacySnapshot(next.route.plan_source, "route plan");
+  }
+  if (next.route.profile_source) {
+    next.route.profile_source = refreshLegacySnapshot(
+      next.route.profile_source,
+      "route profile"
+    );
+  }
+  next.visual_intent_sources = (next.visual_intent_sources || []).map((source) =>
+    refreshLegacySnapshot(source, `visual-intent authority ${source.authority_kind || source.path}`));
+  next.visual_signature_sources = (next.visual_signature_sources || []).map((source) =>
+    refreshLegacySnapshot(source, `visual-signature authority ${source.authority_kind || source.path}`));
+  next.artifacts = (next.artifacts || []).map((artifact) =>
+    refreshLegacySnapshot(artifact, `artifact ${artifact.path}`));
   next.creator = {
     ...next.creator,
     participant: next.creator?.provider_id
@@ -191,6 +565,7 @@ export function rebindLegacyAuditIdentity(run, journeyIdentity) {
     rebound.packet_digest = canonicalDigest(packetBody(rebound));
     return rebound;
   });
+  next.audit_authority_digest = auditAuthorityForRun(next);
   next.approval_scope_digest = approvalScopeForRun(next);
   next.manifest_digest = canonicalDigest(auditManifest(next));
   verifyAuditJourneyIdentity(next);
@@ -237,6 +612,7 @@ function makePackets(plan, artifacts, journeyIdentity) {
         visual_signature_contract: publicVisualSignature(plan.visual_signature),
         artifact_digests: artifactDigests
       };
+      if (plan.baseline_lineage) packet.baseline_lineage = plan.baseline_lineage;
       packet.packet_digest = canonicalDigest(packet);
       packets.push(packet);
     }
@@ -246,7 +622,7 @@ function makePackets(plan, artifacts, journeyIdentity) {
 
 export function initializeAudit({
   plan,
-  planPath = null,
+  planPath,
   artifacts,
   scope,
   creatorActorId = null,
@@ -254,10 +630,13 @@ export function initializeAudit({
   runId = crypto.randomUUID(),
   journeyIdentity = null,
   invocation = "explicit",
-  now = null
+  now = null,
+  authorityFaultInjector = null
 }) {
   requireValue(plan?.receipt_version === 1, "audit init requires a route receipt_version of 1");
   requireValue(plan.status === "planned", `cannot initialize audit from route status: ${plan.status}`);
+  requireValue(planPath,
+    "audit init requires a persisted canonical route plan source via planPath");
   requireValue(VALID_SCOPES.has(scope), "audit scope must be mockup, runtime, source, or document");
   const requiredBrowserStage = plan.stages?.find((stage) =>
     stage.id === "browser-evidence" && !stage.optional
@@ -287,12 +666,6 @@ export function initializeAudit({
       3
     );
   }
-  let planningGate = null;
-  try {
-    planningGate = verifyPlanningGateForAudit(plan, scope);
-  } catch (error) {
-    throw new RouterError(error.message, 3);
-  }
   requireValue(Array.isArray(artifacts) && artifacts.length > 0, "audit init requires at least one artifact");
   if (plan.creator) requireValue(creatorActorId, "--creator-id is required when the route has a creator");
 
@@ -307,14 +680,61 @@ export function initializeAudit({
     artifactSnapshots.findIndex((candidate) => candidate.path === artifact.path) !== index
   );
   requireValue(!duplicatePath, `duplicate artifact: ${duplicatePath?.path}`);
+  let planningGate = null;
+  try {
+    planningGate = verifyPlanningGateForAudit(plan, scope, {
+      artifacts: artifactSnapshots,
+      root: absoluteRoot
+    });
+  } catch (error) {
+    throw new RouterError(error.message, 3);
+  }
+  const baselineLineage = planningGate?.baseline_lineage || null;
+  requireValue(
+    baselineLineagesMatch(plan.baseline_lineage || null, baselineLineage),
+    "route plan baseline_lineage does not match verified planning authority",
+    4
+  );
+  if (baselineLineage) {
+    try {
+      verifyBaselineLineage(baselineLineage, "verified planning baseline_lineage");
+    } catch (error) {
+      throw new RouterError(error.message, 4);
+    }
+  }
 
-  const planSource = planPath
-    ? snapshotArtifact(path.resolve(planPath), { root: absoluteRoot })
-    : null;
+  const pinnedPlan = readPinnedAuditJson(
+    planPath,
+    "canonical route plan source",
+    authorityFaultInjector
+  );
+  authorityFaultInjector?.("after-route-plan-pin-before-authority-bind", {
+    path: path.resolve(planPath),
+    digest: pinnedPlan.digest,
+    physical_identity_digest: pinnedPlan.physical_identity_digest
+  });
+  const planSource = pinnedAuditSnapshot(pinnedPlan, planPath, absoluteRoot);
+  requireValue(
+    canonicalDigest(pinnedPlan.input) === canonicalDigest(plan),
+    "route plan object does not match its canonical source", 4);
   let profileSource = null;
+  let pinnedProfile = null;
   if (plan.profile_path && plan.profile_digest) {
     try {
-      profileSource = snapshotArtifact(path.resolve(plan.profile_path), { root: absoluteRoot });
+      pinnedProfile = readJsonPinned(plan.profile_path, {
+        label: "routed project profile",
+        faultInjector: authorityFaultInjector
+      });
+      authorityFaultInjector?.("after-profile-pin-before-authority-bind", {
+        path: path.resolve(plan.profile_path),
+        digest: pinnedProfile.digest,
+        physical_identity_digest: pinnedProfile.physical_identity_digest
+      });
+      profileSource = pinnedAuditSnapshot(
+        pinnedProfile,
+        plan.profile_path,
+        absoluteRoot
+      );
     } catch (error) {
       throw new RouterError(`cannot snapshot routed project profile: ${error.message}`, 4);
     }
@@ -325,7 +745,7 @@ export function initializeAudit({
     requireValue(plan.profile_path && profileSource,
       "visual-contract verification requires a digest-bound project profile", 3);
     const verifiedIntent = resolveVisualIntent(
-      readJson(plan.profile_path, "routed project profile"),
+      pinnedProfile.input,
       plan.profile_path,
       plan.input.surface
     );
@@ -337,7 +757,7 @@ export function initializeAudit({
     requireValue(canonicalDigest(verifiedIntent) === canonicalDigest(plan.visual_intent),
       "visual-intent contract does not match the digest-bound project profile", 4);
     const verifiedSignature = resolveVisualSignature(
-      readJson(plan.profile_path, "routed project profile"),
+      pinnedProfile.input,
       plan.profile_path,
       plan.input.surface
     );
@@ -402,8 +822,30 @@ export function initializeAudit({
     3
   );
 
+  const evidenceContract = plan.evidence_contract || null;
+  const hardBlockers = plan.adjudication?.hard_blockers || [];
+  const invariants = plan.invariants || {};
+  const ownerApprovalRequired = ownerApprovalRequiredFromPlan(plan);
+  const auditStages = auditStagesFromPlan(plan);
+
   const createdAt = nowIso(now);
-  const approvalScopeDigest = canonicalDigest({
+  const auditAuthorityDigest = auditAuthorityForRun({
+    run_id: runId,
+    journey_identity: identity,
+    route: {
+      router_id: plan.router_id,
+      router_version: plan.router_version,
+      route_id: plan.route_id,
+      project_id: plan.project_id,
+      plan_digest: canonicalDigest(plan),
+      plan_source: planSource
+    },
+    scope: { kind: scope },
+    creator,
+    artifacts: artifactSnapshots,
+    ...(baselineLineage ? { baseline_lineage: baselineLineage } : {})
+  });
+  const approvalScope = {
     run_id: runId,
     journey_identity: identity,
     plan_digest: canonicalDigest(plan),
@@ -416,8 +858,16 @@ export function initializeAudit({
     baseline_observation: plan.baseline_observation || null,
     creator,
     artifacts: artifactDigestMap(artifactSnapshots),
-    packets: packets.map((packet) => packet.packet_digest)
-  });
+    evidence_contract: evidenceContract,
+    hard_blockers: hardBlockers,
+    invariants,
+    owner_approval_required: ownerApprovalRequired,
+    stages: auditStages,
+    packets: packets.map((packet) => packet.packet_digest),
+    audit_authority_digest: auditAuthorityDigest
+  };
+  if (baselineLineage) approvalScope.baseline_lineage = baselineLineage;
+  const approvalScopeDigest = canonicalDigest(approvalScope);
 
   const run = {
     audit_run_version: 1,
@@ -446,26 +896,24 @@ export function initializeAudit({
     visual_signature_sources: visualSignatureSources,
     creator,
     artifacts: artifactSnapshots,
-    evidence_contract: plan.evidence_contract || null,
+    evidence_contract: evidenceContract,
     baseline_observation: plan.baseline_observation || null,
-    hard_blockers: plan.adjudication?.hard_blockers || [],
-    invariants: plan.invariants || {},
-    owner_approval_required: plan.stages.some((stage) => stage.id === "approval" && !stage.optional),
-    stages: plan.stages.map((stage) => ({
-      id: stage.id,
-      question: stage.question,
-      optional: Boolean(stage.optional),
-      required_capabilities: stage.required_capabilities || [],
-      evidence_required: Boolean(stage.evidence_required),
-      required_evidence_kinds: stage.required_evidence_kinds || []
-    })),
+    hard_blockers: hardBlockers,
+    invariants,
+    owner_approval_required: ownerApprovalRequired,
+    stages: auditStages,
     packets,
     results: [],
     triage: [],
+    audit_authority_digest: auditAuthorityDigest,
     approval_scope_digest: approvalScopeDigest
   };
+  if (baselineLineage) run.baseline_lineage = baselineLineage;
   run.manifest_digest = canonicalDigest(auditManifest(run));
-  verifyAuditJourneyIdentity(run);
+  verifyAuditJourneyIdentity(run, {
+    faultInjector: authorityFaultInjector,
+    verifyExternalAuthorities: true
+  });
   requireValue(approvalScopeForRun(run) === run.approval_scope_digest,
     "approval scope failed to bind the KillSlopRouter journey identity", 4);
   return run;
@@ -495,8 +943,15 @@ function resultTemplate(run, packet) {
   }];
   return {
     audit_result_version: 1,
+    run_id: run.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
+    journey_identity: run.journey_identity,
     provider_id: packet.provider.id,
+    participant: packet.participant,
+    ...(run.baseline_lineage
+      ? { baseline_lineage_digest: run.baseline_lineage.lineage_digest }
+      : {}),
     reviewer: {
       actor_id: "replace-with-reviewer-identity",
       kind: packet.provider.kind || "agent"
@@ -522,14 +977,33 @@ function resultTemplate(run, packet) {
   };
 }
 
-export function dispatchAuditPackets(run, outDir) {
+export function dispatchAuditPackets(run, outDir, { authorityDigest = null } = {}) {
   requireValue(run?.audit_run_version === 1, "dispatch requires an audit run_version of 1");
   verifyAuditJourneyIdentity(run);
-  const absoluteOut = path.resolve(outDir);
-  fs.mkdirSync(absoluteOut, { recursive: true });
+  verifyAuditAuthority(run, authorityDigest, "audit dispatch");
+  let absoluteOut;
+  try {
+    absoluteOut = secureWritablePath(outDir, "audit packet output directory");
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+  try {
+    absoluteOut = ensureSecureDirectory(absoluteOut, "audit packet output directory").real_path;
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
   const written = [];
   for (const packet of run.packets) {
-    const target = path.join(absoluteOut, `${packet.packet_id}.json`);
+    let target;
+    try {
+      target = secureWritablePath(
+        path.join(absoluteOut, `${packet.packet_id}.json`),
+        `audit packet output ${packet.packet_id}`,
+        { boundary: absoluteOut }
+      );
+    } catch (error) {
+      throw new RouterError(error.message, 4);
+    }
     writeJsonAtomic(target, {
       ...packet,
       run_id: run.run_id,
@@ -540,8 +1014,17 @@ export function dispatchAuditPackets(run, outDir) {
     });
     written.push(target);
   }
-  const approvalTemplate = path.join(absoluteOut, "owner-approval.template.json");
-  writeJsonAtomic(approvalTemplate, {
+  let approvalTemplate;
+  try {
+    approvalTemplate = secureWritablePath(
+      path.join(absoluteOut, "owner-approval.template.json"),
+      "audit owner approval template",
+      { boundary: absoluteOut }
+    );
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
+  const approvalBody = {
     approval_version: 1,
     run_id: run.run_id,
     journey_identity: run.journey_identity,
@@ -550,7 +1033,11 @@ export function dispatchAuditPackets(run, outDir) {
     status: "approved",
     note: "replace-with-explicit-owner-decision",
     decided_at: run.created_at
-  });
+  };
+  if (run.baseline_lineage) {
+    approvalBody.baseline_lineage_digest = run.baseline_lineage.lineage_digest;
+  }
+  writeJsonAtomic(approvalTemplate, approvalBody);
   return { directory: absoluteOut, packets: written, approval_template: approvalTemplate };
 }
 
@@ -578,7 +1065,7 @@ function normalizeFinding(finding, index) {
   };
 }
 
-function snapshotEvidence(items, sourcePath, root) {
+function snapshotEvidence(items, sourcePath, root, evidenceSnapshotter = null) {
   const sourceDirectory = path.dirname(path.resolve(sourcePath));
   return (items || []).map((item, index) => {
     requireValue(item?.path, `evidence ${index + 1} requires path`);
@@ -586,7 +1073,9 @@ function snapshotEvidence(items, sourcePath, root) {
     const resolved = path.isAbsolute(item.path) ? item.path : path.resolve(sourceDirectory, item.path);
     let snapshot;
     try {
-      snapshot = snapshotArtifact(resolved, { root, label: item.path });
+      snapshot = evidenceSnapshotter
+        ? evidenceSnapshotter(resolved, { root, label: item.path })
+        : snapshotArtifact(resolved, { root, label: item.path });
     } catch (error) {
       throw new RouterError(`cannot snapshot evidence ${item.path}: ${error.message}`, 4);
     }
@@ -652,7 +1141,18 @@ function normalizeResolution(resolution, index) {
   };
 }
 
-function sourceSnapshot(sourcePath, root) {
+function sourceSnapshot(sourcePath, root, pinnedSnapshot = null) {
+  if (pinnedSnapshot) {
+    requireValue(path.resolve(pinnedSnapshot.resolved_path || "") === path.resolve(sourcePath),
+      "pinned source snapshot path does not match the supplied source", 4);
+    requireValue(typeof pinnedSnapshot.path === "string" && pinnedSnapshot.path.length > 0 &&
+      pinnedSnapshot.kind === "file" &&
+      Number.isInteger(pinnedSnapshot.bytes) && pinnedSnapshot.bytes >= 0 &&
+      DIGEST_PATTERN.test(pinnedSnapshot.digest || "") &&
+      DIGEST_PATTERN.test(pinnedSnapshot.physical_identity_digest || ""),
+    "pinned source snapshot is incomplete", 4);
+    return structuredClone(pinnedSnapshot);
+  }
   try {
     return snapshotArtifact(sourcePath, { root });
   } catch (error) {
@@ -660,10 +1160,111 @@ function sourceSnapshot(sourcePath, root) {
   }
 }
 
-function standardResult(run, input, sourcePath) {
+function samePinnedFileIdentity(left, right) {
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.nlink === right.nlink &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+function readSnapshotJson(snapshot, label) {
+  requireValue(snapshot?.kind === "file" && DIGEST_PATTERN.test(snapshot?.digest || "") &&
+    DIGEST_PATTERN.test(snapshot?.physical_identity_digest || ""),
+    `${label} requires a digest-bound file snapshot`, 4);
+  let canonical;
+  try {
+    canonical = secureExistingRegularFile(snapshot.resolved_path, label, { singleLink: true });
+  } catch (error) {
+    throw new RouterError(`${label} source is unavailable: ${error.message}`, 4);
+  }
+  const recordedPhysical = fs.realpathSync.native(path.resolve(snapshot.resolved_path));
+  requireValue(canonical === recordedPhysical,
+    `${label} source path no longer resolves to its recorded location`, 4);
+  const descriptor = fs.openSync(
+    canonical,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0)
+  );
+  try {
+    const before = fs.fstatSync(descriptor, { bigint: true });
+    const lexicalBefore = fs.lstatSync(canonical, { bigint: true });
+    requireValue(before.isFile() && lexicalBefore.isFile() &&
+      samePinnedFileIdentity(before, lexicalBefore),
+    `${label} source changed while its descriptor was being pinned`, 4);
+    const source = fs.readFileSync(descriptor);
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    const lexicalAfter = fs.lstatSync(canonical, { bigint: true });
+    requireValue(samePinnedFileIdentity(before, after) &&
+      samePinnedFileIdentity(after, lexicalAfter),
+    `${label} source changed while it was being verified`, 4);
+    requireValue(sha256(source) === snapshot.digest,
+      `${label} source digest no longer matches the normalized authority`, 4);
+    const identity = {
+      type: "file",
+      identity: {
+        device: String(after.dev),
+        inode: String(after.ino),
+        links: String(after.nlink),
+        owner_uid: String(after.uid),
+        mode: Number(after.mode & 0o777n),
+        size: String(after.size),
+        mtime_ns: String(after.mtimeNs),
+        ctime_ns: String(after.ctimeNs)
+      }
+    };
+    requireValue(
+      physicalIdentityDigest(identity) === snapshot.physical_identity_digest,
+      `${label} source physical identity no longer matches the normalized authority`,
+      4
+    );
+    try {
+      return JSON.parse(source.toString("utf8"));
+    } catch (error) {
+      throw new RouterError(`cannot parse ${label} source: ${error.message}`, 4);
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function verifyResultBinding(run, packet, input, label = "audit result") {
+  requireValue(input.run_id === run.run_id,
+    `${label} run_id does not match the audit run`, 4);
+  verifyJourneyIdentity(input.journey_identity, {
+    runId: run.run_id,
+    routerId: run.route.router_id,
+    routerVersion: run.route.router_version,
+    label: `${label} journey_identity`
+  });
+  requireValue(identitiesMatch(input.journey_identity, run.journey_identity),
+    `${label} journey_identity does not match the audit run`, 4);
+  requireValue(input.packet_digest === packet.packet_digest,
+    `${label} packet_digest does not match ${packet.packet_id}`, 4);
+  verifyParticipant(input.participant, {
+    providerId: packet.provider.id,
+    stageId: packet.stage_id,
+    label: `${label} participant`
+  });
+  requireValue(sameJson(input.participant, packet.participant),
+    `${label} participant does not match ${packet.packet_id}`, 4);
+  if (run.baseline_lineage) {
+    requireValue(
+      input.baseline_lineage_digest === run.baseline_lineage.lineage_digest,
+      `${label} baseline_lineage_digest does not match the audit run`,
+      4
+    );
+  } else {
+    requireValue(input.baseline_lineage_digest === undefined,
+      `${label} cannot add baseline lineage to an unbound audit run`, 4);
+  }
+}
+
+function standardResult(run, input, sourcePath, evidenceSnapshotter = null, sourceSnapshotOverride = null) {
   requireValue(input.audit_result_version === 1, "result audit_result_version must be 1");
   const packet = run.packets.find((candidate) => candidate.packet_id === input.packet_id);
   requireValue(packet, `unknown packet_id: ${input.packet_id}`);
+  verifyResultBinding(run, packet, input, `result ${packet.packet_id}`);
   requireValue(input.provider_id === packet.provider.id,
     `provider mismatch for ${packet.packet_id}: expected ${packet.provider.id}`);
   requireValue(input.reviewer?.actor_id, `${packet.packet_id} requires reviewer.actor_id`);
@@ -697,12 +1298,20 @@ function standardResult(run, input, sourcePath) {
     requireValue(findings.some((finding) => finding.severity === "blocker" || finding.disposition === "open"),
       `${packet.packet_id} block verdict requires an open or blocker finding`);
   }
-  const evidence = snapshotEvidence(input.evidence || [], sourcePath, run.root);
+  const evidence = snapshotEvidence(
+    input.evidence || [],
+    sourcePath,
+    run.root,
+    evidenceSnapshotter
+  );
   validateEvidenceCoverage(packet, evidence);
   const resolutions = (input.resolutions || []).map(normalizeResolution);
   const normalized = {
+    run_id: run.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
     stage_id: packet.stage_id,
+    journey_identity: run.journey_identity,
     provider_id: packet.provider.id,
     participant: packet.participant,
     provider_version: packet.provider.version,
@@ -716,16 +1325,19 @@ function standardResult(run, input, sourcePath) {
     started_at: input.started_at || null,
     finished_at: input.finished_at || null
   };
+  if (run.baseline_lineage) {
+    normalized.baseline_lineage_digest = run.baseline_lineage.lineage_digest;
+  }
   return {
     packet_id: packet.packet_id,
-    source: sourceSnapshot(sourcePath, run.root),
+    source: sourceSnapshot(sourcePath, run.root, sourceSnapshotOverride),
     normalized,
     normalized_digest: canonicalDigest(normalized),
     recorded_at: nowIso()
   };
 }
 
-function adapterResult(run, input, sourcePath) {
+function adapterResult(run, input, sourcePath, sourceSnapshotOverride = null) {
   requireValue(input.adapter_receipt_version === 1, "adapter receipt version must be 1");
   const candidates = run.packets.filter((packet) =>
     packet.stage_id === input.stage && packet.provider.id === input.tool_id
@@ -735,6 +1347,38 @@ function adapterResult(run, input, sourcePath) {
   const packet = candidates[0];
   requireValue(run.artifacts.length === 1,
     "single adapter receipts require an audit run with one root artifact; aggregate multi-artifact scans first");
+  const bindingFields = [
+    "run_id",
+    "packet_digest",
+    "journey_identity",
+    "participant",
+    "baseline_lineage_digest"
+  ];
+  const suppliedBindingFields = bindingFields.filter((field) => Object.hasOwn(input, field));
+  const standaloneCompatibility = suppliedBindingFields.length === 0;
+  if (standaloneCompatibility) {
+    requireValue(
+      input.tool_id === "kill-ai-slop" &&
+        input.stage === "static-discovery" &&
+        input.mode === "read-only-json",
+      "unbound adapter receipts are accepted only from the standalone kill-ai-slop scanner",
+      4
+    );
+    requireValue(typeof input.artifact === "string" && input.artifact.length > 0,
+      "standalone kill-ai-slop receipt requires its scanned artifact path", 4);
+    let receiptArtifact;
+    let auditArtifact;
+    try {
+      receiptArtifact = fs.realpathSync.native(path.resolve(input.artifact));
+      auditArtifact = fs.realpathSync.native(path.resolve(run.artifacts[0].resolved_path));
+    } catch (error) {
+      throw new RouterError(`cannot verify standalone scanner artifact authority: ${error.message}`, 4);
+    }
+    requireValue(receiptArtifact === auditArtifact,
+      "standalone kill-ai-slop receipt artifact does not match the audit root artifact", 4);
+  } else {
+    verifyResultBinding(run, packet, input, `adapter result ${packet.packet_id}`);
+  }
   requireValue(input.artifact_digest === run.artifacts[0].digest,
     `${packet.packet_id} adapter artifact digest does not match the audit run`);
   const blocked = String(input.status || "").startsWith("blocked");
@@ -748,10 +1392,16 @@ function adapterResult(run, input, sourcePath) {
     disposition: finding.disposition || "open"
   }, index));
   const normalized = {
+    run_id: run.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
     stage_id: packet.stage_id,
+    journey_identity: run.journey_identity,
     provider_id: packet.provider.id,
     participant: packet.participant,
+    receipt_binding: standaloneCompatibility
+      ? "standalone-compatibility-bound-at-ingest"
+      : "packet-bound",
     provider_version: input.version || packet.provider.version,
     reviewer: { actor_id: `${input.tool_id}@${input.version || "unversioned"}`, kind: "tool" },
     verdict: blocked ? "block" : findings.length ? "pass_with_findings" : "pass",
@@ -763,22 +1413,32 @@ function adapterResult(run, input, sourcePath) {
     started_at: input.started_at || null,
     finished_at: input.finished_at || null
   };
+  if (run.baseline_lineage) {
+    normalized.baseline_lineage_digest = run.baseline_lineage.lineage_digest;
+  }
   return {
     packet_id: packet.packet_id,
-    source: sourceSnapshot(sourcePath, run.root),
+    source: sourceSnapshot(sourcePath, run.root, sourceSnapshotOverride),
     normalized,
     normalized_digest: canonicalDigest(normalized),
     recorded_at: nowIso()
   };
 }
 
-export function recordAuditResult(run, input, sourcePath, { replace = false, now = null } = {}) {
+export function recordAuditResult(run, input, sourcePath, {
+  replace = false,
+  now = null,
+  authorityDigest = null,
+  evidenceSnapshotter = null,
+  sourceSnapshot: sourceSnapshotOverride = null
+} = {}) {
   requireValue(run?.audit_run_version === 1, "record requires an audit run_version of 1");
   verifyAuditJourneyIdentity(run);
+  verifyAuditAuthority(run, authorityDigest, "audit result recording");
   requireValue(sourcePath, "record requires a result source path");
   const record = input.adapter_receipt_version
-    ? adapterResult(run, input, sourcePath)
-    : standardResult(run, input, sourcePath);
+    ? adapterResult(run, input, sourcePath, sourceSnapshotOverride)
+    : standardResult(run, input, sourcePath, evidenceSnapshotter, sourceSnapshotOverride);
   const existing = run.results.find((result) => result.packet_id === record.packet_id);
   requireValue(!existing || replace, `result already recorded for ${record.packet_id}; use --replace`);
   const next = structuredClone(run);
@@ -805,31 +1465,25 @@ function findingIndex(run) {
   return index;
 }
 
-export function recordTriage(run, input, sourcePath, { replace = false, now = null } = {}) {
-  requireValue(input?.triage_version === 1, "triage_version must be 1");
-  requireValue(Array.isArray(input.decisions) && input.decisions.length > 0,
-    "triage requires at least one decision");
-  const findings = findingIndex(run);
+export function recordTriage(run, input, sourcePath, {
+  replace = false,
+  now = null,
+  authorityDigest = null,
+  sourceSnapshot: sourceSnapshotOverride = null
+} = {}) {
+  requireValue(run?.audit_run_version === 1, "triage requires an audit run_version of 1");
+  verifyAuditJourneyIdentity(run);
+  verifyAuditAuthority(run, authorityDigest, "audit triage recording");
+  requireValue(sourcePath, "triage requires a source path");
+  const decisions = normalizeTriageDecisions(run, input, sourcePath);
   const existingRefs = new Set(run.triage.flatMap((entry) => entry.decisions.map((item) => item.finding_ref)));
-  const decisions = input.decisions.map((decision, index) => {
-    requireValue(findings.has(decision.finding_ref),
-      `triage decision ${index + 1} references unknown finding: ${decision.finding_ref}`);
-    requireValue(VALID_DISPOSITIONS.has(decision.disposition) && decision.disposition !== "open",
-      `triage decision ${decision.finding_ref} requires a non-open disposition`);
-    requireValue(decision.rationale, `triage decision ${decision.finding_ref} requires rationale`);
+  for (const decision of decisions) {
     requireValue(!existingRefs.has(decision.finding_ref) || replace,
       `triage already recorded for ${decision.finding_ref}; use --replace`);
-    return {
-      finding_ref: decision.finding_ref,
-      disposition: decision.disposition,
-      rationale: decision.rationale,
-      decided_by: decision.decided_by || null,
-      evidence: snapshotEvidence(decision.evidence || [], sourcePath, run.root)
-    };
-  });
+  }
   const normalized = { decisions };
   const entry = {
-    source: sourceSnapshot(sourcePath, run.root),
+    source: sourceSnapshot(sourcePath, run.root, sourceSnapshotOverride),
     decisions,
     normalized_digest: canonicalDigest(normalized),
     recorded_at: nowIso(now)
@@ -845,6 +1499,27 @@ export function recordTriage(run, input, sourcePath, { replace = false, now = nu
   next.triage.push(entry);
   next.updated_at = nowIso(now);
   return next;
+}
+
+function normalizeTriageDecisions(run, input, sourcePath) {
+  requireValue(input?.triage_version === 1, "triage_version must be 1");
+  requireValue(Array.isArray(input.decisions) && input.decisions.length > 0,
+    "triage requires at least one decision");
+  const findings = findingIndex(run);
+  return input.decisions.map((decision, index) => {
+    requireValue(findings.has(decision.finding_ref),
+      `triage decision ${index + 1} references unknown finding: ${decision.finding_ref}`);
+    requireValue(VALID_DISPOSITIONS.has(decision.disposition) && decision.disposition !== "open",
+      `triage decision ${decision.finding_ref} requires a non-open disposition`);
+    requireValue(decision.rationale, `triage decision ${decision.finding_ref} requires rationale`);
+    return {
+      finding_ref: decision.finding_ref,
+      disposition: decision.disposition,
+      rationale: decision.rationale,
+      decided_by: decision.decided_by || null,
+      evidence: snapshotEvidence(decision.evidence || [], sourcePath, run.root)
+    };
+  });
 }
 
 function verifyIntegrity(run, approval) {
@@ -897,6 +1572,38 @@ function verifyIntegrity(run, approval) {
       expected: result.normalized_digest,
       actual: actualDigest
     });
+    let authorityFailure = null;
+    try {
+      const source = readSnapshotJson(result.source, `recorded result ${result.packet_id}`);
+      const reconstructed = source.adapter_receipt_version
+        ? adapterResult(run, source, result.source.resolved_path, result.source)
+        : standardResult(run, source, result.source.resolved_path, null, result.source);
+      const packet = run.packets.find((candidate) => candidate.packet_id === result.packet_id);
+      requireValue(packet, `recorded result references an unknown packet: ${result.packet_id}`, 4);
+      requireValue(reconstructed.packet_id === result.packet_id,
+        `recorded result packet changed: ${result.packet_id}`, 4);
+      requireValue(reconstructed.normalized_digest === result.normalized_digest,
+        `recorded result normalization changed: ${result.packet_id}`, 4);
+      if (packet.reviewer_independence_required) {
+        requireValue(result.normalized.reviewer?.actor_id !== run.creator?.actor_id,
+          `recorded reviewer became the creator: ${result.packet_id}`, 4);
+        requireValue(
+          !run.creator?.provider_id || result.normalized.provider_id !== run.creator.provider_id,
+          `recorded provider became the creator provider: ${result.packet_id}`,
+          4
+        );
+      }
+    } catch (error) {
+      authorityFailure = error.message;
+    }
+    checks.push({
+      label: `result-authority:${result.packet_id}`,
+      path: publicSnapshot(result.source).path,
+      ok: authorityFailure === null,
+      reason: authorityFailure,
+      expected: result.normalized_digest,
+      actual: authorityFailure === null ? result.normalized_digest : null
+    });
     for (const evidence of result.normalized.evidence) check(`evidence:${result.packet_id}`, evidence);
   }
   for (const [index, triage] of run.triage.entries()) {
@@ -910,15 +1617,60 @@ function verifyIntegrity(run, approval) {
       expected: triage.normalized_digest,
       actual: actualDigest
     });
+    let authorityFailure = null;
+    try {
+      const source = readSnapshotJson(triage.source, `recorded triage ${index + 1}`);
+      const reconstructed = normalizeTriageDecisions(
+        run,
+        source,
+        triage.source.resolved_path
+      );
+      requireValue(canonicalDigest({ decisions: reconstructed }) === triage.normalized_digest,
+        `recorded triage normalization changed: ${index + 1}`, 4);
+    } catch (error) {
+      authorityFailure = error.message;
+    }
+    checks.push({
+      label: `triage-authority:${index + 1}`,
+      path: publicSnapshot(triage.source).path,
+      ok: authorityFailure === null,
+      reason: authorityFailure,
+      expected: triage.normalized_digest,
+      actual: authorityFailure === null ? triage.normalized_digest : null
+    });
     for (const decision of triage.decisions) {
       for (const evidence of decision.evidence) check(`triage-evidence:${decision.finding_ref}`, evidence);
     }
   }
-  if (approval?.source) check("owner-approval", approval.source);
+  if (approval?.source) {
+    check("owner-approval", approval.source);
+    let authorityFailure = null;
+    try {
+      const source = readSnapshotJson(approval.source, "owner approval");
+      const reconstructed = normalizeApproval(
+        run,
+        source,
+        approval.source.resolved_path,
+        approval.source
+      );
+      requireValue(reconstructed.normalized_digest === approval.normalized_digest,
+        "owner approval normalization changed", 4);
+    } catch (error) {
+      authorityFailure = error.message;
+    }
+    checks.push({
+      label: "owner-approval-authority",
+      path: publicSnapshot(approval.source).path,
+      ok: authorityFailure === null,
+      reason: authorityFailure,
+      expected: approval.normalized_digest,
+      actual: authorityFailure === null ? approval.normalized_digest : null
+    });
+  }
   return checks;
 }
 
-function normalizeApproval(run, input, sourcePath) {
+function normalizeApproval(run, input, sourcePath, sourceSnapshotOverride = null) {
   if (!input) return null;
   requireValue(input.approval_version === 1, "approval_version must be 1");
   requireValue(input.run_id === run.run_id, "approval run_id does not match the audit run");
@@ -932,6 +1684,15 @@ function normalizeApproval(run, input, sourcePath) {
     "approval journey_identity does not match the audit run");
   requireValue(input.scope_digest === run.approval_scope_digest,
     "approval scope_digest does not match the audit run");
+  if (run.baseline_lineage) {
+    requireValue(
+      input.baseline_lineage_digest === run.baseline_lineage.lineage_digest,
+      "approval baseline_lineage_digest does not match the audit run"
+    );
+  } else {
+    requireValue(input.baseline_lineage_digest === undefined,
+      "approval cannot add baseline_lineage to an unbound audit run");
+  }
   requireValue(["approved", "rejected"].includes(input.status),
     "approval status must be approved or rejected");
   requireValue(input.owner_id, "approval requires owner_id");
@@ -949,9 +1710,12 @@ function normalizeApproval(run, input, sourcePath) {
     journey_identity: input.journey_identity,
     scope_digest: input.scope_digest
   };
+  if (run.baseline_lineage) {
+    normalized.baseline_lineage_digest = input.baseline_lineage_digest;
+  }
   return {
     ...normalized,
-    source: sourcePath ? sourceSnapshot(sourcePath, run.root) : null,
+    source: sourcePath ? sourceSnapshot(sourcePath, run.root, sourceSnapshotOverride) : null,
     normalized_digest: canonicalDigest(normalized)
   };
 }
@@ -1053,9 +1817,16 @@ function stageEvaluation(run, resultByPacket) {
   });
 }
 
-export function finalizeAudit(run, { approval: approvalInput = null, approvalPath = null, now = null } = {}) {
+export function finalizeAudit(run, {
+  approval: approvalInput = null,
+  approvalPath = null,
+  approvalSourceSnapshot = null,
+  now = null,
+  authorityDigest = null
+} = {}) {
   requireValue(run?.audit_run_version === 1, "finalize requires an audit run_version of 1");
-  const approval = normalizeApproval(run, approvalInput, approvalPath);
+  verifyAuditAuthority(run, authorityDigest, "audit finalization");
+  const approval = normalizeApproval(run, approvalInput, approvalPath, approvalSourceSnapshot);
   const integrityChecks = verifyIntegrity(run, approval);
   const integrityFailures = integrityChecks.filter((check) => !check.ok);
   const resultByPacket = new Map(run.results.map((result) => [result.packet_id, result]));
@@ -1071,11 +1842,17 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
   ];
   if (run.planning_gate) {
     try {
-      verifyPlanningGateForAudit({
+      const verifiedPlanning = verifyPlanningGateForAudit({
         project_id: run.route.project_id,
         input: run.route.input,
         planning_gate: run.planning_gate
-      }, run.scope.kind);
+      }, run.scope.kind, { artifacts: run.artifacts, root: run.root });
+      if (!baselineLineagesMatch(
+        verifiedPlanning?.baseline_lineage || null,
+        run.baseline_lineage || null
+      )) {
+        throw new Error("audit baseline_lineage no longer matches verified planning authority");
+      }
     } catch (error) {
       blockers.push(`planning gate verification failed: ${error.message}`);
     }
@@ -1169,19 +1946,29 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
       visual_signature: publicVisualSignature(run.visual_signature),
       visual_signature_sources: (run.visual_signature_sources || []).map(publicSnapshot),
       plan_digest: run.route.plan_digest,
-      plan_source: publicSnapshot(run.route.plan_source),
+      plan_source: finalPlanSourceSnapshot(run.route.plan_source),
       profile_source: publicSnapshot(run.route.profile_source)
     },
     manifest_digest: run.manifest_digest,
+    audit_authority_digest: run.audit_authority_digest,
     creator: run.creator,
     artifacts: run.artifacts.map(publicSnapshot),
     stages,
     results: run.results.map((result) => ({
+      run_id: result.normalized.run_id,
       packet_id: result.packet_id,
+      packet_digest: result.normalized.packet_digest,
+      journey_identity: result.normalized.journey_identity,
+      ...(result.normalized.baseline_lineage_digest
+        ? { baseline_lineage_digest: result.normalized.baseline_lineage_digest }
+        : {}),
       source: publicSnapshot(result.source),
       normalized_digest: result.normalized_digest,
       provider_id: result.normalized.provider_id,
       participant: result.normalized.participant,
+      ...(result.normalized.receipt_binding
+        ? { receipt_binding: result.normalized.receipt_binding }
+        : {}),
       provider_version: result.normalized.provider_version,
       reviewer: result.normalized.reviewer,
       verdict: result.normalized.verdict,
@@ -1218,10 +2005,18 @@ export function finalizeAudit(run, { approval: approvalInput = null, approvalPat
       "visual-signature-is-evidence-bound",
       "palette-frequency-is-not-style-authority",
       "external-review-results-are-provenance-not-project-authority",
+      ...(run.baseline_lineage ? [
+        "latest-version-never-promotes-a-parent-baseline",
+        "slice-candidates-inherit-a-digest-bound-parent-baseline"
+      ] : []),
       "KillSlopRouter-is-the-parent-and-provider-names-are-internal-roles",
       "owner-approval-is-explicit-and-never-inferred"
     ]
   };
+  if (run.baseline_lineage) {
+    receipt.baseline_lineage = run.baseline_lineage;
+    receipt.owner_approval.baseline_lineage_digest = run.baseline_lineage.lineage_digest;
+  }
   receipt.receipt_digest = canonicalDigest(receipt);
   return receipt;
 }
@@ -1234,6 +2029,11 @@ export function formatAuditReceipt(receipt) {
     `technical: ${receipt.technical_status}`,
     `scope: ${receipt.scope.kind} (${receipt.scope.claim})`,
     `artifacts: ${receipt.artifacts.length}`,
+    ...(receipt.baseline_lineage ? [
+      `baseline lineage: ${receipt.baseline_lineage.parent_baseline.id}@${receipt.baseline_lineage.parent_baseline.version} -> ` +
+        `${receipt.baseline_lineage.candidate.slice_id}@${receipt.baseline_lineage.candidate.version}`,
+      `lineage digest: ${receipt.baseline_lineage.lineage_digest}`
+    ] : []),
     `stages: ${receipt.stages.filter((stage) => stage.status === "pass").length}/${receipt.stages.length} pass`,
     `findings: ${receipt.findings.length}`,
     `integrity: ${receipt.integrity.status}`,
