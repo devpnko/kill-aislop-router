@@ -6,6 +6,14 @@ Install it once into the personal Codex marketplace, then invoke the skill from
 any repository. It contains no MCP server, requests no external app access,
 and does not bundle or download a browser binary.
 
+The plugin also includes an optional official Codex audit-review bridge, but
+installation does not enable it. An operator must run `host configure-codex`,
+select exact providers and skill roots, bind the complete local Codex runtime,
+choose an explicit model, and grant `--allow-external`. Missing authentication
+remains `manual_pending`. The bridge starts fresh read-only reviewer threads;
+it cannot replace Playwright, scanner triage, design creation, or owner
+approval. See [Official Codex review host](codex-review-host.md).
+
 ## Install
 
 Install from the default branch without a checkout:
@@ -18,9 +26,42 @@ For unattended use, append an exact reviewed commit to the package spec. The
 same entrypoint supports a non-mutating preview and a marked-install refresh:
 
 ```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install
 npx --yes github:devpnko/kill-aislop-router plugin install --dry-run
 npx --yes github:devpnko/kill-aislop-router plugin install --force
 ```
+
+`--force` refreshes only a verified current install or a recognized
+pre-integrity marker whose payload/runtime/skill still exactly match the trusted
+package, and preserves the previous directory as a backup. The
+current deterministic marker binds the complete packaged payload, copied browser runtime,
+canonical namespaced skill, package version, and marker body. It does not claim
+an authenticated installer actor, source checkout path, or installation time;
+those facts cannot be proven by a same-user local marker. An empty marker
+or different payload is an identity conflict and is never silently replaced.
+
+The preview reports `identity_conflict` when the namespaced plugin would coexist
+with a full legacy `~/.codex/skills/kill-slop-router` entry. Installation then
+stops before mutation. Migrate only with explicit authority:
+
+```bash
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install \
+  --migrate-legacy-entry
+
+# Refreshing an existing marked plugin:
+npx --yes github:devpnko/kill-aislop-router#<40-character-commit> plugin install \
+  --force --migrate-legacy-entry
+```
+
+The old directory is moved, not deleted, to a digest-recorded backup under
+`~/.codex/skills/.killsloprouter-backups/`. Its replacement is a two-file,
+explicit-only shim that immediately hands control to
+`$killsloprouter:kill-slop-router`. `doctor` verifies the shim files and backup;
+it also requires the shim marker to bind the actually installed canonical
+marker, payload, runtime, and canonical skill digests. An orphaned or copied
+shim is therefore an identity conflict even when its public handoff bytes are
+exact. Any later change becomes an identity conflict. The separate `$antislop` skill is not
+part of this migration and remains explicitly invokable outside a Router run.
 
 From an existing V1 checkout, the original script remains supported:
 
@@ -45,6 +86,29 @@ The shortest request uses implicit skill discovery:
 ```text
 KillSlopRouter로 이 프로젝트의 ./src 전체 여정을 진행해.
 ```
+
+This is the single top-level entrypoint. Do not separately invoke a globally
+installed `antislop` skill for the same work. KillSlopRouter binds that skill as
+the `anti-slop` provider and starts it only as a packet-bound read-only child;
+without that binding the stage remains `manual_pending`.
+
+While a Router journey is active, commentary and final output must name
+KillSlopRouter as the workflow. `anti-slop` may be named only as an internal
+critic. Korean correction phrases such as `왠 antislop? 킬슬롭라우터 아니야?`
+and context-compacted continuations resume the existing parent identity.
+
+When the standalone skill is installed in Codex, prevent duplicate automatic
+activation by setting its agent metadata to explicit-only:
+
+```yaml
+# ~/.codex/skills/antislop/agents/openai.yaml
+policy:
+  allow_implicit_invocation: false
+```
+
+Explicit `$antislop` requests still work. The Router child is unaffected because
+the official host reads the configured skill root directly with automatic skill
+discovery disabled.
 
 `전체 여정` means continue from existing repository evidence: resume a matching
 run, consume but never invent planning authority, route the anti-slop change and
@@ -124,7 +188,11 @@ first run. See [Surface contract](surface-contract.md).
 When the artifact has a UI and the project exposes a reviewed local URL, use
 `browser attest` and `browser configure` to replace only the manual
 `browser-evidence` declaration. The skill must not invent or execute a project
-server command. See [Playwright browser evidence](playwright-browser.md).
+server command. It must inventory required interaction states, collect the
+official pre-change runtime audit before editing an existing UI, and bind the
+post-change runtime redesign to that state. See
+[Existing UI anti-slop closed loop](existing-ui-closed-loop.md) and
+[Playwright browser evidence](playwright-browser.md).
 
 ## Why this is not MCP
 

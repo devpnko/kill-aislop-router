@@ -3,9 +3,10 @@
   "$id": "https://killsloprouter.dev/schemas/design-profile-bindings.schema.json",
   "title": "KillSlopRouter approved profile bindings",
   "type": "object",
-  "required": ["profile_bindings_version", "project_id", "surface", "generated_at", "visual_intent", "visual_signature", "decision"],
+  "required": ["profile_bindings_version", "journey_identity", "project_id", "surface", "generated_at", "visual_intent", "visual_signature", "decision"],
   "properties": {
     "profile_bindings_version": {"const": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
     "project_id": {"type": "string", "minLength": 1},
     "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "generated_at": {"type": "string", "format": "date-time"},

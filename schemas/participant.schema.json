@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/participant.schema.json",
+  "title": "KillSlopRouter Internal Participant",
+  "type": "object",
+  "required": ["participant_version", "provider_id", "role", "visibility", "orchestrator_id"],
+  "properties": {
+    "participant_version": {"const": 1},
+    "provider_id": {"type": "string", "minLength": 1},
+    "role": {"enum": ["creator", "critic", "scanner", "browser-evidence", "adjudicator"]},
+    "visibility": {"const": "internal"},
+    "orchestrator_id": {"const": "kill-slop-router"}
+  },
+  "additionalProperties": false
+}

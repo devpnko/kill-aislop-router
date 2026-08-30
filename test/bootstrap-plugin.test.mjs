@@ -15,6 +15,11 @@ function runNode(script, args, cwd) {
   return spawnSync(process.execPath, [script, ...args], {
     cwd,
     encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: cwd,
+      USERPROFILE: cwd
+    },
     timeout: 30_000
   });
 }
@@ -205,6 +210,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(profile.visual_intents["operator-product-ui"].editorial_treatment, "forbidden");
     assert.equal(profile.visual_signatures["operator-product-ui"].status, "unresolved");
     assert.deepEqual(profile.visual_signatures["operator-product-ui"].palette.primary, []);
+    assert.deepEqual(profile.evidence.required_scenarios, []);
     assert.ok(Object.values(profile.local_adapters).every((item) => item.executor === "manual-review"));
     assert.ok(Object.values(host.providers).every((item) => item.adapter === "manual-v1"));
     assert.deepEqual(host.granted_permissions, []);
@@ -267,9 +273,25 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     assert.equal(intentOnlyDoctor.status, 5, intentOnlyDoctor.stderr || intentOnlyDoctor.stdout);
     assert.equal(JSON.parse(intentOnlyDoctor.stdout).visual_signatures[0].status, "unresolved");
     approveVisualSignature(profilePath, artifact);
+    const scenarioBoundProfile = readJson(profilePath);
+    scenarioBoundProfile.evidence.required_scenarios = ["root"];
+    writeJson(profilePath, scenarioBoundProfile);
     const readyDoctor = runNode(cli, ["doctor", "--profile", profilePath, "--format", "json"], directory);
     assert.equal(readyDoctor.status, 0, readyDoctor.stderr || readyDoctor.stdout);
-    assert.equal(JSON.parse(readyDoctor.stdout).status, "automation-ready");
+    const readyDoctorReport = JSON.parse(readyDoctor.stdout);
+    assert.equal(readyDoctorReport.status, "automation-ready");
+    assert.equal(readyDoctorReport.execution_readiness, "not_evaluated_use_integrated_dry_run");
+    assert.equal(readyDoctorReport.completion_eligible, false);
+    assert.equal(readyDoctorReport.next_required_command, "killsloprouter run --dry-run");
+
+    const misleadingHostDoctor = runNode(cli, [
+      "doctor",
+      "--profile", profilePath,
+      "--host-config", hostPath,
+      "--format", "json"
+    ], directory);
+    assert.equal(misleadingHostDoctor.status, 2, misleadingHostDoctor.stderr || misleadingHostDoctor.stdout);
+    assert.match(misleadingHostDoctor.stderr, /doctor validates project\/profile authority only/);
 
     const dryRun = runNode(cli, [
       "run",
@@ -320,7 +342,8 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
       "--json"
     ], directory);
     assert.equal(started.status, 6, started.stderr || started.stdout);
-    assert.equal(readJson(statePath).status, "manual_pending");
+    const startedState = readJson(statePath);
+    assert.equal(startedState.status, "manual_pending");
 
     const changedProfile = readJson(profilePath);
     changedProfile.surface_contract = {
@@ -333,6 +356,7 @@ test("bootstrap creates a non-overwriting manual-only project boundary that dry-
     const resumed = runNode(cli, [
       "run",
       "--resume", statePath,
+      "--authority-digest", startedState.resume_authority_digest,
       "--host-config", hostPath,
       "--json"
     ], directory);
@@ -393,6 +417,13 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
     assert.ok(fs.existsSync(path.join(target, ".codex-plugin", "plugin.json")));
     assert.ok(fs.existsSync(path.join(target, "bin", "killsloprouter.mjs")));
     assert.ok(fs.existsSync(path.join(target, ".killsloprouter-plugin-installed.json")));
+    const skillMetadata = fs.readFileSync(
+      path.join(target, "skills", "kill-slop-router", "agents", "openai.yaml"),
+      "utf8"
+    );
+    assert.match(skillMetadata, /allow_implicit_invocation: true/);
+    assert.match(skillMetadata, /\$killsloprouter:kill-slop-router/);
+    assert.match(skillMetadata, /route antislop only as the digest-locked internal anti-slop critic/);
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "playwright-core", "package.json")).version,
       "1.62.1");
     assert.equal(readJson(path.join(target, ".runtime", "node_modules", "axe-core", "package.json")).version,

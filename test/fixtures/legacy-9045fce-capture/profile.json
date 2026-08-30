@@ -1,0 +1,118 @@
+{
+  "profile_version": 1,
+  "project_id": "example-product",
+  "default_locale": "en-US",
+  "surface_contract": {
+    "surface_contract_version": 1,
+    "primary": "operator-product-ui",
+    "allowed": [
+      "operator-product-ui"
+    ],
+    "artifact_bindings": [
+      {
+        "root": ".",
+        "surface": "operator-product-ui"
+      }
+    ]
+  },
+  "approved_design_system": false,
+  "planning": {
+    "required": false,
+    "surface_receipts": {
+      "operator-product-ui": "service-planning-gate.example.json"
+    }
+  },
+  "tool_lock": "registry/tool-lock.json",
+  "local_adapters": {
+    "project-contract": "docs/product-contract.md",
+    "project-design-system": "docs/design-system.md",
+    "project-systemizer": "docs/systemization-protocol.md",
+    "design-system-contract-review": "reviewers/design-system-contract",
+    "visual-intent-review": "reviewers/visual-intent",
+    "locale-copy-review": "reviewers/en-US-copy",
+    "domain-authority-review": "reviewers/product-owner",
+    "privacy-authority-review": "reviewers/privacy-owner",
+    "browser-evidence": "tests/playwright",
+    "owner-approval": "reviewers/release-owner"
+  },
+  "external_adapters": {
+    "peakoss-anti-slop": {
+      "status": "routable",
+      "version": "review-contract:pr6-v1",
+      "strength": 3,
+      "capabilities": [
+        "pr-contribution-hygiene"
+      ],
+      "independent_from_creator": true
+    }
+  },
+  "fallback_adapters": {
+    "hallmark": [
+      {
+        "id": "independent-rendered-craft-agent",
+        "kind": "agent",
+        "status": "routable",
+        "version": "review-contract:rendered-craft-v1",
+        "target": "reviewers/rendered-craft",
+        "executor": "fresh-agent-review",
+        "strength": 3,
+        "capabilities": [
+          "rendered-hierarchy",
+          "visual-specificity",
+          "visual-restraint",
+          "component-coherence"
+        ],
+        "independent_from_creator": true
+      }
+    ],
+    "no-ai-slop": [
+      {
+        "id": "independent-copy-agent",
+        "kind": "agent",
+        "status": "routable",
+        "version": "review-contract:copy-v1",
+        "target": "reviewers/copy",
+        "executor": "fresh-agent-review",
+        "strength": 3,
+        "capabilities": [
+          "copy-specificity",
+          "copy-honesty",
+          "copy-concision"
+        ],
+        "independent_from_creator": true
+      }
+    ]
+  },
+  "surface_overrides": {
+    "operator-product-ui": {
+      "creator": "project-design-system",
+      "exclude_tools": [
+        "taste-skill"
+      ]
+    }
+  },
+  "high_risk_gates": [
+    "domain-authority-review",
+    "privacy-authority-review",
+    "owner-approval"
+  ],
+  "evidence": {
+    "browser": "playwright",
+    "required_viewports": [
+      "mobile",
+      "desktop"
+    ],
+    "required_checks": [
+      "keyboard",
+      "state",
+      "overflow",
+      "contrast",
+      "zoom-200",
+      "visual-regression",
+      "screen-reader"
+    ],
+    "required_scenarios": [
+      "root"
+    ]
+  }
+}

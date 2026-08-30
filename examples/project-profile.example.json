@@ -179,6 +179,7 @@
   "evidence": {
     "browser": "playwright",
     "required_viewports": ["mobile", "desktop"],
-    "required_checks": ["keyboard", "state", "overflow", "contrast", "zoom-200", "visual-regression", "screen-reader"]
+    "required_checks": ["keyboard", "state", "overflow", "contrast", "zoom-200", "visual-regression", "screen-reader"],
+    "required_scenarios": ["root"]
   }
 }

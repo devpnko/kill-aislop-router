@@ -26,7 +26,8 @@ const REQUIRED_HIGH_RISK_GATES = [
 const DEFAULT_BROWSER_EVIDENCE = {
   browser: "playwright",
   required_viewports: Object.keys(DEFAULT_PLAYWRIGHT_VIEWPORTS),
-  required_checks: [...DEFAULT_PLAYWRIGHT_CHECKS]
+  required_checks: [...DEFAULT_PLAYWRIGHT_CHECKS],
+  required_scenarios: []
 };
 
 function assertProjectId(value) {

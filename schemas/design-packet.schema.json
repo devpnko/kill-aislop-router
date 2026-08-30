@@ -4,7 +4,7 @@
   "title": "KillSlopRouter design dispatch packet",
   "type": "object",
   "required": [
-    "design_packet_version", "packet_id", "run_id", "stage_id", "provider",
+    "design_packet_version", "packet_id", "run_id", "stage_id", "provider", "journey_identity", "participant",
     "assigned_capabilities", "minimum_strength", "required_permissions",
     "evidence_contract", "design_task", "packet_digest"
   ],
@@ -12,6 +12,8 @@
     "design_packet_version": {"const": 1},
     "packet_id": {"type": "string", "minLength": 1},
     "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "participant": {"$ref": "participant.schema.json"},
     "stage_id": {"type": "string", "minLength": 1},
     "provider": {
       "type": "object",

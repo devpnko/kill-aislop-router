@@ -4,13 +4,14 @@
   "title": "KillSlopRouter approved design direction decision",
   "type": "object",
   "required": [
-    "design_direction_decision_version", "run_id", "project_id", "surface", "screen_id", "status",
+    "design_direction_decision_version", "run_id", "journey_identity", "project_id", "surface", "screen_id", "status",
     "selected_design_candidate_id", "selected_color_candidate_id", "source_digests",
     "source_bindings", "intent", "signature", "color_system", "authority", "decision_digest"
   ],
   "properties": {
     "design_direction_decision_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
     "project_id": {"type": "string", "minLength": 1},
     "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "screen_id": {"type": "string", "minLength": 1},
@@ -64,9 +65,10 @@
     },
     "binding": {
       "type": "object",
-      "required": ["provider_id", "actor_id", "packet_digest", "result_digest", "result_source_digest", "evidence", "execution"],
+      "required": ["provider_id", "participant", "actor_id", "packet_digest", "result_digest", "result_source_digest", "evidence", "execution"],
       "properties": {
         "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
         "actor_id": {"type": "string", "minLength": 1},
         "packet_digest": {"$ref": "#/$defs/digest"},
         "result_digest": {"$ref": "#/$defs/digest"},

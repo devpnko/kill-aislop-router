@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0+codex.20260819114324",
+  "version": "1.0.0+codex.20260827003303",
   "description": "Fail-closed design exploration and anti-slop routing with visual contracts, Playwright proof, independent review, and owner approval.",
   "author": {
     "name": "devpnko",
@@ -35,7 +35,7 @@
     "privacyPolicyURL": "https://github.com/devpnko/kill-aislop-router/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/devpnko/kill-aislop-router/blob/main/LICENSE",
     "defaultPrompt": [
-      "Use $killsloprouter:kill-slop-router to resolve this project's artifact surface, visual intent, and exact visual signature, then continue its gated journey from planning evidence through anti-slop audit and eligible systemization.",
+      "Use $killsloprouter:kill-slop-router as the only top-level workflow, resolve this project's artifact surface, visual intent, and exact visual signature, then route antislop only as the digest-locked anti-slop child critic through the gated journey.",
       "Use $killsloprouter:kill-slop-router to resolve missing visual direction with the owner-gated 3x3 direction and color exploration without imposing a house style.",
       "Use $killsloprouter:kill-slop-router to resume this audit and report every receipt hash.",
       "Use $killsloprouter:kill-slop-router to audit this artifact with independent evidence.",

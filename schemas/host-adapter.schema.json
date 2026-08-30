@@ -34,6 +34,7 @@
         },
         "entrypoint": {"type": "string", "minLength": 1},
         "entrypoint_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "entrypoint_graph_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
         "adapter_root": {"type": "string", "minLength": 1},
         "capabilities": {
           "type": "array",
@@ -60,6 +61,30 @@
         {
           "if": {"properties": {"adapter": {"const": "kill-ai-slop-v1"}}},
           "then": {"required": ["adapter_root", "entrypoint_digest"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "settings": {
+                "properties": {"contract": {"const": "killsloprouter-codex-review-v1"}},
+                "required": ["contract"]
+              }
+            },
+            "required": ["settings"]
+          },
+          "then": {"required": ["entrypoint_graph_digest"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "settings": {
+                "properties": {"contract": {"const": "killsloprouter-playwright-v1"}},
+                "required": ["contract"]
+              }
+            },
+            "required": ["settings"]
+          },
+          "then": {"required": ["entrypoint_graph_digest"]}
         }
       ],
       "additionalProperties": false

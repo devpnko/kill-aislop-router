@@ -5,14 +5,19 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { recordAuditResult } from "../src/audit.mjs";
+import { auditAuthorityDigestForRun, recordAuditResult } from "../src/audit.mjs";
 import { executeAuditPacket, inspectPacketAdapter, loadHostManifest } from "../src/execution.mjs";
-import { hashArtifact, snapshotArtifact } from "../src/integrity.mjs";
+import { canonicalDigest, hashArtifact, snapshotArtifact } from "../src/integrity.mjs";
 import {
   configurePlaywright,
+  createPlaywrightRuntimeSeal,
+  MAX_PLAYWRIGHT_BASELINE_BYTES,
   playwrightRuntimeDigest,
+  playwrightRuntimePhysicalIdentityDigest,
+  playwrightVerificationContractDigest,
   resolvePlaywrightRuntimeRoot
 } from "../src/playwright.mjs";
+import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -26,19 +31,48 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function replaceWithSameBytes(target) {
+  const replacement = `${target}.same-bytes`;
+  const displaced = `${target}.displaced`;
+  const mode = fs.statSync(target).mode & 0o777;
+  fs.copyFileSync(target, replacement);
+  fs.chmodSync(replacement, mode);
+  fs.renameSync(target, displaced);
+  fs.renameSync(replacement, target);
+  fs.rmSync(displaced);
+}
+
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
 function runCli(args, cwd) {
-  return spawnSync(process.execPath, [cli, ...args], {
+  const commandArgs = [...args];
+  const resumeIndex = commandArgs.indexOf("--resume");
+  if (resumeIndex >= 0 && !commandArgs.includes("--migrate-identity") &&
+    !commandArgs.includes("--authority-digest")) {
+    const statePath = path.resolve(cwd, commandArgs[resumeIndex + 1]);
+    if (fs.existsSync(statePath)) {
+      const state = readJson(statePath);
+      if (state.resume_authority_digest) {
+        commandArgs.push("--authority-digest", state.resume_authority_digest);
+      }
+    }
+  }
+  return spawnSync(process.execPath, [cli, ...commandArgs], {
     cwd,
     encoding: "utf8",
     timeout: 60_000
   });
 }
 
-function bootstrapProject(directory) {
+function sealPacket(packet) {
+  delete packet.packet_digest;
+  packet.packet_digest = canonicalDigest(packet);
+  return packet;
+}
+
+function bootstrapProject(directory, requiredScenarios = ["root"]) {
   const result = runCli([
     "bootstrap",
     "--root", directory,
@@ -48,12 +82,16 @@ function bootstrapProject(directory) {
     "--json"
   ], directory);
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  return {
+  const paths = {
     profile: path.join(directory, ".killsloprouter", "profile.json"),
     host: path.join(directory, ".killsloprouter", "host-adapters.json"),
     scenarios: path.join(directory, ".killsloprouter", "playwright-scenarios.json"),
     baselines: path.join(directory, ".killsloprouter", "playwright-baselines")
   };
+  const profile = readJson(paths.profile);
+  profile.evidence.required_scenarios = [...requiredScenarios];
+  writeJson(paths.profile, profile);
+  return paths;
 }
 
 function approveFixtureVisualIntent(profilePath, artifactPath) {
@@ -198,11 +236,24 @@ function makePacket(profile, artifactDigests) {
     "contrast-evidence",
     "zoom-evidence"
   ];
-  return {
+  const runId = "playwright-real-child-run";
+  return sealPacket({
+    dispatch_packet_version: 1,
     packet_id: "browser-evidence--browser-evidence--1",
+    run_id: runId,
+    journey_identity: createJourneyIdentity({ runId, routerVersion: "1.0.0" }),
+    participant: createParticipant({ providerId: "browser-evidence", stageId: "browser-evidence" }),
     stage_id: "browser-evidence",
     stage_question: "Do the approved states work in a real browser?",
-    provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
+    required: true,
+    provider: {
+      id: "browser-evidence",
+      kind: "local",
+      version: "playwright-core@1.62.1",
+      executor: null,
+      fallback_for: null,
+      resolved_to: "official:playwright-browser-v1"
+    },
     minimum_strength: 3,
     reviewer_independence_required: true,
     assigned_capabilities: capabilities,
@@ -210,22 +261,110 @@ function makePacket(profile, artifactDigests) {
     evidence_required: true,
     required_evidence_kinds: ["screenshot", "test-report"],
     evidence_contract: profile.evidence,
-    packet_digest: "fixture-packet-digest"
-  };
+    visual_intent_contract: null,
+    visual_signature_contract: null,
+  });
 }
 
 function makeRun(directory, artifact, packet) {
-  return {
+  const sourcePlan = {
+    receipt_version: 1,
+    router_id: "kill-slop-router",
+    router_version: packet.journey_identity.orchestrator_version,
+    router_path: path.join(root, "router", "default-router.json"),
+    profile_path: null,
+    profile_digest: null,
+    project_id: "playwright-boundary-fixture",
+    status: "planned",
+    route_id: "playwright-boundary",
+    input: {
+      surface: "operator-product-ui",
+      task: "audit",
+      scope: "runtime"
+    },
+    surface_resolution: null,
+    visual_intent: null,
+    visual_signature: null,
+    creator: "project-design-system",
+    stages: [{
+      id: packet.stage_id,
+      question: packet.stage_question,
+      optional: false,
+      required_capabilities: packet.assigned_capabilities,
+      evidence_required: packet.evidence_required,
+      required_evidence_kinds: packet.required_evidence_kinds,
+      minimum_strength: packet.minimum_strength,
+      requires_independent_critic: packet.reviewer_independence_required,
+      selected_actors: [{
+        id: packet.provider.id,
+        kind: packet.provider.kind,
+        version: packet.provider.version,
+        executor: packet.provider.executor,
+        fallback_for: packet.provider.fallback_for,
+        resolved_to: packet.provider.resolved_to,
+        capabilities: packet.assigned_capabilities,
+        optional: false
+      }]
+    }],
+    planning_gate: null,
+    evidence_contract: packet.evidence_contract,
+    adjudication: { hard_blockers: [] },
+    invariants: {}
+  };
+  const planPath = path.join(directory, `plan-${packet.run_id}.json`);
+  writeJson(planPath, sourcePlan);
+  const planSource = snapshotArtifact(planPath, { root: directory });
+  const artifacts = [snapshotArtifact(artifact, { root: directory })];
+  const run = {
     audit_run_version: 1,
-    run_id: "playwright-real-child-run",
+    run_id: packet.run_id,
+    journey_identity: packet.journey_identity,
+    status: "collecting",
     root: directory,
     packets: [packet],
-    creator: { provider_id: "project-design-system", actor_id: "creator-agent-1" },
-    scope: { kind: "runtime", claim: "Rendered runtime" },
-    artifacts: [snapshotArtifact(artifact, { root: directory })],
+    creator: {
+      provider_id: "project-design-system",
+      actor_id: "creator-agent-1",
+      participant: createParticipant({ providerId: "project-design-system", role: "creator" })
+    },
+    scope: { kind: "runtime", claim: "runtime-artifacts-reviewed" },
+    route: {
+      router_id: sourcePlan.router_id,
+      router_version: sourcePlan.router_version,
+      route_id: sourcePlan.route_id,
+      project_id: sourcePlan.project_id,
+      plan_digest: canonicalDigest(sourcePlan),
+      plan_source: planSource,
+      profile_source: null,
+      surface_resolution: null,
+      input: sourcePlan.input
+    },
+    planning_gate: null,
+    visual_intent: null,
+    visual_intent_sources: [],
+    visual_signature: null,
+    visual_signature_sources: [],
+    artifacts,
+    evidence_contract: packet.evidence_contract,
+    baseline_observation: null,
+    hard_blockers: [],
+    invariants: {},
+    owner_approval_required: false,
+    stages: [{
+      id: packet.stage_id,
+      question: packet.stage_question,
+      optional: false,
+      required_capabilities: packet.assigned_capabilities,
+      evidence_required: packet.evidence_required,
+      required_evidence_kinds: packet.required_evidence_kinds
+    }],
     results: [],
-    triage: []
+    triage: [],
+    approval_scope_digest: canonicalDigest({ fixture: packet.run_id }),
+    manifest_digest: canonicalDigest({ fixture: packet.run_id, packet: packet.packet_digest })
   };
+  run.audit_authority_digest = auditAuthorityDigestForRun(run);
+  return run;
 }
 
 function enableFixtureReviewers(hostPath) {
@@ -279,10 +418,13 @@ function enableFixtureReviewers(hostPath) {
 function writeApproval(statePath, directory) {
   const state = readJson(statePath);
   const audit = readJson(state.paths.audit.path);
-  const approval = path.join(directory, "approval.json");
+  const extension = path.extname(statePath);
+  const stateName = path.basename(statePath, extension);
+  const approval = path.join(directory, `${stateName}.approval.json`);
   writeJson(approval, {
     approval_version: 1,
     run_id: audit.run_id,
+    journey_identity: audit.journey_identity,
     scope_digest: audit.approval_scope_digest,
     owner_id: "playwright-release-owner",
     status: "approved",
@@ -291,6 +433,36 @@ function writeApproval(statePath, directory) {
   });
   return approval;
 }
+
+test("browser verification contract is portable while runtime physical identity remains host-local", () => {
+  const settings = {
+    contract: "killsloprouter-playwright-v1",
+    attestation_path: "/.well-known/killsloprouter-artifact.json",
+    allowed_origins: [],
+    browser_channel: "chromium",
+    locale: "ko-KR",
+    runtime_digest: `sha256:${"1".repeat(64)}`,
+    scenario_digest: `sha256:${"2".repeat(64)}`,
+    viewports: { mobile: { width: 390, height: 844 } },
+    color_schemes: ["light"],
+    max_keyboard_tabs: 200,
+    navigation_timeout_ms: 30_000
+  };
+  const first = playwrightVerificationContractDigest({
+    ...settings,
+    runtime_physical_identity_digest: `sha256:${"3".repeat(64)}`
+  });
+  const relocated = playwrightVerificationContractDigest({
+    ...settings,
+    runtime_physical_identity_digest: `sha256:${"4".repeat(64)}`
+  });
+  assert.equal(relocated, first,
+    "portable profile authority must not bind machine-local inode/mtime state");
+  assert.notEqual(playwrightVerificationContractDigest({
+    ...settings,
+    runtime_digest: `sha256:${"5".repeat(64)}`
+  }), first, "reviewed runtime content remains part of the portable contract");
+});
 
 test("browser configure creates a digest-locked official adapter and rejects external URLs by default", () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-config-"));
@@ -315,7 +487,8 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     weakenedProfile.evidence = {
       browser: "legacy-smoke-test",
       required_viewports: ["mobile"],
-      required_checks: ["keyboard"]
+      required_checks: ["keyboard"],
+      required_scenarios: []
     };
     writeJson(paths.profile, weakenedProfile);
     const configured = runCli([
@@ -324,6 +497,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
       "--host-config", paths.host,
       "--base-url", "http://127.0.0.1:4173",
       "--channel", "chrome",
+      "--required-scenarios", "root",
       "--json"
     ], directory);
     assert.equal(configured.status, 0, configured.stderr || configured.stdout);
@@ -332,6 +506,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     assert.match(receipt.receipt_digest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(receipt.browser.attestation_path, "/.well-known/killsloprouter-artifact.json");
     assert.deepEqual(receipt.browser.allowed_origins, []);
+    assert.deepEqual(receipt.browser.required_scenarios, ["root"]);
     const profile = readJson(paths.profile);
     assert.equal(profile.evidence.browser, "playwright");
     assert.deepEqual(profile.evidence.required_viewports, ["mobile", "tablet", "desktop"]);
@@ -341,13 +516,37 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     ]);
     assert.ok(profile.evidence.required_checks.includes("screen-reader"));
     assert.ok(profile.evidence.required_checks.includes("visual-regression"));
+    assert.deepEqual(profile.evidence.required_scenarios, ["root"]);
     const host = loadHostManifest(paths.host);
     const declaration = host.providers["browser-evidence"];
     assert.equal(declaration.settings.contract, "killsloprouter-playwright-v1");
+    assert.match(declaration.entrypoint_graph_digest, /^sha256:/);
+    assert.equal(receipt.adapter.entrypoint_graph_digest,
+      declaration.entrypoint_graph_digest);
     assert.equal(declaration.settings.runtime_digest, playwrightRuntimeDigest(resolvePlaywrightRuntimeRoot()));
+    assert.equal(declaration.settings.runtime_physical_identity_digest,
+      playwrightRuntimePhysicalIdentityDigest(resolvePlaywrightRuntimeRoot()));
+    assert.equal(receipt.adapter.runtime_physical_identity_digest,
+      declaration.settings.runtime_physical_identity_digest);
+    assert.equal(profile.evidence.scenario_digest, declaration.settings.scenario_digest);
+    assert.equal(profile.evidence.browser_contract_digest,
+      declaration.official_playwright.verificationContractDigest);
+    assert.equal(receipt.browser.verification_contract_digest,
+      profile.evidence.browser_contract_digest);
     assert.deepEqual(declaration.permissions, ["artifact:read", "evidence:write", "browser:control"]);
     assert.equal(fs.existsSync(receipt.profile.backup), true);
     assert.equal(fs.existsSync(receipt.host_manifest.backup), true);
+
+    const configuredHost = readJson(paths.host);
+    const weakenedHost = structuredClone(configuredHost);
+    weakenedHost.providers["browser-evidence"].settings.viewports.mobile.width += 1;
+    writeJson(paths.host, weakenedHost);
+    const weakenedInspection = inspectPacketAdapter(makePacket(profile, {
+      "artifact.html": `sha256:${"a".repeat(64)}`
+    }), loadHostManifest(paths.host));
+    assert.equal(weakenedInspection.execution_status, "manual_pending");
+    assert.match(weakenedInspection.reason, /does not match the profile-bound browser verification contract/);
+    writeJson(paths.host, configuredHost);
 
     const before = [hashArtifact(paths.profile), hashArtifact(paths.host)];
     assert.throws(() => configurePlaywright({
@@ -360,7 +559,38 @@ test("browser configure creates a digest-locked official adapter and rejects ext
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
-      scenarios: [{ id: "invalid", path: "/", actions: [{ type: "shell", locator: "body" }] }]
+      scenarios: [{
+        id: "unreviewed-state",
+        path: "/",
+        actions: [],
+        assertions: [{ type: "visible", locator: "body" }]
+      }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /required Playwright scenario is missing.*root/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{ id: "root", path: "/", actions: [], assertions: [] }]
+    });
+    assert.throws(() => configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome",
+      scenarioPath: paths.scenarios
+    }), /required Playwright scenario needs at least one state assertion: root/);
+    assert.deepEqual([hashArtifact(paths.profile), hashArtifact(paths.host)], before);
+
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [{ id: "root", path: "/", actions: [{ type: "shell", locator: "body" }] }]
     });
     assert.throws(() => configurePlaywright({
       profilePath: paths.profile,
@@ -374,7 +604,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "unsafe-style-property",
+        id: "root",
         path: "/",
         actions: [],
         assertions: [{
@@ -394,7 +624,7 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "external-explicit",
+        id: "root",
         path: "/",
         actions: [],
         assertions: [{ type: "visible", locator: "body" }]
@@ -415,6 +645,57 @@ test("browser configure creates a digest-locked official adapter and rejects ext
     assert.ok(externalHost.providers["browser-evidence"].permissions.includes("network:external"));
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Playwright configuration rejects baselines that cannot be handed to the child", () => {
+  const cases = [
+    {
+      label: "unsafe filename",
+      prepare(baselines) {
+        fs.writeFileSync(path.join(baselines, ".DS_Store"), "finder metadata\n");
+      },
+      expected: /safe PNG filenames only: \.DS_Store/
+    },
+    {
+      label: "nested directory",
+      prepare(baselines) {
+        fs.mkdirSync(path.join(baselines, "nested"));
+      },
+      expected: /flat regular files only: nested/
+    },
+    {
+      label: "oversized baseline set",
+      prepare(baselines) {
+        const oversized = path.join(baselines, "oversized.png");
+        fs.writeFileSync(oversized, "");
+        fs.truncateSync(oversized, MAX_PLAYWRIGHT_BASELINE_BYTES + 1);
+      },
+      expected: /baseline authority exceeds/
+    }
+  ];
+
+  for (const fixtureCase of cases) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-baseline-"));
+    try {
+      const paths = bootstrapProject(directory);
+      fs.mkdirSync(paths.baselines, { recursive: true });
+      fixtureCase.prepare(paths.baselines);
+      const before = [hashArtifact(paths.profile), hashArtifact(paths.host)];
+      assert.throws(() => configurePlaywright({
+        profilePath: paths.profile,
+        hostManifestPath: paths.host,
+        baseUrl: "http://127.0.0.1:4173",
+        browserChannel: "chrome"
+      }), fixtureCase.expected, fixtureCase.label);
+      assert.deepEqual(
+        [hashArtifact(paths.profile), hashArtifact(paths.host)],
+        before,
+        `${fixtureCase.label} must fail before profile or host mutation`
+      );
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   }
 });
 
@@ -506,11 +787,235 @@ test("official Playwright runtime, scenario, and baseline tamper fail before chi
     host.providers["browser-evidence"].settings.runtime_digest = playwrightRuntimeDigest(runtime);
     writeJson(paths.host, host);
     fs.writeFileSync(path.join(runtime, "node_modules", "playwright-core", "tampered.js"), "tamper\n");
-    assert.throws(() => loadHostManifest(paths.host), /runtime digest mismatch/);
+    assert.throws(() => loadHostManifest(paths.host),
+      /runtime (?:digest mismatch|must use the bundled trusted runtime root)/);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("Playwright executes a private package seal and rejects same-byte runtime replacement", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-runtime-seal-"));
+  let seal = null;
+  try {
+    const runtimeRoot = path.join(directory, "runtime");
+    for (const packageName of ["axe-core", "playwright-core"]) {
+      fs.cpSync(
+        path.join(root, "node_modules", packageName),
+        path.join(runtimeRoot, "node_modules", packageName),
+        { recursive: true, preserveTimestamps: true }
+      );
+    }
+    let settings = {
+      runtime_root: runtimeRoot,
+      runtime_digest: playwrightRuntimeDigest(runtimeRoot),
+      runtime_physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(runtimeRoot)
+    };
+    seal = createPlaywrightRuntimeSeal(settings);
+    assert.notEqual(seal.runtimeRoot, runtimeRoot);
+    assert.equal(playwrightRuntimeDigest(seal.runtimeRoot), settings.runtime_digest);
+    assert.equal(playwrightRuntimePhysicalIdentityDigest(seal.runtimeRoot),
+      seal.runtimePhysicalIdentityDigest);
+
+    const target = path.join(runtimeRoot, "node_modules", "axe-core", "axe.min.js");
+    replaceWithSameBytes(target);
+    assert.throws(() => createPlaywrightRuntimeSeal(settings),
+      /physical identity mismatch before sealing/);
+    assert.equal(playwrightRuntimeDigest(seal.runtimeRoot), settings.runtime_digest,
+      "an already sealed runtime must remain content-stable after source replacement");
+
+    settings = {
+      ...settings,
+      runtime_physical_identity_digest: playwrightRuntimePhysicalIdentityDigest(runtimeRoot)
+    };
+    let injected = false;
+    assert.throws(() => createPlaywrightRuntimeSeal(settings, {
+      faultInjector(checkpoint) {
+        if (injected || checkpoint !==
+          "after-playwright-runtime-copy-before-source-revalidation") return;
+        injected = true;
+        replaceWithSameBytes(target);
+      }
+    }), /changed while its private execution seal was being created/);
+    assert.equal(injected, true);
+  } finally {
+    seal?.cleanup();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("Playwright scenario identity and manifest-relative paths remain bound across the child handoff", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-handoff-"));
+  try {
+    const paths = bootstrapProject(directory);
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173",
+      browserChannel: "chrome"
+    });
+    const artifact = path.join(directory, "artifact.html");
+    fs.writeFileSync(artifact, "<!doctype html><main>handoff fixture</main>\n");
+    const profile = readJson(paths.profile);
+    const packet = makePacket(profile, { "artifact.html": hashArtifact(artifact) });
+    const run = makeRun(directory, artifact, packet);
+    let manifest = loadHostManifest(paths.host);
+    const configuredScenario = manifest.providers["browser-evidence"].settings.scenario_file;
+    assert.equal(path.isAbsolute(configuredScenario), true);
+
+    const displaced = `${paths.scenarios}.displaced`;
+    const sameBytes = `${paths.scenarios}.same-bytes`;
+    fs.copyFileSync(paths.scenarios, sameBytes);
+    fs.renameSync(paths.scenarios, displaced);
+    fs.symlinkSync(sameBytes, paths.scenarios);
+    const symlinked = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: path.join(directory, "symlinked-scenario-output"),
+      outputGrantRoot: directory
+    });
+    assert.equal(symlinked.execution_status, "blocked_execution_error");
+    assert.match(symlinked.error, /Playwright scenario file.*symlink/);
+    assert.equal(symlinked.child_pid, null,
+      "a substituted scenario path must fail before the browser child starts");
+    fs.rmSync(paths.scenarios);
+    fs.renameSync(displaced, paths.scenarios);
+    fs.rmSync(sameBytes);
+    manifest = loadHostManifest(paths.host);
+
+    const replacement = `${paths.scenarios}.replacement`;
+    const original = `${paths.scenarios}.original`;
+    fs.copyFileSync(paths.scenarios, replacement);
+    const canonicalScenario = fs.realpathSync.native(paths.scenarios);
+    let scenarioSwapped = false;
+    const swappedResult = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: path.join(directory, "swapped-scenario-output"),
+      outputGrantRoot: directory,
+      authorityFaultInjector(checkpoint, detail) {
+        if (scenarioSwapped || checkpoint !== "after-read-before-path-revalidation") return;
+        if (detail.path !== canonicalScenario) return;
+        scenarioSwapped = true;
+        fs.renameSync(paths.scenarios, original);
+        fs.renameSync(replacement, paths.scenarios);
+      }
+    });
+    assert.equal(scenarioSwapped, true);
+    assert.equal(swappedResult.execution_status, "blocked_execution_error");
+    assert.match(swappedResult.error, /path identity changed while it was being read/);
+    assert.equal(swappedResult.child_pid, null,
+      "a scenario inode swap must fail before the browser child starts");
+    fs.rmSync(paths.scenarios);
+    fs.renameSync(original, paths.scenarios);
+    manifest = loadHostManifest(paths.host);
+
+    const racingReplacement = `${paths.scenarios}.racing-replacement`;
+    const racingOriginal = `${paths.scenarios}.racing-original`;
+    fs.copyFileSync(paths.scenarios, racingReplacement);
+    let armed = false;
+    const racingResult = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: path.join(directory, "racing-scenario-output"),
+      outputGrantRoot: directory,
+      authorityFaultInjector(checkpoint) {
+        if (armed || checkpoint !==
+          "after-playwright-authority-handoff-before-final-confirmation") return;
+        armed = true;
+        fs.renameSync(paths.scenarios, racingOriginal);
+        fs.symlinkSync(racingReplacement, paths.scenarios);
+      }
+    });
+    assert.equal(armed, true, racingResult.error || JSON.stringify(racingResult));
+    assert.equal(fs.lstatSync(paths.scenarios).isSymbolicLink(), true);
+    assert.equal(racingResult.execution_status, "blocked_execution_error");
+    assert.match(racingResult.error, /scenario.*(?:symlink|path identity changed)/i);
+    assert.equal(racingResult.child_pid, null,
+      "a delayed scenario replacement must fail before the adapter child starts");
+    fs.rmSync(paths.scenarios);
+    fs.renameSync(racingOriginal, paths.scenarios);
+    fs.rmSync(racingReplacement);
+
+    const relativeHost = readJson(paths.host);
+    const hostBase = path.dirname(paths.host);
+    for (const key of ["runtime_root", "scenario_file", "baseline_directory"]) {
+      relativeHost.providers["browser-evidence"].settings[key] = path.relative(
+        hostBase,
+        relativeHost.providers["browser-evidence"].settings[key]
+      );
+    }
+    writeJson(paths.host, relativeHost);
+    const relativeManifest = loadHostManifest(paths.host);
+    const relativeDeclaration = relativeManifest.providers["browser-evidence"];
+    assert.equal(path.isAbsolute(relativeDeclaration.settings.runtime_root), true);
+    assert.equal(path.isAbsolute(relativeDeclaration.settings.scenario_file), true);
+    assert.equal(path.isAbsolute(relativeDeclaration.settings.baseline_directory), true);
+    const relativeResult = executeAuditPacket({
+      run,
+      packet,
+      manifest: relativeManifest,
+      outputDirectory: path.join(directory, "relative-scenario-output"),
+      outputGrantRoot: directory
+    });
+    assert.notEqual(relativeResult.execution_status, "manual_pending");
+    assert.doesNotMatch(relativeResult.error || "", /ENOENT.*playwright-scenarios/i,
+      "the child must receive the manifest-resolved scenario path");
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+for (const authorityKind of ["scenario-file", "baseline-directory"]) {
+  test(`Playwright ${authorityKind} same-content replacement fails before browser spawn`, () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-physical-"));
+    try {
+      const paths = bootstrapProject(directory);
+      configurePlaywright({
+        profilePath: paths.profile,
+        hostManifestPath: paths.host,
+        baseUrl: "http://127.0.0.1:4173",
+        browserChannel: "chrome"
+      });
+      const artifact = path.join(directory, "artifact.html");
+      fs.writeFileSync(artifact, "<!doctype html><main>physical authority fixture</main>\n");
+      const profile = readJson(paths.profile);
+      const packet = makePacket(profile, { "artifact.html": hashArtifact(artifact) });
+      const run = makeRun(directory, artifact, packet);
+      const manifest = loadHostManifest(paths.host);
+      const target = authorityKind === "scenario-file" ? paths.scenarios : paths.baselines;
+      const replacement = `${target}.same-content`;
+      const displaced = `${target}.displaced`;
+      if (authorityKind === "scenario-file") fs.copyFileSync(target, replacement);
+      else fs.cpSync(target, replacement, { recursive: true });
+      let swapped = false;
+      const executed = executeAuditPacket({
+        run,
+        packet,
+        manifest,
+        outputDirectory: path.join(directory, `${authorityKind}-output`),
+        outputGrantRoot: directory,
+        authorityFaultInjector(checkpoint) {
+          if (swapped || checkpoint !==
+            "after-playwright-authority-handoff-before-final-confirmation") return;
+          swapped = true;
+          fs.renameSync(target, displaced);
+          fs.renameSync(replacement, target);
+        }
+      });
+      assert.equal(swapped, true);
+      assert.equal(executed.execution_status, "blocked_execution_error");
+      assert.match(executed.error, /Playwright.*physical identity changed/i);
+      assert.equal(executed.child_pid, null,
+        `same-content ${authorityKind} replacement must block before browser spawn`);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
 
 test("official Playwright adapter verifies a digest-bound static design prototype", {
   timeout: 60_000
@@ -541,6 +1046,14 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       design_packet_version: 1,
       packet_id: "browser-design-fixture",
       run_id: "official-design-browser-run",
+      journey_identity: createJourneyIdentity({
+        runId: "official-design-browser-run", routerVersion: "1.0.0"
+      }),
+      participant: createParticipant({
+        providerId: "browser-evidence",
+        stageId: "browser-evidence",
+        designTaskKind: "browser-evidence"
+      }),
       stage_id: "browser-evidence",
       provider: { id: "browser-evidence", kind: "local", version: "playwright-core@1.62.1" },
       assigned_capabilities: capabilities,
@@ -562,15 +1075,18 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       },
       packet_digest: `sha256:${"1".repeat(64)}`
     };
+    sealPacket(packet);
     const manifest = loadHostManifest(paths.host);
     const unsupportedPacket = structuredClone(packet);
     unsupportedPacket.evidence_contract.required_checks.push("screen-reader", "visual-regression");
+    sealPacket(unsupportedPacket);
     const unsupported = inspectPacketAdapter(unsupportedPacket, manifest);
     assert.equal(unsupported.execution_status, "manual_pending");
     assert.match(unsupported.reason, /screen-reader, visual-regression/);
     assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
     const run = {
       run_id: packet.run_id,
+      journey_identity: packet.journey_identity,
       packets: [packet],
       creator: { provider_id: "design-direction-agent", actor_id: "creator:direction" },
       scope: { kind: "design-exploration" },
@@ -605,12 +1121,18 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
 </main></body></html>\n`);
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
+    layoutPacket.run_id = "official-design-browser-layout-run";
+    layoutPacket.journey_identity = createJourneyIdentity({
+      runId: layoutPacket.run_id, routerVersion: "1.0.0"
+    });
     layoutPacket.packet_digest = `sha256:${"4".repeat(64)}`;
     layoutPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    sealPacket(layoutPacket);
     const layoutBlocked = executeAuditPacket({
       run: {
         ...run,
-        run_id: "official-design-browser-layout-run",
+        run_id: layoutPacket.run_id,
+        journey_identity: layoutPacket.journey_identity,
         packets: [layoutPacket],
         artifacts: [snapshotArtifact(prototype, { root: directory })]
       },
@@ -640,11 +1162,21 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
 </main></body></html>\n`);
     const blockedPacket = structuredClone(packet);
     blockedPacket.packet_id = "browser-design-unbound-resource";
+    blockedPacket.run_id = "official-design-browser-block-run";
+    blockedPacket.journey_identity = createJourneyIdentity({
+      runId: blockedPacket.run_id, routerVersion: "1.0.0"
+    });
     blockedPacket.packet_digest = `sha256:${"3".repeat(64)}`;
     blockedPacket.evidence_contract.required_checks.push("network");
     blockedPacket.design_task.prototypes[0].digest = hashArtifact(prototype);
+    sealPacket(blockedPacket);
     const blocked = executeAuditPacket({
-      run: { ...run, run_id: "official-design-browser-block-run", packets: [blockedPacket] },
+      run: {
+        ...run,
+        run_id: blockedPacket.run_id,
+        journey_identity: blockedPacket.journey_identity,
+        packets: [blockedPacket]
+      },
       packet: blockedPacket,
       manifest,
       attempt: 1,
@@ -709,7 +1241,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     const snapshot = snapshotArtifact(artifact, { root: directory });
     const artifactDigests = { [snapshot.path]: snapshot.digest };
     server = await startServer(artifactDigests);
-    const paths = bootstrapProject(directory);
+    const paths = bootstrapProject(directory, ["details-open"]);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
@@ -738,7 +1270,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     });
     let profile = readJson(paths.profile);
     let manifest = loadHostManifest(paths.host);
-    const packet = makePacket(profile, artifactDigests);
+    let packet = makePacket(profile, artifactDigests);
     let run = makeRun(directory, artifact, packet);
     assert.equal(inspectPacketAdapter(packet, manifest).execution_status, "ready");
 
@@ -748,6 +1280,7 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     assert.notEqual(first.child_pid, process.pid);
     assert.equal(first.result.verdict, "block");
     assert.match(first.result.findings.map((item) => item.category).join("\n"), /visual-regression/);
+    assert.equal(first.result.findings.some((item) => item.category === "keyboard"), false);
     assert.ok(first.result.evidence.some((item) => item.kind === "test-report"));
     assert.ok(first.result.evidence.some((item) => item.kind === "trace"));
     assert.deepEqual(
@@ -756,7 +1289,9 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     );
     const firstResultPath = path.join(firstOutput, "adapter-result.json");
     writeJson(firstResultPath, first.result);
-    run = recordAuditResult(run, first.result, firstResultPath);
+    run = recordAuditResult(run, first.result, firstResultPath, {
+      authorityDigest: run.audit_authority_digest
+    });
     assert.equal(run.results[0].normalized.verdict, "block");
 
     for (const item of first.result.evidence.filter((entry) => entry.kind === "screenshot")) {
@@ -778,17 +1313,24 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
     assert.equal(second.result.verdict, "pass_with_findings");
     const report = readJson(path.join(secondOutput, "browser-report.json"));
     assert.equal(report.status, "passed");
+    assert.deepEqual(report.required_scenarios, ["details-open"]);
     assert.equal(report.artifact_attestation.artifact_digests[snapshot.path], snapshot.digest);
     assert.ok(report.executions.every((entry) => entry.visual_regression.status === "matched"));
     assert.ok(report.executions.every((entry) => entry.actions.every((action) => action.status === "passed")));
     assert.ok(report.executions.every((entry) => entry.assertions.every((assertion) => assertion.status === "passed")));
-    run = recordAuditResult(run, second.result, path.join(secondOutput, "browser-report.json"), { replace: true });
+    assert.ok(second.result.evidence
+      .filter((item) => ["screenshot", "test-report"].includes(item.kind))
+      .every((item) => item.scenarios.includes("details-open")));
+    run = recordAuditResult(run, second.result, path.join(secondOutput, "browser-report.json"), {
+      replace: true,
+      authorityDigest: run.audit_authority_digest
+    });
     assert.equal(run.results[0].normalized.verdict, "pass_with_findings");
 
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
-        id: "layout-readability",
+        id: "details-open",
         path: "/layout-bad",
         actions: [],
         assertions: [
@@ -807,7 +1349,10 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       scenarioPath: paths.scenarios,
       baselineDirectory: paths.baselines
     });
+    profile = readJson(paths.profile);
     manifest = loadHostManifest(paths.host);
+    packet = makePacket(profile, artifactDigests);
+    run = makeRun(directory, artifact, packet);
     const layoutOutput = path.join(directory, "evidence-layout-defects");
     const layout = executeAuditPacket({ run, packet, manifest, attempt: 3, outputDirectory: layoutOutput });
     assert.equal(layout.execution_status, "ran", layout.error);
@@ -848,7 +1393,10 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
       scenarioPath: paths.scenarios,
       baselineDirectory: paths.baselines
     });
+    profile = readJson(paths.profile);
     manifest = loadHostManifest(paths.host);
+    packet = makePacket(profile, artifactDigests);
+    run = makeRun(directory, artifact, packet);
     const changedOutput = path.join(directory, "evidence-material-change");
     const changed = executeAuditPacket({ run, packet, manifest, attempt: 4, outputDirectory: changedOutput });
     assert.equal(changed.execution_status, "ran", changed.error);
@@ -863,19 +1411,24 @@ test("official Playwright adapter crosses a real child boundary, blocks layout d
   }
 });
 
-test("integrated automation resumes and retries the official Playwright stage before owner approval", {
-  timeout: 120_000
+test("integrated automation binds a real pre-change observation before the runtime redesign audit", {
+  timeout: 180_000
 }, async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-automation-"));
   let server = null;
   try {
     const artifact = path.join(directory, "artifact.html");
+    const authority = path.join(directory, "approved-visual-authority.html");
     fs.writeFileSync(artifact, "<!doctype html><p>integrated browser artifact</p>\n");
+    fs.writeFileSync(authority, "<!doctype html><p>stable approved visual authority</p>\n");
     const snapshot = snapshotArtifact(artifact, { root: directory });
     server = await startServer({ [snapshot.path]: snapshot.digest });
-    const paths = bootstrapProject(directory);
-    approveFixtureVisualIntent(paths.profile, artifact);
-    approveFixtureVisualSignature(paths.profile, artifact);
+    const paths = bootstrapProject(directory, ["integrated-details"]);
+    approveFixtureVisualIntent(paths.profile, authority);
+    approveFixtureVisualSignature(paths.profile, authority);
+    const creationProfile = readJson(paths.profile);
+    creationProfile.approved_design_system = true;
+    writeJson(paths.profile, creationProfile);
     writeJson(paths.scenarios, {
       playwright_scenario_version: 1,
       scenarios: [{
@@ -914,6 +1467,16 @@ test("integrated automation resumes and retries the official Playwright stage be
     assert.equal(state.status, "blocked");
     let audit = readJson(state.paths.audit.path);
     const browserResult = audit.results.find((item) => item.normalized.stage_id === "browser-evidence");
+    assert.ok(browserResult, JSON.stringify({
+      blockers: state.blockers,
+      attempts: state.attempts.map((item) => ({
+        provider_id: item.provider_id,
+        execution_status: item.execution_status,
+        error: item.error || null,
+        reason: item.reason || null
+      })),
+      result_stages: audit.results.map((item) => item.normalized.stage_id)
+    }, null, 2));
     assert.equal(browserResult.normalized.verdict, "block");
     assert.notEqual(
       state.attempts.find((item) => item.provider_id === "browser-evidence").child_pid,
@@ -960,6 +1523,81 @@ test("integrated automation resumes and retries the official Playwright stage be
     ], directory);
     assert.equal(completed.status, 0, completed.stderr || completed.stdout);
     assert.equal(readJson(statePath).status, "complete");
+
+    fs.appendFileSync(artifact, "<!-- post-observation implementation -->\n");
+    server.child.kill("SIGTERM");
+    const changedSnapshot = snapshotArtifact(artifact, { root: directory });
+    server = await startServer({ [changedSnapshot.path]: changedSnapshot.digest });
+    configurePlaywright({
+      profilePath: paths.profile,
+      hostManifestPath: paths.host,
+      baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines
+    });
+    enableFixtureReviewers(paths.host);
+
+    const redesignArgs = [
+      "--profile", paths.profile,
+      "--host-config", paths.host,
+      "--surface", "operator-product-ui",
+      "--task", "redesign",
+      "--direction", "approved",
+      "--changes", "source,copy,style,layout,interaction,state",
+      "--artifact", artifact,
+      "--scope", "runtime",
+      "--creator-id", "creator-agent-2",
+      "--observation-run", statePath,
+      "--root", directory,
+      "--json"
+    ];
+    const dryRun = runCli(["run", "--dry-run", ...redesignArgs], directory);
+    assert.equal(dryRun.status, 0, dryRun.stderr || dryRun.stdout);
+    const dryRunReport = JSON.parse(dryRun.stdout);
+    assert.equal(dryRunReport.baseline_observation.run_id, state.run_id);
+    assert.deepEqual(dryRunReport.baseline_observation.required_scenarios, ["integrated-details"]);
+
+    const redesignStatePath = path.join(directory, ".killsloprouter", "playwright-redesign.json");
+    const redesigned = runCli([
+      "run", ...redesignArgs.slice(0, -1),
+      "--out", redesignStatePath,
+      "--json"
+    ], directory);
+    assert.equal(redesigned.status, 6, redesigned.stderr || redesigned.stdout);
+    const redesignState = readJson(redesignStatePath);
+    assert.equal(redesignState.status, "manual_pending");
+    assert.equal(redesignState.baseline_observation.run_id, state.run_id);
+    const observationPlan = readJson(state.paths.plan.path);
+    const redesignPlan = readJson(redesignState.paths.plan.path);
+    assert.equal(redesignState.baseline_observation.profile_digest,
+      observationPlan.profile_digest);
+    assert.equal(redesignPlan.profile_digest, observationPlan.profile_digest);
+    assert.notDeepEqual(
+      redesignState.baseline_observation.artifact_digests,
+      Object.fromEntries([[changedSnapshot.path, changedSnapshot.digest]])
+    );
+    const redesignAudit = readJson(redesignState.paths.audit.path);
+    assert.equal(redesignAudit.baseline_observation.observation_digest,
+      redesignState.baseline_observation.observation_digest);
+    const redesignBrowserAttempt = redesignState.attempts.find((item) =>
+      item.provider_id === "browser-evidence"
+    );
+    assert.equal(redesignBrowserAttempt.metadata.transport, "official-playwright-json-v1");
+    assert.equal(redesignBrowserAttempt.metadata.observed_journey_identity_digest,
+      redesignState.journey_identity.identity_digest);
+    assert.equal(redesignBrowserAttempt.metadata.observed_participant.provider_id, "browser-evidence");
+    assert.equal(redesignBrowserAttempt.metadata.observed_participant.visibility, "internal");
+
+    const redesignApproval = writeApproval(redesignStatePath, directory);
+    const redesignCompleted = runCli([
+      "run", "--resume", redesignStatePath,
+      "--host-config", paths.host,
+      "--approval", redesignApproval,
+      "--json"
+    ], directory);
+    assert.equal(redesignCompleted.status, 0, redesignCompleted.stderr || redesignCompleted.stdout);
+    assert.equal(readJson(redesignStatePath).status, "complete");
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });

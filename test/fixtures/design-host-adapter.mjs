@@ -1,10 +1,34 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney,
+  verifyParticipant
+} from "../../src/identity.mjs";
 
 let source = "";
 for await (const chunk of process.stdin) source += chunk;
 const request = JSON.parse(source);
 const { packet, settings = {} } = request;
+
+verifyJourneyIdentity(request.journey_identity, {
+  runId: request.run_id,
+  label: "design fixture host request journey_identity"
+});
+verifyPacketJourney(packet, request.journey_identity, "design fixture packet");
+if (!identitiesMatch(packet.journey_identity, request.journey_identity)) {
+  throw new Error("design fixture packet conflicts with the active journey identity");
+}
+verifyParticipant(request.participant, {
+  providerId: packet.provider.id,
+  stageId: packet.stage_id,
+  designTaskKind: packet.design_task.kind,
+  label: "design fixture host request participant"
+});
+if (JSON.stringify(request.participant) !== JSON.stringify(packet.participant)) {
+  throw new Error("design fixture participant conflicts with the packet");
+}
 
 if ((settings.fail_attempts || []).includes(request.attempt)) {
   process.stderr.write(`design fixture failure on attempt ${request.attempt}\n`);
@@ -321,5 +345,10 @@ if (packet.design_task.kind === "color-review") result = reviewResult("color-rev
 process.stdout.write(JSON.stringify({
   host_adapter_response_version: 1,
   result,
-  metadata: { child_pid: process.pid, transport: "node-json-stdio-design-fixture" }
+  metadata: {
+    child_pid: process.pid,
+    transport: "node-json-stdio-design-fixture",
+    observed_journey_identity_digest: request.journey_identity.identity_digest,
+    observed_participant: request.participant
+  }
 }));

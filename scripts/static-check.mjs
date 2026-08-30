@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AXE_CORE_VERSION, PLAYWRIGHT_CORE_VERSION } from "../src/playwright.mjs";
-import { hashArtifact } from "../src/integrity.mjs";
+import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
 import { validateDesignBrief } from "../src/design.mjs";
+import { legacyCaptureFingerprints } from "../src/automation.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -46,7 +47,55 @@ const exampleDesignBrief = JSON.parse(fs.readFileSync(
   path.join(root, "examples", "design-brief.example.json"),
   "utf8"
 ));
+const examplePlanningReceipt = JSON.parse(fs.readFileSync(
+  path.join(root, "examples", "service-planning-lineage.example.json"),
+  "utf8"
+));
+const exampleLineage = examplePlanningReceipt.baseline_lineage;
+const exampleLineageOwnerApprovalPath = path.join(
+  root,
+  "examples",
+  "planning-evidence",
+  "policy-slice-owner-approval.json"
+);
+const exampleLineageOwnerApproval = JSON.parse(fs.readFileSync(
+  exampleLineageOwnerApprovalPath,
+  "utf8"
+));
 validateDesignBrief(exampleDesignBrief);
+assert.equal(exampleLineage.relationship, "slice-of");
+assert.equal(exampleLineage.promotion.authority, "explicit-owner-only");
+assert.equal(exampleLineage.promotion.supersedes_parent, false);
+for (const artifact of [
+  ...exampleLineage.parent_baseline.artifacts,
+  ...exampleLineage.candidate.artifacts
+]) {
+  assert.equal(
+    hashArtifact(path.join(root, "examples", artifact.path)),
+    artifact.digest,
+    `baseline lineage example digest changed: ${artifact.path}`
+  );
+}
+const exampleLineageDigest = canonicalDigest(exampleLineage);
+assert.equal(exampleLineageOwnerApproval.baseline_lineage_digest, exampleLineageDigest);
+assert.deepEqual(exampleLineageOwnerApproval.candidate, exampleLineage.candidate);
+assert.equal(exampleLineageOwnerApproval.lineage_id, exampleLineage.lineage_id);
+assert.equal(exampleLineageOwnerApproval.decision_scope, "candidate-slice-binding");
+assert.equal(exampleLineageOwnerApproval.parent_promotion, false);
+const exampleG7 = examplePlanningReceipt.gates.G7;
+assert.equal(exampleG7.status, "approved");
+assert.deepEqual(
+  exampleG7.evidence.filter((item) => item.kind === "approved-artifact"),
+  exampleLineage.candidate.artifacts.map((artifact) => ({
+    kind: "approved-artifact",
+    path: artifact.path,
+    digest: artifact.digest
+  }))
+);
+assert.equal(
+  exampleG7.evidence.find((item) => item.kind === "owner-approval")?.digest,
+  hashArtifact(exampleLineageOwnerApprovalPath)
+);
 assert.equal(packageJson.version, router.router_version, "package and router versions must agree");
 const pluginBaseVersion = pluginJson.version.replace(/\+codex\.[0-9A-Za-z.-]+$/, "");
 assert.equal(packageJson.version, pluginBaseVersion, "package and plugin base versions must agree");
@@ -73,9 +122,211 @@ assert.equal(router.invariants.critic_preferences_cannot_override_visual_signatu
 assert.equal(router.invariants.missing_direction_requires_design_exploration, true);
 assert.equal(router.invariants.design_candidates_require_playwright_evidence, true);
 assert.equal(router.invariants.design_shortlist_and_palette_require_owner_selection, true);
+assert.equal(router.invariants.parent_orchestrator_identity_is_digest_bound, true);
+assert.equal(router.invariants.child_provider_names_are_internal_roles_not_modes, true);
+assert.equal(router.invariants.legacy_skill_entry_conflicts_fail_closed, true);
+assert.equal(router.invariants.automation_state_leases_are_exclusive, true);
+assert.equal(router.invariants.latest_version_never_promotes_parent_baseline, true);
+assert.equal(router.invariants.slice_lineage_is_digest_bound_to_parent_and_candidate, true);
 assert.equal(packageJson.exports["./design"], "./src/design.mjs");
+assert.equal(packageJson.exports["./codex"], "./src/codex.mjs");
+assert.equal(packageJson.exports["./identity"], "./src/identity.mjs");
+assert.equal(packageJson.exports["./skill-catalog"], "./src/skill-catalog.mjs");
+assert.equal(packageJson.exports["./state-lease"], "./src/state-lease-public.mjs");
+const publicStateLeaseSource = fs.readFileSync(
+  path.join(root, "src", "state-lease-public.mjs"),
+  "utf8"
+);
+assert.doesNotMatch(publicStateLeaseSource, /claimStaleStateLease/,
+  "public state-lease facade must not expose the stale recovery claim primitive");
+assert.doesNotMatch(publicStateLeaseSource, /completeStateLeaseRecovery/,
+  "public state-lease facade must not expose the recovery completion primitive");
+const skillMetadata = fs.readFileSync(
+  path.join(root, "skills", "kill-slop-router", "agents", "openai.yaml"),
+  "utf8"
+);
+assert.match(skillMetadata, /\$killsloprouter:kill-slop-router/,
+  "bundled skill prompt must bind the namespaced V1 entrypoint");
+assert.doesNotMatch(skillMetadata, /Use \$kill-slop-router\b/,
+  "bundled skill prompt must not reactivate the legacy entrypoint");
+const skillSource = fs.readFileSync(
+  path.join(root, "skills", "kill-slop-router", "SKILL.md"),
+  "utf8"
+);
+assert.match(skillSource, /Parent identity invariant/,
+  "bundled skill must state the parent identity contract");
+assert.match(skillSource, /왠 antislop\? 킬슬롭라우터 아니야\?/,
+  "bundled skill must preserve the Korean correction regression contract");
+assert.match(skillSource, /standalone `\$antislop` workflow remains compatible only/,
+  "bundled skill must preserve standalone explicit antislop compatibility");
+assert.match(skillSource, /baseline_lineage/,
+  "bundled skill must preserve parent baseline and slice lineage");
+assert.match(skillSource, /resume_authority_digest/,
+  "bundled skill must preserve the caller-held resume authority boundary");
+const identityFixtures = JSON.parse(fs.readFileSync(
+  path.join(root, "test", "fixtures", "orchestrator-identity.json"),
+  "utf8"
+));
+for (const fixtureId of [
+  "korean-correction",
+  "compaction-continuation",
+  "duplicate-catalog-wording",
+  "standalone-antislop-explicit"
+]) {
+  assert.ok(identityFixtures.resolution_cases.some((item) => item.id === fixtureId),
+    `orchestrator identity fixture is missing: ${fixtureId}`);
+}
+assert.ok(identityFixtures.presentation_cases.some((item) =>
+  item.id === "allowed-internal-critic" && item.allowed === true),
+"orchestrator identity fixture must allow qualified internal-critic wording");
+assert.doesNotMatch(packageJson.scripts.test, /e2e-shard|playwright|design|dogfood|codex/,
+  "the bounded default suite must not accidentally absorb the isolated E2E inventory");
 assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
   "design child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,
+  "official Codex host child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/orchestrator-identity\.test\.mjs/,
+  "orchestrator identity and catalog migration coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/state-lease\.test\.mjs/,
+  "state lease concurrency and recovery coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/path-security\.test\.mjs/,
+  "guarded write fault-injection coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/e2e-shard-\*\.test\.mjs/,
+  "integrated E2E coverage must remain isolated across deterministic test shards");
+assert.ok(fs.existsSync(path.join(root, "src", "adapters", "codex-review.mjs")),
+  "official Codex review adapter is missing");
+assert.ok(fs.existsSync(path.join(root, "schemas", "codex-review-output.schema.json")),
+  "official Codex review output schema is missing");
+for (const schema of [
+  "journey-identity.schema.json",
+  "participant.schema.json",
+  "audit-run.schema.json",
+  "audit-receipt.schema.json",
+  "identity-migration-receipt.schema.json",
+  "state-lease.schema.json",
+  "state-lease-recovery-receipt.schema.json",
+  "baseline-lineage-declaration.schema.json",
+  "baseline-lineage-owner-approval.schema.json",
+  "baseline-lineage.schema.json"
+]) {
+  assert.ok(fs.existsSync(path.join(root, "schemas", schema)),
+    `orchestrator identity contract schema is missing: ${schema}`);
+}
+const lineageRuntimeSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "baseline-lineage.schema.json"),
+  "utf8"
+));
+assert.ok(lineageRuntimeSchema.allOf.some((constraint) =>
+  constraint.required?.includes("lineage_digest")),
+"propagated baseline lineage schema must require lineage_digest");
+const planningGateSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "service-planning-gate.schema.json"),
+  "utf8"
+));
+assert.equal(
+  planningGateSchema.properties.baseline_lineage.$ref,
+  "baseline-lineage-declaration.schema.json",
+  "external planning receipts must use the raw lineage declaration schema"
+);
+const auditResultSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "audit-result.schema.json"),
+  "utf8"
+));
+for (const field of [
+  "run_id", "packet_digest", "journey_identity", "provider_id", "participant"
+]) {
+  assert.ok(auditResultSchema.required.includes(field),
+    `audit result provenance field must remain required: ${field}`);
+}
+const identityMigrationSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "identity-migration-receipt.schema.json"),
+  "utf8"
+));
+assert.ok(identityMigrationSchema.required.includes("legacy_backup"),
+  "legacy migration receipt must retain its external backup authority");
+assert.ok(identityMigrationSchema.required.includes("migration_authority"),
+  "legacy migration receipt must bind copy-on-write migration authority");
+assert.ok(identityMigrationSchema.properties.verified.required.includes("source_commit"),
+  "legacy migration receipt must retain positive historical provenance");
+const leaseRecoverySchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "state-lease-recovery-receipt.schema.json"),
+  "utf8"
+));
+assert.ok(leaseRecoverySchema.required.includes("resume_authority_digest"),
+  "state lease recovery receipt must repeat modern journey authority");
+const auditRunSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "audit-run.schema.json"),
+  "utf8"
+));
+assert.ok(auditRunSchema.$defs.plan_source.required.includes("resolved_path"),
+  "audit plan_source must require the path that runtime dereferences");
+const auditReceiptSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "audit-receipt.schema.json"),
+  "utf8"
+));
+assert.ok(auditReceiptSchema.$defs.plan_source.required.includes("resolved_path"),
+  "final audit receipt must retain the canonical plan path that verifiers dereference");
+const pluginInstallMarkerSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "plugin-install-marker.schema.json"),
+  "utf8"
+));
+assert.equal(pluginInstallMarkerSchema.properties.plugin_install_marker_version.const, 2,
+  "plugin install marker must use deterministic payload marker version 2");
+for (const unverifiableClaim of ["source", "installed_by", "installed_at"]) {
+  assert.equal(unverifiableClaim in pluginInstallMarkerSchema.properties, false,
+    `plugin marker must not claim locally unauthenticated provenance: ${unverifiableClaim}`);
+}
+const legacyShimMarkerSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "legacy-skill-shim-marker.schema.json"),
+  "utf8"
+));
+assert.equal(legacyShimMarkerSchema.properties.legacy_shim_version.const, 2,
+  "legacy shim marker must bind canonical install version 2");
+assert.ok(legacyShimMarkerSchema.required.includes("canonical_install"),
+  "legacy shim marker must bind the installed canonical payload");
+const hostRequestSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "host-adapter-request.schema.json"),
+  "utf8"
+));
+assert.equal(hostRequestSchema.$defs.playwright_authority.type, "object",
+  "host request must publish the parent-sealed Playwright child authority");
+assert.ok(hostRequestSchema.$defs.playwright_authority.required.length >= 5,
+  "Playwright child authority schema must fail closed on an empty object");
+const startAuthoritySchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "automation-start-authority-receipt.schema.json"),
+  "utf8"
+));
+assert.ok(startAuthoritySchema.$defs.parent_owned_path_contract.required.length >= 19,
+  "start authority parent-owned path contract must fail closed on an empty object");
+const legacyCaptureRoot = path.join(root, "test", "fixtures", "legacy-9045fce-capture");
+const legacyCapture = JSON.parse(fs.readFileSync(path.join(legacyCaptureRoot, "CAPTURE.json"), "utf8"));
+assert.equal(legacyCapture.source_commit, "9045fce382dc9ffae65aa492eddaa1d7a7996d4d");
+assert.equal(hashArtifact(path.join(legacyCaptureRoot, "default-router.json")),
+  legacyCapture.source_router_digest, "historical migration router fixture changed");
+assert.equal(hashArtifact(path.join(legacyCaptureRoot, "legacy-state.json")),
+  legacyCapture.state_file_digest, "historical migration state fixture changed");
+assert.deepEqual(legacyCaptureFingerprints(
+  JSON.parse(fs.readFileSync(path.join(legacyCaptureRoot, "legacy-state.json"), "utf8")),
+  JSON.parse(fs.readFileSync(path.join(legacyCaptureRoot, "legacy-state.d", "plan.json"), "utf8")),
+  JSON.parse(fs.readFileSync(path.join(legacyCaptureRoot, "legacy-state.d", "audit-run.json"), "utf8"))
+), legacyCapture.serialization_fingerprints,
+"historical migration serialization fingerprints changed");
+const codexAdapterSource = fs.readFileSync(
+  path.join(root, "src", "adapters", "codex-review.mjs"),
+  "utf8"
+);
+for (const boundary of [
+  '"--ephemeral"',
+  '"--sandbox", "read-only"',
+  '"approval_policy=\\"never\\""',
+  '"skills.include_instructions=false"',
+  '"skills.bundled.enabled=false"',
+  '"--disable", "multi_agent"',
+  '"--disable", "plugins"'
+]) {
+  assert.ok(codexAdapterSource.includes(boundary),
+    `official Codex review adapter lost fixed boundary: ${boundary}`);
+}
 assert.equal(exampleDesignBrief.directions.length, 3);
 assert.equal(exampleDesignBrief.color_strategies.length, 3);
 for (const routeId of ["consumer-product-ui", "marketing-editorial"]) {

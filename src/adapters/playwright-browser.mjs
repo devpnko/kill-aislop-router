@@ -5,6 +5,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { canonicalDigest, hashArtifact, sha256, snapshotArtifact } from "../integrity.mjs";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney,
+  verifyParticipant
+} from "../identity.mjs";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
@@ -21,6 +28,53 @@ const VISUAL_COMPARISON = Object.freeze({
   threshold: 0.2,
   maxDiffPixels: 0
 });
+const CHILD_AUTHORITY_KEYS = new Set([
+  "playwright_child_authority_version",
+  "runtime_digest",
+  "runtime_source_physical_identity_digest",
+  "runtime_seal_physical_identity_digest",
+  "scenario",
+  "baselines",
+  "authority_digest"
+]);
+const RUNTIME_PACKAGES = Object.freeze({
+  "axe-core": "4.13.0",
+  "playwright-core": "1.62.1"
+});
+
+function runtimePackagePath(runtimeRoot, packageName) {
+  return path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
+}
+
+function runtimeDigest(runtimeRoot) {
+  const packages = {};
+  for (const [packageName, expectedVersion] of Object.entries(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    const metadata = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+    requireValue(metadata.version === expectedVersion,
+      `sealed runtime package ${packageName} version mismatch`);
+    packages[packageName] = {
+      version: metadata.version,
+      digest: hashArtifact(directory, { ignores: [] })
+    };
+  }
+  return canonicalDigest({ playwright_runtime_version: 1, packages });
+}
+
+function runtimePhysicalIdentityDigest(runtimeRoot) {
+  const packages = {};
+  for (const packageName of Object.keys(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    packages[packageName] = snapshotArtifact(directory, {
+      root: path.dirname(directory),
+      ignores: []
+    }).physical_identity_digest;
+  }
+  return canonicalDigest({
+    playwright_runtime_physical_identity_version: 1,
+    packages
+  });
+}
 
 function requireValue(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,14 +82,6 @@ function requireValue(condition, message) {
 
 function safeId(value) {
   return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "item";
-}
-
-function readJson(file, label) {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new Error(`cannot read ${label} at ${file}: ${error.message}`);
-  }
 }
 
 function validateScenarioDocument(value) {
@@ -102,6 +148,95 @@ function validateScenarioDocument(value) {
     }
   }
   return value.scenarios;
+}
+
+function exactKeys(value, expected) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)) &&
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key));
+}
+
+function readPlaywrightChildAuthority(request, settings) {
+  const authority = request.playwright_authority;
+  requireValue(exactKeys(authority, CHILD_AUTHORITY_KEYS),
+    "Playwright child authority has an invalid shape");
+  const body = Object.fromEntries(
+    Object.entries(authority).filter(([key]) => key !== "authority_digest")
+  );
+  requireValue(authority.playwright_child_authority_version === 1,
+    "Playwright child authority version must be 1");
+  requireValue(authority.authority_digest === canonicalDigest(body),
+    "Playwright child authority digest mismatch");
+  requireValue(authority.runtime_digest === settings.runtime_digest,
+    "Playwright child runtime authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_source_physical_identity_digest || "") &&
+    authority.runtime_source_physical_identity_digest ===
+      settings.runtime_physical_identity_digest,
+  "Playwright child runtime source physical authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_seal_physical_identity_digest || ""),
+    "Playwright child runtime seal physical authority is invalid");
+  requireValue(runtimeDigest(settings.runtime_root) === authority.runtime_digest,
+    "sealed Playwright child runtime digest mismatch");
+  requireValue(runtimePhysicalIdentityDigest(settings.runtime_root) ===
+    authority.runtime_seal_physical_identity_digest,
+  "sealed Playwright child runtime physical identity mismatch");
+  const runtime = loadRuntime(settings.runtime_root);
+  requireValue(exactKeys(authority.scenario, new Set([
+    "digest", "bytes", "physical_identity_digest", "source_base64"
+  ])),
+    "Playwright child scenario authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.scenario.physical_identity_digest || ""),
+    "Playwright child scenario physical identity is invalid");
+  const scenarioSource = Buffer.from(authority.scenario.source_base64, "base64");
+  requireValue(scenarioSource.length === authority.scenario.bytes,
+    "Playwright child scenario authority byte count mismatch");
+  requireValue(sha256(scenarioSource) === authority.scenario.digest &&
+    authority.scenario.digest === settings.scenario_digest,
+  "Playwright child scenario authority digest mismatch");
+  let scenarioDocument;
+  try {
+    scenarioDocument = JSON.parse(scenarioSource.toString("utf8"));
+  } catch (error) {
+    throw new Error(`cannot parse Playwright child scenario authority: ${error.message}`);
+  }
+
+  requireValue(exactKeys(authority.baselines,
+    new Set(["directory_digest", "physical_identity_digest", "total_bytes", "files"])),
+  "Playwright child baseline authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.baselines.physical_identity_digest || ""),
+    "Playwright child baseline physical identity is invalid");
+  requireValue(Array.isArray(authority.baselines.files),
+    "Playwright child baseline files must be an array");
+  const baselineFiles = new Map();
+  let totalBytes = 0;
+  const manifest = [];
+  for (const file of authority.baselines.files) {
+    requireValue(exactKeys(file, new Set([
+      "name", "bytes", "digest", "physical_identity_digest", "source_base64"
+    ])),
+      "Playwright child baseline file has an invalid shape");
+    requireValue(DIGEST_PATTERN.test(file.physical_identity_digest || ""),
+      `Playwright child baseline physical identity is invalid: ${file.name}`);
+    requireValue(/^[A-Za-z0-9._-]+\.png$/.test(file.name) && !baselineFiles.has(file.name),
+      `Playwright child baseline filename is invalid or duplicated: ${file.name}`);
+    const source = Buffer.from(file.source_base64, "base64");
+    requireValue(source.length === file.bytes && sha256(source) === file.digest,
+      `Playwright child baseline digest mismatch: ${file.name}`);
+    totalBytes += source.length;
+    baselineFiles.set(file.name, source);
+    manifest.push({ type: "file", path: file.name, bytes: file.bytes, digest: file.digest });
+  }
+  requireValue(totalBytes === authority.baselines.total_bytes,
+    "Playwright child baseline total byte count mismatch");
+  const directoryDigest = canonicalDigest({ type: "directory", entries: manifest });
+  requireValue(directoryDigest === authority.baselines.directory_digest &&
+    directoryDigest === settings.baseline_digest,
+  "Playwright child baseline directory digest mismatch");
+  return {
+    scenarios: validateScenarioDocument(scenarioDocument),
+    baselineFiles,
+    runtime
+  };
 }
 
 function findingFactory() {
@@ -433,13 +568,26 @@ async function inspectOverflow(page) {
 
 async function inspectKeyboard(page, maxTabs) {
   const selector = [
-    "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
-    "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
+    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
+    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
+    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
   ].join(",");
   const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
+    if (element.closest("[inert]")) return [];
+    const closedDetails = element.closest("details:not([open])");
+    if (closedDetails) {
+      const summary = closedDetails.querySelector(":scope > summary");
+      if (!summary || (element !== summary && !summary.contains(element))) return [];
+    }
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      const ancestorStyle = getComputedStyle(ancestor);
+      if (ancestorStyle.display === "none" || ancestorStyle.visibility === "hidden") return [];
+      ancestor = ancestor.parentElement;
+    }
     const segments = [];
     let current = element;
     while (current && current !== document.body) {
@@ -459,7 +607,10 @@ async function inspectKeyboard(page, maxTabs) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   const visited = [];
-  const limit = Math.min(maxTabs, Math.max(1, focusable.length + 2));
+  const requiredKeys = new Set(focusable.map((entry) => entry.key));
+  const visitedKeys = new Set();
+  let stagnantSteps = 0;
+  const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
     const active = await page.evaluate(() => {
@@ -489,9 +640,15 @@ async function inspectKeyboard(page, maxTabs) {
         box_shadow: style.boxShadow
       };
     });
-    if (active) visited.push(active);
+    if (active) {
+      visited.push(active);
+      const previousSize = visitedKeys.size;
+      visitedKeys.add(active.key);
+      stagnantSteps = visitedKeys.size === previousSize ? stagnantSteps + 1 : 0;
+      if ([...requiredKeys].every((key) => visitedKeys.has(key))) break;
+      if (stagnantSteps > Math.max(12, focusable.length + 4)) break;
+    }
   }
-  const visitedKeys = new Set(visited.map((entry) => entry.key));
   return {
     focusable_count: focusable.length,
     visited,
@@ -511,6 +668,9 @@ async function stabilizeVisualCapture(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    for (const activeTab of document.querySelectorAll('[role="tab"][aria-selected="true"]')) {
+      activeTab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     window.scrollTo(0, 0);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
@@ -568,7 +728,7 @@ async function designMarkers(page, locales, states) {
   }, { requiredLocales: locales, requiredStates: states });
 }
 
-async function runDesignBrowser(request) {
+async function runDesignBrowser(request, runtime) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   const task = packet.design_task;
   requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
@@ -598,7 +758,7 @@ async function runDesignBrowser(request) {
   }
   fs.mkdirSync(outputDirectory, { recursive: true });
 
-  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource } = runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const evidence = [];
@@ -746,13 +906,33 @@ async function runDesignBrowser(request) {
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-design-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }
 
 async function run(request) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
+  requireValue(request?.host_adapter_request_version === 1,
+    "host_adapter_request_version must be 1");
+  verifyJourneyIdentity(request.journey_identity, {
+    runId: request.run_id,
+    label: "Playwright host request journey_identity"
+  });
+  verifyPacketJourney(packet, request.journey_identity,
+    `packet ${packet?.packet_id || "unknown"}`);
+  requireValue(identitiesMatch(packet.journey_identity, request.journey_identity),
+    "Playwright request and packet journey identities conflict");
+  verifyParticipant(request.participant, {
+    providerId: packet?.provider?.id,
+    stageId: packet?.stage_id,
+    designTaskKind: packet?.design_task?.kind || null,
+    label: "Playwright host request participant"
+  });
+  requireValue(JSON.stringify(request.participant) === JSON.stringify(packet.participant),
+    "Playwright host request participant conflicts with the packet");
   requireValue(packet?.stage_id === "browser-evidence", "official Playwright adapter accepts browser-evidence only");
   requireValue(settings.contract === CONTRACT, `settings.contract must be ${CONTRACT}`);
   requireValue(request.permission_scopes?.includes("artifact:read"), "artifact:read permission is required");
@@ -762,13 +942,23 @@ async function run(request) {
     "output_directory is required");
   fs.mkdirSync(outputDirectory, { recursive: true });
 
+  const childAuthority = readPlaywrightChildAuthority(request, settings);
+
   if (packet.design_task?.kind === "browser-evidence") {
-    return runDesignBrowser(request);
+    return runDesignBrowser(request, childAuthority.runtime);
   }
 
-  const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
+  const scenarios = childAuthority.scenarios;
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
+  const requiredScenarios = packet.evidence_contract?.required_scenarios || [];
+  const scenariosById = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
+  for (const scenarioId of requiredScenarios) {
+    const scenario = scenariosById.get(scenarioId);
+    requireValue(scenario, `required Playwright scenario is missing: ${scenarioId}`);
+    requireValue((scenario.assertions || []).length > 0,
+      `required Playwright scenario has no state assertion: ${scenarioId}`);
+  }
   if (requiredChecks.includes("state")) {
     requireValue(scenarios.some((scenario) => (scenario.assertions || []).length > 0),
       "Playwright state evidence requires at least one scenario assertion");
@@ -800,7 +990,7 @@ async function run(request) {
   requireValue(sameDigestMap(attestation.artifact_digests, packet.artifact_digests),
     "served artifact attestation does not match the audit packet digests");
 
-  const { playwright, axeSource, comparePng } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource, comparePng } = childAuthority.runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const { findings, add } = findingFactory();
@@ -816,6 +1006,7 @@ async function run(request) {
     allowed_origins: settings.allowed_origins,
     required_viewports: requiredViewports,
     required_checks: requiredChecks,
+    required_scenarios: requiredScenarios,
     visual_comparison: {
       comparator: "playwright-pixelmatch",
       threshold: VISUAL_COMPARISON.threshold,
@@ -1039,7 +1230,8 @@ async function run(request) {
               kind: "aria-snapshot",
               covers: ["keyboard-evidence", "state-evidence"],
               viewports: [viewportName],
-              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
+              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check)),
+              scenarios: [scenario.id]
             });
 
             const screenshotPath = path.join(outputDirectory, screenshotName);
@@ -1056,10 +1248,12 @@ async function run(request) {
               kind: "screenshot",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             const baselinePath = path.join(settings.baseline_directory, screenshotName);
-            if (!fs.existsSync(baselinePath)) {
+            const baseline = childAuthority.baselineFiles.get(screenshotName);
+            if (!baseline) {
               execution.visual_regression = { status: "baseline-missing", baseline: baselinePath };
               add({
                 category: "visual-regression",
@@ -1068,7 +1262,6 @@ async function run(request) {
                 suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
               });
             } else {
-              const baseline = fs.readFileSync(baselinePath);
               const actual = fs.readFileSync(screenshotPath);
               const exact = baseline.equals(actual);
               const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
@@ -1090,7 +1283,8 @@ async function run(request) {
                     kind: "visual-diff",
                     covers: packet.assigned_capabilities,
                     viewports: [viewportName],
-                    checks: ["visual-regression"]
+                    checks: ["visual-regression"],
+                    scenarios: [scenario.id]
                   });
                 }
                 add({
@@ -1143,7 +1337,8 @@ async function run(request) {
               kind: "trace",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             await context.close();
           }
@@ -1172,15 +1367,23 @@ async function run(request) {
     kind: "test-report",
     covers: packet.assigned_capabilities,
     viewports: requiredViewports,
-    checks: requiredChecks
+    checks: requiredChecks,
+    scenarios: scenarios.map((scenario) => scenario.id)
   });
 
   return {
     host_adapter_response_version: 1,
     result: {
       audit_result_version: 1,
+      run_id: request.run_id,
       packet_id: packet.packet_id,
+      packet_digest: packet.packet_digest,
+      journey_identity: request.journey_identity,
       provider_id: packet.provider.id,
+      participant: request.participant,
+      ...(request.baseline_lineage
+        ? { baseline_lineage_digest: request.baseline_lineage.lineage_digest }
+        : {}),
       reviewer: { actor_id: `playwright:official-v1:${process.pid}`, kind: "browser" },
       verdict: report.status === "blocked" ? "block" : findings.length ? "pass_with_findings" : "pass",
       capabilities_checked: packet.assigned_capabilities,
@@ -1194,7 +1397,9 @@ async function run(request) {
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }

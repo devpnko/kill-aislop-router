@@ -7,26 +7,14 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import {
+  createPluginInstallMarker,
+  inspectSkillCatalog,
+  migrateLegacySkillEntry,
+  PLUGIN_BUNDLE_ENTRIES
+} from "../src/skill-catalog.mjs";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BUNDLE_ENTRIES = [
-  ".codex-plugin",
-  "bin",
-  "src",
-  "router",
-  "schemas",
-  "registry",
-  "skills",
-  "scripts",
-  "docs",
-  "examples",
-  "package.json",
-  "README.md",
-  "SECURITY.md",
-  "LICENSE",
-  "THIRD_PARTY.md",
-  "CHANGELOG.md"
-];
 const MARKER = ".killsloprouter-plugin-installed.json";
 const RUNTIME_PACKAGES = ["axe-core", "playwright-core"];
 const requireFromSource = createRequire(path.join(sourceRoot, "package.json"));
@@ -37,6 +25,7 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token === "--dry-run") args.dryRun = true;
     else if (token === "--force") args.force = true;
+    else if (token === "--migrate-legacy-entry") args.migrateLegacyEntry = true;
     else if (token === "--no-activate") args.activate = false;
     else if (token === "--home") {
       const value = argv[index + 1];
@@ -50,7 +39,7 @@ function parseArgs(argv) {
 }
 
 function help() {
-  return `Install the KillSlopRouter Codex plugin\n\nUsage:\n  node scripts/install-codex-plugin.mjs [--dry-run] [--force] [--no-activate] [--home DIR]\n`;
+  return `Install the KillSlopRouter Codex plugin\n\nUsage:\n  node scripts/install-codex-plugin.mjs [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]\n`;
 }
 
 function readJson(file, label) {
@@ -102,7 +91,7 @@ function nextMarketplace(file) {
 }
 
 function copyBundle(target, { force }) {
-  for (const entry of BUNDLE_ENTRIES) {
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
     if (!fs.existsSync(path.join(sourceRoot, entry))) throw new Error(`plugin bundle is missing ${entry}`);
   }
   if (fs.existsSync(target)) {
@@ -117,7 +106,7 @@ function copyBundle(target, { force }) {
   fs.mkdirSync(staging, { recursive: false });
   let backup = null;
   try {
-    for (const entry of BUNDLE_ENTRIES) {
+    for (const entry of PLUGIN_BUNDLE_ENTRIES) {
       fs.cpSync(path.join(sourceRoot, entry), path.join(staging, entry), {
         recursive: true,
         errorOnExist: true,
@@ -143,13 +132,10 @@ function copyBundle(target, { force }) {
       version: "1.0.0"
     });
     const packageJson = readJson(path.join(sourceRoot, "package.json"), "package metadata");
-    writeJsonAtomic(path.join(staging, MARKER), {
-      name: "killsloprouter",
-      version: packageJson.version,
-      installed_by: "scripts/install-codex-plugin.mjs",
-      installed_at: new Date().toISOString(),
-      source: sourceRoot
-    });
+    writeJsonAtomic(path.join(staging, MARKER), createPluginInstallMarker({
+      root: staging,
+      version: packageJson.version
+    }));
 
     if (fs.existsSync(target)) {
       const backupRoot = path.join(path.dirname(target), ".killsloprouter-backups");
@@ -212,6 +198,29 @@ function main() {
   const marketplace = path.join(installHome, ".agents", "plugins", "marketplace.json");
   const marketplaceValue = nextMarketplace(marketplace);
   const isDefaultHome = installHome === path.resolve(os.homedir());
+  const catalogBefore = inspectSkillCatalog({ home: installHome, assumeCanonical: true });
+  const canonicalBlocked = catalogBefore.canonical.status === "unsafe-or-incomplete" ||
+    (catalogBefore.canonical.status === "refresh-required" && !args.force);
+  const legacyConflict = ["full-entry", "invalid-shim", "refresh-required-shim", "unsafe"].includes(
+    catalogBefore.legacy.status
+  );
+  const legacyBlocked = legacyConflict && !args.migrateLegacyEntry;
+  if (canonicalBlocked || legacyBlocked) {
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      status: "identity_conflict",
+      skill_catalog: catalogBefore,
+      next: catalogBefore.canonical.status === "refresh-required"
+        ? (legacyBlocked
+            ? "killsloprouter plugin install --force --migrate-legacy-entry"
+            : "killsloprouter plugin install --force")
+        : canonicalBlocked
+          ? "move the unverified canonical plugin aside, then reinstall"
+        : catalogBefore.migration.command
+    }, null, 2)}\n`);
+    process.exitCode = 5;
+    return;
+  }
   if (args.dryRun) {
     process.stdout.write(`${JSON.stringify({
       ok: true,
@@ -221,12 +230,19 @@ function main() {
       marketplace,
       marketplace_name: marketplaceValue.name,
       would_replace_marked_install: fs.existsSync(target) && Boolean(args.force),
-      would_activate: args.activate && isDefaultHome
+      would_activate: args.activate && isDefaultHome,
+      would_migrate_legacy_entry: Boolean(args.migrateLegacyEntry &&
+        catalogBefore.legacy.status !== "absent" &&
+        catalogBefore.legacy.status !== "verified-explicit-shim"),
+      skill_catalog: catalogBefore
     }, null, 2)}\n`);
     return;
   }
 
   const pluginBackup = copyBundle(target, { force: Boolean(args.force) });
+  const legacyMigration = args.migrateLegacyEntry
+    ? migrateLegacySkillEntry({ home: installHome })
+    : { status: "not_requested", backup: null };
   const marketplaceBackup = updateMarketplace(marketplace, marketplaceValue);
   const activation = args.activate && isDefaultHome
     ? activatePlugin(marketplaceValue.name)
@@ -235,10 +251,12 @@ function main() {
     ok: activation.ok,
     plugin_target: target,
     plugin_backup: pluginBackup,
+    legacy_migration: legacyMigration,
     marketplace,
     marketplace_backup: marketplaceBackup,
     marketplace_name: marketplaceValue.name,
     activation,
+    skill_catalog: inspectSkillCatalog({ home: installHome }),
     next: "start a new Codex thread and invoke $killsloprouter:kill-slop-router"
   }, null, 2)}\n`);
   if (!activation.ok) process.exitCode = 5;

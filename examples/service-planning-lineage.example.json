@@ -1,0 +1,85 @@
+{
+  "planning_gate_version": 1,
+  "protocol": {
+    "id": "two-phase-service-planning",
+    "version": "1.2.0",
+    "authority": "external-project-planning-authority"
+  },
+  "project_id": "example-product",
+  "surface": "operator-product-ui",
+  "scope_id": "policy-source-to-setting",
+  "phase": "phase_2",
+  "baseline_lineage": {
+    "baseline_lineage_version": 1,
+    "lineage_id": "operator-product/policy",
+    "relationship": "slice-of",
+    "parent_baseline": {
+      "id": "operator-product-parent",
+      "version": "2.2.39",
+      "artifacts": [
+        {
+          "path": "planning-evidence/parent-baseline.html",
+          "digest": "sha256:1a39daa35f06a86515629e5bf5c8bab72ab4fa6301142f0572faf44f51945dbd"
+        }
+      ]
+    },
+    "candidate": {
+      "id": "operator-product-policy-slice",
+      "version": "2.2.84",
+      "slice_id": "policy-source-to-setting",
+      "artifacts": [
+        {
+          "path": "planning-evidence/policy-slice.html",
+          "digest": "sha256:40f53428b39f94293b10fe06ce4381747ef44ed82f79de01fbb74383e924078b"
+        }
+      ]
+    },
+    "inheritance": {
+      "inherits": [
+        "global shell",
+        "navigation",
+        "visual language"
+      ],
+      "slice_owned": [
+        "policy workflow",
+        "policy state model"
+      ],
+      "forbidden_parent_changes": [
+        "silent global token replacement",
+        "implicit parent promotion"
+      ]
+    },
+    "promotion": {
+      "authority": "explicit-owner-only",
+      "supersedes_parent": false
+    }
+  },
+  "gates": {
+    "G6": {
+      "status": "passed",
+      "evidence": [
+        {
+          "kind": "mockup",
+          "path": "planning-evidence/policy-slice.html",
+          "digest": "sha256:40f53428b39f94293b10fe06ce4381747ef44ed82f79de01fbb74383e924078b"
+        }
+      ]
+    },
+    "G7": {
+      "status": "approved",
+      "evidence": [
+        {
+          "kind": "approved-artifact",
+          "path": "planning-evidence/policy-slice.html",
+          "digest": "sha256:40f53428b39f94293b10fe06ce4381747ef44ed82f79de01fbb74383e924078b"
+        },
+        {
+          "kind": "owner-approval",
+          "path": "planning-evidence/policy-slice-owner-approval.json",
+          "digest": "sha256:adcd04427f4b72023c963ae5af81f696e7b2489fb9b8b1be33dcbe72db9608c2"
+        }
+      ]
+    }
+  },
+  "updated_at": "2026-08-29T00:00:00.000Z"
+}

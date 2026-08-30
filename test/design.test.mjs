@@ -15,6 +15,7 @@ import {
 import { loadHostManifest } from "../src/execution.mjs";
 import { hashArtifact } from "../src/integrity.mjs";
 import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
+import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = path.join(root, "test", "fixtures", "design-host-adapter.mjs");
@@ -36,6 +37,7 @@ function provider(adapter, capabilities, strength, permissions, settings = {}) {
     adapter,
     entrypoint: fixture,
     entrypoint_digest: hashArtifact(fixture),
+    entrypoint_graph_digest: sealedEntrypointGraphDigest(fixture),
     capabilities,
     strength,
     permissions,
@@ -96,6 +98,7 @@ function writeShortlist(space, state) {
   fs.writeFileSync(target, `${JSON.stringify({
     design_shortlist_version: 1,
     run_id: state.run_id,
+    journey_identity: state.journey_identity,
     selection_scope_digest: state.selection_scope_digest,
     owner_id: "owner:product-design",
     candidate_ids: review.normalized.ranking.slice(0, 3),
@@ -113,6 +116,7 @@ function writeApproval(space, state, ownerId = "owner:product-design") {
   fs.writeFileSync(target, `${JSON.stringify({
     design_owner_decision_version: 1,
     run_id: state.run_id,
+    journey_identity: state.journey_identity,
     approval_scope_digest: state.approval_scope_digest,
     owner_id: ownerId,
     status: "approved",
@@ -211,10 +215,22 @@ test("resumable exploration crosses real child processes, owner gates, and compi
     });
     assert.equal(state.status, "manual_pending");
     assert.equal(state.phase, "direction-selection");
+    const journeyDigest = state.journey_identity.identity_digest;
+    assert.ok(state.packets.every((packet) =>
+      packet.run_id === state.run_id &&
+      packet.journey_identity.identity_digest === journeyDigest &&
+      packet.participant.provider_id === packet.provider.id &&
+      packet.participant.visibility === "internal" &&
+      packet.participant.orchestrator_id === "kill-slop-router"));
     assert.equal(state.results.filter((item) => item.normalized.kind === "direction-candidate").length, 9);
     assert.equal(state.results.filter((item) => item.normalized.kind === "browser-evidence").length, 9);
     assert.ok(state.attempts.filter((item) => item.execution_status === "ran")
       .every((item) => Number.isInteger(item.child_pid) && item.child_pid > 0));
+    assert.ok(state.attempts.filter((item) => item.execution_status === "ran")
+      .every((item) =>
+        item.metadata.observed_journey_identity_digest === journeyDigest &&
+        item.metadata.observed_participant.provider_id === item.provider_id &&
+        item.metadata.observed_participant.visibility === "internal"));
 
     state = resumeDesignExploration(space.statePath, {
       hostManifest: host(space.directory, { color: { weak_contrast: true } }),
@@ -250,11 +266,15 @@ test("resumable exploration crosses real child processes, owner gates, and compi
     assert.match(state.final_receipt_digests.visual_signature, /^sha256:/);
 
     const decision = JSON.parse(fs.readFileSync(state.outputs.decision.resolved_path, "utf8"));
+    assert.equal(decision.journey_identity.identity_digest, journeyDigest);
     assert.deepEqual(Object.keys(decision.source_bindings).sort(), [
       "color_browser", "color_candidate", "color_review",
       "direction_browser", "direction_candidate", "direction_review"
     ]);
     for (const binding of Object.values(decision.source_bindings)) {
+      assert.equal(binding.participant.provider_id, binding.provider_id);
+      assert.equal(binding.participant.visibility, "internal");
+      assert.equal(binding.participant.orchestrator_id, "kill-slop-router");
       assert.match(binding.packet_digest, /^sha256:/);
       assert.match(binding.result_source_digest, /^sha256:/);
       assert.ok(binding.evidence.every((item) => /^sha256:/.test(item.digest)));
@@ -267,6 +287,7 @@ test("resumable exploration crosses real child processes, owner gates, and compi
     }
 
     const bindings = JSON.parse(fs.readFileSync(state.outputs.profile_bindings.resolved_path, "utf8"));
+    assert.equal(bindings.journey_identity.identity_digest, journeyDigest);
     const profile = {
       project_id: bindings.project_id,
       visual_intents: { [bindings.surface]: bindings.visual_intent },
@@ -281,6 +302,12 @@ test("resumable exploration crosses real child processes, owner gates, and compi
       state.outputs.visual_signature_receipt.resolved_path,
       "utf8"
     ));
+    assert.equal(signatureReceipt.journey_identity.identity_digest, journeyDigest);
+    const intentReceipt = JSON.parse(fs.readFileSync(
+      state.outputs.visual_intent_receipt.resolved_path,
+      "utf8"
+    ));
+    assert.equal(intentReceipt.journey_identity.identity_digest, journeyDigest);
     const evidencePaths = signatureReceipt.evidence.map((item) => item.path);
     assert.ok(evidencePaths.some((item) => item.endsWith("-fonts.json")));
     assert.ok(evidencePaths.some((item) => item.endsWith("-tokens.json")));

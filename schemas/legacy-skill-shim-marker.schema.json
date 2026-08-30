@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/legacy-skill-shim-marker.schema.json",
+  "title": "KillSlopRouter Explicit-Only Legacy Skill Shim Marker",
+  "type": "object",
+  "required": [
+    "legacy_shim_version",
+    "migration_contract",
+    "migration_id",
+    "migrated_at",
+    "legacy_entrypoint",
+    "canonical_entrypoint",
+    "original_digest",
+    "backup",
+    "canonical_install",
+    "files",
+    "migration_digest"
+  ],
+  "properties": {
+    "legacy_shim_version": {"const": 2},
+    "migration_contract": {"const": "explicit-backup-only-canonical-bound-v2"},
+    "migration_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "migrated_at": {"type": "string", "format": "date-time"},
+    "legacy_entrypoint": {"const": "kill-slop-router"},
+    "canonical_entrypoint": {"const": "killsloprouter:kill-slop-router"},
+    "original_digest": {"$ref": "#/$defs/digest"},
+    "backup": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "canonical_install": {
+      "type": "object",
+      "required": ["marker_digest", "payload_digest", "runtime_digest", "canonical_skill_digest"],
+      "properties": {
+        "marker_digest": {"$ref": "#/$defs/digest"},
+        "payload_digest": {"$ref": "#/$defs/digest"},
+        "runtime_digest": {"$ref": "#/$defs/digest"},
+        "canonical_skill_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "object",
+      "required": ["skill", "metadata"],
+      "properties": {
+        "skill": {"$ref": "#/$defs/digest"},
+        "metadata": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "migration_digest": {"$ref": "#/$defs/digest"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

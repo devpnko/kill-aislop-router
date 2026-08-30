@@ -3,9 +3,11 @@
   "$id": "https://github.com/devpnko/kill-aislop-router/schemas/host-adapter-response.schema.json",
   "title": "KillSlopRouter JSON Host Adapter Response",
   "type": "object",
-  "required": ["host_adapter_response_version", "result"],
+  "required": ["host_adapter_response_version"],
   "properties": {
     "host_adapter_response_version": {"const": 1},
+    "execution_status": {"const": "manual_pending"},
+    "reason": {"type": "string", "minLength": 1},
     "result": {
       "oneOf": [
         {"$ref": "./audit-result.schema.json"},
@@ -16,10 +18,25 @@
       "type": "object",
       "properties": {
         "child_pid": {"type": "integer", "minimum": 1},
-        "transport": {"type": "string", "minLength": 1}
+        "transport": {"type": "string", "minLength": 1},
+        "observed_journey_identity_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "observed_participant": {"$ref": "participant.schema.json"}
       },
       "additionalProperties": true
     }
   },
+  "oneOf": [
+    {
+      "required": ["result"],
+      "not": {"required": ["execution_status"]}
+    },
+    {
+      "required": ["execution_status", "reason"],
+      "not": {"required": ["result"]}
+    }
+  ],
   "additionalProperties": false
 }

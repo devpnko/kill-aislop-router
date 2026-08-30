@@ -6,14 +6,21 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  dispatchAuditPackets,
-  finalizeAudit,
-  initializeAudit,
-  recordAuditResult,
-  recordTriage
+  auditAuthorityDigestForRun,
+  dispatchAuditPackets as dispatchAuditPacketsCore,
+  finalizeAudit as finalizeAuditCore,
+  initializeAudit as initializeAuditCore,
+  recordAuditResult as recordAuditResultCore,
+  recordTriage as recordTriageCore,
+  verifyAuditJourneyIdentity
 } from "../src/audit.mjs";
 import { planRoute, readJson } from "../src/router.mjs";
-import { hashArtifact } from "../src/integrity.mjs";
+import { canonicalDigest, hashArtifact, snapshotArtifact } from "../src/integrity.mjs";
+import {
+  createBoundEvidenceSnapshotter,
+  executeAuditPacket,
+  loadHostManifest
+} from "../src/execution.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const routerPath = path.join(root, "router", "default-router.json");
@@ -25,6 +32,102 @@ const finishedAt = "2026-08-18T00:01:00.000Z";
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+let auditPlanSequence = 0;
+
+function initializeAudit(options) {
+  let planPath = options.planPath || null;
+  if (!planPath) {
+    planPath = path.join(
+      options.root || process.cwd(),
+      `route-plan-${++auditPlanSequence}.json`
+    );
+    writeJson(planPath, options.plan);
+  }
+  return initializeAuditCore({ ...options, planPath });
+}
+
+function dispatchAuditPackets(run, outDir, options = {}) {
+  return dispatchAuditPacketsCore(run, outDir, {
+    authorityDigest: run.audit_authority_digest,
+    ...options
+  });
+}
+
+function recordAuditResult(run, input, sourcePath, options = {}) {
+  return recordAuditResultCore(run, input, sourcePath, {
+    authorityDigest: run.audit_authority_digest,
+    ...options
+  });
+}
+
+function recordTriage(run, input, sourcePath, options = {}) {
+  return recordTriageCore(run, input, sourcePath, {
+    authorityDigest: run.audit_authority_digest,
+    ...options
+  });
+}
+
+function finalizeAudit(run, options = {}) {
+  return finalizeAuditCore(run, {
+    authorityDigest: run.audit_authority_digest,
+    ...options
+  });
+}
+
+function auditManifestForTest(run) {
+  const manifest = {
+    audit_run_version: run.audit_run_version,
+    run_id: run.run_id,
+    journey_identity: run.journey_identity,
+    scope: run.scope,
+    route: run.route,
+    planning_gate: run.planning_gate,
+    visual_intent: run.visual_intent,
+    visual_intent_sources: run.visual_intent_sources,
+    visual_signature: run.visual_signature,
+    visual_signature_sources: run.visual_signature_sources,
+    creator: run.creator,
+    artifacts: run.artifacts,
+    evidence_contract: run.evidence_contract,
+    baseline_observation: run.baseline_observation,
+    hard_blockers: run.hard_blockers,
+    invariants: run.invariants,
+    owner_approval_required: run.owner_approval_required,
+    stages: run.stages,
+    packets: run.packets,
+    audit_authority_digest: run.audit_authority_digest,
+    approval_scope_digest: run.approval_scope_digest
+  };
+  if (Object.hasOwn(run, "baseline_lineage")) manifest.baseline_lineage = run.baseline_lineage;
+  return manifest;
+}
+
+function approvalScopeForTest(run) {
+  const scope = {
+    run_id: run.run_id,
+    journey_identity: run.journey_identity,
+    plan_digest: run.route.plan_digest,
+    scope: run.scope.kind,
+    planning_gate: run.planning_gate,
+    visual_intent: run.visual_intent || null,
+    visual_intent_sources: (run.visual_intent_sources || []).map((source) => source.digest),
+    visual_signature: run.visual_signature || null,
+    visual_signature_sources: (run.visual_signature_sources || []).map((source) => source.digest),
+    baseline_observation: run.baseline_observation || null,
+    creator: run.creator,
+    artifacts: Object.fromEntries(run.artifacts.map((item) => [item.path, item.digest])),
+    evidence_contract: run.evidence_contract || null,
+    hard_blockers: run.hard_blockers || [],
+    invariants: run.invariants || {},
+    owner_approval_required: Boolean(run.owner_approval_required),
+    stages: run.stages || [],
+    packets: run.packets.map((packet) => packet.packet_digest),
+    audit_authority_digest: run.audit_authority_digest
+  };
+  if (Object.hasOwn(run, "baseline_lineage")) scope.baseline_lineage = run.baseline_lineage;
+  return canonicalDigest(scope);
 }
 
 function materializeExampleVisualIntent(selectedProfile) {
@@ -81,6 +184,80 @@ function createFixture() {
   return { directory, artifact, screenshot, mobileScreenshot, report, plan, planFile, run };
 }
 
+function createPhysicalAuthorityFixture({ artifactCount = 1 } = {}) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-physical-authority-"));
+  fs.cpSync(
+    path.join(root, "examples", "planning-evidence"),
+    path.join(directory, "planning-evidence"),
+    { recursive: true }
+  );
+  const routedProfilePath = path.join(directory, "profile.json");
+  writeJson(routedProfilePath, profile);
+  const artifacts = Array.from({ length: artifactCount }, (_, index) => {
+    const target = path.join(directory, `artifact-${index + 1}.html`);
+    fs.writeFileSync(target, `<!doctype html><main>artifact ${index + 1}</main>\n`);
+    return target;
+  });
+  const plan = planRoute({
+    router,
+    profile,
+    routerPath,
+    profilePath: routedProfilePath,
+    input: {
+      surface: "operator-product-ui",
+      task: "redesign",
+      direction: "approved",
+      changes: ["source", "copy", "layout", "interaction"],
+      risk: "standard"
+    },
+    artifacts,
+    root: directory
+  });
+  assert.equal(plan.status, "planned");
+  const planPath = path.join(directory, "route-plan.json");
+  writeJson(planPath, plan);
+  const run = initializeAudit({
+    plan,
+    planPath,
+    artifacts,
+    scope: "mockup",
+    creatorActorId: "creator-physical-authority",
+    root: directory,
+    runId: `physical-authority-${path.basename(directory)}`,
+    now: startedAt
+  });
+  const packet = run.packets.find((candidate) => candidate.provider.id === "project-contract");
+  const adapterEntrypoint = path.join(directory, "host-adapter.mjs");
+  fs.copyFileSync(path.join(root, "test", "fixtures", "host-adapter.mjs"), adapterEntrypoint);
+  const hostPath = path.join(directory, "host.json");
+  writeJson(hostPath, {
+    host_adapter_version: 1,
+    allowed_providers: [packet.provider.id],
+    granted_permissions: ["artifact:read"],
+    providers: {
+      [packet.provider.id]: {
+        adapter: "agent-json-v1",
+        entrypoint: adapterEntrypoint,
+        entrypoint_digest: hashArtifact(adapterEntrypoint),
+        capabilities: packet.assigned_capabilities,
+        strength: packet.minimum_strength,
+        permissions: ["artifact:read"],
+        settings: { write_started_marker: true }
+      }
+    }
+  });
+  return {
+    directory,
+    artifacts,
+    planPath,
+    routedProfilePath,
+    run,
+    packet,
+    adapterEntrypoint,
+    manifest: loadHostManifest(hostPath)
+  };
+}
+
 function makeResult(packet, fixture, overrides = {}) {
   const evidence = packet.stage_id === "browser-evidence" ? [
     {
@@ -88,27 +265,37 @@ function makeResult(packet, fixture, overrides = {}) {
       kind: "screenshot",
       covers: packet.assigned_capabilities,
       viewports: ["desktop"],
-      checks: []
+      checks: [],
+      scenarios: packet.evidence_contract.required_scenarios
     },
     {
       path: path.basename(fixture.mobileScreenshot),
       kind: "screenshot",
       covers: packet.assigned_capabilities,
       viewports: ["mobile"],
-      checks: []
+      checks: [],
+      scenarios: packet.evidence_contract.required_scenarios
     },
     {
       path: path.basename(fixture.report),
       kind: "test-report",
       covers: packet.assigned_capabilities,
       viewports: packet.evidence_contract.required_viewports,
-      checks: packet.evidence_contract.required_checks
+      checks: packet.evidence_contract.required_checks,
+      scenarios: packet.evidence_contract.required_scenarios
     }
   ] : [];
   return {
     audit_result_version: 1,
+    run_id: fixture.run.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
+    journey_identity: fixture.run.journey_identity,
     provider_id: packet.provider.id,
+    participant: packet.participant,
+    ...(fixture.run.baseline_lineage
+      ? { baseline_lineage_digest: fixture.run.baseline_lineage.lineage_digest }
+      : {}),
     reviewer: { actor_id: `reviewer-${packet.packet_id}`, kind: packet.provider.kind || "agent" },
     verdict: "pass",
     capabilities_checked: packet.assigned_capabilities,
@@ -132,6 +319,249 @@ function recordAll(fixture, customize = () => ({})) {
   }
   return run;
 }
+
+test("direct execution creates a fresh nested output tree without an explicit grant root", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const outputDirectory = path.join(
+      fixture.directory,
+      "fresh-output",
+      "nested",
+      "attempt-1"
+    );
+    assert.equal(fs.existsSync(path.dirname(outputDirectory)), false);
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet: fixture.packet,
+      manifest: fixture.manifest,
+      outputDirectory
+    });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), true);
+    assert.equal(executed.evidence_boundary.lexical_path, outputDirectory);
+    assert.equal(executed.evidence_boundary.grant.lexical_path, fixture.directory);
+    assert.match(executed.evidence_boundary.device, /^(0|[1-9][0-9]*)$/);
+    assert.match(executed.evidence_boundary.inode, /^(0|[1-9][0-9]*)$/);
+    assert.match(executed.evidence_boundary.grant.device, /^(0|[1-9][0-9]*)$/);
+    assert.match(executed.evidence_boundary.grant.inode, /^(0|[1-9][0-9]*)$/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("evidence output replacement between child return and audit ingestion fails closed", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.stage_id === "browser-evidence");
+    const adapterEntrypoint = path.join(root, "test", "fixtures", "host-adapter.mjs");
+    const hostPath = path.join(fixture.directory, "ingest-race-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [packet.provider.id],
+      granted_permissions: ["artifact:read", "evidence:write", "browser:control"],
+      providers: {
+        [packet.provider.id]: {
+          adapter: "browser-json-v1",
+          entrypoint: adapterEntrypoint,
+          entrypoint_digest: hashArtifact(adapterEntrypoint),
+          capabilities: packet.assigned_capabilities,
+          strength: packet.minimum_strength,
+          permissions: ["artifact:read", "evidence:write", "browser:control"],
+          settings: {}
+        }
+      }
+    });
+    const outputDirectory = path.join(fixture.directory, "ingest-race-evidence");
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet,
+      manifest: loadHostManifest(hostPath),
+      attempt: 1,
+      outputDirectory,
+      outputGrantRoot: fixture.directory
+    });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    const resultPath = path.join(fixture.directory, "ingest-race-result.json");
+    writeJson(resultPath, executed.result);
+    fs.renameSync(outputDirectory, `${outputDirectory}.detached`);
+    fs.mkdirSync(outputDirectory);
+    for (const item of executed.result.evidence) {
+      fs.writeFileSync(item.path, "substituted after child exit\n");
+    }
+    assert.throws(() => recordAuditResult(
+      fixture.run,
+      executed.result,
+      resultPath,
+      { evidenceSnapshotter: createBoundEvidenceSnapshotter(executed.evidence_boundary) }
+    ), /output directory changed|output root changed/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("route plan hash and parse remain descriptor-bound immediately before child spawn", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) =>
+      candidate.provider.id === "project-contract");
+    const adapterEntrypoint = path.join(root, "test", "fixtures", "host-adapter.mjs");
+    const hostPath = path.join(fixture.directory, "plan-swap-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [packet.provider.id],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [packet.provider.id]: {
+          adapter: "agent-json-v1",
+          entrypoint: adapterEntrypoint,
+          entrypoint_digest: hashArtifact(adapterEntrypoint),
+          capabilities: packet.assigned_capabilities,
+          strength: packet.minimum_strength,
+          permissions: ["artifact:read"],
+          settings: { write_started_marker: true }
+        }
+      }
+    });
+    const planPath = fixture.run.route.plan_source.resolved_path;
+    const canonicalPlanPath = fs.realpathSync.native(planPath);
+    const replacement = `${planPath}.replacement`;
+    const displaced = `${planPath}.displaced`;
+    fs.copyFileSync(planPath, replacement);
+    let swapped = false;
+    const outputDirectory = path.join(fixture.directory, "plan-swap-output");
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet,
+      manifest: loadHostManifest(hostPath),
+      attempt: 1,
+      outputDirectory,
+      outputGrantRoot: fixture.directory,
+      authorityFaultInjector(checkpoint, detail) {
+        if (swapped || checkpoint !== "after-read-before-path-revalidation") return;
+        if (detail.path !== canonicalPlanPath) return;
+        swapped = true;
+        fs.renameSync(planPath, displaced);
+        fs.renameSync(replacement, planPath);
+      }
+    });
+    assert.equal(swapped, true);
+    assert.equal(executed.execution_status, "blocked_execution_error");
+    assert.match(executed.error, /path identity changed while it was being read/);
+    assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false,
+      "a path-swapped plan must be rejected before the reviewer child starts");
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+for (const [label, selectTarget] of [
+  ["route plan", (fixture) => fixture.run.route.plan_source.resolved_path],
+  ["project profile", (fixture) => fixture.run.route.profile_source.resolved_path],
+  ["visual authority", (fixture) => fixture.run.visual_intent_sources[0].resolved_path],
+  ["artifact", (fixture) => fixture.run.artifacts[0].resolved_path]
+]) {
+  test(`same-byte ${label} inode replacement fails at the final child boundary`, () => {
+    const fixture = createPhysicalAuthorityFixture();
+    try {
+      const target = selectTarget(fixture);
+      const replacement = `${target}.same-bytes`;
+      const displaced = `${target}.displaced`;
+      fs.copyFileSync(target, replacement);
+      let swapped = false;
+      const outputDirectory = path.join(fixture.directory, `${label.replaceAll(" ", "-")}-output`);
+      const executed = executeAuditPacket({
+        run: fixture.run,
+        packet: fixture.packet,
+        manifest: fixture.manifest,
+        outputDirectory,
+        outputGrantRoot: fixture.directory,
+        authorityFaultInjector(checkpoint) {
+          if (swapped || checkpoint !==
+            "after-audit-authority-preflight-before-final-confirmation") return;
+          swapped = true;
+          fs.renameSync(target, displaced);
+          fs.renameSync(replacement, target);
+        }
+      });
+      assert.equal(swapped, true);
+      assert.equal(executed.execution_status, "blocked_execution_error");
+      assert.match(executed.error, /physical.identity|path identity changed/i);
+      assert.equal(executed.child_pid, null);
+      assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false,
+        `same-byte ${label} replacement must block before reviewer spawn`);
+    } finally {
+      fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test("an earlier artifact cannot change while a later artifact is being verified", () => {
+  const fixture = createPhysicalAuthorityFixture({ artifactCount: 2 });
+  try {
+    const [first, second] = fixture.artifacts;
+    const replacement = `${first}.same-bytes`;
+    const displaced = `${first}.displaced`;
+    fs.copyFileSync(first, replacement);
+    const canonicalSecond = fs.realpathSync.native(second);
+    let swapped = false;
+    const outputDirectory = path.join(fixture.directory, "sequential-artifact-output");
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet: fixture.packet,
+      manifest: fixture.manifest,
+      outputDirectory,
+      outputGrantRoot: fixture.directory,
+      authorityFaultInjector(checkpoint, detail) {
+        if (swapped || checkpoint !== "after-read-before-path-revalidation") return;
+        if (detail.path !== canonicalSecond) return;
+        swapped = true;
+        fs.renameSync(first, displaced);
+        fs.renameSync(replacement, first);
+      }
+    });
+    assert.equal(swapped, true);
+    assert.equal(executed.execution_status, "blocked_execution_error");
+    assert.match(executed.error, /audit artifact.*physical.identity/i);
+    assert.equal(executed.child_pid, null);
+    assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false,
+      "sequential authority validation must not leave an earlier artifact mutable");
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("a digest-verified adapter entrypoint replacement never executes replacement code", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const replacement = `${fixture.adapterEntrypoint}.same-bytes`;
+    const displaced = `${fixture.adapterEntrypoint}.displaced`;
+    fs.copyFileSync(fixture.adapterEntrypoint, replacement);
+    let swapped = false;
+    const outputDirectory = path.join(fixture.directory, "entrypoint-replacement-output");
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet: fixture.packet,
+      manifest: fixture.manifest,
+      outputDirectory,
+      outputGrantRoot: fixture.directory,
+      authorityFaultInjector(checkpoint) {
+        if (swapped || checkpoint !==
+          "after-child-authority-preflight-before-final-confirmation") return;
+        swapped = true;
+        fs.renameSync(fixture.adapterEntrypoint, displaced);
+        fs.renameSync(replacement, fixture.adapterEntrypoint);
+      }
+    });
+    assert.equal(swapped, true);
+    assert.equal(executed.execution_status, "blocked_execution_error");
+    assert.match(executed.error, /entrypoint.*(?:physical|changed|digest)/i);
+    assert.equal(executed.child_pid, null);
+    assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false,
+      "a replaced entrypoint must never reach child execution");
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
 
 test("audit packets produce a complete critic-pass receipt and explicit owner approval", () => {
   const fixture = createFixture();
@@ -175,6 +605,7 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
     const approval = {
       approval_version: 1,
       run_id: run.run_id,
+      journey_identity: run.journey_identity,
       scope_digest: run.approval_scope_digest,
       owner_id: "release-owner-1",
       status: "approved",
@@ -187,8 +618,145 @@ test("audit packets produce a complete critic-pass receipt and explicit owner ap
     assert.equal(approved.status, "approved");
     assert.equal(approved.owner_approval.owner_id, "release-owner-1");
     assert.equal(approved.integrity.status, "pass");
+    assert.equal(
+      approved.route.plan_source.resolved_path,
+      path.resolve(run.route.plan_source.resolved_path)
+    );
+    assert.equal(
+      hashArtifact(approved.route.plan_source.resolved_path),
+      approved.route.plan_source.digest
+    );
+    assert.equal(Object.hasOwn(approved, "baseline_lineage"), false);
+    assert.equal(approved.boundaries.includes("latest-version-never-promotes-a-parent-baseline"), false);
+    assert.equal(approved.boundaries.includes("slice-candidates-inherit-a-digest-bound-parent-baseline"), false);
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("audit packet dispatch rejects a symlink ancestor before any redirected write", {
+  skip: process.platform === "win32"
+}, () => {
+  const fixture = createFixture();
+  try {
+    const redirected = path.join(fixture.directory, "redirected-audit-packets");
+    const alias = path.join(fixture.directory, "audit-packets-alias");
+    fs.mkdirSync(redirected);
+    fs.symlinkSync(redirected, alias, "dir");
+
+    assert.throws(
+      () => dispatchAuditPacketsCore(
+        fixture.run,
+        path.join(alias, "packets"),
+        { authorityDigest: fixture.run.audit_authority_digest }
+      ),
+      /audit packet output directory contains a symlink ancestor/
+    );
+    assert.deepEqual(
+      fs.readdirSync(redirected),
+      [],
+      "dispatch must not create a directory or packet through a redirected ancestor"
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("source-less public audits cannot initialize, spawn a child, or finalize after coordinated re-signing", () => {
+  const fixture = createFixture();
+  try {
+    assert.throws(() => initializeAuditCore({
+      plan: fixture.plan,
+      artifacts: [fixture.artifact],
+      scope: "mockup",
+      creatorActorId: "creator-agent-1",
+      root: fixture.directory
+    }), /persisted canonical route plan source/);
+
+    const downgraded = structuredClone(fixture.run);
+    downgraded.route.plan_source = null;
+    downgraded.owner_approval_required = false;
+    const removed = downgraded.packets.find((packet) => packet.required);
+    downgraded.packets = downgraded.packets.filter((packet) =>
+      packet.packet_id !== removed.packet_id);
+    downgraded.stages = downgraded.stages.filter((stage) => stage.id !== removed.stage_id);
+    downgraded.approval_scope_digest = approvalScopeForTest(downgraded);
+    downgraded.manifest_digest = canonicalDigest(auditManifestForTest(downgraded));
+
+    const packet = downgraded.packets.find((candidate) => candidate.provider.id !== "kill-ai-slop");
+    const adapterEntrypoint = path.join(root, "test", "fixtures", "host-adapter.mjs");
+    const hostPath = path.join(fixture.directory, "source-less-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [packet.provider.id],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [packet.provider.id]: {
+          adapter: "agent-json-v1",
+          entrypoint: adapterEntrypoint,
+          entrypoint_digest: hashArtifact(adapterEntrypoint),
+          capabilities: packet.assigned_capabilities,
+          strength: packet.minimum_strength,
+          permissions: ["artifact:read"],
+          settings: { write_started_marker: true }
+        }
+      }
+    });
+    const outputDirectory = path.join(fixture.directory, "source-less-child");
+    const executed = executeAuditPacket({
+      run: downgraded,
+      packet,
+      manifest: loadHostManifest(hostPath),
+      outputDirectory
+    });
+    assert.equal(executed.execution_status, "blocked_execution_error");
+    assert.match(executed.error, /digest-bound canonical route plan source/);
+    assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false);
+
+    assert.throws(
+      () => finalizeAudit(downgraded, { now: finishedAt }),
+      /audit authority no longer binds|digest-bound canonical route plan source/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("audit initialization binds plan and profile provenance to the descriptor that was parsed", () => {
+  for (const authority of ["plan", "profile"]) {
+    const fixture = createPhysicalAuthorityFixture();
+    try {
+      const target = authority === "plan" ? fixture.planPath : fixture.routedProfilePath;
+      const checkpoint = authority === "plan"
+        ? "after-route-plan-pin-before-authority-bind"
+        : "after-profile-pin-before-authority-bind";
+      const retained = `${target}.retained`;
+      let replaced = false;
+      assert.throws(() => initializeAudit({
+        plan: JSON.parse(fs.readFileSync(fixture.planPath, "utf8")),
+        planPath: fixture.planPath,
+        artifacts: fixture.artifacts,
+        scope: "mockup",
+        creatorActorId: "creator-same-byte-replacement",
+        root: fixture.directory,
+        runId: `same-byte-${authority}-replacement`,
+        now: startedAt,
+        authorityFaultInjector(observed) {
+          if (observed !== checkpoint || replaced) return;
+          replaced = true;
+          fs.renameSync(target, retained);
+          fs.copyFileSync(retained, target);
+        }
+      }), /physical identity|physical-identity/);
+      assert.equal(replaced, true, `${authority} replacement checkpoint must execute`);
+      assert.equal(
+        hashArtifact(target),
+        hashArtifact(retained),
+        "same-byte replacement must preserve content while changing authority identity"
+      );
+    } finally {
+      fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
   }
 });
 
@@ -197,12 +765,18 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
   try {
     const artifact = path.join(directory, "fixture.html");
     fs.writeFileSync(artifact, "<!doctype html><main>fixture</main>\n");
+    fs.copyFileSync(
+      path.join(root, "examples", "service-planning-gate.example.json"),
+      path.join(directory, "planning.json")
+    );
+    fs.cpSync(
+      path.join(root, "examples", "planning-evidence"),
+      path.join(directory, "planning-evidence"),
+      { recursive: true }
+    );
     const guardedProfile = materializeExampleVisualIntent(profile);
     guardedProfile.planning.required = true;
-    guardedProfile.planning.surface_receipts["operator-product-ui"] = path.resolve(
-      path.dirname(profilePath),
-      guardedProfile.planning.surface_receipts["operator-product-ui"]
-    );
+    guardedProfile.planning.surface_receipts["operator-product-ui"] = "planning.json";
     const guardedProfilePath = path.join(directory, "profile.json");
     writeJson(guardedProfilePath, guardedProfile);
     const plan = planRoute({
@@ -217,7 +791,9 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
         changes: ["source"],
         risk: "standard",
         scope: "mockup"
-      }
+      },
+      artifacts: [artifact],
+      root: directory
     });
     assert.equal(plan.status, "planned");
     assert.equal(plan.planning_gate.gate_statuses.G6, "passed");
@@ -242,6 +818,336 @@ test("planning-gated mockup audits require an unchanged G6 receipt", () => {
       }),
       /planning receipt changed/
     );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("parent and slice lineage is preserved through packets and exact owner approval", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-lineage-audit-"));
+  try {
+    const parent = path.join(directory, "parent-v2.2.39.html");
+    const candidate = path.join(directory, "policy-v2.2.84.html");
+    const screenshot = path.join(directory, "desktop.png");
+    const mobileScreenshot = path.join(directory, "mobile.png");
+    const report = path.join(directory, "playwright.json");
+    const planningPath = path.join(directory, "planning.json");
+    fs.writeFileSync(parent, "<!doctype html><main>all-menu parent</main>\n");
+    fs.writeFileSync(candidate, "<!doctype html><main>policy slice</main>\n");
+    fs.writeFileSync(screenshot, "fake-png-evidence");
+    fs.writeFileSync(mobileScreenshot, "fake-mobile-png-evidence");
+    fs.writeFileSync(report, "{\"passed\":true}\n");
+    writeJson(planningPath, {
+      planning_gate_version: 1,
+      protocol: { id: "fixture-planning", version: "1", authority: "fixture-owner" },
+      project_id: profile.project_id,
+      surface: "operator-product-ui",
+      scope_id: "policy-source-to-setting",
+      phase: "phase_2",
+      baseline_lineage: {
+        baseline_lineage_version: 1,
+        lineage_id: "store-operator/policy",
+        relationship: "slice-of",
+        parent_baseline: {
+          id: "store-parent",
+          version: "2.2.39",
+          artifacts: [{ path: path.basename(parent), digest: hashArtifact(parent) }]
+        },
+        candidate: {
+          id: "store-policy-slice",
+          version: "2.2.84",
+          slice_id: "policy-source-to-setting",
+          artifacts: [{ path: path.basename(candidate), digest: hashArtifact(candidate) }]
+        },
+        inheritance: {
+          inherits: ["global shell", "navigation", "visual language"],
+          slice_owned: ["policy workflow", "policy states"],
+          forbidden_parent_changes: ["silent global token replacement"]
+        },
+        promotion: { authority: "explicit-owner-only", supersedes_parent: false }
+      },
+      gates: {
+        G6: {
+          status: "passed",
+          evidence: [{ kind: "mockup", path: path.basename(candidate), digest: hashArtifact(candidate) }]
+        }
+      },
+      updated_at: startedAt
+    });
+    const planningReceipt = readJson(planningPath, "lineage planning fixture");
+    const candidateScopeApproval = path.join(directory, "candidate-scope-owner-approval.json");
+    writeJson(candidateScopeApproval, {
+      status: "approved",
+      owner_id: "fixture-owner",
+      lineage_id: planningReceipt.baseline_lineage.lineage_id,
+      baseline_lineage_digest: canonicalDigest(planningReceipt.baseline_lineage),
+      decision_scope: "candidate-slice-binding",
+      parent_promotion: false,
+      candidate: planningReceipt.baseline_lineage.candidate,
+      decided_at: startedAt,
+      note: "Bind the exact policy candidate as a slice without parent promotion."
+    });
+    planningReceipt.gates.G7 = {
+      status: "approved",
+      evidence: [{
+        kind: "approved-artifact",
+        path: path.basename(candidate),
+        digest: hashArtifact(candidate)
+      }, {
+        kind: "owner-approval",
+        path: path.basename(candidateScopeApproval),
+        digest: hashArtifact(candidateScopeApproval)
+      }]
+    };
+    writeJson(planningPath, planningReceipt);
+    const guardedProfile = materializeExampleVisualIntent(profile);
+    guardedProfile.planning = { required: true, receipt: planningPath };
+    const guardedProfilePath = path.join(directory, "profile.json");
+    writeJson(guardedProfilePath, guardedProfile);
+    const plan = planRoute({
+      router,
+      profile: guardedProfile,
+      routerPath,
+      profilePath: guardedProfilePath,
+      input: {
+        surface: "operator-product-ui",
+        task: "audit",
+        direction: "none",
+        changes: ["source"],
+        risk: "standard",
+        scope: "mockup"
+      },
+      artifacts: [candidate],
+      root: directory
+    });
+    assert.equal(plan.status, "planned");
+    assert.equal(plan.baseline_lineage.candidate.version, "2.2.84");
+    assert.equal(plan.baseline_lineage.promotion.supersedes_parent, false);
+    const planFile = path.join(directory, "route.json");
+    writeJson(planFile, plan);
+    const run = initializeAudit({
+      plan,
+      planPath: planFile,
+      artifacts: [candidate],
+      scope: "mockup",
+      root: directory,
+      runId: "lineage-audit-run",
+      now: startedAt
+    });
+    const lineageDigest = run.baseline_lineage.lineage_digest;
+    assert.ok(run.packets.every((packet) =>
+      packet.baseline_lineage.lineage_digest === lineageDigest));
+
+    const ownerGateDowngrade = structuredClone(run);
+    ownerGateDowngrade.owner_approval_required = false;
+    ownerGateDowngrade.manifest_digest = canonicalDigest({
+      attacker_resigned_audit: ownerGateDowngrade
+    });
+    assert.throws(
+      () => verifyAuditJourneyIdentity(ownerGateDowngrade),
+      /owner approval requirement conflicts with the digest-bound route plan/
+    );
+
+    const reviewerGraphDowngrade = structuredClone(run);
+    const removedPacket = reviewerGraphDowngrade.packets.find((packet) => packet.required);
+    reviewerGraphDowngrade.packets = reviewerGraphDowngrade.packets.filter((packet) =>
+      packet.packet_id !== removedPacket.packet_id);
+    reviewerGraphDowngrade.stages = reviewerGraphDowngrade.stages.filter((stage) =>
+      stage.id !== removedPacket.stage_id);
+    reviewerGraphDowngrade.manifest_digest = canonicalDigest({
+      attacker_resigned_audit: reviewerGraphDowngrade
+    });
+    assert.throws(
+      () => verifyAuditJourneyIdentity(reviewerGraphDowngrade),
+      /stage enforcement graph|packet enforcement graph/
+    );
+
+    const downgraded = structuredClone(run);
+    delete downgraded.baseline_lineage;
+    delete downgraded.planning_gate.baseline_lineage;
+    downgraded.planning_gate.lineage_required = false;
+    downgraded.packets = downgraded.packets.map((packet) => {
+      const next = structuredClone(packet);
+      delete next.baseline_lineage;
+      delete next.packet_digest;
+      next.packet_digest = canonicalDigest(next);
+      return next;
+    });
+    assert.throws(
+      () => verifyAuditJourneyIdentity(downgraded),
+      /digest-bound route plan/,
+      "a consistently packet-re-signed downgrade must remain anchored to the route plan"
+    );
+
+    const executablePacket = run.packets.find((packet) => packet.provider.id === "project-contract");
+    const adapterEntrypoint = path.join(root, "test", "fixtures", "host-adapter.mjs");
+    const hostPath = path.join(directory, "lineage-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [executablePacket.provider.id],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [executablePacket.provider.id]: {
+          adapter: "agent-json-v1",
+          entrypoint: adapterEntrypoint,
+          entrypoint_digest: hashArtifact(adapterEntrypoint),
+          capabilities: executablePacket.assigned_capabilities,
+          strength: executablePacket.minimum_strength,
+          permissions: ["artifact:read"],
+          settings: { write_started_marker: true }
+        }
+      }
+    });
+    const lineageAExecution = executeAuditPacket({
+      run,
+      packet: executablePacket,
+      manifest: loadHostManifest(hostPath),
+      attempt: 1,
+      outputDirectory: path.join(directory, "lineage-a-result")
+    });
+    assert.equal(lineageAExecution.execution_status, "ran", lineageAExecution.error);
+
+    const parentB = path.join(directory, "parent-v2.2.40.html");
+    fs.writeFileSync(parentB, "<!doctype html><main>different parent, same candidate</main>\n");
+    const planningB = JSON.parse(fs.readFileSync(planningPath, "utf8"));
+    planningB.baseline_lineage.parent_baseline = {
+      id: "store-parent-b",
+      version: "2.2.40",
+      artifacts: [{ path: path.basename(parentB), digest: hashArtifact(parentB) }]
+    };
+    const candidateScopeApprovalB = path.join(directory, "candidate-scope-owner-approval-b.json");
+    writeJson(candidateScopeApprovalB, {
+      status: "approved",
+      owner_id: "fixture-owner",
+      lineage_id: planningB.baseline_lineage.lineage_id,
+      baseline_lineage_digest: canonicalDigest(planningB.baseline_lineage),
+      decision_scope: "candidate-slice-binding",
+      parent_promotion: false,
+      candidate: planningB.baseline_lineage.candidate,
+      decided_at: startedAt,
+      note: "Bind the exact policy candidate to the second parent for replay isolation."
+    });
+    planningB.gates.G7.evidence = planningB.gates.G7.evidence.map((item) =>
+      item.kind === "owner-approval"
+        ? {
+          kind: "owner-approval",
+          path: path.basename(candidateScopeApprovalB),
+          digest: hashArtifact(candidateScopeApprovalB)
+        }
+        : item);
+    const planningBPath = path.join(directory, "planning-b.json");
+    writeJson(planningBPath, planningB);
+    const profileB = materializeExampleVisualIntent(profile);
+    profileB.planning = { required: true, receipt: planningBPath };
+    const profileBPath = path.join(directory, "profile-b.json");
+    writeJson(profileBPath, profileB);
+    const planB = planRoute({
+      router,
+      profile: profileB,
+      routerPath,
+      profilePath: profileBPath,
+      input: plan.input,
+      artifacts: [candidate],
+      root: directory
+    });
+    const planBPath = path.join(directory, "route-b.json");
+    writeJson(planBPath, planB);
+    const runB = initializeAudit({
+      plan: planB,
+      planPath: planBPath,
+      artifacts: [candidate],
+      scope: "mockup",
+      root: directory,
+      runId: "lineage-audit-run-b",
+      now: startedAt
+    });
+    const packetB = runB.packets.find((packet) => packet.provider.id === executablePacket.provider.id);
+    const replay = {
+      ...lineageAExecution.result,
+      run_id: runB.run_id,
+      packet_id: packetB.packet_id,
+      packet_digest: packetB.packet_digest,
+      journey_identity: runB.journey_identity,
+      provider_id: packetB.provider.id,
+      participant: packetB.participant
+    };
+    const replayPath = path.join(directory, "cross-parent-replay.json");
+    writeJson(replayPath, replay);
+    assert.throws(
+      () => recordAuditResult(runB, replay, replayPath),
+      /baseline_lineage_digest does not match/,
+      "same candidate bytes cannot replay a child result under a different parent"
+    );
+
+    const downgradedRouteRun = structuredClone(run);
+    downgradedRouteRun.route.input.task = "redesign";
+    const downgradedOutput = path.join(directory, "downgraded-route-child-output");
+    const downgradedExecution = executeAuditPacket({
+      run: downgradedRouteRun,
+      packet: downgradedRouteRun.packets.find((packet) =>
+        packet.packet_id === executablePacket.packet_id),
+      manifest: loadHostManifest(hostPath),
+      attempt: 1,
+      outputDirectory: downgradedOutput
+    });
+    assert.equal(downgradedExecution.execution_status, "blocked_execution_error");
+    assert.match(downgradedExecution.error, /route input conflicts with the digest-bound route plan/);
+    assert.equal(fs.existsSync(path.join(downgradedOutput, "started.marker")), false,
+      "mutable audit task claims must be rejected before the child spawn boundary");
+
+    const dispatch = dispatchAuditPackets(run, path.join(directory, "packets"));
+    const approvalTemplate = JSON.parse(fs.readFileSync(dispatch.approval_template, "utf8"));
+    assert.equal(approvalTemplate.baseline_lineage_digest, lineageDigest);
+
+    const completed = recordAll({
+      directory,
+      screenshot,
+      mobileScreenshot,
+      report,
+      run
+    });
+    const missingLineageApproval = {
+      approval_version: 1,
+      run_id: completed.run_id,
+      journey_identity: completed.journey_identity,
+      scope_digest: completed.approval_scope_digest,
+      owner_id: "release-owner-1",
+      status: "approved",
+      note: "Reviewed the exact policy slice.",
+      decided_at: finishedAt
+    };
+    const approvalPath = path.join(directory, "approval.json");
+    writeJson(approvalPath, missingLineageApproval);
+    assert.throws(() => finalizeAudit(completed, {
+      approval: missingLineageApproval,
+      approvalPath,
+      now: finishedAt
+    }), /approval baseline_lineage_digest does not match/);
+
+    const approval = {
+      ...missingLineageApproval,
+      baseline_lineage_digest: lineageDigest
+    };
+    writeJson(approvalPath, approval);
+    const approved = finalizeAudit(completed, { approval, approvalPath, now: finishedAt });
+    assert.equal(approved.status, "approved");
+    assert.equal(approved.baseline_lineage.lineage_digest, lineageDigest);
+    assert.equal(approved.owner_approval.baseline_lineage_digest, lineageDigest);
+    assert.ok(approved.boundaries.includes("latest-version-never-promotes-a-parent-baseline"));
+    assert.ok(approved.boundaries.includes("slice-candidates-inherit-a-digest-bound-parent-baseline"));
+
+    fs.appendFileSync(parent, "<!-- tampered immediately before child spawn -->\n");
+    const childOutput = path.join(directory, "blocked-child-output");
+    const blockedExecution = executeAuditPacket({
+      run,
+      packet: executablePacket,
+      manifest: loadHostManifest(hostPath),
+      attempt: 1,
+      outputDirectory: childOutput
+    });
+    assert.equal(blockedExecution.execution_status, "blocked_execution_error");
+    assert.match(blockedExecution.error, /parent_baseline artifact digest changed/);
+    assert.equal(fs.existsSync(path.join(childOutput, "started.marker")), false);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -286,7 +1192,9 @@ test("planning evidence tamper after audit initialization blocks finalization", 
         changes: ["source"],
         risk: "standard",
         scope: "mockup"
-      }
+      },
+      artifacts: [artifact],
+      root: directory
     });
     assert.equal(plan.status, "planned");
     const run = initializeAudit({
@@ -374,6 +1282,87 @@ test("visual-intent authority and its evidence remain integrity-bound through fi
       runId: "visual-intent-tamper-run",
       now: startedAt
     });
+    const packet = run.packets.find((candidate) => candidate.provider.id === "project-contract");
+    const adapterEntrypoint = path.join(root, "test", "fixtures", "host-adapter.mjs");
+    const hostPath = path.join(directory, "visual-authority-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [packet.provider.id],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [packet.provider.id]: {
+          adapter: "agent-json-v1",
+          entrypoint: adapterEntrypoint,
+          entrypoint_digest: hashArtifact(adapterEntrypoint),
+          capabilities: packet.assigned_capabilities,
+          strength: packet.minimum_strength,
+          permissions: ["artifact:read"],
+          settings: { write_started_marker: true }
+        }
+      }
+    });
+    const manifest = loadHostManifest(hostPath);
+    const authorityBytes = fs.readFileSync(authorityPath);
+    const profileBytes = fs.readFileSync(routedProfilePath);
+
+    const canonicalAuthorityPath = fs.realpathSync.native(authorityPath);
+    const authorityReplacement = `${authorityPath}.replacement`;
+    const authorityDisplaced = `${authorityPath}.displaced`;
+    fs.copyFileSync(authorityPath, authorityReplacement);
+    let authoritySwapped = false;
+    const swappedAuthorityOutput = path.join(directory, "swapped-visual-child");
+    const swappedAuthority = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: swappedAuthorityOutput,
+      outputGrantRoot: directory,
+      authorityFaultInjector(checkpoint, detail) {
+        if (authoritySwapped || checkpoint !== "after-read-before-path-revalidation") return;
+        if (detail.path !== canonicalAuthorityPath) return;
+        authoritySwapped = true;
+        fs.renameSync(authorityPath, authorityDisplaced);
+        fs.renameSync(authorityReplacement, authorityPath);
+      }
+    });
+    assert.equal(authoritySwapped, true);
+    assert.equal(swappedAuthority.execution_status, "blocked_execution_error");
+    assert.match(swappedAuthority.error, /path identity changed while it was being read/);
+    assert.equal(fs.existsSync(path.join(swappedAuthorityOutput, "started.marker")), false,
+      "path-swapped visual authority must block before reviewer spawn");
+    fs.rmSync(authorityPath);
+    fs.renameSync(authorityDisplaced, authorityPath);
+
+    fs.appendFileSync(authorityPath, "\n");
+    const staleVisualOutput = path.join(directory, "stale-visual-child");
+    const staleVisual = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: staleVisualOutput,
+      outputGrantRoot: directory
+    });
+    assert.equal(staleVisual.execution_status, "blocked_execution_error");
+    assert.match(staleVisual.error, /visual-intent authority.*changed before child execution/);
+    assert.equal(fs.existsSync(path.join(staleVisualOutput, "started.marker")), false,
+      "changed visual authority must block before reviewer spawn");
+
+    fs.writeFileSync(authorityPath, authorityBytes);
+    fs.appendFileSync(routedProfilePath, "\n");
+    const staleProfileOutput = path.join(directory, "stale-profile-child");
+    const staleProfile = executeAuditPacket({
+      run,
+      packet,
+      manifest,
+      outputDirectory: staleProfileOutput,
+      outputGrantRoot: directory
+    });
+    assert.equal(staleProfile.execution_status, "blocked_execution_error");
+    assert.match(staleProfile.error, /routed project profile changed before child execution/);
+    assert.equal(fs.existsSync(path.join(staleProfileOutput, "started.marker")), false,
+      "changed project profile must block before reviewer spawn");
+
+    fs.writeFileSync(routedProfilePath, profileBytes);
     fs.appendFileSync(authorityPath, "\n");
     fs.appendFileSync(basis, "tampered\n");
     const receipt = finalizeAudit(run, { now: finishedAt });
@@ -490,6 +1479,23 @@ test("audit initialization rejects a forged visual-signature plan claim", () => 
   }
 });
 
+test("audit initialization cannot bypass the critical scenario inventory with an unscoped plan", () => {
+  const fixture = createFixture();
+  try {
+    const forged = structuredClone(fixture.plan);
+    forged.evidence_contract.required_scenarios = [];
+    assert.throws(() => initializeAudit({
+      plan: forged,
+      artifacts: [fixture.artifact],
+      scope: "mockup",
+      creatorActorId: "creator-agent-1",
+      root: fixture.directory
+    }), /scoped UI audit requires a non-empty evidence\.required_scenarios inventory/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
 test("creator self-review is rejected before it enters the ledger", () => {
   const fixture = createFixture();
   try {
@@ -503,6 +1509,72 @@ test("creator self-review is rejected before it enters the ledger", () => {
       () => recordAuditResult(fixture.run, result, resultPath),
       /reviewer cannot be the creator/
     );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("caller-retained audit authority blocks coordinated creator actor re-signing", () => {
+  const fixture = createFixture();
+  try {
+    const originalAuthority = fixture.run.audit_authority_digest;
+    const forged = structuredClone(fixture.run);
+    forged.creator.actor_id = "attacker-selected-decoy";
+    forged.audit_authority_digest = auditAuthorityDigestForRun(forged);
+    forged.approval_scope_digest = approvalScopeForTest(forged);
+    forged.manifest_digest = canonicalDigest(auditManifestForTest(forged));
+    const packet = forged.packets.find((candidate) => candidate.reviewer_independence_required);
+    const result = makeResult(packet, { ...fixture, run: forged }, {
+      reviewer: { actor_id: "creator-agent-1", kind: "agent" }
+    });
+    const resultPath = path.join(fixture.directory, "coordinated-creator-forgery.json");
+    writeJson(resultPath, result);
+
+    assert.throws(
+      () => dispatchAuditPacketsCore(forged, path.join(fixture.directory, "forged-packets"), {
+        authorityDigest: originalAuthority
+      }),
+      /authority digest does not match the original/
+    );
+    assert.throws(
+      () => recordAuditResultCore(forged, result, resultPath, {
+        authorityDigest: originalAuthority
+      }),
+      /authority digest does not match the original/
+    );
+    assert.throws(
+      () => finalizeAuditCore(forged, { authorityDigest: originalAuthority }),
+      /authority digest does not match the original/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("finalization revalidates accepted reviewer independence after coordinated result re-signing", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.reviewer_independence_required);
+    const sourcePath = path.join(fixture.directory, "accepted-then-resigned.json");
+    const input = makeResult(packet, fixture);
+    writeJson(sourcePath, input);
+    const recorded = recordAuditResult(fixture.run, input, sourcePath);
+
+    const forged = structuredClone(recorded);
+    const forgedSource = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
+    forgedSource.reviewer.actor_id = fixture.run.creator.actor_id;
+    writeJson(sourcePath, forgedSource);
+    const resignedSource = snapshotArtifact(sourcePath, { root: fixture.directory });
+    forged.results[0].source.digest = resignedSource.digest;
+    forged.results[0].source.bytes = resignedSource.bytes;
+    forged.results[0].source.physical_identity_digest =
+      resignedSource.physical_identity_digest;
+    forged.results[0].normalized.reviewer.actor_id = fixture.run.creator.actor_id;
+    forged.results[0].normalized_digest = canonicalDigest(forged.results[0].normalized);
+
+    const receipt = finalizeAudit(forged, { now: finishedAt });
+    assert.equal(receipt.status, "blocked");
+    assert.match(receipt.blockers.join("\n"), /result-authority:.*reviewer cannot be the creator|recorded reviewer became the creator/);
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -526,6 +1598,44 @@ test("browser packets reject incomplete proof instead of accepting a smoke-test 
     assert.throws(
       () => recordAuditResult(fixture.run, result, resultPath),
       /missing screenshot evidence/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("browser packets require non-screenshot proof for every critical scenario", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.stage_id === "browser-evidence");
+    const result = makeResult(packet, fixture);
+    const report = result.evidence.find((item) => item.kind === "test-report");
+    report.scenarios = [];
+    const resultPath = path.join(fixture.directory, "scenario-report-gap.json");
+    writeJson(resultPath, result);
+    assert.throws(
+      () => recordAuditResult(fixture.run, result, resultPath),
+      /scenario lacks non-screenshot proof: root/
+    );
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("browser packets require every critical scenario at every required viewport", () => {
+  const fixture = createFixture();
+  try {
+    const packet = fixture.run.packets.find((candidate) => candidate.stage_id === "browser-evidence");
+    const result = makeResult(packet, fixture);
+    const mobile = result.evidence.find((item) =>
+      item.kind === "screenshot" && item.viewports.includes("mobile")
+    );
+    mobile.scenarios = [];
+    const resultPath = path.join(fixture.directory, "scenario-viewport-gap.json");
+    writeJson(resultPath, result);
+    assert.throws(
+      () => recordAuditResult(fixture.run, result, resultPath),
+      /missing a screenshot for scenario root at viewport mobile/
     );
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
@@ -563,6 +1673,10 @@ test("scanner candidates remain blocked until an explicit triage decision is rec
     };
     const triagePath = path.join(fixture.directory, "triage.json");
     writeJson(triagePath, triage);
+    assert.throws(
+      () => recordTriageCore(run, triage, triagePath),
+      /audit triage recording requires the caller-retained audit authority digest/
+    );
     const triagedRun = recordTriage(run, triage, triagePath);
     const pending = finalizeAudit(triagedRun, { now: finishedAt });
     assert.equal(pending.status, "critic_pass_owner_review_pending");
@@ -721,6 +1835,7 @@ test("owner approval is bound to the exact run scope and cannot come from the cr
     const wrongScope = {
       approval_version: 1,
       run_id: run.run_id,
+      journey_identity: run.journey_identity,
       scope_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       owner_id: "release-owner-1",
       status: "approved",
@@ -758,11 +1873,13 @@ test("CLI initializes packets and fails finalization when required critics are m
     assert.match(init.stdout, /packet_count:/);
     assert.equal(fs.existsSync(runPath), true);
     assert.equal(fs.existsSync(path.join(fixture.directory, "cli-run.packets")), true);
+    const cliRun = JSON.parse(fs.readFileSync(runPath, "utf8"));
 
     const finalize = spawnSync(process.execPath, [
       cli,
       "audit", "finalize",
-      "--run", runPath
+      "--run", runPath,
+      "--authority-digest", cliRun.audit_authority_digest
     ], { cwd: fixture.directory, encoding: "utf8" });
     assert.equal(finalize.status, 5);
     assert.match(finalize.stdout, /status: incomplete/);

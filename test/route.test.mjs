@@ -815,12 +815,46 @@ assert.throws(() => planRoute({
   input: { task: "audit", direction: "none", changes: [] }
 }), /profile object does not match profile_path/);
 
+const authoritySymlinkFixture = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-route-authority-"));
+try {
+  const realAuthority = path.join(authoritySymlinkFixture, "real-authority");
+  const aliasAuthority = path.join(authoritySymlinkFixture, "authority-alias");
+  fs.mkdirSync(realAuthority);
+  const copiedRouterPath = path.join(realAuthority, "router.json");
+  const copiedProfilePath = path.join(realAuthority, "profile.json");
+  fs.copyFileSync(routerPath, copiedRouterPath);
+  fs.copyFileSync(profilePath, copiedProfilePath);
+  fs.symlinkSync(realAuthority, aliasAuthority, "dir");
+
+  assert.throws(() => planRoute({
+    router,
+    profile: null,
+    routerPath: path.join(aliasAuthority, "router.json"),
+    input: {
+      surface: "operator-product-ui",
+      task: "audit",
+      direction: "none",
+      changes: ["source"]
+    }
+  }), /router source contains a symlink ancestor/);
+
+  assert.throws(() => planRoute({
+    router,
+    profile,
+    routerPath,
+    profilePath: path.join(aliasAuthority, "profile.json"),
+    input: { task: "audit", direction: "none", changes: [] }
+  }), /profile source contains a symlink ancestor/);
+} finally {
+  fs.rmSync(authoritySymlinkFixture, { recursive: true, force: true });
+}
+
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-adapter-test-"));
 try {
   const scannerDir = path.join(temp, "adapter", "skill", "scripts");
   fs.mkdirSync(scannerDir, { recursive: true });
-  fs.writeFileSync(path.join(scannerDir, "scan.mjs"), `
-    console.log(JSON.stringify({
+  fs.writeFileSync(path.join(scannerDir, "result.mjs"), `
+    export default {
       filesScanned: 1,
       groups: 1,
       hits: 1,
@@ -831,7 +865,11 @@ try {
         fix: "tight elevation",
         hits: [{ file: "fixture.html", line: 1, text: "box-shadow: 0 30px 80px" }]
       }]
-    }))
+    };
+  `);
+  fs.writeFileSync(path.join(scannerDir, "scan.mjs"), `
+    import result from "./result.mjs";
+    console.log(JSON.stringify(result));
   `);
   const target = path.join(temp, "fixture.html");
   fs.writeFileSync(target, "<style>.x{box-shadow:0 30px 80px}</style>");

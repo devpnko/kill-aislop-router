@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/state-lease.schema.json",
+  "title": "KillSlopRouter Automation State Lease",
+  "type": "object",
+  "required": [
+    "state_lease_version", "state_path", "operation", "owner_token", "owner_pid",
+    "owner_process_identity",
+    "acquired_at", "updated_at", "state_digest", "pending_state_digest", "phase",
+    "active_packet", "recover_after", "recovered_from", "lease_digest"
+  ],
+  "properties": {
+    "state_lease_version": {"const": 1},
+    "state_path": {"type": "string", "minLength": 1},
+    "operation": {"type": "string", "minLength": 1},
+    "owner_token": {"type": "string", "minLength": 16},
+    "owner_pid": {"type": "integer", "minimum": 1},
+    "owner_process_identity": {"$ref": "#/$defs/process_identity"},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "state_digest": {"$ref": "#/$defs/state_digest"},
+    "pending_state_digest": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]
+    },
+    "phase": {"enum": ["acquired", "state-write", "checkpoint", "child-intent", "child-execution", "recovery"]},
+    "active_packet": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/active_packet"}]
+    },
+    "recover_after": {"type": "string", "format": "date-time"},
+    "recovered_from": {
+      "oneOf": [{"type": "null"}, {"$ref": "#/$defs/recovery_origin"}]
+    },
+    "lease_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "process_identity": {
+      "type": "object",
+      "required": ["process_identity_version", "method", "marker"],
+      "properties": {
+        "process_identity_version": {"const": 1},
+        "method": {"type": "string", "minLength": 1},
+        "marker": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "state_digest": {
+      "oneOf": [
+        {"const": "absent"},
+        {"$ref": "#/$defs/digest"}
+      ]
+    },
+    "active_packet": {
+      "type": "object",
+      "required": ["packet_id", "provider_id", "attempt", "marked_at"],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "attempt": {"type": "integer", "minimum": 1},
+        "marked_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "recovery_origin": {
+      "type": "object",
+      "required": [
+        "lease_digest", "owner_token_digest", "owner_pid", "owner_process_identity",
+        "acquired_at", "operation", "phase", "state_digest", "active_packet",
+        "recover_after", "recovery_started_at"
+      ],
+      "properties": {
+        "lease_digest": {"$ref": "#/$defs/digest"},
+        "owner_token_digest": {"$ref": "#/$defs/digest"},
+        "owner_pid": {"type": "integer", "minimum": 1},
+        "owner_process_identity": {"$ref": "#/$defs/process_identity"},
+        "acquired_at": {"type": "string", "format": "date-time"},
+        "operation": {"type": "string", "minLength": 1},
+        "phase": {"type": "string", "minLength": 1},
+        "state_digest": {"$ref": "#/$defs/state_digest"},
+        "active_packet": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/active_packet"}]
+        },
+        "recover_after": {"type": "string", "format": "date-time"},
+        "recovery_started_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
