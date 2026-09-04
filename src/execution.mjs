@@ -592,11 +592,25 @@ function verifyLoadedHostManifest(manifest, phase) {
     4
   );
   requireValue(
-    canonicalDigest(reloaded) === canonicalDigest(manifest),
+    stableHostManifestAuthorityDigest(reloaded) ===
+      stableHostManifestAuthorityDigest(manifest),
     `host adapter manifest normalized authority was mutated in memory or an entrypoint authority changed ${phase}`,
     4
   );
   return reloaded;
+}
+
+function stableHostManifestAuthorityDigest(manifest) {
+  const authority = structuredClone(manifest);
+  for (const declaration of Object.values(authority.providers || {})) {
+    // Codex authentication is a live host observation, not manifest authority.
+    // A reload may legitimately move between ready and manual_pending when
+    // CODEX_HOME changes. It must be recomputed and used only from `reloaded`,
+    // while every digest-bound provider, path, permission, capability, setting,
+    // and entrypoint authority remains covered by this comparison.
+    if (declaration?.official_codex) delete declaration.official_codex.readiness;
+  }
+  return canonicalDigest(authority);
 }
 
 function verifyHostManifestBoundary(manifest) {

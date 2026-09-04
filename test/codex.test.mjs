@@ -212,8 +212,12 @@ function projectFixture({ runtimeMode = {}, executableProviders = true } = {}) {
 }
 
 function withFixtureCodexHome(fixture, callback) {
+  return withCodexHome(fixture.authHome, callback);
+}
+
+function withCodexHome(codexHome, callback) {
   const previous = process.env.CODEX_HOME;
-  process.env.CODEX_HOME = fixture.authHome;
+  process.env.CODEX_HOME = codexHome;
   try {
     return callback();
   } finally {
@@ -562,6 +566,47 @@ test("capability gaps and design creation stay manual_pending under the official
     const design = inspectPacketAdapter(packet("project-contract", { design: true }), manifest);
     assert.equal(design.execution_status, "manual_pending");
     assert.match(design.reason, /cannot create or review design-exploration candidates/);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("live Codex authentication changes are re-evaluated without weakening manifest authority", () => {
+  const fixture = projectFixture();
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const authenticatedManifest = loadFixtureManifest(fixture);
+    assert.equal(
+      authenticatedManifest.providers["project-contract"].official_codex.readiness.status,
+      "ready"
+    );
+
+    const noAuthHome = path.join(fixture.directory, "codex-no-auth");
+    fs.mkdirSync(noAuthHome);
+    const unavailable = withCodexHome(noAuthHome, () =>
+      inspectPacketAdapter(packet("project-contract"), authenticatedManifest));
+    assert.equal(unavailable.execution_status, "manual_pending");
+    assert.match(unavailable.reason, /Codex authentication is unavailable/);
+
+    // A caller cannot turn stale readiness into execution authority. Inspection
+    // always returns the freshly reloaded host observation.
+    authenticatedManifest.providers["project-contract"].official_codex.readiness = {
+      status: "ready",
+      reason: "caller-forged readiness"
+    };
+    const stillUnavailable = withCodexHome(noAuthHome, () =>
+      inspectPacketAdapter(packet("project-contract"), authenticatedManifest));
+    assert.equal(stillUnavailable.execution_status, "manual_pending");
+    assert.match(stillUnavailable.reason, /Codex authentication is unavailable/);
+
+    authenticatedManifest.providers["project-contract"].capabilities.push("forged-capability");
+    assert.throws(
+      () => withCodexHome(noAuthHome, () =>
+        inspectPacketAdapter(packet("project-contract"), authenticatedManifest)),
+      /host adapter manifest normalized authority was mutated in memory/
+    );
   } finally {
     cleanup(fixture);
   }
