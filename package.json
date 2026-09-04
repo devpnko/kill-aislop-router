@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Fail-closed design exploration, visual-contract routing, and resumable evidence automation",
   "type": "module",
+  "packageManager": "npm@10.9.2",
   "license": "MIT",
   "bin": {
     "killsloprouter": "./bin/killsloprouter.mjs",
