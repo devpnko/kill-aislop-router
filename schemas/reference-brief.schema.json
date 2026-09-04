@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-brief.schema.json",
+  "title": "KillSlopRouter reference intelligence brief",
+  "type": "object",
+  "required": [
+    "reference_brief_version", "project_id", "surface", "locales", "activation",
+    "planning", "source", "coverage", "popularity_prior", "providers"
+  ],
+  "properties": {
+    "reference_brief_version": {"const": 1},
+    "project_id": {"$ref": "#/$defs/id"},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "locales": {"$ref": "#/$defs/strings"},
+    "activation": {
+      "type": "object",
+      "required": ["mode", "owner_request_id", "request_excerpt", "authorized_at", "evidence"],
+      "properties": {
+        "mode": {"const": "explicit-owner-reference-research"},
+        "owner_request_id": {"$ref": "#/$defs/id"},
+        "request_excerpt": {"type": "string", "minLength": 1},
+        "authorized_at": {"type": "string", "format": "date-time"},
+        "evidence": {"$ref": "#/$defs/evidence_ref"}
+      },
+      "additionalProperties": false
+    },
+    "planning": {
+      "type": "object",
+      "required": ["product_frame", "sources", "required_gate_ids"],
+      "properties": {
+        "product_frame": {
+          "type": "object",
+          "required": [
+            "primary_user", "user_job", "screen_family", "main_object", "core_task",
+            "trust_risk", "density", "required_states", "success_metric"
+          ],
+          "properties": {
+            "primary_user": {"type": "string", "minLength": 1},
+            "user_job": {"type": "string", "minLength": 1},
+            "screen_family": {"type": "string", "minLength": 1},
+            "main_object": {"type": "string", "minLength": 1},
+            "core_task": {"type": "string", "minLength": 1},
+            "trust_risk": {"enum": ["low", "standard", "high"]},
+            "density": {"enum": ["sparse", "balanced", "compact", "dense"]},
+            "required_states": {"$ref": "#/$defs/strings"},
+            "success_metric": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "path", "digest"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "kind": {"const": "service-planning-gate"},
+              "path": {"type": "string", "minLength": 1},
+              "digest": {"$ref": "#/$defs/digest"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required_gate_ids": {"$ref": "#/$defs/strings"}
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["provider", "access_mode", "rights", "queries"],
+      "properties": {
+        "provider": {"const": "uibowl"},
+        "access_mode": {"enum": ["manual-export", "authorized-read-only-adapter"]},
+        "rights": {
+          "type": "object",
+          "required": ["status", "evidence", "redistribution", "creator_pixel_access"],
+          "properties": {
+            "status": {"enum": ["reference-only", "cleared"]},
+            "evidence": {"$ref": "#/$defs/evidence_ref"},
+            "redistribution": {"const": false},
+            "creator_pixel_access": {"const": false}
+          },
+          "additionalProperties": false
+        },
+        "queries": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "term"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "kind": {"enum": ["pattern", "component", "app", "ocr"]},
+              "term": {"type": "string", "minLength": 1},
+              "screen_family": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "minimum_verified_references", "maximum_references", "required_component_families",
+        "required_patterns", "required_grammar_dimensions"
+      ],
+      "properties": {
+        "minimum_verified_references": {"type": "integer", "minimum": 3, "maximum": 24},
+        "maximum_references": {"type": "integer", "minimum": 3, "maximum": 24},
+        "required_component_families": {"$ref": "#/$defs/strings"},
+        "required_patterns": {"$ref": "#/$defs/strings"},
+        "required_grammar_dimensions": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": [
+            "information-hierarchy", "navigation", "component-composition", "data-comparison",
+            "evidence-presentation", "typography", "color-roles", "density", "interaction", "responsive"
+          ]}
+        }
+      },
+      "additionalProperties": false
+    },
+    "popularity_prior": {
+      "type": "object",
+      "required": ["role", "primary_sort", "signals", "cannot_affect"],
+      "properties": {
+        "role": {"const": "within-fit-band-ranking-only"},
+        "primary_sort": {"const": "product-fit-band"},
+        "signals": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["id", "metric", "weight"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "metric": {"enum": ["mau", "popular-rank", "curation-popularity"]},
+              "weight": {"type": "number", "exclusiveMinimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "cannot_affect": {
+          "type": "array", "minItems": 3, "uniqueItems": true,
+          "contains": {"const": "eligibility"},
+          "items": {"enum": ["eligibility", "hard-gates", "owner-approval"]}
+        }
+      },
+      "additionalProperties": false
+    },
+    "providers": {
+      "type": "object",
+      "required": ["discovery", "grammar_extractor", "critic"],
+      "properties": {
+        "discovery": {"$ref": "#/$defs/id"},
+        "grammar_extractor": {"$ref": "#/$defs/id"},
+        "critic": {"$ref": "#/$defs/id"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "evidence_ref": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

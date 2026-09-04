@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-pack.schema.json",
+  "title": "KillSlopRouter reference intelligence pack",
+  "type": "object",
+  "required": [
+    "reference_pack_version", "run_id", "journey_identity", "project_id", "surface",
+    "authority_scope", "planning_frame", "selection", "references", "verified_grammar",
+    "ranking_policy", "downstream_contract", "provenance", "compiled_at", "pack_digest"
+  ],
+  "properties": {
+    "reference_pack_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "project_id": {"type": "string", "minLength": 1},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "authority_scope": {"const": "discovery-evidence-only"},
+    "planning_frame": {"type": "object"},
+    "selection": {"type": "object"},
+    "references": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "object"}},
+    "verified_grammar": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "ranking_policy": {"type": "object"},
+    "downstream_contract": {
+      "type": "object",
+      "required": [
+        "source_pixels_included", "visual_authority_granted", "visual_signature_granted",
+        "design_creation_started", "exact_three_3x3_route_unchanged", "required_next_gate"
+      ],
+      "properties": {
+        "source_pixels_included": {"const": false},
+        "visual_authority_granted": {"const": false},
+        "visual_signature_granted": {"const": false},
+        "design_creation_started": {"const": false},
+        "exact_three_3x3_route_unchanged": {"const": true},
+        "required_next_gate": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "provenance": {"type": "object"},
+    "compiled_at": {"type": "string", "format": "date-time"},
+    "pack_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}},
+  "additionalProperties": false
+}

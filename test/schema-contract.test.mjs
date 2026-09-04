@@ -51,6 +51,25 @@ test("published host request schema rejects empty or omitted official Playwright
     "runtime_physical_identity_digest"));
 });
 
+test("published reference schemas keep popularity subordinate and the pack non-authoritative", () => {
+  const brief = readSchema("reference-brief.schema.json");
+  assert.equal(brief.properties.popularity_prior.properties.role.const,
+    "within-fit-band-ranking-only");
+  assert.equal(brief.properties.popularity_prior.properties.primary_sort.const,
+    "product-fit-band");
+  assert.equal(brief.properties.source.properties.rights.properties.creator_pixel_access.const, false);
+  const pack = readSchema("reference-pack.schema.json");
+  assert.equal(pack.properties.authority_scope.const, "discovery-evidence-only");
+  assert.equal(pack.properties.downstream_contract.properties.source_pixels_included.const, false);
+  assert.equal(pack.properties.downstream_contract.properties.visual_authority_granted.const, false);
+  assert.equal(pack.properties.downstream_contract.properties.exact_three_3x3_route_unchanged.const, true);
+  const result = readSchema("reference-result.schema.json");
+  const eligible = result.$defs.disposition.allOf[0].then.properties;
+  assert.equal(eligible.verified_component_families.minItems, 1);
+  assert.equal(eligible.verified_patterns.minItems, 1);
+  assert.equal(eligible.verified_grammar_ids.minItems, 1);
+});
+
 test("published runtime setup receipts require physical execution authority", () => {
   const codex = readSchema("codex-host-setup-receipt.schema.json");
   assert.ok(codex.properties.adapter.required.includes("entrypoint_graph_digest"));

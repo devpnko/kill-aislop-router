@@ -8,6 +8,7 @@ export const KILLSLOPROUTER_CANONICAL_ENTRYPOINT = "killsloprouter:kill-slop-rou
 const INVOCATIONS = new Set(["explicit", "implicit", "resume", "legacy-migrated"]);
 const PARTICIPANT_ROLES = new Set([
   "creator",
+  "researcher",
   "critic",
   "scanner",
   "browser-evidence",
@@ -106,6 +107,7 @@ export function identitiesMatch(left, right) {
 }
 
 export function participantRoleForStage(stageId, designTaskKind = null) {
+  if (["reference-discovery", "reference-grammar"].includes(stageId)) return "researcher";
   if (["direction-candidate", "color-candidate"].includes(designTaskKind)) return "creator";
   if (designTaskKind === "browser-evidence" || stageId === "browser-evidence") return "browser-evidence";
   if (["direction-review", "color-review"].includes(designTaskKind)) return "critic";

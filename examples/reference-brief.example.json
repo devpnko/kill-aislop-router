@@ -1,0 +1,81 @@
+{
+  "reference_brief_version": 1,
+  "project_id": "regional-price-results",
+  "surface": "consumer-product-ui",
+  "locales": ["ko-KR"],
+  "activation": {
+    "mode": "explicit-owner-reference-research",
+    "owner_request_id": "OWNER-REF-001",
+    "request_excerpt": "Study popular UI Bowl examples and extract transferable design grammar for the service-planning frame.",
+    "authorized_at": "2026-09-04T00:00:00.000Z",
+    "evidence": {
+      "path": "examples/reference-evidence/owner-request.md",
+      "digest": "sha256:5e16276dc036afba48afb3377a719c846205df5456a75253d7539211693646a8"
+    }
+  },
+  "planning": {
+    "product_frame": {
+      "primary_user": "regional mobile-phone buyer comparing seller conditions",
+      "user_job": "understand the real payable price and evidence behind each seller condition",
+      "screen_family": "regional comparison results",
+      "main_object": "seller offer with normalized conditions and raw evidence",
+      "core_task": "compare trustworthy offers and inspect incomplete or uncertain conditions",
+      "trust_risk": "high",
+      "density": "compact",
+      "required_states": ["loading", "results", "partial-data", "low-confidence", "empty", "error"],
+      "success_metric": "a buyer can compare final conditions without hiding uncertainty or source evidence"
+    },
+    "sources": [
+      {
+        "id": "service-plan",
+        "kind": "service-planning-gate",
+        "path": "examples/reference-evidence/service-planning-gate.json",
+        "digest": "sha256:27e3b7a45a4d397eede2ba99ecb2f17cf1549cc3c9229b3889627bddeed82be7"
+      }
+    ],
+    "required_gate_ids": ["G1", "G2"]
+  },
+  "source": {
+    "provider": "uibowl",
+    "access_mode": "manual-export",
+    "rights": {
+      "status": "reference-only",
+      "evidence": {
+        "path": "examples/reference-evidence/ui-bowl-rights.md",
+        "digest": "sha256:f9951f4fe0858e8cb10b18439bb6767acdc81988a7f8f4c7d434f176f612b067"
+      },
+      "redistribution": false,
+      "creator_pixel_access": false
+    },
+    "queries": [
+      {"id": "comparison", "kind": "pattern", "term": "comparison", "screen_family": "results"},
+      {"id": "tabs", "kind": "component", "term": "tabs", "screen_family": "results"},
+      {"id": "sidebar", "kind": "component", "term": "sidebar", "screen_family": "results"},
+      {"id": "evidence", "kind": "ocr", "term": "details", "screen_family": "results"}
+    ]
+  },
+  "coverage": {
+    "minimum_verified_references": 3,
+    "maximum_references": 12,
+    "required_component_families": ["tabs", "comparison-table", "evidence-panel"],
+    "required_patterns": ["progressive-disclosure", "confidence-disclosure"],
+    "required_grammar_dimensions": [
+      "information-hierarchy", "navigation", "data-comparison", "evidence-presentation",
+      "typography", "color-roles", "density", "responsive"
+    ]
+  },
+  "popularity_prior": {
+    "role": "within-fit-band-ranking-only",
+    "primary_sort": "product-fit-band",
+    "signals": [
+      {"id": "mau", "metric": "mau", "weight": 0.7},
+      {"id": "popular-rank", "metric": "popular-rank", "weight": 0.3}
+    ],
+    "cannot_affect": ["eligibility", "hard-gates", "owner-approval"]
+  },
+  "providers": {
+    "discovery": "reference-researcher",
+    "grammar_extractor": "reference-grammar-analyst",
+    "critic": "reference-independent-critic"
+  }
+}

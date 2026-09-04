@@ -218,6 +218,30 @@ fixtures in `examples/planning-evidence/`.
 When those contracts are genuinely undecided, use design exploration instead
 of selecting a generic creator or guessing a style:
 
+If service planning is already authoritative but the team needs better design
+inputs first, run the optional reference-intelligence stage. It studies
+popular released-product patterns without turning popularity into visual
+authority:
+
+```bash
+cp examples/reference-brief.example.json .killsloprouter/reference-brief.json
+
+killsloprouter reference run \
+  --brief .killsloprouter/reference-brief.json \
+  --root "$PWD" \
+  --dry-run \
+  --json
+```
+
+The brief binds service-planning, owner activation, UI Bowl query scope,
+reference-use rights, coverage, and three independent provider roles.
+KillSlopRouter ranks popularity strongly only inside the same product-fit band,
+stops for a real owner to select one anchor plus supporting products, and emits
+a pixel-free `discovery-evidence-only` grammar pack. It neither grants visual
+intent/signature authority nor changes the exact-three 3×3 design route. UI
+Bowl access defaults to manual export; no scraper or MCP is silently enabled.
+See [Reference intelligence](docs/reference-intelligence.md).
+
 ```bash
 cp examples/design-brief.example.json .killsloprouter/design-brief.json
 
@@ -719,6 +743,9 @@ version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
 The additive design workflow uses design exploration run version 1, design
 result version 1, shortlist version 1, and owner decision version 1.
+The optional reference workflow adds reference brief, packet, result, run,
+owner-selection, and pack version 1. Its pack is discovery evidence only and
+does not alter existing route, design, audit, or receipt versions.
 The additive official Codex host uses setup receipt version 1 and extends host
 adapter response version 1 with an explicit `manual_pending` envelope; existing
 result envelopes remain valid.
@@ -785,6 +812,7 @@ cannot be reconstructed safely from a mutable old ledger.
 - [Visual signature contract](docs/visual-signature-contract.md)
 - [Parent baseline and slice lineage](docs/baseline-lineage.md)
 - [Project-aware design exploration](docs/design-exploration.md)
+- [Reference intelligence](docs/reference-intelligence.md)
 - [Codex plugin](docs/codex-plugin.md)
 - [Sidefy parent-identity UAT](docs/sidefy-parent-identity-uat.md)
 - [Official Codex review host](docs/codex-review-host.md)

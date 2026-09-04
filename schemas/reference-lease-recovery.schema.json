@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-lease-recovery.schema.json",
+  "title": "KillSlopRouter reference state lease recovery receipt",
+  "type": "object",
+  "required": [
+    "reference_lease_recovery_version", "run_id", "journey_identity",
+    "recovered_lease_digest", "recovered_owner_token_digest", "recovered_owner_pid",
+    "recovered_owner_process_identity", "recovered_operation", "recovered_phase",
+    "previous_state_digest", "observed_state_digest", "outcome", "abandoned_packet",
+    "retry_required", "recovered_at", "recovery_digest"
+  ],
+  "properties": {
+    "reference_lease_recovery_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "recovered_lease_digest": {"$ref": "#/$defs/digest"},
+    "recovered_owner_token_digest": {"$ref": "#/$defs/digest"},
+    "recovered_owner_pid": {"type": "integer", "minimum": 1},
+    "recovered_owner_process_identity": {"type": "object"},
+    "recovered_operation": {"type": "string", "minLength": 1},
+    "recovered_phase": {"type": "string", "minLength": 1},
+    "previous_state_digest": {"$ref": "#/$defs/digest"},
+    "observed_state_digest": {"$ref": "#/$defs/digest"},
+    "outcome": {"enum": ["checkpoint_recovered", "abandoned_before_spawn", "abandoned_after_crash"]},
+    "abandoned_packet": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["packet_id", "provider_id", "attempt", "packet_digest"],
+          "properties": {
+            "packet_id": {"type": "string", "minLength": 1},
+            "provider_id": {"type": "string", "minLength": 1},
+            "attempt": {"type": "integer", "minimum": 1},
+            "packet_digest": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "retry_required": {"type": "boolean"},
+    "recovered_at": {"type": "string", "format": "date-time"},
+    "recovery_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}},
+  "additionalProperties": false
+}

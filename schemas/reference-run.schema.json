@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-run.schema.json",
+  "title": "KillSlopRouter resumable reference intelligence run",
+  "type": "object",
+  "required": [
+    "reference_intelligence_run_version", "run_id", "journey_identity", "status", "phase",
+    "created_at", "updated_at", "state_path", "state_directory", "brief", "brief_source",
+    "authority_sources", "packets", "packet_files", "results", "attempts", "lease_recoveries", "in_flight",
+    "ranking", "selection_scope_digest", "selection", "outputs", "blockers", "pending",
+    "state_digest"
+  ],
+  "properties": {
+    "reference_intelligence_run_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "status": {"enum": ["running", "manual_pending", "blocked", "complete"]},
+    "phase": {"enum": [
+      "reference-discovery", "reference-grammar", "reference-review", "reference-coverage",
+      "owner-reference-selection", "reference-recovery", "complete"
+    ]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "state_path": {"type": "string", "minLength": 1},
+    "state_directory": {"type": "string", "minLength": 1},
+    "brief": {"$ref": "reference-brief.schema.json"},
+    "brief_source": {"$ref": "#/$defs/snapshot"},
+    "authority_sources": {
+      "type": "object",
+      "required": ["activation", "rights", "planning"],
+      "properties": {
+        "activation": {"$ref": "#/$defs/snapshot"},
+        "rights": {"$ref": "#/$defs/snapshot"},
+        "planning": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/snapshot"}}
+      },
+      "additionalProperties": false
+    },
+    "packets": {"type": "array", "items": {"$ref": "reference-packet.schema.json"}},
+    "packet_files": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
+    "results": {"type": "array", "items": {"type": "object"}},
+    "attempts": {"type": "array", "items": {"type": "object"}},
+    "lease_recoveries": {"type": "array", "items": {"$ref": "reference-lease-recovery.schema.json"}},
+    "in_flight": {"type": ["object", "null"]},
+    "ranking": {"type": "array", "items": {"type": "object"}},
+    "selection_scope_digest": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]},
+    "selection": {"type": ["object", "null"]},
+    "outputs": {"type": "object"},
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "pending": {"type": "array", "items": {"type": "string"}},
+    "state_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "snapshot": {
+      "type": "object",
+      "required": ["path", "resolved_path", "kind", "bytes", "digest", "physical_identity_digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "resolved_path": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["file", "directory"]},
+        "bytes": {"type": ["integer", "null"]},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

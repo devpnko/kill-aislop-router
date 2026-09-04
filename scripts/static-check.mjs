@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { AXE_CORE_VERSION, PLAYWRIGHT_CORE_VERSION } from "../src/playwright.mjs";
 import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
 import { validateDesignBrief } from "../src/design.mjs";
+import { validateReferenceBrief } from "../src/reference.mjs";
 import { legacyCaptureFingerprints } from "../src/automation.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -47,6 +48,10 @@ const exampleDesignBrief = JSON.parse(fs.readFileSync(
   path.join(root, "examples", "design-brief.example.json"),
   "utf8"
 ));
+const exampleReferenceBrief = JSON.parse(fs.readFileSync(
+  path.join(root, "examples", "reference-brief.example.json"),
+  "utf8"
+));
 const examplePlanningReceipt = JSON.parse(fs.readFileSync(
   path.join(root, "examples", "service-planning-lineage.example.json"),
   "utf8"
@@ -63,6 +68,7 @@ const exampleLineageOwnerApproval = JSON.parse(fs.readFileSync(
   "utf8"
 ));
 validateDesignBrief(exampleDesignBrief);
+validateReferenceBrief(exampleReferenceBrief, { root });
 assert.equal(exampleLineage.relationship, "slice-of");
 assert.equal(exampleLineage.promotion.authority, "explicit-owner-only");
 assert.equal(exampleLineage.promotion.supersedes_parent, false);
@@ -128,11 +134,16 @@ assert.equal(router.invariants.legacy_skill_entry_conflicts_fail_closed, true);
 assert.equal(router.invariants.automation_state_leases_are_exclusive, true);
 assert.equal(router.invariants.latest_version_never_promotes_parent_baseline, true);
 assert.equal(router.invariants.slice_lineage_is_digest_bound_to_parent_and_candidate, true);
+assert.equal(router.invariants.reference_popularity_cannot_override_product_fit_or_hard_gates, true);
+assert.equal(router.invariants.reference_pack_is_discovery_evidence_not_visual_authority, true);
+assert.equal(router.invariants.reference_source_pixels_do_not_reach_creators, true);
+assert.equal(router.invariants.reference_research_requires_independent_critic_and_owner_selection, true);
 assert.equal(packageJson.exports["./design"], "./src/design.mjs");
 assert.equal(packageJson.exports["./codex"], "./src/codex.mjs");
 assert.equal(packageJson.exports["./identity"], "./src/identity.mjs");
 assert.equal(packageJson.exports["./skill-catalog"], "./src/skill-catalog.mjs");
 assert.equal(packageJson.exports["./state-lease"], "./src/state-lease-public.mjs");
+assert.equal(packageJson.exports["./reference"], "./src/reference.mjs");
 const publicStateLeaseSource = fs.readFileSync(
   path.join(root, "src", "state-lease-public.mjs"),
   "utf8"
@@ -183,6 +194,8 @@ assert.doesNotMatch(packageJson.scripts.test, /e2e-shard|playwright|design|dogfo
   "the bounded default suite must not accidentally absorb the isolated E2E inventory");
 assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
   "design child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/reference\.test\.mjs/,
+  "reference intelligence child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,
   "official Codex host child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/orchestrator-identity\.test\.mjs/,
@@ -207,11 +220,32 @@ for (const schema of [
   "state-lease-recovery-receipt.schema.json",
   "baseline-lineage-declaration.schema.json",
   "baseline-lineage-owner-approval.schema.json",
-  "baseline-lineage.schema.json"
+  "baseline-lineage.schema.json",
+  "reference-brief.schema.json",
+  "reference-packet.schema.json",
+  "reference-result.schema.json",
+  "reference-run.schema.json",
+  "reference-owner-selection.schema.json",
+  "reference-pack.schema.json",
+  "reference-lease-recovery.schema.json"
 ]) {
   assert.ok(fs.existsSync(path.join(root, "schemas", schema)),
     `orchestrator identity contract schema is missing: ${schema}`);
 }
+const referenceBriefSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "reference-brief.schema.json"),
+  "utf8"
+));
+assert.equal(referenceBriefSchema.properties.source.properties.rights.properties.creator_pixel_access.const, false,
+  "reference brief must keep source pixels away from creators");
+assert.equal(referenceBriefSchema.properties.popularity_prior.properties.primary_sort.const,
+  "product-fit-band", "reference popularity must not become the global primary rank");
+const referencePackSchema = JSON.parse(fs.readFileSync(
+  path.join(root, "schemas", "reference-pack.schema.json"),
+  "utf8"
+));
+assert.equal(referencePackSchema.properties.authority_scope.const, "discovery-evidence-only");
+assert.equal(referencePackSchema.properties.downstream_contract.properties.visual_authority_granted.const, false);
 const lineageRuntimeSchema = JSON.parse(fs.readFileSync(
   path.join(root, "schemas", "baseline-lineage.schema.json"),
   "utf8"

@@ -31,7 +31,11 @@
     "legacy_skill_entry_conflicts_fail_closed": true,
     "automation_state_leases_are_exclusive": true,
     "latest_version_never_promotes_parent_baseline": true,
-    "slice_lineage_is_digest_bound_to_parent_and_candidate": true
+    "slice_lineage_is_digest_bound_to_parent_and_candidate": true,
+    "reference_popularity_cannot_override_product_fit_or_hard_gates": true,
+    "reference_pack_is_discovery_evidence_not_visual_authority": true,
+    "reference_source_pixels_do_not_reach_creators": true,
+    "reference_research_requires_independent_critic_and_owner_selection": true
   },
   "provider_capabilities": {
     "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},

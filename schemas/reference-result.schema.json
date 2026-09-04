@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-result.schema.json",
+  "title": "KillSlopRouter reference intelligence adapter result",
+  "type": "object",
+  "required": [
+    "reference_result_version", "kind", "packet_id", "provider_id", "actor",
+    "status", "packet_digest", "evidence"
+  ],
+  "properties": {
+    "reference_result_version": {"const": 1},
+    "kind": {"enum": ["reference-discovery", "reference-grammar", "reference-review"]},
+    "packet_id": {"type": "string", "minLength": 1},
+    "provider_id": {"type": "string", "minLength": 1},
+    "actor": {
+      "type": "object",
+      "required": ["actor_id", "kind"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["agent", "skill", "human"]}
+      },
+      "additionalProperties": false
+    },
+    "status": {"const": "completed"},
+    "packet_digest": {"$ref": "#/$defs/digest"},
+    "subject_result_digest": {"$ref": "#/$defs/digest"},
+    "discovery_result_digest": {"$ref": "#/$defs/digest"},
+    "grammar_result_digest": {"$ref": "#/$defs/digest"},
+    "references": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "dispositions": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/disposition"}
+    },
+    "evidence": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "kind", "path"],
+        "properties": {
+          "evidence_id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["source-capture", "source-metadata", "analysis-report", "review-report"]},
+          "path": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "strings": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "disposition": {
+      "type": "object",
+      "required": [
+        "reference_id", "status", "popularity_verified", "product_fit_verified",
+        "verified_component_families", "verified_patterns", "verified_observation_ids",
+        "verified_inference_ids", "verified_grammar_ids", "copy_risk", "blockers"
+      ],
+      "properties": {
+        "reference_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["eligible", "blocked"]},
+        "popularity_verified": {"type": "boolean"},
+        "product_fit_verified": {"type": "boolean"},
+        "verified_component_families": {"$ref": "#/$defs/strings"},
+        "verified_patterns": {"$ref": "#/$defs/strings"},
+        "verified_observation_ids": {"$ref": "#/$defs/strings"},
+        "verified_inference_ids": {"$ref": "#/$defs/strings"},
+        "verified_grammar_ids": {"$ref": "#/$defs/strings"},
+        "copy_risk": {"enum": ["low", "medium", "high"]},
+        "blockers": {"$ref": "#/$defs/strings"}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "eligible"}}},
+        "then": {"properties": {
+          "verified_component_families": {"minItems": 1},
+          "verified_patterns": {"minItems": 1},
+          "verified_observation_ids": {"minItems": 1},
+          "verified_inference_ids": {"minItems": 1},
+          "verified_grammar_ids": {"minItems": 1}
+        }}
+      }],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

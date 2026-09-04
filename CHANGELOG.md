@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added an optional, resumable reference-intelligence stage that binds an
+  approved service-planning frame, rights evidence, bounded UI Bowl queries,
+  popularity provenance, distinct researcher/critic children, and a real
+  Owner selection. Deterministic ranking applies popularity only inside equal
+  product-fit bands, and the compiled pixel-free grammar pack remains
+  `discovery-evidence-only` without visual or creator authority. Atomic state
+  leases, exact child checkpoints, idempotent crash recovery, tamper rejection,
+  pinned single-descriptor authority inputs, critic-verified component/pattern
+  coverage, and real child-process regressions preserve fail-closed execution. The
+  existing exact-three 3×3 design route remains unchanged.
+
 - Closed the standalone audit CLI's `--run` read race by binding path checks,
   parsing, and provenance to one descriptor before dispatch, ingest, triage,
   status, or finalization. Sealed adapter discovery now distinguishes the CJS

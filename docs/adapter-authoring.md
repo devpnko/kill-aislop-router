@@ -235,6 +235,42 @@ is `aria-semantics`, not a renamed screen-reader test.
 The complete lifecycle, matrices, color roles, and owner files are documented
 in [Project-aware design exploration](design-exploration.md).
 
+### Reference intelligence adapters
+
+The optional `reference run` workflow uses the same JSON process boundary.
+Packets conform to
+[`reference-packet.schema.json`](../schemas/reference-packet.schema.json), use
+`reference_task.kind`, and preserve the KillSlopRouter `journey_identity`.
+Results conform to
+[`reference-result.schema.json`](../schemas/reference-result.schema.json).
+
+| `reference_task.kind` | Internal role | Minimum strength | Permissions |
+|---|---|---:|---|
+| `reference-discovery` | `researcher` | 3 | `artifact:read`, `evidence:write`; plus `network:external` only for authorized read-only access |
+| `reference-grammar` | `researcher` | 3 | `artifact:read`, `evidence:write` |
+| `reference-review` | `critic` | 4 | `artifact:read`, `evidence:write` |
+
+Discovery must return bounded UI Bowl source URLs, source record IDs, capture
+times, source-linked observations, reference-use rights, and every configured
+popularity signal with raw/normalized values, scope, category, timestamp, and
+evidence. Grammar extraction must cover every reference, score the fixed
+product-fit dimensions, distinguish observation from inference, and emit only
+transferable principles. Exact pixels, CSS values, source copy, assets, and
+clone instructions are invalid creator guidance.
+
+The critic must use a distinct provider and actor, disposition every reference,
+list only the source-declared component families and patterns it verified, and
+list exactly which observations, inferences, and grammar IDs it verified.
+It cannot shortlist or approve for the owner. Returned evidence must remain in
+the granted output directory. See
+[Reference intelligence](reference-intelligence.md) for ranking and owner-gate
+semantics.
+
+For manual results, place every evidence file beside the submitted result JSON
+or below that directory. The Router resolves relative paths from the result
+directory and rejects absolute or relative escapes. Dispatch includes only
+packets without an accepted result.
+
 ### Visual-intent reviewer
 
 Implement `visual-intent-review` as an independent `agent-json-v1` or explicit
