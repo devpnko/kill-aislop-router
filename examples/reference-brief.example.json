@@ -14,6 +14,7 @@
     }
   },
   "planning": {
+    "target_id": "regional-results",
     "product_frame": {
       "primary_user": "regional mobile-phone buyer comparing seller conditions",
       "user_job": "understand the real payable price and evidence behind each seller condition",
@@ -38,6 +39,14 @@
   "source": {
     "provider": "uibowl",
     "access_mode": "manual-export",
+    "exports": [
+      {
+        "id": "uibowl-manual-export",
+        "kind": "uibowl-manual-export",
+        "path": "examples/reference-evidence/ui-bowl-manual-export.json",
+        "digest": "sha256:1d1c0d657d19e777df5ca9dbb675b8fdde82ee86332ab984699e1dfcbcdb1e4f"
+      }
+    ],
     "rights": {
       "status": "reference-only",
       "evidence": {
@@ -62,14 +71,52 @@
     "required_grammar_dimensions": [
       "information-hierarchy", "navigation", "data-comparison", "evidence-presentation",
       "typography", "color-roles", "density", "responsive"
-    ]
+    ],
+    "sampling_policy": {
+      "minimum_distinct_products": 3,
+      "minimum_distinct_product_categories": 2,
+      "maximum_references_per_product": 2,
+      "maximum_references_per_ecosystem": 2,
+      "minimum_strong_hierarchy_references": 2,
+      "minimum_multi_state_families": 2,
+      "minimum_references_per_target_locale": 1,
+      "maximum_promotional_reference_ratio": 0.2,
+      "required_cohorts": ["task-fit", "cross-domain", "competent-baseline"],
+      "promotional_capture_policy": "weak-evidence-only"
+    }
   },
   "popularity_prior": {
     "role": "within-fit-band-ranking-only",
     "primary_sort": "product-fit-band",
     "signals": [
-      {"id": "mau", "metric": "mau", "weight": 0.7},
-      {"id": "popular-rank", "metric": "popular-rank", "weight": 0.3}
+      {
+        "id": "mau",
+        "metric": "mau",
+        "subject_kind": "product",
+        "weight": 0.7,
+        "scope": "UI Bowl released-product collection",
+        "category": "all-released-products",
+        "normalization": {
+          "formula": "linear-bounds-v1",
+          "lower_bound": 0,
+          "upper_bound": 100,
+          "direction": "higher-is-better"
+        }
+      },
+      {
+        "id": "bookmarks",
+        "metric": "bookmark-count",
+        "subject_kind": "screen",
+        "weight": 0.3,
+        "scope": "UI Bowl released-product collection",
+        "category": "all-released-products",
+        "normalization": {
+          "formula": "linear-bounds-v1",
+          "lower_bound": 0,
+          "upper_bound": 100,
+          "direction": "higher-is-better"
+        }
+      }
     ],
     "cannot_affect": ["eligibility", "hard-gates", "owner-approval"]
   },

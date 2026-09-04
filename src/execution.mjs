@@ -8,7 +8,8 @@ import {
   publicSnapshot,
   readFilePinned,
   readJsonPinned,
-  snapshotArtifact
+  snapshotArtifact,
+  verifySnapshot
 } from "./integrity.mjs";
 import { RouterError } from "./router.mjs";
 import {
@@ -61,6 +62,7 @@ export const HOST_PERMISSION_SCOPES = new Set([
   "artifact:read",
   "evidence:write",
   "browser:control",
+  "reference-evidence:read",
   "network:external"
 ]);
 
@@ -97,6 +99,21 @@ const PROVIDER_KEYS = new Set([
 
 function requireValue(condition, message, exitCode = 2) {
   if (!condition) throw new RouterError(message, exitCode);
+}
+
+function verifyRunArtifacts(run, phase) {
+  requireValue(Array.isArray(run?.artifacts),
+    `host run artifacts must be an array at ${phase}`, 4);
+  for (const [index, artifact] of run.artifacts.entries()) {
+    requireValue(artifact && typeof artifact === "object" &&
+      typeof artifact.resolved_path === "string" &&
+      DIGEST_PATTERN.test(artifact.digest || "") &&
+      DIGEST_PATTERN.test(artifact.physical_identity_digest || ""),
+    `host run artifact ${index + 1} is not a digest-bound physical snapshot at ${phase}`, 4);
+    const verified = verifySnapshot(artifact);
+    requireValue(verified.ok,
+      `host run artifact ${index + 1} changed ${phase} (${verified.reason})`, 4);
+  }
 }
 
 function unique(values = []) {
@@ -322,7 +339,60 @@ function requiredPermissions(adapter) {
   return [];
 }
 
-function validateProviderDeclaration(providerId, declaration, config, manifestPath) {
+function freezeAuthority(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value)) freezeAuthority(nested);
+  return Object.freeze(value);
+}
+
+function sealedAuthorityCacheKey({
+  entrypoint,
+  expectedDigest,
+  expectedGraphDigest,
+  trustedPackageRoot
+}) {
+  return canonicalDigest({
+    sealed_entrypoint_authority_cache_key_version: 1,
+    entrypoint: path.resolve(entrypoint),
+    expected_digest: expectedDigest,
+    expected_graph_digest: expectedGraphDigest || null,
+    trusted_package_root: trustedPackageRoot
+      ? path.resolve(trustedPackageRoot)
+      : null
+  });
+}
+
+function createCachedSealedEntrypointAuthority(cache, entrypoint, expectedDigest, {
+  label,
+  expectedGraphDigest = null,
+  trustedPackageRoot = null
+}) {
+  const key = sealedAuthorityCacheKey({
+    entrypoint,
+    expectedDigest,
+    expectedGraphDigest,
+    trustedPackageRoot
+  });
+  if (!cache.has(key)) {
+    cache.set(key, freezeAuthority(createSealedEntrypointAuthority(
+      entrypoint,
+      expectedDigest,
+      { label, expectedGraphDigest, trustedPackageRoot }
+    )));
+  }
+  // Never expose the cached object itself. Provider declarations remain
+  // independently mutable so one caller-side mutation cannot alias another
+  // provider or corrupt the per-load cache.
+  return structuredClone(cache.get(key));
+}
+
+function validateProviderDeclaration(
+  providerId,
+  declaration,
+  config,
+  manifestPath,
+  entrypointAuthorityCache
+) {
   requireValue(declaration && typeof declaration === "object" && !Array.isArray(declaration),
     `host provider ${providerId} must be an object`);
   for (const key of Object.keys(declaration)) {
@@ -378,7 +448,8 @@ function validateProviderDeclaration(providerId, declaration, config, manifestPa
       CODEX_REVIEW_ADAPTER_CONTRACT,
       PLAYWRIGHT_ADAPTER_CONTRACT
     ].includes(declaration.settings?.contract);
-    entrypointAuthority = createSealedEntrypointAuthority(
+    entrypointAuthority = createCachedSealedEntrypointAuthority(
+      entrypointAuthorityCache,
       entrypoint,
       declaration.entrypoint_digest,
       {
@@ -473,9 +544,18 @@ export function loadHostManifest(manifestPath) {
       `host provider ${providerId} is configured but not allowlisted`);
   }
   const base = { ...raw, allowed_providers: allowedProviders, granted_permissions: grantedPermissions };
+  // Scope this cache to one synchronous manifest load. Every later inspection
+  // and execution boundary reloads the manifest and revalidates the graph.
+  const entrypointAuthorityCache = new Map();
   const providers = Object.fromEntries(Object.entries(raw.providers).map(([providerId, declaration]) => [
     providerId,
-    validateProviderDeclaration(providerId, declaration, base, absolute)
+    validateProviderDeclaration(
+      providerId,
+      declaration,
+      base,
+      absolute,
+      entrypointAuthorityCache
+    )
   ]));
   return {
     host_adapter_version: 1,
@@ -489,16 +569,38 @@ export function loadHostManifest(manifestPath) {
   };
 }
 
-function verifyHostManifestBoundary(manifest) {
-  const pinned = readFilePinned(manifest.manifest_path, {
-    label: "host adapter manifest at final child boundary"
-  });
+function verifyLoadedHostManifest(manifest, phase) {
+  // A caller retains and can mutate the object returned by loadHostManifest().
+  // Reconstruct authority from the pinned file and use only that fresh value.
+  requireValue(manifest && typeof manifest === "object" && !Array.isArray(manifest),
+    `host adapter manifest authority is missing ${phase}`, 4);
+  requireValue(typeof manifest.manifest_path === "string" && manifest.manifest_path.length > 0,
+    `host adapter manifest path is missing ${phase}`, 4);
+  let reloaded;
+  try {
+    reloaded = loadHostManifest(manifest.manifest_path);
+  } catch (error) {
+    throw new RouterError(
+      `host adapter manifest cannot be reloaded ${phase}: ${error.message}`,
+      4
+    );
+  }
   requireValue(
-    pinned.digest === manifest.manifest_digest &&
-      pinned.physical_identity_digest === manifest.manifest_physical_identity_digest,
-    "host adapter manifest changed before child execution",
+    reloaded.manifest_digest === manifest.manifest_digest &&
+      reloaded.manifest_physical_identity_digest === manifest.manifest_physical_identity_digest,
+    `host adapter manifest changed ${phase}`,
     4
   );
+  requireValue(
+    canonicalDigest(reloaded) === canonicalDigest(manifest),
+    `host adapter manifest normalized authority was mutated in memory or an entrypoint authority changed ${phase}`,
+    4
+  );
+  return reloaded;
+}
+
+function verifyHostManifestBoundary(manifest) {
+  return verifyLoadedHostManifest(manifest, "before child execution");
 }
 
 function manualPending(packet, reason, manifest = null) {
@@ -513,7 +615,7 @@ function manualPending(packet, reason, manifest = null) {
   };
 }
 
-export function inspectPacketAdapter(packet, manifest) {
+function inspectVerifiedPacketAdapter(packet, manifest) {
   verifyPacketJourney(packet, packet?.journey_identity, `packet ${packet?.packet_id || "unknown"}`);
   if (!manifest) return manualPending(packet, "no host adapter manifest was supplied");
   if (!manifest.allowed_providers.includes(packet.provider.id)) {
@@ -612,6 +714,14 @@ export function inspectPacketAdapter(packet, manifest) {
       `host adapter lacks required permissions: ${missingPermissions.join(", ")}`,
       manifest);
   }
+  const forbiddenPermissions = (packet.forbidden_permissions || []).filter(
+    (permission) => declaration.permissions.includes(permission)
+  );
+  if (forbiddenPermissions.length) {
+    return manualPending(packet,
+      `host adapter has permissions forbidden for this packet: ${forbiddenPermissions.join(", ")}`,
+      manifest);
+  }
   if (declaration.strength < (packet.minimum_strength || 1)) {
     return manualPending(packet,
       `host adapter strength ${declaration.strength} is below required ${packet.minimum_strength || 1}`,
@@ -640,6 +750,13 @@ export function inspectPacketAdapter(packet, manifest) {
     host_manifest_digest: manifest.manifest_digest,
     declaration
   };
+}
+
+export function inspectPacketAdapter(packet, manifest) {
+  const verifiedManifest = manifest
+    ? verifyLoadedHostManifest(manifest, "before packet adapter inspection")
+    : null;
+  return inspectVerifiedPacketAdapter(packet, verifiedManifest);
 }
 
 function normalizeReturnedEvidence(result, outputDirectory, outputBoundary) {
@@ -674,6 +791,7 @@ function runJsonProcess({
   if (!identitiesMatch(packet.journey_identity, run.journey_identity)) {
     throw new RouterError("host packet journey identity conflicts with the run", 4);
   }
+  verifyRunArtifacts(run, "before child authority preparation");
   const outputBoundary = preparedOutputBoundary
     ? verifyPreparedOutputBoundary(
       preparedOutputBoundary,
@@ -754,6 +872,7 @@ function runJsonProcess({
     entrypoint: declaration.entrypoint
   });
   verifyExecutionLineageBoundary(run, packet);
+  verifyRunArtifacts(run, "at the final child execution boundary");
   verifyHostManifestBoundary(manifest);
   if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT) {
     verifyOfficialCodexRuntimeSources(declaration.settings, declaration.official_codex);
@@ -804,7 +923,20 @@ function runJsonProcess({
     playwrightRuntimeSeal?.cleanup();
   }
   const finishedAt = new Date().toISOString();
-  verifyPreparedOutputBoundary(outputBoundary, outputDirectory, outputGrantRoot);
+  try {
+    verifyRunArtifacts(run, "after child execution before result ingest");
+    verifyPreparedOutputBoundary(outputBoundary, outputDirectory, outputGrantRoot);
+  } catch (error) {
+    return {
+      execution_status: "blocked_execution_error",
+      started_at: startedAt,
+      finished_at: finishedAt,
+      child_pid: child.pid || null,
+      exit_code: child.status,
+      signal: child.signal || null,
+      error: error.message
+    };
+  }
   if (child.error || child.status !== 0) {
     const rawError = child.error?.message || child.stderr?.trim() || `child exited ${child.status}`;
     const boundaryError = child.error?.code === "ENOBUFS" ||
@@ -1058,7 +1190,10 @@ export function executeAuditPacket({
 }) {
   verifyJourneyIdentity(run?.journey_identity, { runId: run?.run_id, label: "execution journey_identity" });
   verifyPacketJourney(packet, run.journey_identity, `packet ${packet?.packet_id || "unknown"}`);
-  const inspection = inspectPacketAdapter(packet, manifest);
+  const verifiedManifest = manifest
+    ? verifyLoadedHostManifest(manifest, "before packet execution")
+    : null;
+  const inspection = inspectVerifiedPacketAdapter(packet, verifiedManifest);
   if (inspection.execution_status !== "ready") return inspection;
   const declaration = inspection.declaration;
   if (declaration.entrypoint) {
@@ -1069,7 +1204,7 @@ export function executeAuditPacket({
         packet_id: packet.packet_id,
         provider_id: packet.provider.id,
         adapter: declaration.adapter,
-        host_manifest_digest: manifest.manifest_digest,
+        host_manifest_digest: verifiedManifest.manifest_digest,
         attempt,
         execution_status: "blocked_execution_error",
         error: error.message
@@ -1091,7 +1226,7 @@ export function executeAuditPacket({
         physical_identity_digest: declaration.entrypoint_authority.physical_identity_digest
       })
       : null,
-    host_manifest_digest: manifest.manifest_digest,
+    host_manifest_digest: verifiedManifest.manifest_digest,
     permission_scopes: declaration.permissions,
     strength: declaration.strength,
     capabilities: declaration.capabilities,
@@ -1099,10 +1234,16 @@ export function executeAuditPacket({
   };
   try {
     const executed = declaration.adapter === "kill-ai-slop-v1"
-      ? runScanner({ declaration, manifest, packet, run, authorityFaultInjector })
+      ? runScanner({
+        declaration,
+        manifest: verifiedManifest,
+        packet,
+        run,
+        authorityFaultInjector
+      })
       : runJsonProcess({
         declaration,
-        manifest,
+        manifest: verifiedManifest,
         packet,
         run,
         attempt,
@@ -1127,8 +1268,11 @@ export function executeAuditPacket({
 }
 
 export function hostReadiness(run, manifest = null) {
+  const verifiedManifest = manifest
+    ? verifyLoadedHostManifest(manifest, "before host readiness inspection")
+    : null;
   return run.packets.map((packet) => {
-    const inspected = inspectPacketAdapter(packet, manifest);
+    const inspected = inspectVerifiedPacketAdapter(packet, verifiedManifest);
     const { declaration: _declaration, ...publicInspection } = inspected;
     return publicInspection;
   });

@@ -35,7 +35,12 @@
     "reference_popularity_cannot_override_product_fit_or_hard_gates": true,
     "reference_pack_is_discovery_evidence_not_visual_authority": true,
     "reference_source_pixels_do_not_reach_creators": true,
-    "reference_research_requires_independent_critic_and_owner_selection": true
+    "reference_research_requires_independent_critic_and_owner_selection": true,
+    "reference_reasoning_registry_is_digest_bound_and_non_authoritative": true,
+    "reference_hierarchy_requires_observation_decision_constraint_and_consequence": true,
+    "promotional_reference_cannot_establish_operational_grammar": true,
+    "reference_sampling_limits_product_and_ecosystem_dominance": true,
+    "unverified_popularity_cannot_block_reference_eligibility": true
   },
   "provider_capabilities": {
     "project-contract": {"strength": 4, "capabilities": ["task-contract", "object-model", "state-authority"]},

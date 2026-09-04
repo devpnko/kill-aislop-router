@@ -26,8 +26,9 @@
     },
     "planning": {
       "type": "object",
-      "required": ["product_frame", "sources", "required_gate_ids"],
+      "required": ["target_id", "product_frame", "sources", "required_gate_ids"],
       "properties": {
+        "target_id": {"$ref": "#/$defs/id"},
         "product_frame": {
           "type": "object",
           "required": [
@@ -67,7 +68,7 @@
     },
     "source": {
       "type": "object",
-      "required": ["provider", "access_mode", "rights", "queries"],
+      "required": ["provider", "access_mode", "rights", "queries", "exports"],
       "properties": {
         "provider": {"const": "uibowl"},
         "access_mode": {"enum": ["manual-export", "authorized-read-only-adapter"]},
@@ -95,15 +96,39 @@
             },
             "additionalProperties": false
           }
+        },
+        "exports": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "path", "digest"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "kind": {"const": "uibowl-manual-export"},
+              "path": {"type": "string", "minLength": 1},
+              "digest": {"$ref": "#/$defs/digest"}
+            },
+            "additionalProperties": false
+          }
         }
       },
+      "allOf": [
+        {
+          "if": {"properties": {"access_mode": {"const": "manual-export"}}},
+          "then": {"properties": {"exports": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"access_mode": {"const": "authorized-read-only-adapter"}}},
+          "then": {"properties": {"exports": {"maxItems": 0}}}
+        }
+      ],
       "additionalProperties": false
     },
     "coverage": {
       "type": "object",
       "required": [
         "minimum_verified_references", "maximum_references", "required_component_families",
-        "required_patterns", "required_grammar_dimensions"
+        "required_patterns", "required_grammar_dimensions", "sampling_policy"
       ],
       "properties": {
         "minimum_verified_references": {"type": "integer", "minimum": 3, "maximum": 24},
@@ -116,6 +141,34 @@
             "information-hierarchy", "navigation", "component-composition", "data-comparison",
             "evidence-presentation", "typography", "color-roles", "density", "interaction", "responsive"
           ]}
+        },
+        "sampling_policy": {
+          "type": "object",
+          "required": [
+            "minimum_distinct_products", "minimum_distinct_product_categories",
+            "maximum_references_per_product", "maximum_references_per_ecosystem",
+            "minimum_strong_hierarchy_references", "minimum_multi_state_families",
+            "minimum_references_per_target_locale", "maximum_promotional_reference_ratio", "required_cohorts",
+            "promotional_capture_policy"
+          ],
+          "properties": {
+            "minimum_distinct_products": {"type": "integer", "minimum": 3, "maximum": 24},
+            "minimum_distinct_product_categories": {"type": "integer", "minimum": 2, "maximum": 24},
+            "maximum_references_per_product": {"type": "integer", "minimum": 1, "maximum": 24},
+            "maximum_references_per_ecosystem": {"type": "integer", "minimum": 1, "maximum": 24},
+            "minimum_strong_hierarchy_references": {"type": "integer", "minimum": 1, "maximum": 24},
+            "minimum_multi_state_families": {"type": "integer", "minimum": 1, "maximum": 24},
+            "minimum_references_per_target_locale": {"type": "integer", "minimum": 1, "maximum": 24},
+            "maximum_promotional_reference_ratio": {
+              "type": "number", "minimum": 0, "maximum": 0.2
+            },
+            "required_cohorts": {
+              "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true,
+              "items": {"enum": ["task-fit", "cross-domain", "competent-baseline"]}
+            },
+            "promotional_capture_policy": {"const": "weak-evidence-only"}
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -130,12 +183,41 @@
           "type": "array", "minItems": 1, "uniqueItems": true,
           "items": {
             "type": "object",
-            "required": ["id", "metric", "weight"],
+            "required": [
+              "id", "metric", "subject_kind", "weight", "scope", "category",
+              "normalization"
+            ],
             "properties": {
               "id": {"$ref": "#/$defs/id"},
-              "metric": {"enum": ["mau", "popular-rank", "curation-popularity"]},
-              "weight": {"type": "number", "exclusiveMinimum": 0}
+              "metric": {"enum": ["mau", "bookmark-count", "popular-rank", "curation-popularity"]},
+              "subject_kind": {"enum": ["product", "screen"]},
+              "weight": {"type": "number", "exclusiveMinimum": 0},
+              "scope": {"type": "string", "minLength": 1},
+              "category": {"type": "string", "minLength": 1},
+              "normalization": {
+                "type": "object",
+                "required": ["formula", "lower_bound", "upper_bound", "direction"],
+                "properties": {
+                  "formula": {"const": "linear-bounds-v1"},
+                  "lower_bound": {"type": "number"},
+                  "upper_bound": {"type": "number"},
+                  "direction": {"enum": ["higher-is-better", "lower-is-better"]}
+                },
+                "additionalProperties": false
+              }
             },
+            "allOf": [{
+              "if": {"properties": {"metric": {"const": "mau"}}},
+              "then": {"properties": {"subject_kind": {"const": "product"}}}
+            }, {
+              "if": {"properties": {"metric": {"const": "popular-rank"}}},
+              "then": {"properties": {"normalization": {"properties": {
+                "direction": {"const": "lower-is-better"}
+              }}}},
+              "else": {"properties": {"normalization": {"properties": {
+                "direction": {"const": "higher-is-better"}
+              }}}}
+            }],
             "additionalProperties": false
           }
         },

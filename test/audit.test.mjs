@@ -19,8 +19,10 @@ import { canonicalDigest, hashArtifact, snapshotArtifact } from "../src/integrit
 import {
   createBoundEvidenceSnapshotter,
   executeAuditPacket,
+  inspectPacketAdapter,
   loadHostManifest
 } from "../src/execution.mjs";
+import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const routerPath = path.join(root, "router", "default-router.json");
@@ -320,6 +322,97 @@ function recordAll(fixture, customize = () => ({})) {
   return run;
 }
 
+test("KillSlopRouter parent aliases cannot become audit creator, reviewer, or owner identities", () => {
+  const fixture = createFixture();
+  try {
+    for (const actorId of [
+      "kill-slop-router", "KillSlopRouter", "killsloprouter:kill-slop-router",
+      "킬슬롭라우터", "킬 슬롭 라우터"
+    ]) {
+      assert.throws(() => initializeAuditCore({
+        plan: fixture.plan,
+        planPath: fixture.planFile,
+        artifacts: [fixture.artifact],
+        scope: "mockup",
+        creatorActorId: actorId,
+        root: fixture.directory,
+        runId: `reserved-creator-${actorId}`,
+        now: startedAt
+      }), /cannot use the KillSlopRouter parent identity/);
+    }
+
+    const packet = fixture.run.packets[0];
+    for (const actorId of ["KillSlopRouter", " killsloprouter ", "킬 슬롭 라우터"]) {
+      const result = makeResult(packet, fixture, {
+        reviewer: { actor_id: actorId, kind: packet.provider.kind || "agent" }
+      });
+      const resultPath = path.join(
+        fixture.directory,
+        `reserved-reviewer-${actorId.trim().replaceAll(" ", "-")}.json`
+      );
+      writeJson(resultPath, result);
+      assert.throws(() => recordAuditResult(fixture.run, result, resultPath),
+        /cannot use the KillSlopRouter parent identity/);
+      assert.deepEqual(fixture.run.results, []);
+    }
+
+    const validResult = makeResult(packet, fixture);
+    const validResultPath = path.join(fixture.directory, "valid-reviewer.json");
+    writeJson(validResultPath, validResult);
+    const recorded = recordAuditResult(fixture.run, validResult, validResultPath);
+    const tampered = structuredClone(recorded);
+    tampered.results[0].normalized.reviewer.actor_id = "킬슬롭라우터";
+    tampered.results[0].normalized_digest = canonicalDigest(tampered.results[0].normalized);
+    assert.throws(() => verifyAuditJourneyIdentity(tampered),
+      /recorded result .* cannot use the KillSlopRouter parent identity/);
+
+    const complete = recordAll(fixture);
+    const approval = {
+      approval_version: 1,
+      run_id: complete.run_id,
+      journey_identity: complete.journey_identity,
+      scope_digest: complete.approval_scope_digest,
+      owner_id: "killsloprouter",
+      status: "approved",
+      note: "Attempt to reuse the router parent as owner.",
+      decided_at: finishedAt
+    };
+    const approvalPath = path.join(fixture.directory, "reserved-owner.json");
+    writeJson(approvalPath, approval);
+    assert.throws(() => finalizeAudit(complete, { approval, approvalPath }),
+      /cannot use the KillSlopRouter parent identity/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("automated reviewer parent identity is rejected at result ingestion", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const providerId = fixture.packet.provider.id;
+    const raw = JSON.parse(fs.readFileSync(fixture.manifest.manifest_path, "utf8"));
+    raw.providers[providerId].settings.reviewer_actor_id = "KillSlopRouter";
+    writeJson(fixture.manifest.manifest_path, raw);
+    const outputDirectory = path.join(fixture.directory, "reserved-actor-output");
+    const executed = executeAuditPacket({
+      run: fixture.run,
+      packet: fixture.packet,
+      manifest: loadHostManifest(fixture.manifest.manifest_path),
+      attempt: 1,
+      outputDirectory,
+      outputGrantRoot: fixture.directory
+    });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    const resultPath = path.join(fixture.directory, "reserved-actor-result.json");
+    writeJson(resultPath, executed.result);
+    assert.throws(() => recordAuditResult(fixture.run, executed.result, resultPath),
+      /cannot use the KillSlopRouter parent identity/);
+    assert.deepEqual(fixture.run.results, []);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
 test("direct execution creates a fresh nested output tree without an explicit grant root", () => {
   const fixture = createPhysicalAuthorityFixture();
   try {
@@ -344,6 +437,169 @@ test("direct execution creates a fresh nested output tree without an explicit gr
     assert.match(executed.evidence_boundary.inode, /^(0|[1-9][0-9]*)$/);
     assert.match(executed.evidence_boundary.grant.device, /^(0|[1-9][0-9]*)$/);
     assert.match(executed.evidence_boundary.grant.inode, /^(0|[1-9][0-9]*)$/);
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("in-memory host manifest authority forgery fails before inspection or child spawn", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const providerId = fixture.packet.provider.id;
+    const variants = [
+      ["provider declaration", (manifest) => {
+        manifest.providers[providerId].adapter = "skill-json-v1";
+      }],
+      ["entrypoint path", (manifest) => {
+        manifest.providers[providerId].entrypoint = `${fixture.adapterEntrypoint}.forged`;
+      }],
+      ["entrypoint authority", (manifest) => {
+        manifest.providers[providerId].entrypoint_authority.digest =
+          `sha256:${"0".repeat(64)}`;
+      }],
+      ["capability", (manifest) => {
+        manifest.providers[providerId].capabilities.push("forged-capability");
+      }],
+      ["permission", (manifest) => {
+        manifest.providers[providerId].permissions.push("network:external");
+      }],
+      ["settings", (manifest) => {
+        manifest.providers[providerId].settings.in_memory_only = true;
+      }]
+    ];
+    const assertBlocked = (operation, label) => assert.throws(operation, (error) => {
+      assert.equal(error.exitCode, 4, label);
+      assert.match(error.message,
+        /host adapter manifest normalized authority was mutated in memory/,
+        label);
+      return true;
+    });
+
+    for (const [label, mutate] of variants) {
+      const forged = loadHostManifest(fixture.manifest.manifest_path);
+      mutate(forged);
+      assertBlocked(() => inspectPacketAdapter(fixture.packet, forged),
+        `${label} must fail at inspection`);
+
+      const outputDirectory = path.join(
+        fixture.directory,
+        `forged-${label.replaceAll(" ", "-")}`
+      );
+      assertBlocked(() => executeAuditPacket({
+        run: fixture.run,
+        packet: fixture.packet,
+        manifest: forged,
+        outputDirectory,
+        outputGrantRoot: fixture.directory
+      }), `${label} must fail at execution`);
+      assert.equal(fs.existsSync(path.join(outputDirectory, "started.marker")), false,
+        `${label} must be rejected before the reviewer child starts`);
+    }
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("one manifest load shares exact sealed calculations without provider authority aliases", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const entrypoint = path.join(fixture.directory, "shared-adapter.mjs");
+    const dependency = path.join(fixture.directory, "shared-helper.mjs");
+    fs.writeFileSync(dependency, "export default 'shared-authority';\n");
+    fs.writeFileSync(entrypoint,
+      "import value from './shared-helper.mjs'; process.stdout.write(value);\n");
+    const graphDigest = sealedEntrypointGraphDigest(entrypoint);
+    const declaration = {
+      adapter: "agent-json-v1",
+      entrypoint,
+      entrypoint_digest: hashArtifact(entrypoint),
+      entrypoint_graph_digest: graphDigest,
+      capabilities: fixture.packet.assigned_capabilities,
+      strength: fixture.packet.minimum_strength,
+      permissions: ["artifact:read"],
+      settings: {}
+    };
+    const secondaryProvider = "shared-secondary-reviewer";
+    const hostPath = path.join(fixture.directory, "shared-host.json");
+    const raw = {
+      host_adapter_version: 1,
+      allowed_providers: [fixture.packet.provider.id, secondaryProvider],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [fixture.packet.provider.id]: structuredClone(declaration),
+        [secondaryProvider]: structuredClone(declaration)
+      }
+    };
+    writeJson(hostPath, raw);
+    const loaded = loadHostManifest(hostPath);
+    const primaryAuthority =
+      loaded.providers[fixture.packet.provider.id].entrypoint_authority;
+    const secondaryAuthority =
+      loaded.providers[secondaryProvider].entrypoint_authority;
+    assert.deepEqual(primaryAuthority, secondaryAuthority);
+    assert.notStrictEqual(primaryAuthority, secondaryAuthority);
+    assert.notStrictEqual(primaryAuthority.module_graph, secondaryAuthority.module_graph);
+    assert.notStrictEqual(
+      primaryAuthority.module_graph.modules[0],
+      secondaryAuthority.module_graph.modules[0]
+    );
+    const secondaryDigest = secondaryAuthority.module_graph.modules[0].digest;
+    primaryAuthority.module_graph.modules[0].digest = `sha256:${"0".repeat(64)}`;
+    assert.equal(secondaryAuthority.module_graph.modules[0].digest, secondaryDigest,
+      "provider authority clones must not share mutable nested graph objects");
+
+    raw.providers[secondaryProvider].entrypoint_digest = `sha256:${"0".repeat(64)}`;
+    writeJson(hostPath, raw);
+    assert.throws(() => loadHostManifest(hostPath),
+      /shared-secondary-reviewer entrypoint digest mismatch/,
+      "a different expected digest must not reuse another provider's cached authority");
+  } finally {
+    fs.rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("shared per-load authority still rejects entrypoint and nested dependency tamper", () => {
+  const fixture = createPhysicalAuthorityFixture();
+  try {
+    const entrypoint = path.join(fixture.directory, "shared-tamper-adapter.mjs");
+    const dependency = path.join(fixture.directory, "shared-tamper-helper.mjs");
+    const entrypointSource =
+      "import value from './shared-tamper-helper.mjs'; process.stdout.write(value);\n";
+    const dependencySource = "export default 'shared-authority';\n";
+    fs.writeFileSync(dependency, dependencySource);
+    fs.writeFileSync(entrypoint, entrypointSource);
+    const declaration = {
+      adapter: "agent-json-v1",
+      entrypoint,
+      entrypoint_digest: hashArtifact(entrypoint),
+      entrypoint_graph_digest: sealedEntrypointGraphDigest(entrypoint),
+      capabilities: fixture.packet.assigned_capabilities,
+      strength: fixture.packet.minimum_strength,
+      permissions: ["artifact:read"],
+      settings: {}
+    };
+    const secondaryProvider = "shared-tamper-secondary";
+    const hostPath = path.join(fixture.directory, "shared-tamper-host.json");
+    writeJson(hostPath, {
+      host_adapter_version: 1,
+      allowed_providers: [fixture.packet.provider.id, secondaryProvider],
+      granted_permissions: ["artifact:read"],
+      providers: {
+        [fixture.packet.provider.id]: structuredClone(declaration),
+        [secondaryProvider]: structuredClone(declaration)
+      }
+    });
+
+    let loaded = loadHostManifest(hostPath);
+    fs.appendFileSync(entrypoint, "// entrypoint tamper\n");
+    assert.throws(() => inspectPacketAdapter(fixture.packet, loaded),
+      /entrypoint digest mismatch/);
+
+    fs.writeFileSync(entrypoint, entrypointSource);
+    loaded = loadHostManifest(hostPath);
+    fs.appendFileSync(dependency, "export const tampered = true;\n");
+    assert.throws(() => inspectPacketAdapter(fixture.packet, loaded),
+      /module graph digest mismatch/);
   } finally {
     fs.rmSync(fixture.directory, { recursive: true, force: true });
   }

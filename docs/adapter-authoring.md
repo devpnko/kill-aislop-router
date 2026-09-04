@@ -154,6 +154,12 @@ are `schemas/host-adapter-request.schema.json` and
 - `permission_scopes`
 - `settings`: adapter-specific JSON data from the host manifest
 
+For a reference-backed design review only, the request may also carry
+`review_source_authority` plus `reference-evidence:read`. The authority exposes
+aliases and digests; its actual `source-capture` paths appear only in that
+reviewer's `artifacts`. Their `capture_set_digest` must match. A creator or
+browser request containing either the authority or permission is invalid.
+
 The adapter must perform the review described by `packet.stage_question`. It
 must not emit `pass` merely because the transport succeeded.
 It must not present its provider name as the active mode or orchestrator. It may
@@ -175,9 +181,9 @@ applies equally to creators, comparison critics, and browser evidence.
 | `design_task.kind` | Adapter type | Minimum strength | Permissions |
 |---|---|---:|---|
 | `direction-candidate` | `agent-json-v1` or `skill-json-v1` | 3 | `artifact:read`, `evidence:write` |
-| `direction-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write` |
+| `direction-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write`; plus `reference-evidence:read` only for an explicitly reference-backed internal-critic packet |
 | `color-candidate` | `agent-json-v1` or `skill-json-v1` | 3 | `artifact:read`, `evidence:write` |
-| `color-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write` |
+| `color-review` | `agent-json-v1` or `skill-json-v1` | 4 | `artifact:read`, `evidence:write`; plus `reference-evidence:read` only for an explicitly reference-backed internal-critic packet |
 | `browser-evidence` | `browser-json-v1` | 3 | `artifact:read`, `evidence:write`, `browser:control` |
 
 A direction creator returns exactly one prototype, exactly one `font-report`,
@@ -216,9 +222,10 @@ or treat the short digest map as the whole evidence contract.
 The browser adapter must actually use Playwright and return
 `browser_engine: "playwright"`, its version, a true result for every requested
 check, all locales and states tested, one screenshot per viewport, and a test
-report. A generic screenshot process cannot use `agent-json-v1` to satisfy this
-packet. Browser evidence must come from a different actor than the candidate
-creator.
+report. It must run through KSR's sealed host-adapter boundary; manually
+recording a browser result is not supported. A generic screenshot process
+cannot use `agent-json-v1` to satisfy this packet. Browser evidence must come
+from a different actor than the candidate creator.
 
 The bundled official adapter can perform this contract for one digest-bound,
 self-contained static HTML prototype. CSS and scripts must be inline; images
@@ -227,6 +234,11 @@ and fonts must use inline data or `data:`/`blob:` URLs. Creators using it annota
 `data-killsloprouter-state`. A custom browser adapter may instead serve
 candidate-specific URLs, but it must retain the packet digest, subject digest,
 Playwright, evidence, locale, state, network, and actor boundaries.
+That custom-adapter compatibility applies to the existing no-reference
+exact-three route. A reference-backed design run resolves every browser packet
+to the official Playwright provider, while source-reference captures remain
+available only to the independent design critic. A custom or manual browser
+therefore remains `manual_pending` before spawn for a reference-backed packet.
 The official static-design path does not claim `screen-reader` or
 `visual-regression`; requesting either leaves that packet `manual_pending` for
 a separately allowlisted capable adapter. Its automated accessibility result
@@ -243,6 +255,19 @@ Packets conform to
 `reference_task.kind`, and preserve the KillSlopRouter `journey_identity`.
 Results conform to
 [`reference-result.schema.json`](../schemas/reference-result.schema.json).
+Every `reference_task` also carries required SHA-256 `brief_digest` and
+`authority_graph_digest` fields. The latter binds the exact brief, owner
+activation, rights, planning sources, manual-export manifests, export evidence,
+and reasoning-registry source. These values are parent-owned immutable inputs:
+an adapter must echo the packet binding through its `packet_digest`, never
+derive or substitute later authority. KSR recomputes the graph and revalidates
+both task digests on resume before another child may start.
+For every non-manual child start, the run ledger first fixes the host manifest,
+the provider's complete declaration, and the adapter entrypoint/module graph in
+a digest-bound execution-authority snapshot. Reference runs also persist that
+snapshot in an immutable pinned sidecar. An adapter must not ask KSR to derive
+historical authority from a later manifest; an older automated attempt without
+the snapshot is non-resumable and must be rerun from verified external inputs.
 
 | `reference_task.kind` | Internal role | Minimum strength | Permissions |
 |---|---|---:|---|
@@ -251,25 +276,135 @@ Results conform to
 | `reference-review` | `critic` | 4 | `artifact:read`, `evidence:write` |
 
 Discovery must return bounded UI Bowl source URLs, source record IDs, capture
-times, source-linked observations, reference-use rights, and every configured
-popularity signal with raw/normalized values, scope, category, timestamp, and
-evidence. Grammar extraction must cover every reference, score the fixed
-product-fit dimensions, distinguish observation from inference, and emit only
-transferable principles. Exact pixels, CSS values, source copy, assets, and
-clone instructions are invalid creator guidance.
+times, distinct product and screen record IDs, an enumerated frame-role
+manifest, platform, use environment, business model,
+session shape, locale, sampling reason/cohorts/ecosystem, screen role, evidence
+strength, source-linked priority observations, reference-use rights, and every
+configured popularity signal with raw/normalized values, record/snapshot
+identity, explicit product-or-screen subject kind and subject record ID,
+scope, category, timestamp, conflict status, and evidence. Every discovery
+evidence item must bind its reference ID, screen record ID, and one or more
+enumerated frame IDs; its enclosing product and screen record must remain
+unchanged, it must carry the exact subject bindings it actually supports, and
+observations may cite it only for a bound frame. Popularity evidence must carry
+the same product-or-screen subject as the signal or conflict it supports. In
+`manual-export` mode, every one of those records and every evidence file must
+exactly belong to the digest-bound, schema-valid export manifest. The evidence
+path must stay inside the manifest directory, and KSR revalidates its bytes,
+declared content kind, digest, and physical identity. The brief fixes the
+common signal scope, category, weight, formula, bounds, and direction;
+providers cannot choose or widen them. Repeating a product-level signal for
+several screens does not create several claims: the canonical record must
+match across those screens or be declared conflicted. Grammar extraction must
+cover every reference, score the fixed product-fit dimensions,
+distinguish observation from inference, and connect each principle to causal
+hierarchy reasoning, application conditions, tradeoff, harmful contexts, and
+live-data dependency. Fit score and band are router-recomputed from the six
+fixed dimensions, and popularity normalization is router-recomputed from the
+declared linear bounds and metric direction. Each grammar result must cover
+every target locale with `direct`, `adaptation-required`, or `unsupported`
+transferability plus risks and later verification requirements. Exact pixels,
+CSS values, source copy, assets, and clone
+instructions are invalid creator guidance.
 
 The critic must use a distinct provider and actor, disposition every reference,
-list only the source-declared component families and patterns it verified, and
-list exactly which observations, inferences, and grammar IDs it verified.
+verify source identity, sampling, locale transferability, and product fit, list
+only the source-declared component families and patterns it verified, and list
+exactly which source-evidence, observations, inferences, hierarchy-reasoning
+IDs, and grammar IDs it verified. It must reject operational grammar derived
+from weak or promotional evidence and cannot mark conflicted popularity as
+verified.
 It cannot shortlist or approve for the owner. Returned evidence must remain in
 the granted output directory. See
 [Reference intelligence](reference-intelligence.md) for ranking and owner-gate
 semantics.
 
+Manual-export capture/metadata descriptors are readable only by the internal
+reference participant whose request explicitly carries them. They are not a
+design-creator input. Dispatch states this with
+`source_evidence_descriptors_included`,
+`source_pixels_available_to_reference_participants`, and the immutable
+`source_pixels_exposed_to_downstream_creator: false` boundary. A reference can
+be `eligible` only when the independent
+critic reports `copy_risk: low` and every other hard condition passes; medium
+or high risk remains blocked regardless of product fit or popularity.
+
+A metadata-only result can complete reference research, but it cannot claim
+design-review readiness. The compiled pack deterministically records
+`reviewer_source_capture_readiness` with sorted capture evidence IDs, uncovered
+selected reference IDs, uncovered verified observation IDs, and
+`revalidate_on_design_start: true`. Only `ready_at_compilation` may enter a
+reference-backed design run; `manual_pending` means the capture evidence must
+be supplied through a new valid reference run, not patched into the pack.
+
 For manual results, place every evidence file beside the submitted result JSON
 or below that directory. The Router resolves relative paths from the result
 directory and rejects absolute or relative escapes. Dispatch includes only
-packets without an accepted result.
+packets without an accepted result. It writes both the compatibility packet
+and a digest-bound `.request.json` containing the exact stage-required prior
+results. The request intentionally removes prior evidence paths while retaining
+their result, source, and evidence digests. Discovery has no prior result;
+grammar receives discovery; review receives discovery and grammar.
+
+When a reference pack is bound to design exploration, KSR first verifies its
+exact completed producer state. The full pack remains an audit artifact with
+selected source identities, links, verified observations, causal reasoning,
+grammar, and a path-free evidence digest manifest, but no source image bytes or
+paths. KSR projects only aliased causal reasoning and transferable grammar to a
+creator—never source names, URLs, observations, or pixels. A reference-backed
+brief must explicitly bind `reviewer_source_access` version 1 in
+`digest-bound-internal-critic` mode, limited to the two purposes
+`promotional-citation-firewall` and `source-composition-independence`, with
+`allowed_evidence_kinds: ["source-capture"]`. Redistribution, creator access,
+browser-provider access, and external network must all be false.
+
+KSR derives `review_source_authority` version 1 from the pack and exact
+producer state. It carries aliased captures, sorted unique
+`source_recipient_provider_ids` from accepted results plus every executable
+attempt, and `source_recipient_actor_ids` from accepted normalized results,
+plus a
+canonically ordered `source_recipient_execution_lineage` and a
+`capture_set_digest`; actual paths appear only in reviewer run artifacts. Each
+executable lineage item binds its status, provider, adapter, provider-declaration and
+authority digests, plus adapter entrypoint content, physical-identity, and
+graph digests when an entrypoint exists. A completely manual run uses an empty
+lineage array rather than made-up execution authority. The
+design review packet must use audience `independent-reviewer`, require
+`reference-evidence:read`, set
+`source_evidence_descriptors_included` and
+`source_pixels_available_to_participant` true, and keep
+`source_pixels_exposed_to_downstream_creator` false. Creator packets use
+audience `creator`; creator and browser packets forbid both
+`reference-evidence:read` and `network:external` and cannot carry
+`review_source_authority`.
+An older review adapter without this permission and typed analysis contract is
+capability-incomplete for a reference-backed review and must remain
+`manual_pending`; do not grant source access to a creator as a fallback.
+Provider and actor recipient identities remain binding across the reference and
+design runs: a source recipient cannot become a direction/color creator or
+browser participant. It may remain an independent direction/color reviewer,
+where source access is explicit and expected. Check provider conflicts before
+state creation and actor conflicts before result acceptance.
+
+Direction and color creators must return `reference_reasoning_trace`; every
+selected dimension must be `applied` or target-specifically `not-applicable`
+and preserve actual grammar-to-reasoning edges from the pack. Independent
+direction and color reviews must return the eleven stage-scoped
+`reference_checks` for every candidate. The registry contains eleven checks,
+but they are stage-scoped: direction review applies ten and color review two,
+with `source-composition-independence` shared by both. A false check is valid
+only with a matching hard blocker whose code is exactly
+`reference-check-failed:<check-id>`. The packet carries each check's linked
+reasoning lenses, pass condition, and required evidence. Each required role
+must resolve to a typed, digest-bound candidate, browser, or review artifact;
+specifically, `reference-capture-set` binds
+`reference-authority/source-capture-set`, and
+`source-composition-analysis` binds
+`review-evidence/source-composition-analysis` conforming to
+[`design-source-composition-analysis.schema.json`](../schemas/design-source-composition-analysis.schema.json).
+An arbitrary evidence ID is rejected. These fields document
+why a hierarchy works; they do not grant visual authority or permit source
+pixel, copy, color-value, dimension, typeface, or composition reuse.
 
 ### Visual-intent reviewer
 

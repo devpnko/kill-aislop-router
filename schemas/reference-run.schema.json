@@ -6,7 +6,7 @@
   "required": [
     "reference_intelligence_run_version", "run_id", "journey_identity", "status", "phase",
     "created_at", "updated_at", "state_path", "state_directory", "brief", "brief_source",
-    "authority_sources", "packets", "packet_files", "results", "attempts", "lease_recoveries", "in_flight",
+    "reasoning_registry", "authority_sources", "packets", "packet_files", "results", "attempts", "lease_recoveries", "in_flight",
     "ranking", "selection_scope_digest", "selection", "outputs", "blockers", "pending",
     "state_digest"
   ],
@@ -25,22 +25,73 @@
     "state_directory": {"type": "string", "minLength": 1},
     "brief": {"$ref": "reference-brief.schema.json"},
     "brief_source": {"$ref": "#/$defs/snapshot"},
-    "authority_sources": {
+    "reasoning_registry": {
       "type": "object",
-      "required": ["activation", "rights", "planning"],
+      "required": [
+        "registry_version", "authority_scope", "source_pixels_included",
+        "registry_digest", "source", "research_basis", "design_checks", "lenses"
+      ],
       "properties": {
-        "activation": {"$ref": "#/$defs/snapshot"},
-        "rights": {"$ref": "#/$defs/snapshot"},
-        "planning": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/snapshot"}}
+        "registry_version": {"const": 1},
+        "authority_scope": {"const": "non-authoritative-research-aid"},
+        "source_pixels_included": {"const": false},
+        "registry_digest": {"$ref": "#/$defs/digest"},
+        "source": {"$ref": "#/$defs/snapshot"},
+        "research_basis": {"type": "object"},
+        "design_checks": {
+          "type": "array", "minItems": 11, "maxItems": 11, "uniqueItems": true,
+          "items": {"$ref": "human-design-reasoning-registry.schema.json#/$defs/design_check"}
+        },
+        "lenses": {"type": "array", "minItems": 8, "items": {"type": "object"}}
       },
       "additionalProperties": false
     },
-    "packets": {"type": "array", "items": {"$ref": "reference-packet.schema.json"}},
+    "authority_sources": {
+      "type": "object",
+      "required": ["activation", "rights", "planning", "exports", "export_evidence"],
+      "properties": {
+        "activation": {"$ref": "#/$defs/snapshot"},
+        "rights": {"$ref": "#/$defs/snapshot"},
+        "planning": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/snapshot"}},
+        "exports": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
+        "export_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/export_evidence"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "packets": {
+      "$comment": "Each embedded reference packet transitively requires reference_task.brief_digest and reference_task.authority_graph_digest through reference-packet.schema.json. Runtime recomputes the authority graph from the brief, activation, rights, planning, exports, export evidence, and reasoning registry on every resume.",
+      "type": "array",
+      "items": {"$ref": "reference-packet.schema.json"}
+    },
     "packet_files": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
-    "results": {"type": "array", "items": {"type": "object"}},
-    "attempts": {"type": "array", "items": {"type": "object"}},
+    "results": {"type": "array", "items": {"$ref": "#/$defs/result_record"}},
+    "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
     "lease_recoveries": {"type": "array", "items": {"$ref": "reference-lease-recovery.schema.json"}},
-    "in_flight": {"type": ["object", "null"]},
+    "in_flight": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": [
+            "packet_id", "provider_id", "attempt", "packet_digest", "started_at",
+            "execution_authority", "execution_authority_source"
+          ],
+          "properties": {
+            "packet_id": {"type": "string", "minLength": 1},
+            "provider_id": {"type": "string", "minLength": 1},
+            "attempt": {"type": "integer", "minimum": 1},
+            "packet_digest": {"$ref": "#/$defs/digest"},
+            "started_at": {"type": "string", "format": "date-time"},
+            "execution_authority": {"$ref": "#/$defs/execution_authority"},
+            "execution_authority_source": {"$ref": "#/$defs/snapshot"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "ranking": {"type": "array", "items": {"type": "object"}},
     "selection_scope_digest": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/digest"}]},
     "selection": {"type": ["object", "null"]},
@@ -51,6 +102,222 @@
   },
   "$defs": {
     "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "subject_binding": {
+      "type": "object",
+      "required": ["subject_kind", "subject_record_id"],
+      "properties": {
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "export_evidence": {
+      "allOf": [
+        {"$ref": "#/$defs/snapshot"},
+        {
+          "type": "object",
+          "required": [
+            "export_id", "evidence_id", "evidence_kind", "product_record_id",
+            "screen_record_id", "frame_ids", "subject_bindings"
+          ],
+          "properties": {
+            "export_id": {"type": "string", "minLength": 1},
+            "evidence_id": {"type": "string", "minLength": 1},
+            "evidence_kind": {"enum": ["source-capture", "source-metadata"]},
+            "product_record_id": {"type": "string", "minLength": 1},
+            "screen_record_id": {"type": "string", "minLength": 1},
+            "frame_ids": {
+              "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "subject_bindings": {
+              "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {"$ref": "#/$defs/subject_binding"}
+            }
+          }
+        }
+      ]
+    },
+    "result_record": {
+      "type": "object",
+      "required": [
+        "packet_id", "provider_id", "participant", "result_digest", "source",
+        "evidence", "normalized", "recorded_at"
+      ],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
+        "result_digest": {"$ref": "#/$defs/digest"},
+        "source": {"$ref": "#/$defs/snapshot"},
+        "evidence": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/snapshot"},
+              {
+                "type": "object",
+                "required": ["evidence_id", "evidence_kind"],
+                "properties": {
+                  "evidence_id": {"type": "string", "minLength": 1},
+                  "evidence_kind": {
+                    "enum": ["source-capture", "source-metadata", "analysis-report", "review-report"]
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "normalized": {"$ref": "reference-result.schema.json"},
+        "recorded_at": {"type": "string", "format": "date-time"}
+      },
+      "additionalProperties": false
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "packet_id", "provider_id", "participant", "packet_digest",
+        "execution_status", "attempt"
+      ],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
+        "packet_digest": {"$ref": "#/$defs/digest"},
+        "execution_status": {"type": "string", "minLength": 1},
+        "attempt": {"type": "integer", "minimum": 1},
+        "adapter": {
+          "type": ["string", "null"],
+          "enum": [
+            "kill-ai-slop-v1", "agent-json-v1", "skill-json-v1",
+            "browser-json-v1", "manual-v1", null
+          ]
+        },
+        "result_digest": {"$ref": "#/$defs/digest"},
+        "execution_authority": {"$ref": "#/$defs/execution_authority"},
+        "execution_authority_source": {"$ref": "#/$defs/snapshot"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution_status": {
+                "anyOf": [
+                  {"const": "ran"},
+                  {"pattern": "^blocked_"}
+                ]
+              }
+            },
+            "required": ["execution_status"]
+          },
+          "then": {
+            "required": ["execution_authority", "execution_authority_source"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_status": {"const": "manual_pending"},
+              "adapter": {
+                "type": "string",
+                "not": {"const": "manual-v1"}
+              }
+            },
+            "required": ["execution_status", "adapter"]
+          },
+          "then": {
+            "required": ["execution_authority", "execution_authority_source"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_status": {"enum": ["manual_pending", "manual_recorded"]},
+              "adapter": {"enum": ["manual-v1", null]}
+            },
+            "required": ["execution_status", "adapter"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {"required": ["execution_authority"]},
+                {"required": ["execution_authority_source"]}
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "execution_authority": {
+      "type": "object",
+      "required": [
+        "reference_execution_authority_version", "host_manifest", "provider",
+        "adapter_entrypoint", "authority_digest"
+      ],
+      "properties": {
+        "reference_execution_authority_version": {"const": 1},
+        "host_manifest": {"$ref": "#/$defs/snapshot"},
+        "provider": {
+          "type": "object",
+          "required": [
+            "provider_id", "declaration_digest", "adapter", "strength",
+            "capabilities", "permissions", "timeout_ms"
+          ],
+          "properties": {
+            "provider_id": {"type": "string", "minLength": 1},
+            "declaration_digest": {"$ref": "#/$defs/digest"},
+            "adapter": {
+              "enum": [
+                "kill-ai-slop-v1", "agent-json-v1", "skill-json-v1",
+                "browser-json-v1", "manual-v1"
+              ]
+            },
+            "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+            "capabilities": {
+              "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "permissions": {
+              "type": "array", "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "artifact:read", "evidence:write", "browser:control",
+                  "reference-evidence:read", "network:external"
+                ]
+              }
+            },
+            "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 900000}
+          },
+          "additionalProperties": false
+        },
+        "adapter_entrypoint": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/execution_entrypoint"}
+          ]
+        },
+        "authority_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "execution_entrypoint": {
+      "type": "object",
+      "required": [
+        "path", "resolved_path", "kind", "bytes", "digest",
+        "physical_identity_digest", "graph_digest"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "resolved_path": {"type": "string", "minLength": 1},
+        "kind": {"const": "file"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"},
+        "graph_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
     "snapshot": {
       "type": "object",
       "required": ["path", "resolved_path", "kind", "bytes", "digest", "physical_identity_digest"],

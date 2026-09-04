@@ -1,9 +1,23 @@
 import { canonicalDigest } from "./integrity.mjs";
 import { RouterError } from "./router.mjs";
+import {
+  containsReservedParentInvocation,
+  isReservedParentIdentityAlias,
+  KILLSLOPROUTER_CANONICAL_ENTRYPOINT,
+  KILLSLOPROUTER_DISPLAY_NAME,
+  KILLSLOPROUTER_ORCHESTRATOR_ID
+} from "./parent-identity.mjs";
 
-export const KILLSLOPROUTER_ORCHESTRATOR_ID = "kill-slop-router";
-export const KILLSLOPROUTER_DISPLAY_NAME = "KillSlopRouter";
-export const KILLSLOPROUTER_CANONICAL_ENTRYPOINT = "killsloprouter:kill-slop-router";
+export {
+  canonicalIdentityKey,
+  canonicalIdentitySet,
+  containsReservedParentInvocation,
+  identitiesCanonicallyEqual,
+  KILLSLOPROUTER_IDENTITY_ALIASES,
+  KILLSLOPROUTER_CANONICAL_ENTRYPOINT,
+  KILLSLOPROUTER_DISPLAY_NAME,
+  KILLSLOPROUTER_ORCHESTRATOR_ID
+} from "./parent-identity.mjs";
 
 const INVOCATIONS = new Set(["explicit", "implicit", "resume", "legacy-migrated"]);
 const PARTICIPANT_ROLES = new Set([
@@ -31,6 +45,25 @@ function identityBody(identity) {
 
 function sameIdentity(left, right) {
   return Boolean(left && right && canonicalDigest(left) === canonicalDigest(right));
+}
+
+export function isOrchestratorIdentityAlias(value, {
+  orchestratorId = KILLSLOPROUTER_ORCHESTRATOR_ID
+} = {}) {
+  return isReservedParentIdentityAlias(value, { orchestratorId });
+}
+
+export function assertInternalIdentityIsNotOrchestrator(value, {
+  orchestratorId = KILLSLOPROUTER_ORCHESTRATOR_ID,
+  label = "internal participant identity",
+  exitCode = 4
+} = {}) {
+  requireValue(typeof value === "string" && value.trim().length > 0,
+    `${label} is missing`, exitCode);
+  requireValue(!isOrchestratorIdentityAlias(value, { orchestratorId }),
+    `${label} cannot use the KillSlopRouter parent identity as an internal participant`,
+    exitCode);
+  return value;
 }
 
 export function createJourneyIdentity({
@@ -116,9 +149,20 @@ export function participantRoleForStage(stageId, designTaskKind = null) {
   return "critic";
 }
 
-export function createParticipant({ providerId, stageId = null, designTaskKind = null, role = null }) {
+export function createParticipant({
+  providerId,
+  stageId = null,
+  designTaskKind = null,
+  role = null,
+  orchestratorId = KILLSLOPROUTER_ORCHESTRATOR_ID
+}) {
   requireValue(typeof providerId === "string" && providerId.length > 0,
     "participant requires provider_id", 3);
+  assertInternalIdentityIsNotOrchestrator(providerId, {
+    orchestratorId,
+    label: "participant provider_id",
+    exitCode: 3
+  });
   const resolvedRole = role || participantRoleForStage(stageId, designTaskKind);
   requireValue(PARTICIPANT_ROLES.has(resolvedRole), `unsupported participant role: ${resolvedRole}`, 3);
   return {
@@ -135,12 +179,18 @@ export function verifyParticipant(participant, {
   stageId = null,
   designTaskKind = null,
   role = null,
+  orchestratorId = KILLSLOPROUTER_ORCHESTRATOR_ID,
   label = "participant"
 } = {}) {
   requireValue(participant && typeof participant === "object" && !Array.isArray(participant),
     `${label} is missing`);
   requireValue(participant.participant_version === 1, `${label}.participant_version must be 1`);
   requireValue(participant.provider_id === providerId, `${label}.provider_id conflicts with the packet provider`);
+  assertInternalIdentityIsNotOrchestrator(participant.provider_id, {
+    orchestratorId,
+    label: `${label}.provider_id`,
+    exitCode: 4
+  });
   const expectedRole = role || participantRoleForStage(stageId, designTaskKind);
   requireValue(participant.role === expectedRole, `${label}.role must be ${expectedRole}`);
   requireValue(participant.visibility === "internal", `${label}.visibility must remain internal`);
@@ -159,6 +209,7 @@ export function verifyPacketJourney(packet, identity, label = "packet") {
     providerId: packet.provider?.id,
     stageId: packet.stage_id,
     designTaskKind: packet.design_task?.kind || null,
+    orchestratorId: identity.orchestrator_id,
     label: `${label}.participant`
   });
   const { packet_digest: packetDigest, ...body } = packet || {};
@@ -213,7 +264,7 @@ export function resolveJourneyPresentation({ utterance, activeJourneyIdentity = 
     return { active_workflow: KILLSLOPROUTER_DISPLAY_NAME, journey_identity: activeJourneyIdentity };
   }
   const source = String(utterance || "");
-  if (/(?:KillSlopRouter|killsloprouter|kill[- ]slop[- ]router|킬슬롭(?:라우터)?)/i.test(source)) {
+  if (containsReservedParentInvocation(source)) {
     return { active_workflow: KILLSLOPROUTER_DISPLAY_NAME, journey_identity: null };
   }
   if (/\$(?:anti[- ]?slop|antislop)\b/i.test(source)) {

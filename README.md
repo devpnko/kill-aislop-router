@@ -233,13 +233,83 @@ killsloprouter reference run \
   --json
 ```
 
+The bundled `FlowDesk`, `MarketLine`, and `ProofGrid` records are synthetic
+schema and package-install fixtures. Their names, URLs, and popularity values
+are not claims about real UI Bowl records and must not be used as research
+evidence. Replace them with a caller-owned, rights-reviewed export before a
+real run. They intentionally contain only `source-metadata`: they can exercise
+a research-complete reference run, but the resulting pack reports reviewer
+source-capture readiness as `manual_pending` and is not design-ready.
+
 The brief binds service-planning, owner activation, UI Bowl query scope,
-reference-use rights, coverage, and three independent provider roles.
-KillSlopRouter ranks popularity strongly only inside the same product-fit band,
-stops for a real owner to select one anchor plus supporting products, and emits
-a pixel-free `discovery-evidence-only` grammar pack. It neither grants visual
-intent/signature authority nor changes the exact-three 3×3 design route. UI
-Bowl access defaults to manual export; no scraper or MCP is silently enabled.
+reference-use rights, a schema-validated and digest-bound manual-export
+manifest (or separately authorized read-only network adapter), coverage, and
+three independent provider roles. Manual discovery may use only products,
+screens, frames, URIs, popularity records, and source-evidence files present in
+that exact manifest. KSR reads each evidence file from inside the manifest
+directory, validates its declared kind and content, and locks its bytes plus
+physical identity. Each evidence record stays closed over its product and
+screen record, enumerated frame IDs, and explicit product-or-screen subject;
+an observation must cite a bound frame, while a popularity signal must cite an
+evidence item carrying the same subject. KillSlopRouter ranks popularity
+strongly only inside the same product-fit band, admits only independently
+verified references with `copy_risk: low`, stops for a real owner to select one
+anchor plus supporting products, and emits a `discovery-evidence-only` grammar
+pack with no source image bytes or paths. A bundled, digest-bound reasoning
+registry forces each hierarchy principle to explain the target decision,
+likely constraint, flattening consequence, applicability, tradeoff, and
+harmful context. Product fit remains reproducible across six target axes;
+popularity values bind an explicit product-or-screen subject, configured
+scope/category, common normalization policy, and weight. A product-level
+signal repeated by several screens must remain one canonically identical claim
+or be declared conflicted; it cannot become extra popularity votes. The full
+audit pack retains source identities, links, verified text observations, and a path-free
+evidence digest manifest for provenance. Downstream creators receive only its
+aliased, source-identity-free causal reasoning and transferable grammar. Eleven
+fixed checks are stage-scoped: direction review applies ten and color review
+applies two, with `source-composition-independence` shared by both. Every
+applicable check binds explicit pass conditions, typed digest-bound evidence,
+and a hard-failure code. Sampling caps product/ecosystem dominance and requires
+task-fit, cross-domain, and competent-baseline evidence without turning
+popularity into a hard gate. Promotional screens remain weak evidence, and
+conflicted popularity cannot decide eligibility. Every completed pack records
+router-recomputed `reviewer_source_capture_readiness`: the exact capture IDs,
+uncovered selected references and verified observations, and mandatory
+design-start revalidation. Research may complete with
+`status: manual_pending`, but only `ready_at_compilation` with full
+reference/frame coverage may enter design exploration. Attach that ready pack
+to a design brief through its optional `reference_pack` field together with
+the exact producing state. A reference-backed brief must also explicitly bind
+`reference_pack.reviewer_source_access` version 1 in
+`digest-bound-internal-critic` mode. Its purposes are limited to
+`promotional-citation-firewall` and `source-composition-independence`, its only
+allowed evidence kind is `source-capture`, and redistribution, creator access,
+browser-provider access, and external network are all false. KSR exposes
+aliased captures plus their `capture_set_digest` only to an
+`independent-reviewer` packet with `reference-evidence:read`; actual paths exist
+only in that reviewer's run artifacts. Creator and browser packets forbid that
+permission and keep
+`source_pixels_exposed_to_downstream_creator: false`. The derived authority
+also binds sorted unique provider IDs from accepted results and every
+executable source-recipient attempt, including failures, plus actor IDs from
+accepted normalized results. Across the consuming
+design run, none may reappear as a direction/color creator or browser
+participant; an independent direction/color reviewer may overlap because that
+is the only source-privileged role. It additionally binds the canonical
+per-attempt `source_recipient_execution_lineage`, including provider
+adapter, declaration and immutable authority digests plus entrypoint content,
+physical-identity, and graph digests. Fully manual production records an empty
+attempt list instead of invented executable provenance. The final design decision retains the
+non-authoritative pack/producer-state,
+`review_source_capture_set_digest`, direction/color source-composition
+analysis digests, and selected-trace digest chain. It neither grants visual
+intent/signature authority nor changes the
+exact-three 3×3 design route. UI Bowl access defaults to manual export; no
+scraper or MCP is silently enabled.
+
+The bundled study is deliberately non-exhaustive: 24 products and 48 screens
+were sampled to improve the reasoning contract, not to copy or redistribute a
+catalog.
 See [Reference intelligence](docs/reference-intelligence.md).
 
 ```bash
@@ -278,6 +348,13 @@ privacy, runtime, release approval, or a reusable design system; those remain
 hard gates in the integrated run. Implement the selected evidence with one
 explicit project creator. A build/redesign route still requires a separately
 approved design system or an explicit project surface creator.
+
+Every design browser result must come from a KSR-run, digest-locked
+`browser-json-v1` Playwright attempt; a manual JSON result is never accepted as
+browser execution. The existing no-reference exact-three route may keep an
+explicitly allowlisted custom Playwright adapter. Once a reference pack is
+bound, candidate browser packets use the official Playwright provider and
+still receive none of the reviewer-only source captures.
 
 Its browser gate detects viewport escape, flex/grid child overlap, and required
 text clipping. Digest-locked scenarios can add `no-overlap`, `no-clipping`,
@@ -746,6 +823,34 @@ result version 1, shortlist version 1, and owner decision version 1.
 The optional reference workflow adds reference brief, packet, result, run,
 owner-selection, and pack version 1. Its pack is discovery evidence only and
 does not alter existing route, design, audit, or receipt versions.
+States or packets produced by an earlier reference-intelligence preview must
+not be hand-edited, re-signed, or resumed under the stronger contract. Retain
+them as historical evidence, then regenerate the dry-run, packets, child
+results, Owner selection, and final pack in a new reference run; restart any
+design run that had bound the preview pack so it gains the explicit reviewer
+source-access/capture-set, capture-readiness, and source-recipient separation
+contract. The derived reviewer authority also retains a digest-bound,
+canonically ordered execution lineage for every executable source-recipient
+attempt: provider, adapter, declaration, authority, and entrypoint content,
+physical identity, and graph digests. An entirely manual producer has an empty
+lineage rather than fabricated executable authority. Design briefs without
+`reference_pack` remain compatible with the unchanged exact-three route.
+Automated reference and design attempts now retain the exact host manifest,
+provider declaration, and adapter entrypoint/module graph that authorized the
+child. Reference attempts bind an immutable execution-authority sidecar as
+well. A pre-contract state with an automated attempt but no such authority
+cannot be repaired by copying the current manifest or re-signing the ledger;
+start a new run from the unchanged external brief, baseline, planning, and
+Owner authority. Inspection-only `manual_pending` and caller-supplied
+`manual_recorded` attempts remain manual and are never relabeled as automated.
+Modern design approval also uses a digest-bound `pending_finalization`
+transaction: the four approved files are staged, sealed into state, and only
+then published and rebound as outputs. Resume may adopt only the exact sealed
+staged or published directory. A legacy state interrupted while publishing
+approval outputs, or otherwise lacking the new lease/recovery checkpoint needed
+to prove that transition, must not be hand-patched or have an orphan directory
+adopted; preserve it as historical evidence and restart from unchanged external
+authorities.
 The additive official Codex host uses setup receipt version 1 and extends host
 adapter response version 1 with an explicit `manual_pending` envelope; existing
 result envelopes remain valid.

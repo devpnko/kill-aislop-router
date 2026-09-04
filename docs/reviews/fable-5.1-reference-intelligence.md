@@ -94,3 +94,54 @@ all same-user files and the caller-held recovery tuple. UI Bowl access and
 rights were not exercised by this reviewer. Real reference selection remains
 an explicit Owner gate, and the reference pack remains discovery evidence
 without visual-intent, visual-signature, creator, or release authority.
+
+## Real-corpus research pass
+
+A later, separate Fable 5.1 invocation acted as an external design-grammar
+researcher, not a code reviewer or approver. It read four temporary contact
+sheets covering 24 UI Bowl products and 48 screens. Permissions were plan mode
+with `Read` only, the temporary directory was explicitly added, session
+persistence was disabled, and the prompt prohibited copying or redistribution.
+
+The researcher independently identified four contract gaps:
+
+- promotional and splash captures are overrepresented and are weak evidence
+  for task hierarchy;
+- a reusable principle needs a causal chain from visible priority to user
+  decision, likely constraint, flattening failure, conditions, tradeoff, and
+  anti-copy boundary;
+- popularity sampling needs product, category, ecosystem, screen-family,
+  density, locale, and evidence-role diversity rather than a top-N list;
+- patterns such as suggestion chips, social proof, rewards, or activity counts
+  are invalid without a real data source and empty/failure behavior.
+
+It also found that deliberate human hierarchy varies with environment and
+product economics: point-of-sale screens prioritize arm's-length speed,
+comparison surfaces preserve repeated slot order, editorial commerce slows
+discovery only when brand/content economics support it, multi-value settings
+avoid binary controls, and long research journeys expose recall/resume cues.
+That evidence directly informed the new non-authoritative reasoning registry,
+screen-family strength and promotional firewall, sampling policy, causal
+grammar tuple, live-data dependency field, and optional pixel-free bridge into
+the existing exact-three design route.
+
+The full observation/inference separation, corpus list, and limitations are in
+[`ui-bowl-popular-design-study-2026-09-04.md`](../research/ui-bowl-popular-design-study-2026-09-04.md).
+
+## Latest integrated-tree rerun status
+
+A fresh read-only Fable 5.1 review was requested after the later design bridge,
+execution-lineage, and state-authority hardening was integrated. The invocation
+used plan mode, maximum effort, read-only tools, restricted permissions, and no
+session persistence. It stopped before producing a review because the external
+runtime reported that its monthly spend limit had been reached.
+
+- Output bytes: 153
+- Output SHA-256:
+  `6a9d3d21d50e4d1d7258d5d43466d1382cf38c5e4f95790559912573371d6280`
+
+That interrupted invocation is not an approval and does not extend the scope of
+the earlier verdicts to the latest integrated tree. The earlier records remain
+historical, scope-bound review evidence. The current tree still requires its
+own immutable test run, CI, independent human or external-model review, and
+Owner gate before merge.

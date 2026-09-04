@@ -41,7 +41,9 @@ import {
   designExitCode,
   dispatchDesignPackets,
   dryRunDesignExploration,
+  inspectDesignStateLease,
   readDesignState,
+  recoverDesignStateLease,
   resumeDesignExploration,
   startDesignExploration
 } from "./design.mjs";
@@ -138,6 +140,8 @@ Usage:
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
   killsloprouter design status --run FILE [--json]
   killsloprouter design dispatch --run FILE --out-dir DIR
+  killsloprouter design lease-status --state FILE [--json]
+  killsloprouter design recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
   killsloprouter reference run --brief FILE --out FILE [--host-config FILE]
   killsloprouter reference run --resume FILE [--host-config FILE] [--selection FILE]
   killsloprouter reference status --run FILE [--json]
@@ -742,8 +746,50 @@ function designOutput(value, args) {
 
 function designCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "dispatch"].includes(command)) {
-    throw new RouterError("design requires run, status, or dispatch", 2);
+  if (!command || !["run", "status", "dispatch", "lease-status", "recover"].includes(command)) {
+    throw new RouterError("design requires run, status, dispatch, lease-status, or recover", 2);
+  }
+  if (command === "lease-status") {
+    if (!args.state) throw new RouterError("design lease-status requires --state", 2);
+    output(inspectDesignStateLease(args.state), args, (value) => [
+      "KillSlopRouter design state lease",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.status === "locked" ? [
+        `operation: ${value.operation}`,
+        `phase: ${value.phase}`,
+        `owner pid: ${value.owner_pid}`,
+        `owner pid in use: ${value.owner_pid_in_use}`,
+        `owner process alive: ${value.owner_process_alive}`,
+        `owner process identity matches: ${value.owner_process_identity_matches}`,
+        `acquired at: ${value.acquired_at}`,
+        `recover after: ${value.recover_after}`,
+        `lease digest: ${value.lease_digest}`
+      ] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (command === "recover") {
+    if (!args.state) throw new RouterError("design recover requires --state", 2);
+    const result = recoverDesignStateLease(args.state, {
+      ownerToken: args["owner-token"],
+      acquiredAt: args["acquired-at"],
+      stateDigest: args["state-digest"]
+    });
+    output(result, args, (value) => [
+      "KillSlopRouter design state lease recovery",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.recovery ? [
+        `outcome: ${value.recovery.outcome}`,
+        `recovery digest: ${value.recovery.recovery_digest}`,
+        `retry required: ${value.recovery.retry_required}`
+      ] : []),
+      ...(value.blocker ? [`blocker: ${value.blocker}`] : [])
+    ].join("\n") + "\n");
+    return;
   }
   if (command === "status" || command === "dispatch") {
     if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);

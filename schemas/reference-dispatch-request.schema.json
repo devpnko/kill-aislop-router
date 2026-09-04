@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-dispatch-request.schema.json",
+  "title": "KillSlopRouter manual reference dispatch request",
+  "type": "object",
+  "required": [
+    "reference_dispatch_request_version", "run_id", "journey_identity", "state_digest",
+    "stage_id", "packet", "authority_artifacts", "prior_results", "request_digest"
+  ],
+  "properties": {
+    "reference_dispatch_request_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "state_digest": {"$ref": "#/$defs/digest"},
+    "stage_id": {"enum": ["reference-discovery", "reference-grammar", "reference-review"]},
+    "packet": {
+      "$comment": "The embedded packet transitively requires reference_task.brief_digest and reference_task.authority_graph_digest through reference-packet.schema.json; dispatch does not replace or weaken those immutable authority bindings.",
+      "$ref": "reference-packet.schema.json"
+    },
+    "authority_artifacts": {
+      "type": "object",
+      "required": [
+        "source_evidence_descriptors_included",
+        "source_pixels_available_to_reference_participants",
+        "source_pixels_exposed_to_downstream_creator",
+        "brief", "owner_activation", "rights",
+        "reasoning_registry", "planning", "source_exports", "source_export_evidence"
+      ],
+      "properties": {
+        "source_evidence_descriptors_included": {"type": "boolean"},
+        "source_pixels_available_to_reference_participants": {"type": "boolean"},
+        "source_pixels_exposed_to_downstream_creator": {"const": false},
+        "brief": {"$ref": "#/$defs/snapshot"},
+        "owner_activation": {"$ref": "#/$defs/snapshot"},
+        "rights": {"$ref": "#/$defs/snapshot"},
+        "reasoning_registry": {"$ref": "#/$defs/snapshot"},
+        "planning": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/$defs/snapshot"}
+        },
+        "source_exports": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/snapshot"}
+        },
+        "source_export_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/export_evidence"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"source_evidence_descriptors_included": {"const": true}}},
+          "then": {"properties": {"source_export_evidence": {"minItems": 1}}},
+          "else": {"properties": {"source_export_evidence": {"maxItems": 0}}}
+        },
+        {
+          "if": {"properties": {"source_pixels_available_to_reference_participants": {"const": true}}},
+          "then": {"properties": {"source_export_evidence": {
+            "contains": {"properties": {"evidence_kind": {"const": "source-capture"}}}
+          }}},
+          "else": {"properties": {"source_export_evidence": {
+            "not": {"contains": {"properties": {"evidence_kind": {"const": "source-capture"}}}
+          }}}
+        }}
+      ],
+      "additionalProperties": false
+    },
+    "prior_results": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "packet_id", "result_digest", "result_source_digest",
+          "evidence_digests", "normalized_result"
+        ],
+        "properties": {
+          "packet_id": {"enum": ["reference-discovery", "reference-grammar"]},
+          "result_digest": {"$ref": "#/$defs/digest"},
+          "result_source_digest": {"$ref": "#/$defs/digest"},
+          "evidence_digests": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["evidence_id", "evidence_kind", "digest"],
+              "properties": {
+                "evidence_id": {"$ref": "#/$defs/id"},
+                "evidence_kind": {
+                  "enum": ["source-capture", "source-metadata", "analysis-report"]
+                },
+                "digest": {"$ref": "#/$defs/digest"},
+                "reference_id": {"$ref": "#/$defs/id"},
+                "product_record_id": {"type": "string", "minLength": 1},
+                "screen_record_id": {"type": "string", "minLength": 1},
+                "frame_ids": {
+                  "type": "array", "minItems": 1, "uniqueItems": true,
+                  "items": {"$ref": "#/$defs/id"}
+                },
+                "subject_bindings": {
+                  "type": "array", "minItems": 1, "uniqueItems": true,
+                  "items": {"$ref": "#/$defs/subject_binding"},
+                  "contains": {
+                    "type": "object",
+                    "properties": {"subject_kind": {"const": "screen"}},
+                    "required": ["subject_kind"]
+                  }
+                }
+              },
+              "allOf": [{
+                "if": {"properties": {"evidence_kind": {
+                  "enum": ["source-capture", "source-metadata"]
+                }}},
+                "then": {"required": [
+                  "reference_id", "product_record_id", "screen_record_id", "frame_ids",
+                  "subject_bindings"
+                ]},
+                "else": {"not": {"anyOf": [
+                  {"required": ["reference_id"]},
+                  {"required": ["product_record_id"]},
+                  {"required": ["screen_record_id"]},
+                  {"required": ["frame_ids"]},
+                  {"required": ["subject_bindings"]}
+                ]}}
+              }],
+              "additionalProperties": false
+            }
+          },
+          "normalized_result": {
+            "type": "object",
+            "not": {"required": ["evidence"]}
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "request_digest": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "subject_binding": {
+      "type": "object",
+      "required": ["subject_kind", "subject_record_id"],
+      "properties": {
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "export_evidence": {
+      "type": "object",
+      "required": [
+        "export_id", "evidence_id", "evidence_kind", "product_record_id",
+        "screen_record_id", "frame_ids", "subject_bindings", "file"
+      ],
+      "properties": {
+        "export_id": {"type": "string", "minLength": 1},
+        "evidence_id": {"$ref": "#/$defs/id"},
+        "evidence_kind": {"enum": ["source-capture", "source-metadata"]},
+        "product_record_id": {"type": "string", "minLength": 1},
+        "screen_record_id": {"type": "string", "minLength": 1},
+        "frame_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/id"}
+        },
+        "subject_bindings": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/subject_binding"},
+          "contains": {
+            "type": "object",
+            "properties": {"subject_kind": {"const": "screen"}},
+            "required": ["subject_kind"]
+          }
+        },
+        "file": {"$ref": "#/$defs/snapshot"}
+      },
+      "$comment": "Runtime verification additionally requires every subject_record_id to equal this evidence object's exact product_record_id or screen_record_id and requires product-subject evidence for every product-scoped popularity claim.",
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "required": ["path", "kind", "bytes", "digest", "physical_identity_digest"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "kind": {"const": "file"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"stage_id": {"const": "reference-discovery"}}},
+      "then": {"properties": {"prior_results": {"maxItems": 0}}}
+    },
+    {
+      "if": {"properties": {"stage_id": {"const": "reference-grammar"}}},
+      "then": {
+        "properties": {
+          "prior_results": {
+            "minItems": 1, "maxItems": 1,
+            "prefixItems": [
+              {"properties": {"packet_id": {"const": "reference-discovery"}}}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"stage_id": {"const": "reference-review"}}},
+      "then": {
+        "properties": {
+          "prior_results": {
+            "minItems": 2, "maxItems": 2,
+            "prefixItems": [
+              {"properties": {"packet_id": {"const": "reference-discovery"}}},
+              {"properties": {"packet_id": {"const": "reference-grammar"}}}
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

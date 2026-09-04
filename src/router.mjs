@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { canonicalDigest, hashArtifact, readJsonPinned } from "./integrity.mjs";
 import { secureExistingDirectory, secureExistingRegularFile } from "./path-security.mjs";
+import {
+  identitiesCanonicallyEqual,
+  isReservedParentIdentityAlias
+} from "./parent-identity.mjs";
 import { resolvePlanningGate } from "./planning.mjs";
 
 export const VALID_SURFACES = new Set([
@@ -1228,11 +1232,15 @@ export function resolveVisualIntent(profile, profilePath, surface) {
       !receipt.authority.decided_at || Number.isNaN(Date.parse(receipt.authority.decided_at))) {
       throw new Error("visual intent authority requires kind, authority_id, basis, and decided_at");
     }
+    if (isReservedParentIdentityAlias(receipt.authority.authority_id)) {
+      throw new Error("visual intent authority_id cannot use the KillSlopRouter parent identity");
+    }
     if (!Array.isArray(receipt.evidence) || receipt.evidence.length === 0) {
       throw new Error("visual intent authority receipt requires evidence");
     }
     const sources = [receiptSource];
     const evidence = [];
+    const verifiedOwnerIds = [];
     const seenEvidence = new Set();
     for (const [index, item] of receipt.evidence.entries()) {
       const label = `visual intent authority receipt.evidence[${index}]`;
@@ -1265,6 +1273,19 @@ export function resolveVisualIntent(profile, profilePath, surface) {
         if (approval.status !== "approved" || !ownerId) {
           throw new Error(`${label} is not an explicit approved owner decision`);
         }
+        if (isReservedParentIdentityAlias(ownerId)) {
+          throw new Error(`${label}.owner_id cannot use the KillSlopRouter parent identity`);
+        }
+        verifiedOwnerIds.push(ownerId);
+      }
+    }
+    if (receipt.authority.kind === "owner-direction") {
+      if (verifiedOwnerIds.length === 0) {
+        throw new Error("visual intent owner-direction authority requires verified owner-approval evidence");
+      }
+      if (verifiedOwnerIds.some((ownerId) =>
+        !identitiesCanonicallyEqual(ownerId, receipt.authority.authority_id))) {
+        throw new Error("visual intent owner-direction authority_id must exactly match every verified owner_id");
       }
     }
     const evidenceKinds = new Set(evidence.map((item) => item.kind));
@@ -1385,11 +1406,15 @@ export function resolveVisualSignature(profile, profilePath, surface) {
       !receipt.authority.decided_at || Number.isNaN(Date.parse(receipt.authority.decided_at))) {
       throw new Error("visual signature authority requires kind, authority_id, basis, and decided_at");
     }
+    if (isReservedParentIdentityAlias(receipt.authority.authority_id)) {
+      throw new Error("visual signature authority_id cannot use the KillSlopRouter parent identity");
+    }
     if (!Array.isArray(receipt.evidence) || receipt.evidence.length === 0) {
       throw new Error("visual signature authority receipt requires evidence");
     }
     const sources = [receiptSource];
     const evidence = [];
+    const verifiedOwnerIds = [];
     const evidenceByReceiptPath = new Map();
     const seenEvidence = new Set();
     for (const [index, item] of receipt.evidence.entries()) {
@@ -1426,6 +1451,19 @@ export function resolveVisualSignature(profile, profilePath, surface) {
         if (approval.status !== "approved" || !ownerId) {
           throw new Error(`${label} is not an explicit approved owner decision`);
         }
+        if (isReservedParentIdentityAlias(ownerId)) {
+          throw new Error(`${label}.owner_id cannot use the KillSlopRouter parent identity`);
+        }
+        verifiedOwnerIds.push(ownerId);
+      }
+    }
+    if (receipt.authority.kind === "owner-direction") {
+      if (verifiedOwnerIds.length === 0) {
+        throw new Error("visual signature owner-direction authority requires verified owner-approval evidence");
+      }
+      if (verifiedOwnerIds.some((ownerId) =>
+        !identitiesCanonicallyEqual(ownerId, receipt.authority.authority_id))) {
+        throw new Error("visual signature owner-direction authority_id must exactly match every verified owner_id");
       }
     }
     const evidenceKinds = new Set(evidence.map((item) => item.kind));
@@ -1596,6 +1634,12 @@ function verifiedAvailability(declaration, fallbackStatus) {
 }
 
 function resolveActor(actor, profile, router) {
+  if (isReservedParentIdentityAlias(actor.id, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `provider ${actor.id} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const contract = providerContract(router, actor.id);
   if (actor.kind === "local") {
     const configured = profile?.local_adapters?.[actor.id];
@@ -1627,6 +1671,12 @@ function resolveActor(actor, profile, router) {
 }
 
 function resolveFallback(fallback, missingActorId, router) {
+  if (isReservedParentIdentityAlias(fallback.id, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `fallback provider ${fallback.id} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const contract = providerContract(router, fallback.id);
   return {
     id: fallback.id,
@@ -1683,7 +1733,7 @@ function coverStage(stage, primaryActors, creator, profile, router) {
   const eligibleFallbacks = fallbackCandidates
     .filter((candidate) => AVAILABLE_STATUSES.has(candidate.availability))
     .filter((candidate) => candidate.strength >= contract.minimumStrength)
-    .filter((candidate) => candidate.id !== creator)
+    .filter((candidate) => !identitiesCanonicallyEqual(candidate.id, creator))
     .filter((candidate) => !contract.requiresIndependentCritic || candidate.independent_from_creator)
     .sort((a, b) => {
       const aCoverage = a.capabilities.filter((item) => contract.required.includes(item)).length;
@@ -1698,7 +1748,8 @@ function coverStage(stage, primaryActors, creator, profile, router) {
     const suppliesIndependentCritic =
       contract.requiresIndependentCritic &&
       candidate.independent_from_creator &&
-      !requiredSelected().some((actor) => actor.independent_from_creator && actor.id !== creator);
+      !requiredSelected().some((actor) => actor.independent_from_creator &&
+        !identitiesCanonicallyEqual(actor.id, creator));
     if (!addsCoverage && !suppliesIndependentCritic) continue;
     if (!selectedIds.has(candidate.id)) {
       selected.push(candidate);
@@ -1716,7 +1767,8 @@ function coverStage(stage, primaryActors, creator, profile, router) {
   const missingCapabilities = contract.required.filter((capability) => !covered.has(capability));
   const hasIndependentCritic =
     !contract.requiresIndependentCritic ||
-    requiredSelected().some((actor) => actor.independent_from_creator && actor.id !== creator);
+    requiredSelected().some((actor) => actor.independent_from_creator &&
+      !identitiesCanonicallyEqual(actor.id, creator));
   const blockedForNoActor = primaryActors.some((actor) => !actor.optional) && requiredSelected().length === 0;
   const blocked = missingCapabilities.length > 0 || !hasIndependentCritic || blockedForNoActor;
 
@@ -1751,7 +1803,7 @@ function resolveStages(route, creator, profile, override, input, router) {
     if (stage.when_creator && !stage.when_creator.includes(creator)) continue;
     const actors = stage.actors
       .filter((actor) => !excluded.has(actor.id))
-      .filter((actor) => !(actor.skip_if_creator && actor.id === creator))
+      .filter((actor) => !(actor.skip_if_creator && identitiesCanonicallyEqual(actor.id, creator)))
       .map((actor) => resolveActor(actor, profile, router));
     if (actors.length) stages.push(coverStage(stage, actors, creator, profile, router));
   }
@@ -1839,6 +1891,12 @@ export function planRoute({
     unresolved.push(...visualContractCompatibilityIssues(visualIntent, visualSignature));
   }
   const creator = resolveCreator(route, normalized, profile, override, unresolved);
+  if (creator && isReservedParentIdentityAlias(creator, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `creator ${creator} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const stages = resolveStages(route, creator, profile, override, normalized, router);
   const required = requiredStages(router, normalized, profile);
   if (normalized.scope && required.includes("browser-evidence") &&
@@ -1890,7 +1948,8 @@ export function planRoute({
       details.push(`missing capabilities: ${stage.missing_capabilities.join(", ")}`);
     }
     if (stage.requires_independent_critic && !stage.selected_actors.some(
-      (actor) => !actor.optional && actor.independent_from_creator && actor.id !== creator
+      (actor) => !actor.optional && actor.independent_from_creator &&
+        !identitiesCanonicallyEqual(actor.id, creator)
     )) {
       details.push("independent critic unavailable");
     }

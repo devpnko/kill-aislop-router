@@ -64,6 +64,15 @@ critic, scanner, browser provider, or adjudicator remains
 `visibility: internal`; standalone `$antislop` compatibility applies only when
 there is no active KillSlopRouter identity.
 
+Exact parent aliases are reserved across provider, result-actor, Owner, and
+visual-authority fields. Comparison uses Unicode NFKC normalization, trimming,
+and case folding; parent aliases additionally normalize spaces, underscores,
+and hyphens. This closes full-width, case, whitespace, Korean, and separator
+variants without blocking distinct participant names that merely contain a
+similar substring. `owner-direction` authority IDs must exactly match the
+independently verified Owner IDs after canonical comparison. Original IDs stay
+visible in receipts for provenance.
+
 ### Modern resume authority
 
 After acquiring the state lease, an identity-bound integrated start writes a
@@ -199,6 +208,17 @@ completion cannot be proven transactionally. The sealed in-flight intent is
 recorded as `abandoned_after_crash`, never `ran`; retry remains a separate
 operator authorization. V1 guarantees non-overlapping starts and ledger
 serialization, not exactly-once effects in an external provider.
+
+Design approval output uses a separate state-bound publication transaction.
+The four files are written to a private staging directory, bound by name,
+length, digest, receipt digest, destination, and one transaction digest in
+`pending_finalization`, and checkpointed before the directory rename. Recovery
+or resume may finish only when exactly one of the bound staging or published
+directories exists and every regular file still matches. It rejects two
+directories, missing files, symlinks, changed bytes, redirected destinations,
+or an unbound legacy output directory. The transaction prevents a crash after
+publication from causing a duplicate publication or an unverifiable output
+adoption; it does not turn old orphan output into current authority.
 
 Parent/slice lineage treats filesystem aliases as hostile input. Receipt and
 route paths are canonicalized, symlink components inside the controlled
@@ -402,6 +422,7 @@ the project risk or accessibility contract demands it.
 | `artifact:read` | Adapter may receive local artifact paths and review them | Required by executable adapters |
 | `evidence:write` | Adapter may create files in its assigned evidence directory | Accepted evidence cannot escape that directory |
 | `browser:control` | Adapter may drive a browser harness | Required only by `browser-json-v1` |
+| `reference-evidence:read` | An independent design reviewer may receive the exact digest-bound source captures needed for the two approved anti-copy checks | Reference-backed creator and browser packets explicitly forbid it; this is a protocol grant, not an OS sandbox |
 | `network:external` | Operator acknowledges that the adapter may send data outside the machine | Declaration only; enforce isolation outside this process |
 
 Provider permissions must be a subset of the manifest's granted permissions.
@@ -411,7 +432,7 @@ Browser execution cannot be disguised as a generic agent adapter.
 
 | Threat | Control |
 |---|---|
-| Child critic is presented as the selected workflow | Digest-bound parent identity stays KillSlopRouter; child provider metadata is internal-only and presentation regressions cover correction and resume wording |
+| Child critic is presented as the selected workflow | Digest-bound parent identity stays KillSlopRouter; exact English, namespaced, separator, full-width, and Korean parent aliases are forbidden as provider, result actor, Owner, or visual authority. Child provider metadata is internal-only and presentation regressions cover correction and resume wording. |
 | Forged plugin or legacy-shim marker claims the parent identity | Canonical readiness requires trusted payload/runtime/skill digests and a deterministic marker with no self-asserted provenance fields; legacy readiness additionally binds the exact shim and shaped backup to the actually installed canonical marker/payload/runtime/skill digests. Orphaned or self-consistent arbitrary markers remain conflicts. |
 | Legacy local router wins catalog precedence | Installer and doctor detect the duplicate; only an explicit backup-bound, implicit-disabled shim migration clears the conflict |
 | State is re-signed with another parent before resume | Step receipts, audit, packets, approval, and migration receipt must all match the same identity before another child runs |
@@ -454,13 +475,35 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Missing direction silently becomes one fashionable house style | Missing direction has no creator fallback; the design workflow requires three project-specific theses across three redesign depths and an owner shortlist |
 | Nine candidates are cosmetic variants of one template | The brief binds distinct theses, subject worlds, signature elements, anti-references, and baseline rules; the independent comparison scores distinctiveness and project fit |
 | Popularity turns one fashionable screen into a universal answer | Eligibility and product-fit band are evaluated first; weighted popularity orders only references inside the same band and cannot override hard gates or owner authority |
-| UI Bowl screenshot or source asset becomes a clone prompt | Reviewer evidence retains the capture; the compiled pack strips capture paths and pixels, contains transferable grammar only, and remains `discovery-evidence-only` |
+| Popularity becomes a hard sampling quota | Required coverage cohorts describe reasoning value (`task-fit`, `cross-domain`, `competent-baseline`), never reach or bookmarks; popularity remains optional rank metadata |
+| Two UI Bowl records report incompatible popularity | Every signal binds product-or-screen subject kind, subject record ID, scope, metric, snapshot time, and evidence; declared conflicts cannot be critic-verified and rank last inside the fit band without changing eligibility |
+| One product-level popularity claim is repeated across several screen records to inflate weight | Repeated product-subject signals must be canonically identical across those screens or explicitly conflicted; KSR treats the claim as shared provenance rather than independent votes |
+| Provider inflates product-fit or normalized popularity numbers | KSR deterministically recomputes fit score/band from six fixed dimensions and normalized popularity from brief-fixed scope/category/bounds/metric direction before ranking |
+| Manual discovery invents a product, screen, frame, URI, popularity record, or evidence file | KSR schema-validates the digest-bound export manifest and requires exact membership for every returned record and source-evidence file before accepting discovery; evidence paths stay inside the manifest directory and their bytes, declared content kind, digest, and physical identity are pinned |
+| Evidence from one product, screen, frame, or popularity subject is relabelled as another | Every evidence record remains closed over its enclosing product and screen, enumerated frames, and explicit subject bindings; observations require the bound screen/frame and popularity records require evidence carrying the exact product-or-screen subject |
+| A visually close reference with material cloning risk reaches Owner selection | Only independently verified `copy_risk: low` references are eligible; medium or high risk cannot be rescued by fit, popularity, or an otherwise clean review |
+| Promotional splash art is mistaken for product hierarchy | Promotional and single/no-task screen families are weak evidence; they cannot verify operational hierarchy, navigation, comparison, evidence, interaction, or responsive grammar, and their eligible corpus ratio is capped |
+| UI Bowl screenshot or source asset becomes a clone prompt | Internal reference evidence may retain the authorized capture. The full pack retains source identities, links, verified text observations, reasoning, grammar, and only a path-free digest/kind manifest for source material; it strips capture paths, encoded bytes, inline images, and pixels and remains `discovery-evidence-only`. A separate creator-safe projection strips source identities and observations as well |
+| One source screen is relabelled as several products | Canonical source URL and screen record identity must be unique; product/category/ecosystem counts are normalized, critic-verified, and Owner support crosses product, category, and ecosystem boundaries |
+| A generic principle hides arbitrary aesthetic preference | Every grammar item binds visible priority to a user decision, likely constraint, flattening consequence, application conditions, tradeoff, harmful context, and anti-copy boundary; the critic verifies every cited ID |
+| Bundled reasoning lenses silently become visual authority | The registry is copied into the state and digest/physical-identity bound as `non-authoritative-research-aid`; state and packets preserve that scope and the downstream pack explicitly denies authority |
+| A malformed, cross-target, changed, or detached reference pack injects creator direction | The optional design bridge runs the shared strict pack validator, checks file/internal digests and physical identity, current registry, exact project/surface/screen/product frame, evidence graph, anti-copy text, fixed checks, false authority flags, pixel exclusion, the exact completed producer state/output/result/selection lineage, and the explicit version-1 `reviewer_source_access` contract before any creator packet is emitted |
+| Metadata-only research completion is mistaken for design readiness | The pack separately records router-recomputed `reviewer_source_capture_readiness`; only `ready_at_compilation` with every selected reference and verified observation frame covered can enter design, while `manual_pending` remains a valid research outcome and is revalidated at design start |
+| Reviewer-only source pixels leak into a creator or browser child | The brief limits access to `digest-bound-internal-critic`, the two named firewall/composition purposes, and `source-capture`; redistribution, creator, browser, and network flags are false. Only an `independent-reviewer` packet may carry `review_source_authority` and require `reference-evidence:read`. Creator/browser packets forbid that permission, omit the authority, and keep `source_pixels_exposed_to_downstream_creator: false`; actual source paths exist only in reviewer run artifacts |
+| A source-privileged reference participant is recycled as a creator or browser under a later run | `review_source_authority` binds sorted unique source-recipient provider IDs from accepted results and all executable attempts, including failed attempts, plus actor IDs from accepted normalized results. The consuming design run rejects their reuse as direction/color creators or browser participants before state creation or result acceptance; independent reviewer reuse remains allowed |
+| A source-recipient provider is renamed or its adapter is replaced to evade cross-run separation | The derived reviewer authority binds a canonical per-attempt execution lineage: provider, adapter and declaration, execution authority, and entrypoint content, physical-identity, and graph digests. KSR re-derives it from the producer state; an entirely manual run records no executable attempts rather than synthetic authority |
+| Source identities or composition become a clone prompt | KSR gives creators only aliased causal reasoning and transferable grammar, strips source names/URLs/observations/pixels, forbids external network access for every reference-carrying design participant, requires low copy risk, and rejects affirmative source-composition reuse. Reviewer source captures are aliased and digest-bound through `capture_set_digest` and cannot be forwarded to a creator |
+| Final design provenance republishes reviewer source paths | The final binding keeps only `review_source_capture_set_digest` and the direction/color source-composition-analysis digests; source paths and pixels remain outside the decision and profile bindings |
+| A design creator ignores the reference reasoning | When a pack is bound, each selected dimension needs an applied or target-specific not-applicable trace preserving the exact grammar-to-causal edge; each independent direction/color review must disposition its stage checks and bind `reference-capture-set` to `reference-authority/source-capture-set` and `source-composition-analysis` to a schema-valid `review-evidence/source-composition-analysis`, in addition to every other required typed artifact |
+| Critic verifies grammar but not its source observations | Verified fit, inference, hierarchy reasoning, and grammar must close over critic-verified source observations and source-evidence IDs; the pack retains a path-free, frame-bound digest manifest needed to audit that graph |
+| English-first evidence is silently transferred to Korean UI | Every reference records locale, grammar declares transferability and risk for all target locales, coverage requires direct target-locale evidence, and later font/browser gates remain mandatory |
 | Reference researcher approves its own interpretation | Discovery, grammar, and critic providers are distinct; returned critic actor cannot equal either research actor; the real owner still selects the anchor, supports, and grammar |
 | Researcher labels inflate component or pattern coverage | Coverage counts only source-declared component families and patterns explicitly repeated by the independent critic; an undeclared critic claim blocks the result |
 | Reference recovery repeats a completed researcher child | A post-child checkpoint must exactly match packet, provider, attempt, packet digest, and result digest; recovery records one idempotent receipt and resume skips the immutable result |
 | A local process re-seals reference state during a stale lease | Recovery accepts only the current or pending state digest already bound by that lease; another internally consistent digest remains a conflict |
+| A host manifest or adapter is replaced after an automated reference/design child ran | Each automated attempt retains the exact host-manifest and provider-declaration digest plus the adapter entrypoint's content, physical identity, and module graph; reference attempts additionally bind a pinned authority sidecar. Read/resume reverify that historical grant, and a legacy automated attempt without it must restart rather than be backfilled from current files |
 | A caller-supplied result points KSR at unrelated local files | Manual evidence must remain under the submitted result file's directory and is opened through the same caller-owned, single-link pinned-descriptor boundary |
-| Unverified scraper or MCP silently gains network access | Manual export is the default; automated retrieval requires an allowlisted digest-locked adapter plus explicit `network:external` permission and verified rights/retention scope |
+| Manual-export research silently reaches the network | At least one caller-owned export manifest is schema-valid and digest/membership-bound; discovery explicitly forbids `network:external`, grammar/review and downstream reference-carrying design participants always forbid it, and automated retrieval requires the separate allowlisted read-only mode plus explicit permission and verified rights/retention scope |
 | Reference research silently replaces the canonical design route | The pack explicitly grants no visual intent/signature authority and records that the exact-three 3×3 route, Playwright, and owner gates remain unchanged |
 | Design creator supplies its own screenshots or review | Candidate, browser, comparison, and owner actor identities are checked separately; self-review and self-approval block |
 | Color generator asserts fabricated accessibility ratios | The router recomputes contrast from normalized sRGB roles and requires non-color meaning before color review or approval |
@@ -506,6 +549,14 @@ Browser execution cannot be disguised as a generic agent adapter.
 | Automation output mutates a directory artifact | Nested state is rejected unless it is under the ignored `.killsloprouter/` boundary |
 | Approval reuse | Approval must match the run ID, journey identity, and exact approval-scope digest |
 | Privacy or authority bypass | Required locale, domain, privacy, browser, and owner packets remain required |
+
+The strict pack validator proves internal consistency, current bundled-registry
+binding, and unchanged caller-supplied bytes. It does not authenticate an
+adversary who controls the reference results, Owner selection, design brief,
+pack file, and caller-retained digests together. That remains outside V1's
+local integrity model. The pack is therefore never visual authority, and fresh
+independent design review, Playwright evidence, and Owner approval remain
+mandatory even when every reference check passes.
 
 ## Integrity limitations
 

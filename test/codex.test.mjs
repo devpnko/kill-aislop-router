@@ -696,7 +696,16 @@ test("Codex artifact mutation is detected after nested execution and before resu
     const attempt = state.attempts.find((candidate) => candidate.provider_id === "project-contract");
     assert.equal(attempt.execution_status, "blocked_execution_error");
     assert.equal(attempt.ingest_status, "not-recorded");
-    assert.match(attempt.error, /artifact digest changed after Codex execution/);
+    assert.equal(attempt.result_path, null);
+    assert.ok(Number.isInteger(attempt.child_pid) && attempt.child_pid > 0,
+      "post-child artifact tamper must preserve the adapter child PID");
+    assert.equal(attempt.exit_code, 1);
+    assert.equal(attempt.signal, null);
+    assert.ok(Number.isFinite(Date.parse(attempt.started_at)));
+    assert.ok(Number.isFinite(Date.parse(attempt.finished_at)));
+    assert.ok(Date.parse(attempt.finished_at) >= Date.parse(attempt.started_at));
+    assert.match(attempt.error,
+      /host run artifact 1 changed after child execution before result ingest \(digest-mismatch\)/);
   } finally {
     cleanup(fixture);
   }

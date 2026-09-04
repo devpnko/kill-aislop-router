@@ -20,8 +20,26 @@
     "selected_color_candidate_id": {"type": "string", "minLength": 1},
     "source_digests": {
       "type": "object",
-      "minProperties": 11,
-      "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      "required": [
+        "brief", "baseline", "direction_result", "direction_browser", "direction_review",
+        "color_result", "color_browser", "color_review", "shortlist", "owner_decision",
+        "approval_scope"
+      ],
+      "properties": {
+        "brief": {"$ref": "#/$defs/digest"},
+        "baseline": {"$ref": "#/$defs/digest"},
+        "direction_result": {"$ref": "#/$defs/digest"},
+        "direction_browser": {"$ref": "#/$defs/digest"},
+        "direction_review": {"$ref": "#/$defs/digest"},
+        "color_result": {"$ref": "#/$defs/digest"},
+        "color_browser": {"$ref": "#/$defs/digest"},
+        "color_review": {"$ref": "#/$defs/digest"},
+        "shortlist": {"$ref": "#/$defs/digest"},
+        "owner_decision": {"$ref": "#/$defs/digest"},
+        "approval_scope": {"$ref": "#/$defs/digest"},
+        "reference_pack": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
     },
     "source_bindings": {
       "type": "object",
@@ -39,6 +57,7 @@
       },
       "additionalProperties": false
     },
+    "reference_intelligence_binding": {"$ref": "#/$defs/reference-intelligence-binding"},
     "intent": {"type": "object"},
     "signature": {"type": "object"},
     "color_system": {"type": "object"},
@@ -63,9 +82,76 @@
         {"type": "null"}
       ]
     },
+    "reference-trace": {
+      "type": "object",
+      "required": ["candidate_id", "trace_ids", "trace_digest", "grammar_ids", "reasoning_ids"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "trace_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/digest"}
+        },
+        "trace_digest": {"$ref": "#/$defs/digest"},
+        "grammar_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "reasoning_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "reference-intelligence-binding": {
+      "type": "object",
+      "required": [
+        "reference_intelligence_binding_version", "authority_scope", "visual_authority_granted",
+        "planning_target_id", "product_frame_digest", "pack_digest", "reference_pack_source_digest",
+        "producer_run_id", "producer_state_digest", "producer_state_file_digest",
+        "producer_selection_digest", "producer_result_digests",
+        "reasoning_registry_digest", "selected_direction_trace", "selected_color_trace",
+        "review_source_capture_set_digest", "direction_review_result_digest",
+        "color_review_result_digest", "direction_source_composition_analysis_digest",
+        "color_source_composition_analysis_digest", "binding_digest"
+      ],
+      "properties": {
+        "reference_intelligence_binding_version": {"const": 1},
+        "authority_scope": {"const": "discovery-evidence-only"},
+        "visual_authority_granted": {"const": false},
+        "planning_target_id": {"type": "string", "minLength": 1},
+        "product_frame_digest": {"$ref": "#/$defs/digest"},
+        "pack_digest": {"$ref": "#/$defs/digest"},
+        "reference_pack_source_digest": {"$ref": "#/$defs/digest"},
+        "producer_run_id": {"type": "string", "minLength": 1},
+        "producer_state_digest": {"$ref": "#/$defs/digest"},
+        "producer_state_file_digest": {"$ref": "#/$defs/digest"},
+        "producer_selection_digest": {"$ref": "#/$defs/digest"},
+        "producer_result_digests": {
+          "type": "object",
+          "required": ["reference-discovery", "reference-grammar", "reference-review"],
+          "properties": {
+            "reference-discovery": {"$ref": "#/$defs/digest"},
+            "reference-grammar": {"$ref": "#/$defs/digest"},
+            "reference-review": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        },
+        "reasoning_registry_digest": {"$ref": "#/$defs/digest"},
+        "selected_direction_trace": {"$ref": "#/$defs/reference-trace"},
+        "selected_color_trace": {"$ref": "#/$defs/reference-trace"},
+        "direction_review_result_digest": {"$ref": "#/$defs/digest"},
+        "color_review_result_digest": {"$ref": "#/$defs/digest"},
+        "review_source_capture_set_digest": {"$ref": "#/$defs/digest"},
+        "direction_source_composition_analysis_digest": {"$ref": "#/$defs/digest"},
+        "color_source_composition_analysis_digest": {"$ref": "#/$defs/digest"},
+        "binding_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
     "binding": {
       "type": "object",
-      "required": ["provider_id", "participant", "actor_id", "packet_digest", "result_digest", "result_source_digest", "evidence", "execution"],
+      "required": ["provider_id", "participant", "actor_id", "packet_digest", "result_digest", "result_source_digest", "fields", "evidence", "execution"],
       "properties": {
         "provider_id": {"type": "string", "minLength": 1},
         "participant": {"$ref": "participant.schema.json"},
@@ -73,17 +159,27 @@
         "packet_digest": {"$ref": "#/$defs/digest"},
         "result_digest": {"$ref": "#/$defs/digest"},
         "result_source_digest": {"$ref": "#/$defs/digest"},
+        "fields": {
+          "type": "object",
+          "properties": {
+            "rationale": {"$ref": "#/$defs/digest"},
+            "reference_reasoning_trace": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        },
         "evidence": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["kind", "digest", "viewport", "state"],
+            "required": ["kind", "digest", "viewport", "state", "checks", "contract_roles"],
             "properties": {
               "kind": {"type": "string", "minLength": 1},
               "digest": {"$ref": "#/$defs/digest"},
               "viewport": {"type": ["string", "null"]},
-              "state": {"type": ["string", "null"]}
+              "state": {"type": ["string", "null"]},
+              "checks": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+              "contract_roles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
             },
             "additionalProperties": false
           }
