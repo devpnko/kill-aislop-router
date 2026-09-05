@@ -350,6 +350,8 @@ uncached `manual_pending` result. The official adapter and outer execution
 boundary never publish nested Codex stdout/stderr or JSON parser input on an
 abnormal version or review-exec path; they record fixed errors, and thread
 identifiers must satisfy a bounded safe pattern before entering provenance.
+Successful version output is stored only as a canonical numeric version tuple;
+pre-release and build suffixes are not retained.
 
 Manifest validation does not create a private runtime copy per provider. It
 checks the configured source identities and caches only the resulting readiness

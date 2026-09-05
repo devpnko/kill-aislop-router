@@ -1011,10 +1011,51 @@ test("Codex runtime version failures never publish nested runtime diagnostics", 
       cleanup(fixture);
     }
   }
+
+  const fixture = projectFixture();
+  const authPath = path.join(fixture.authHome, "auth.json");
+  const authDigest = hashArtifact(authPath);
+  const authContents = fs.readFileSync(authPath, "utf8").trim();
+  const encodedAuthority = Buffer.from(
+    `${authPath}\n${authDigest}\n${authContents}`,
+    "utf8"
+  ).toString("base64url");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    version: `codex-cli 0.144.1+${encodedAuthority}`
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const receipt = JSON.parse(configured.stdout);
+    assert.equal(receipt.runtime.version, "codex-cli 0.144.1");
+    const host = JSON.parse(fs.readFileSync(fixture.host, "utf8"));
+    assert.equal(
+      host.providers["project-contract"].settings.runtime_version,
+      "codex-cli 0.144.1"
+    );
+    const publicOutputs = [
+      configured.stdout,
+      configured.stderr,
+      readTextTree(fixture.config)
+    ].join("\n");
+    assert.equal(publicOutputs.includes(encodedAuthority), false);
+    assert.equal(publicOutputs.includes(authPath), false);
+    assert.equal(publicOutputs.includes(authDigest), false);
+    assert.equal(publicOutputs.includes(authContents), false);
+  } finally {
+    cleanup(fixture);
+  }
 });
 
 test("post-review credential cleanup failure stays manual_pending and path-free", {
-  timeout: 120_000
+  timeout: 120_000,
+  skip: process.platform === "win32" ||
+    (typeof process.geteuid === "function" && process.geteuid() === 0)
+    ? "requires POSIX permission enforcement by a non-root test process"
+    : false
 }, () => {
   const fixture = projectFixture();
   const cleanupObservation = path.join(fixture.directory, "post-review-cleanup-home.txt");
@@ -1033,9 +1074,11 @@ test("post-review credential cleanup failure stays manual_pending and path-free"
     assert.equal(configured.status, 0, configured.stderr || configured.stdout);
 
     const started = runCli(startArgs(fixture), fixture.directory);
+    if (fs.existsSync(cleanupObservation)) {
+      retainedHome = fs.readFileSync(cleanupObservation, "utf8").trim();
+    }
     assert.equal(started.status, 6, started.stderr || started.stdout);
-    retainedHome = fs.readFileSync(cleanupObservation, "utf8").trim();
-    assert.ok(retainedHome.length > 0);
+    assert.ok(retainedHome?.length > 0);
     assert.equal(fs.existsSync(retainedHome), true);
 
     const state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));

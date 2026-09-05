@@ -542,7 +542,7 @@ function runtimeVersion(runtimePath) {
   const version = match.slice(1, 4).map(Number);
   requireValue(versionAtLeast(version, MIN_CODEX_VERSION),
     `Codex runtime is older than required codex-cli ${MIN_CODEX_VERSION.join(".")}`, 4);
-  return value;
+  return `codex-cli ${version.join(".")}`;
 }
 
 function authenticationProbeSnapshot() {
