@@ -509,14 +509,46 @@ function runtimeVersion(runtimePath) {
   return value;
 }
 
+function authenticationProbeIdentity() {
+  const authPath = path.join(sourceCodexHome(), "auth.json");
+  let stat;
+  try {
+    stat = fs.lstatSync(authPath, { bigint: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return canonicalDigest({
+        codex_auth_probe_identity_version: 1,
+        path: authPath,
+        state: "missing"
+      });
+    }
+    throw error;
+  }
+  return canonicalDigest({
+    codex_auth_probe_identity_version: 1,
+    path: authPath,
+    state: stat.isFile() && !stat.isSymbolicLink() ? "regular-file" : "unsupported",
+    device: String(stat.dev),
+    inode: String(stat.ino),
+    links: String(stat.nlink),
+    mode: String(stat.mode),
+    size: String(stat.size),
+    mtime_ns: String(stat.mtimeNs),
+    ctime_ns: String(stat.ctimeNs)
+  });
+}
+
 function probeRuntime(runtimePath, runtimeAuthorityDigest) {
-  const cacheKey = `${runtimeAuthorityDigest}\n${process.env.CODEX_HOME || "<default>"}`;
+  const authIdentityBefore = authenticationProbeIdentity();
+  const cacheKey = `${runtimeAuthorityDigest}\n${authIdentityBefore}`;
   if (runtimeProbeCache.has(cacheKey)) return runtimeProbeCache.get(cacheKey);
   const version = runtimeVersion(runtimePath);
   const isolated = createIsolatedCodexHome();
   if (isolated.status !== "ready") {
     const result = { version, authenticated: false, auth_reason: isolated.reason };
-    runtimeProbeCache.set(cacheKey, result);
+    if (authenticationProbeIdentity() === authIdentityBefore) {
+      runtimeProbeCache.set(cacheKey, result);
+    }
     return result;
   }
   let auth;
@@ -540,6 +572,14 @@ function probeRuntime(runtimePath, runtimeAuthorityDigest) {
       ? null
       : auth.error?.message || auth.stderr?.trim() || auth.stdout?.trim() || "Codex authentication is unavailable"
   };
+  const authIdentityAfter = authenticationProbeIdentity();
+  if (authIdentityAfter !== authIdentityBefore) {
+    return {
+      version,
+      authenticated: false,
+      auth_reason: "Codex authentication authority changed during the readiness probe"
+    };
+  }
   runtimeProbeCache.set(cacheKey, result);
   return result;
 }

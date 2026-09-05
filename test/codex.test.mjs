@@ -601,6 +601,23 @@ test("live Codex authentication changes are re-evaluated without weakening manif
     assert.equal(stillUnavailable.execution_status, "manual_pending");
     assert.match(stillUnavailable.reason, /Codex authentication is unavailable/);
 
+    fs.rmSync(path.join(fixture.authHome, "auth.json"));
+    const missingAtSamePath = loadFixtureManifest(fixture);
+    assert.equal(
+      missingAtSamePath.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.match(
+      missingAtSamePath.providers["project-contract"].official_codex.readiness.reason,
+      /auth\.json is missing/
+    );
+    fs.writeFileSync(path.join(fixture.authHome, "auth.json"), "{\"fixture\":true}\n", { mode: 0o600 });
+    const restoredAtSamePath = loadFixtureManifest(fixture);
+    assert.equal(
+      restoredAtSamePath.providers["project-contract"].official_codex.readiness.status,
+      "ready"
+    );
+
     authenticatedManifest.providers["project-contract"].capabilities.push("forged-capability");
     assert.throws(
       () => withCodexHome(noAuthHome, () =>
