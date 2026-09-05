@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { canonicalDigest, hashArtifact, writeJsonAtomic } from "./integrity.mjs";
+import {
+  canonicalDigest,
+  hashArtifact,
+  readFilePinned,
+  writeJsonAtomic
+} from "./integrity.mjs";
 import { RouterError, readJson, validateProfile } from "./router.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 
@@ -524,17 +529,36 @@ function authenticationProbeIdentity() {
     }
     throw error;
   }
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    return canonicalDigest({
+      codex_auth_probe_identity_version: 1,
+      path: authPath,
+      state: "unsupported",
+      device: String(stat.dev),
+      inode: String(stat.ino),
+      links: String(stat.nlink),
+      mode: String(stat.mode),
+      size: String(stat.size),
+      mtime_ns: String(stat.mtimeNs),
+      ctime_ns: String(stat.ctimeNs)
+    });
+  }
+  const pinned = readFilePinned(authPath, {
+    label: "Codex authentication readiness source",
+    requireCallerOwned: false,
+    requireSingleLink: false
+  });
   return canonicalDigest({
     codex_auth_probe_identity_version: 1,
     path: authPath,
-    state: stat.isFile() && !stat.isSymbolicLink() ? "regular-file" : "unsupported",
-    device: String(stat.dev),
-    inode: String(stat.ino),
-    links: String(stat.nlink),
-    mode: String(stat.mode),
-    size: String(stat.size),
-    mtime_ns: String(stat.mtimeNs),
-    ctime_ns: String(stat.ctimeNs)
+    state: "regular-file",
+    content_digest: pinned.digest,
+    device: pinned.file_identity.device,
+    inode: pinned.file_identity.inode,
+    owner_uid: pinned.file_identity.owner_uid,
+    mode: String(pinned.file_identity.mode),
+    size: pinned.file_identity.size,
+    mtime_ns: pinned.file_identity.mtime_ns
   });
 }
 

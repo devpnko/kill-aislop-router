@@ -41,13 +41,18 @@ if (args[0] === "--version") {
 if (args[0] === "login" && args[1] === "status") {
   requireIsolatedHome();
   let authenticated = mode.authenticated !== false;
+  let authProbeCount = null;
   if (mode.auth_counter_path) {
     const count = fs.existsSync(mode.auth_counter_path)
       ? Number(fs.readFileSync(mode.auth_counter_path, "utf8"))
       : 0;
     const next = count + 1;
     fs.writeFileSync(mode.auth_counter_path, `${next}\n`);
+    authProbeCount = next;
     authenticated = next <= (mode.auth_successes ?? 0);
+  }
+  if (authProbeCount === mode.mutate_auth_on_status_call) {
+    fs.appendFileSync(path.join(process.env.CODEX_HOME, "auth.json"), " \n");
   }
   if (!authenticated) {
     process.stderr.write("Not logged in\n");

@@ -629,6 +629,70 @@ test("live Codex authentication changes are re-evaluated without weakening manif
   }
 });
 
+test("hardlink auth isolation does not masquerade as credential mutation", () => {
+  const fixture = projectFixture();
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const originalSymlink = fs.symlinkSync;
+    let manifest;
+    fs.symlinkSync = () => {
+      const error = new Error("forced symlink isolation failure");
+      error.code = "EPERM";
+      throw error;
+    };
+    try {
+      manifest = loadFixtureManifest(fixture);
+    } finally {
+      fs.symlinkSync = originalSymlink;
+    }
+    assert.equal(
+      manifest.providers["project-contract"].official_codex.readiness.status,
+      "ready"
+    );
+    assert.equal(fs.statSync(path.join(fixture.authHome, "auth.json")).nlink, 1);
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("authentication mutation during the readiness probe fails closed without poisoning the cache", () => {
+  const fixture = projectFixture();
+  const authCounter = path.join(fixture.directory, "auth-probe-count.txt");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_counter_path: authCounter,
+    auth_successes: 10,
+    mutate_auth_on_status_call: 2
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "1");
+
+    const changedDuringProbe = loadFixtureManifest(fixture);
+    assert.equal(
+      changedDuringProbe.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.match(
+      changedDuringProbe.providers["project-contract"].official_codex.readiness.reason,
+      /authentication authority changed during the readiness probe/
+    );
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+
+    const recovered = loadFixtureManifest(fixture);
+    assert.equal(recovered.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+    const cached = loadFixtureManifest(fixture);
+    assert.equal(cached.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
 test("Codex reviewer output cannot claim completion with a partial capability set", () => {
   const fixture = projectFixture({
     runtimeMode: {
