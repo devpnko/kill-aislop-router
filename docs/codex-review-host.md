@@ -92,10 +92,13 @@ bound to the exact runtime and invocation rather than remote model attestation.
 
 The router requires `--allow-external` because a Codex review can transmit
 artifact content to the configured model service. It adds
-`network:external` only to the separate host manifest. No API key, access
-token, auth file contents, or credential-store path is copied into the profile,
-manifest, request, result, setup receipt, or audit receipt. Authentication stays
-in the Codex runtime's normal host store.
+`network:external` only to the separate host manifest. KillSlopRouter does not
+serialize an API key, access token, auth file contents, or credential-store path
+into the profile, manifest, host-request fields, setup receipt, audit receipt,
+or abnormal diagnostics. Authentication stays in the Codex runtime's normal
+host store. A successful structured review is untrusted model-authored output,
+not a confidentiality scrubber; use the OS isolation boundary below when other
+host-readable data is in scope.
 
 After configuration, rerun the normal readiness and lifecycle commands:
 
