@@ -145,6 +145,61 @@ function plan(input, selectedProfile) {
   });
 }
 
+function planWithAuthorityMutation(suffix, {
+  intent = null,
+  signature = null
+} = {}) {
+  const fixtureIndex = routedProfileIndex += 1;
+  const routedProfile = materializeProfileReferences(
+    bindProfileSurface(profile, "operator-product-ui"),
+    fixtureIndex
+  );
+  const mutateReceipt = (kind, mutate) => {
+    if (!mutate) return;
+    const contracts = kind === "intent"
+      ? routedProfile.visual_intents
+      : routedProfile.visual_signatures;
+    const contract = contracts["operator-product-ui"];
+    const receiptPath = contract.authority_receipt;
+    const receipt = readJson(receiptPath, `${kind} authority receipt`);
+    const replaceOwner = (ownerMutator) => {
+      const evidence = receipt.evidence.find((item) => item.kind === "owner-approval");
+      assert.ok(evidence, `${kind} requires owner-approval evidence`);
+      const owner = readJson(evidence.path, `${kind} owner approval`);
+      ownerMutator(owner);
+      const ownerPath = path.join(
+        routedProfileDirectory,
+        `${fixtureIndex}.${suffix}.${kind}.owner.json`
+      );
+      fs.writeFileSync(ownerPath, `${JSON.stringify(owner, null, 2)}\n`);
+      evidence.path = ownerPath;
+      evidence.digest = hashArtifact(ownerPath);
+    };
+    mutate(receipt, replaceOwner);
+    fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+    contract.authority_digest = hashArtifact(receiptPath);
+  };
+  mutateReceipt("intent", intent);
+  mutateReceipt("signature", signature);
+  const routedProfilePath = path.join(
+    routedProfileDirectory,
+    `${fixtureIndex}.${suffix}.profile.json`
+  );
+  fs.writeFileSync(routedProfilePath, `${JSON.stringify(routedProfile, null, 2)}\n`);
+  return planRoute({
+    router,
+    profile: routedProfile,
+    input: {
+      surface: "operator-product-ui",
+      task: "redesign",
+      direction: "approved",
+      changes: ["style"]
+    },
+    routerPath,
+    profilePath: routedProfilePath
+  });
+}
+
 const operator = plan({
   surface: "operator-product-ui",
   task: "redesign",
@@ -405,6 +460,52 @@ const tamperedSignature = planRoute({
 });
 assert.equal(tamperedSignature.status, "blocked");
 assert.match(tamperedSignature.unresolved.join("\n"), /visual signature authority receipt digest changed/);
+
+const reservedIntentAuthority = planWithAuthorityMutation("reserved-intent-authority", {
+  intent(receipt) {
+    receipt.authority.authority_id = "KillSlopRouter";
+  }
+});
+assert.equal(reservedIntentAuthority.status, "blocked");
+assert.match(reservedIntentAuthority.unresolved.join("\n"),
+  /visual intent authority_id cannot use the KillSlopRouter parent identity/);
+
+const reservedSignatureAuthority = planWithAuthorityMutation("reserved-signature-authority", {
+  signature(receipt) {
+    receipt.authority.authority_id = "킬슬롭라우터";
+  }
+});
+assert.equal(reservedSignatureAuthority.status, "blocked");
+assert.match(reservedSignatureAuthority.unresolved.join("\n"),
+  /visual signature authority_id cannot use the KillSlopRouter parent identity/);
+
+const reservedIntentOwner = planWithAuthorityMutation("reserved-intent-owner", {
+  intent(_receipt, replaceOwner) {
+    replaceOwner((owner) => { owner.owner_id = "killsloprouter:kill-slop-router"; });
+  }
+});
+assert.equal(reservedIntentOwner.status, "blocked");
+assert.match(reservedIntentOwner.unresolved.join("\n"),
+  /owner_id cannot use the KillSlopRouter parent identity/);
+
+for (const [kind, mutators] of [
+  ["intent", {
+    intent(_receipt, replaceOwner) {
+      replaceOwner((owner) => { owner.owner_id = "different-real-owner"; });
+    }
+  }],
+  ["signature", {
+    signature(_receipt, replaceOwner) {
+      replaceOwner((owner) => { owner.owner_id = "different-real-owner"; });
+    }
+  }]
+]) {
+  const mismatchedOwner = planWithAuthorityMutation(`mismatched-${kind}-owner`, mutators);
+  assert.equal(mismatchedOwner.status, "blocked", kind);
+  assert.match(mismatchedOwner.unresolved.join("\n"),
+    new RegExp(`visual ${kind} owner-direction authority_id must exactly match every verified owner_id`),
+    kind);
+}
 
 const incompleteCoverageIndex = routedProfileIndex += 1;
 const incompleteCoverageProfile = materializeProfileReferences(

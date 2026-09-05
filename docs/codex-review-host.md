@@ -165,11 +165,31 @@ their own scopes.
 For each readiness probe and review, the wrapper creates a mode-`0700`
 temporary `CODEX_HOME` containing only a symlink or hard link to the host's
 regular, non-symlink `auth.json`. It sets both `HOME` and `CODEX_HOME` to that
-directory and removes it after the child exits. This keeps user config,
-installed skills, plugins, sessions, and unrelated Codex state out of the
-reviewer context without copying credential bytes into router artifacts or
-receipts. If the isolated auth link cannot be created, readiness remains
-`manual_pending`.
+directory and attempts to remove it after the child exits. This keeps user
+config, installed skills, plugins, sessions, and unrelated Codex state out of
+the reviewer context without copying credential bytes into router artifacts or
+receipts. If the isolated auth link cannot be created or the temporary view
+cannot be removed, readiness remains `manual_pending`. Authentication
+filesystem failures are reduced to stable, non-path-bearing readiness reasons;
+raw filesystem errors, auth content digests, and credential-store paths are not
+copied into setup output, host inspection, dry-run output, receipts, or stderr.
+
+Readiness cache identity includes pinned auth content plus stable file identity.
+Expected hard-link creation/removal metadata does not masquerade as credential
+mutation, while in-place byte changes and inode replacement invalidate the
+observation. Only a successful authenticated observation is cached; transient
+negative probes are retried. A change during the probe or unresolved temporary
+credential-view cleanup remains `manual_pending` and cannot become execution
+evidence.
+
+The nested runtime's raw stdout and stderr are never public error text. Version
+probe failures and unsupported output, review-exec non-zero exits,
+output-boundary failures, invalid JSONL, invalid structured review JSON, and
+unsafe thread identifiers become fixed errors before the outer execution ledger
+records them. A syntactically valid runtime version is reduced to its numeric
+`codex-cli major.minor.patch` tuple before it is stored. This prevents error or
+version strings from turning credential paths, auth digests, or input fragments
+into state, audit, receipt, or terminal output.
 
 The configured runtime has a separate execution seal. Configuration records
 both content digests and filesystem identity digests for the executable and
@@ -224,7 +244,11 @@ Codex runtime inside a container, VM, restricted CI worker, or dedicated OS
 account whose readable filesystem contains only the reviewed artifact and
 required tool/skill runtime. Remove secrets and unrelated personal data before
 granting `artifact:read` or `network:external`. This project does not provide a
-container boundary or authenticate remote model identity.
+container boundary or authenticate remote model identity. A hostile process
+running as the same OS user can race mutable host pathnames, including a
+momentary replace-and-restore of the auth pathname; that ABA threat requires
+the dedicated-account or container boundary above and is not claimed as an
+in-process guarantee.
 
 ## Upgrade and removal
 

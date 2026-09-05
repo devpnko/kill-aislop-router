@@ -37,7 +37,7 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": ["artifact:read", "evidence:write", "browser:control", "network:external"]
+        "enum": ["artifact:read", "evidence:write", "browser:control", "reference-evidence:read", "network:external"]
       }
     },
     "settings": {"type": "object"},

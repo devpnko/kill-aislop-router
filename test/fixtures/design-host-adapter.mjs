@@ -6,6 +6,7 @@ import {
   verifyPacketJourney,
   verifyParticipant
 } from "../../src/identity.mjs";
+import { canonicalDigest, hashArtifact } from "../../src/integrity.mjs";
 
 let source = "";
 for await (const chunk of process.stdin) source += chunk;
@@ -30,6 +31,10 @@ if (JSON.stringify(request.participant) !== JSON.stringify(packet.participant)) 
   throw new Error("design fixture participant conflicts with the packet");
 }
 
+if (settings.spawn_marker) {
+  fs.writeFileSync(settings.spawn_marker, `${packet.packet_id}\n`);
+}
+
 if ((settings.fail_attempts || []).includes(request.attempt)) {
   process.stderr.write(`design fixture failure on attempt ${request.attempt}\n`);
   process.exit(23);
@@ -38,6 +43,60 @@ if ((settings.fail_attempts || []).includes(request.attempt)) {
 function write(name, content) {
   fs.writeFileSync(path.join(request.output_directory, name), content);
   return name;
+}
+
+const designKind = packet.design_task.kind;
+const forbiddenPermissions = packet.forbidden_permissions || [];
+const sourceReviewer = designKind === "direction-review" || designKind === "color-review";
+const sourceArtifacts = request.artifacts.filter((item) =>
+  item.artifact_role === "reference-capture");
+if (packet.design_task.reference_intelligence ||
+  forbiddenPermissions.includes("reference-evidence:read")) {
+  const prior = request.prior_results;
+  const validPrior = (() => {
+    if (designKind === "direction-candidate") return prior.length === 0;
+    if (designKind === "browser-evidence") {
+      return prior.length === 1 && prior[0].kind === packet.design_task.subject_kind &&
+        prior[0].candidate_id === packet.design_task.subject_id;
+    }
+    if (designKind === "direction-review") {
+      return prior.length === packet.design_task.candidate_ids.length * 2 &&
+        prior.every((item) => item.kind === "direction-candidate" ||
+          item.kind === "browser-evidence" &&
+          item.subject_kind === "direction-candidate");
+    }
+    if (designKind === "color-candidate") {
+      return prior.length === 1 && prior[0].kind === "direction-candidate" &&
+        prior[0].candidate_id === packet.design_task.design_candidate_id;
+    }
+    if (designKind === "color-review") {
+      return prior.length === packet.design_task.candidate_ids.length * 2 &&
+        prior.every((item) => item.kind === "color-candidate" ||
+          item.kind === "browser-evidence" && item.subject_kind === "color-candidate");
+    }
+    return false;
+  })();
+  if (!validPrior || request.packets.length !== 1 ||
+    request.packets[0].packet_id !== packet.packet_id) {
+    throw new Error("reference-backed design request leaked unrelated packet or result state");
+  }
+}
+if (sourceReviewer && packet.design_task.reference_intelligence) {
+  const expected = packet.design_task.reference_intelligence
+    .review_source_authority.captures.map((item) => item.capture_alias).sort();
+  const actual = sourceArtifacts.map((item) => item.capture_alias).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected) ||
+    !request.permission_scopes.includes("reference-evidence:read") ||
+    request.permission_scopes.includes("network:external")) {
+    throw new Error("reference reviewer did not receive the exact bounded source authority");
+  }
+  if (settings.tamper_reference_capture) {
+    fs.appendFileSync(sourceArtifacts[0].resolved_path, "tampered by fixture\n");
+  }
+} else if (sourceArtifacts.length ||
+  forbiddenPermissions.includes("reference-evidence:read") &&
+    request.permission_scopes.includes("reference-evidence:read")) {
+  throw new Error("reference source captures leaked to a creator or browser participant");
 }
 
 const roles = {
@@ -133,11 +192,71 @@ function signature(task) {
   };
 }
 
+function referenceTrace(task, { color = false } = {}) {
+  if (!task.reference_intelligence || settings.omit_reference_trace) return undefined;
+  const dimensions = task.reference_intelligence.trace_dimensions;
+  const selected = settings.omit_trace_dimension ? dimensions.slice(0, -1) : dimensions;
+  return selected.map((dimension, index) => {
+    const grammar = task.reference_intelligence.transferable_grammar
+      .filter((item) => item.dimension === dimension);
+    const reasoningIds = [...new Set(grammar.flatMap((item) => item.reasoning_ids))];
+    if (settings.crosswire_reference_trace && index === 0) {
+      reasoningIds.splice(0, reasoningIds.length, "causal-unbound");
+    }
+    if (settings.not_applicable_dimension === dimension) {
+      return {
+        dimension,
+        disposition: "not-applicable",
+        target_rationale: `The ${dimension} grammar does not apply to this target candidate's bounded task and state model.`,
+        grammar_ids: grammar.map((item) => item.grammar_id),
+        reasoning_ids: reasoningIds
+      };
+    }
+    return {
+      dimension,
+      disposition: "applied",
+      target_rationale: `The target ${dimension} choice follows its own decision inventory and content bounds.`,
+      design_choice: color
+        ? "Assign target action, status, selection, and depth colors distinct jobs."
+        : `Apply ${dimension} to the target object's evidence and action hierarchy.`,
+      user_decision: color
+        ? "Recognize the safe target action and current state without relying on color alone."
+        : "Choose which target exception requires action before opening its proof.",
+      target_constraint: color
+        ? "Target semantic states and brand expression must coexist at accessible contrast."
+        : "High-trust target objects must remain comparable in a dense workspace.",
+      consequence_if_flattened: color
+        ? "One accent would ambiguously represent action, status, and decoration."
+        : "Target evidence, status, and action would compete at equal visual weight.",
+      grammar_ids: grammar.map((item) => item.grammar_id),
+      reasoning_ids: reasoningIds
+    };
+  });
+}
+
+function designContractEvidence(task, candidateId) {
+  if (!task.reference_intelligence) return null;
+  const contractRoles = [...task.reference_intelligence.required_contract_roles];
+  if (contractRoles.length === 0) return null;
+  if (settings.omit_contract_role) contractRoles.splice(0, 1);
+  const document = {
+    design_contract_evidence_version: 1,
+    candidate_id: candidateId,
+    contract_roles: contractRoles,
+    claims: Object.fromEntries(contractRoles.map((role) => [
+      role,
+      `${role} is derived from the target decision, state, data, and responsive contract.`
+    ]))
+  };
+  const target = write(`${candidateId}-design-contract.json`, JSON.stringify(document));
+  return { kind: "design-contract", path: target, contract_roles: contractRoles };
+}
+
 function directionResult() {
   const task = packet.design_task;
   const prototypeContent = settings.duplicate_prototype
-    ? "<!doctype html><title>duplicate</title><main>duplicate fixture prototype</main>"
-    : `<!doctype html><title>${task.candidate_id}</title><main>${task.candidate_id} fixture prototype</main>`;
+    ? "<!doctype html><html lang=\"en-US\"><head><meta name=\"viewport\" content=\"width=device-width\"><title>duplicate</title><style>body{color:#111827;background:#fff;font:16px sans-serif}button{padding:12px;color:#fff;background:#1d4ed8}</style></head><body><main><button>Review</button><p data-killsloprouter-locale=\"ko-KR\">검토</p><section data-killsloprouter-state=\"default selected loading empty error permission-denied\">duplicate fixture prototype</section></main></body></html>"
+    : `<!doctype html><html lang="en-US"><head><meta name="viewport" content="width=device-width"><title>${task.candidate_id}</title><style>body{color:#111827;background:#fff;font:16px sans-serif}main{padding:24px}button{padding:12px;color:#fff;background:#1d4ed8}</style></head><body><main><button>Review</button><p data-killsloprouter-locale="ko-KR">검토</p>${task.required_states.map((state) => `<section data-killsloprouter-state="${state}">${state}</section>`).join("")}<p>${task.candidate_id} fixture prototype</p></main></body></html>`;
   const prototype = write(`${task.candidate_id}.html`, prototypeContent);
   const candidateSignature = signature(task);
   const fontReportDocument = {
@@ -161,12 +280,17 @@ function directionResult() {
   if (settings.invalid_font_report) fontReportDocument.families[0].license.status = "unknown";
   const fontReport = write(`${task.candidate_id}-fonts.json`, JSON.stringify(fontReportDocument));
   const treatment = task.editorial_boundary.treatment;
+  const contractEvidence = designContractEvidence(task, task.candidate_id);
+  const trace = referenceTrace(task);
   return {
     design_result_version: 1,
     kind: "direction-candidate",
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
-    actor: { actor_id: `direction:${task.candidate_id}`, kind: "agent" },
+    actor: {
+      actor_id: settings.actor_id || `direction:${task.candidate_id}`,
+      kind: "agent"
+    },
     status: "completed",
     packet_digest: packet.packet_digest,
     candidate_id: task.candidate_id,
@@ -181,10 +305,14 @@ function directionResult() {
       avoid: [...task.baseline_policy.forbid]
     },
     signature: candidateSignature,
-    rationale: `${task.direction.thesis} at ${task.redesign_depth} depth`,
+    rationale: settings.copy_source_composition
+      ? "Copy the source screen layout and composition."
+      : `${task.direction.thesis} at ${task.redesign_depth} depth`,
+    ...(trace ? { reference_reasoning_trace: trace } : {}),
     evidence: [
       { kind: "prototype", path: prototype },
-      { kind: "font-report", path: fontReport }
+      { kind: "font-report", path: fontReport },
+      ...(contractEvidence ? [contractEvidence] : [])
     ]
   };
 }
@@ -205,7 +333,10 @@ function browserResult() {
     kind: "browser-evidence",
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
-    actor: { actor_id: `playwright:${task.subject_id}`, kind: "agent" },
+    actor: {
+      actor_id: settings.actor_id || `playwright:${task.subject_id}`,
+      kind: "agent"
+    },
     status: "completed",
     packet_digest: packet.packet_digest,
     candidate_id: task.subject_id,
@@ -224,19 +355,104 @@ function browserResult() {
 function reviewResult(kind) {
   const task = packet.design_task;
   const report = write(`${kind}.json`, JSON.stringify({ candidates: task.candidate_ids, pid: process.pid }));
+  const reportDigest = hashArtifact(path.join(request.output_directory, report));
   const direction = kind === "direction-review";
   const criteria = direction
     ? ["beauty_lift", "product_fit", "trust_clarity", "density_fit", "responsiveness", "implementation", "distinctiveness", "redesign_depth_fidelity", "typography_fit"]
     : ["project_fit", "harmony", "role_clarity", "contrast", "semantic_separation", "locale_resilience", "distinctiveness"];
   const firstCreator = request.prior_results.find((result) =>
     result.kind === (direction ? "direction-candidate" : "color-candidate"))?.actor.actor_id;
+  let sourceComposition = null;
+  let sourceCompositionDigest = null;
+  if (task.reference_intelligence && !settings.omit_source_composition_analysis) {
+    const captureAliases = task.reference_intelligence.review_source_authority
+      .captures.map((item) => item.capture_alias);
+    const sourceDocument = {
+      design_source_composition_analysis_version: 1,
+      stage: kind,
+      packet_digest: packet.packet_digest,
+      pack_digest: task.reference_intelligence.pack_digest,
+      producer_state_digest: task.reference_intelligence
+        .review_source_authority.producer_state_digest,
+      capture_set_digest: settings.wrong_capture_set_digest
+        ? `sha256:${"0".repeat(64)}`
+        : task.reference_intelligence.review_source_authority.capture_set_digest,
+      captures: settings.omit_capture_alias ? captureAliases.slice(0, -1) : captureAliases,
+      candidates: task.candidate_ids.map((candidateId) => ({
+        candidate_id: candidateId,
+        candidate_result_digest: task.candidate_bindings[candidateId].result_digest,
+        browser_result_digest: task.browser_bindings[candidateId].result_digest,
+        capture_aliases: captureAliases,
+        dimensions: [...task.reference_intelligence.trace_dimensions],
+        source_composition_independence:
+          settings.source_composition_verdict || "pass",
+        promotional_citation_firewall:
+          settings.promotional_firewall_verdict || "pass",
+        rationale: "Target composition and source captures were compared under the bounded critic authority.",
+        structural_differences: [
+          "The target decision order follows its own state and evidence model.",
+          "Target responsive grouping differs from every reviewed source capture."
+        ]
+      }))
+    };
+    sourceComposition = write(
+      `${kind}-source-composition.json`, JSON.stringify(sourceDocument)
+    );
+    sourceCompositionDigest = hashArtifact(
+      path.join(request.output_directory, sourceComposition)
+    );
+  }
+  function evidenceBinding(candidateId, role) {
+    const candidate = task.candidate_bindings[candidateId];
+    const browser = task.browser_bindings[candidateId];
+    let binding;
+    if (role === "candidate-rationale") {
+      binding = ["candidate-field", "rationale", candidate.fields.rationale];
+    } else if (role === "reference-reasoning-trace") {
+      binding = ["candidate-field", "reference-reasoning-trace",
+        candidate.fields.reference_reasoning_trace];
+    } else if (role === "prototype") {
+      const evidence = candidate.evidence.find((item) => item.kind === "prototype");
+      binding = ["candidate-evidence", "prototype", evidence.digest];
+    } else if (role === "review-report") {
+      binding = ["review-evidence", "review-report", reportDigest];
+    } else if (role === "browser-evidence") {
+      binding = ["browser-result", "result", browser.result_digest];
+    } else if (["state-evidence", "playwright-evidence", "contrast-report"].includes(role)) {
+      const evidence = browser.evidence.find((item) => item.kind === "test-report");
+      binding = ["browser-evidence", "test-report", evidence.digest];
+    } else if (role === "color-role-map") {
+      const evidence = candidate.evidence.find((item) => item.kind === "token-spec");
+      binding = ["candidate-evidence", "token-spec", evidence.digest];
+    } else if (role === "reference-capture-set") {
+      binding = ["reference-authority", "source-capture-set",
+        task.reference_intelligence.review_source_authority.capture_set_digest];
+    } else if (role === "source-composition-analysis") {
+      binding = ["review-evidence", "source-composition-analysis",
+        sourceCompositionDigest];
+    } else {
+      const evidence = candidate.evidence.find((item) =>
+        item.kind === "design-contract" && item.contract_roles.includes(role));
+      binding = ["candidate-evidence", "design-contract", evidence?.digest];
+    }
+    return {
+      evidence_role: role,
+      source_kind: binding[0],
+      evidence_kind: binding[1],
+      subject_id: candidateId,
+      digest: settings.misbind_required_evidence && role ===
+        task.reference_intelligence.design_check_contracts[0].required_evidence[0]
+        ? `sha256:${"0".repeat(64)}` : binding[2]
+    };
+  }
   return {
     design_result_version: 1,
     kind,
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
     actor: {
-      actor_id: settings.self_review ? firstCreator : `critic:${kind}`,
+      actor_id: settings.actor_id ||
+        (settings.self_review ? firstCreator : `critic:${kind}`),
       kind: "agent"
     },
     status: "completed",
@@ -250,8 +466,49 @@ function reviewResult(kind) {
       rationale: "fixture candidate clears the independent review threshold"
     })),
     ranking: [...task.candidate_ids],
-    blockers: [],
-    evidence: [{ kind: "review-report", path: report }]
+    blockers: [
+      ...(settings.failed_reference_check && !settings.omit_reference_failure_blocker
+        ? task.candidate_ids.map((candidateId) => ({
+          candidate_id: candidateId,
+          code: `reference-check-failed:${settings.failed_reference_check}`,
+          message: `fixture failure for ${settings.failed_reference_check}`,
+          hard: true
+        })) : []),
+      ...(["fail", "inconclusive"].includes(settings.source_composition_verdict)
+        ? task.candidate_ids.map((candidateId) => ({
+          candidate_id: candidateId,
+          code: "reference-check-failed:source-composition-independence",
+          message: "fixture source composition comparison did not pass",
+          hard: true
+        })) : []),
+      ...(["fail", "inconclusive"].includes(settings.promotional_firewall_verdict)
+        ? task.candidate_ids.map((candidateId) => ({
+          candidate_id: candidateId,
+          code: "reference-check-failed:promotional-citation-firewall",
+          message: "fixture promotional citation comparison did not pass",
+          hard: true
+        })) : [])
+    ],
+    ...(task.reference_intelligence && !settings.omit_reference_checks ? {
+      reference_checks: task.candidate_ids.map((candidateId) => ({
+        candidate_id: candidateId,
+        checks: task.reference_intelligence.design_check_contracts.map((contract) => ({
+          check_id: contract.check_id,
+          passed: contract.check_id !== settings.failed_reference_check,
+          evidence_bindings: contract.required_evidence
+            .filter((role, index) => !(settings.omit_required_evidence &&
+              contract === task.reference_intelligence.design_check_contracts[0] && index === 0))
+            .map((role) => evidenceBinding(candidateId, role))
+        })),
+        rationale: "The fixture reviewer traced every required human-design check to the candidate."
+      }))
+    } : {}),
+    evidence: [
+      { kind: "review-report", path: report },
+      ...(sourceComposition ? [{
+        kind: "source-composition-analysis", path: sourceComposition
+      }] : [])
+    ]
   };
 }
 
@@ -291,7 +548,7 @@ function colorResult() {
     { role: "neutral", stops: ["#F8FAFC", "#CBD5E1", "#94A3B8", "#475569", "#0F172A"] }
   ];
   const gamutTargets = ["srgb", "display-p3-progressive"];
-  const prototype = write(`${task.candidate_id}.html`, `<!doctype html><title>${task.candidate_id}</title><style>body{color:${candidateRoles.text_primary};background:${candidateRoles.canvas}}button{color:${candidateRoles.on_action};background:${candidateRoles.action_primary}}</style><main>${task.candidate_id} color fixture <button>Decide</button></main>`);
+  const prototype = write(`${task.candidate_id}.html`, `<!doctype html><html lang="en-US"><head><meta name="viewport" content="width=device-width"><title>${task.candidate_id}</title><style>body{color:${candidateRoles.text_primary};background:${candidateRoles.canvas};font:16px sans-serif}main{padding:24px}button{padding:12px;color:${candidateRoles.on_action};background:${candidateRoles.action_primary}}</style></head><body><main><p data-killsloprouter-locale="ko-KR">검토</p>${task.required_states.map((state) => `<section data-killsloprouter-state="${state}">${state}</section>`).join("")}<p>${task.candidate_id} color fixture</p><button>Decide</button></main></body></html>`);
   const tokenDocument = {
     design_token_spec_version: 1,
     color_space: task.color_strategy.color_space,
@@ -305,12 +562,17 @@ function colorResult() {
   };
   if (settings.token_mismatch) tokenDocument.tokens.canvas.value = "#000000";
   const tokenSpec = write(`${task.candidate_id}-tokens.json`, JSON.stringify(tokenDocument));
+  const contractEvidence = designContractEvidence(task, task.candidate_id);
+  const trace = referenceTrace(task, { color: true });
   return {
     design_result_version: 1,
     kind: "color-candidate",
     packet_id: packet.packet_id,
     provider_id: packet.provider.id,
-    actor: { actor_id: `color:${task.candidate_id}`, kind: "agent" },
+    actor: {
+      actor_id: settings.actor_id || `color:${task.candidate_id}`,
+      kind: "agent"
+    },
     status: "completed",
     packet_digest: packet.packet_digest,
     candidate_id: task.candidate_id,
@@ -328,9 +590,11 @@ function colorResult() {
       gamut_targets: gamutTargets
     },
     rationale: "fixture role palette preserves hierarchy and semantic separation",
+    ...(trace ? { reference_reasoning_trace: trace } : {}),
     evidence: [
       { kind: "prototype", path: prototype },
-      { kind: "token-spec", path: tokenSpec }
+      { kind: "token-spec", path: tokenSpec },
+      ...(contractEvidence ? [contractEvidence] : [])
     ]
   };
 }

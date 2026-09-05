@@ -16,7 +16,10 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The complete design/reference E2E intentionally exercises real child
+    # processes, Playwright, crash recovery, and exact 3x3 lifecycle replay.
+    # A clean Linux lane can exceed 20 minutes without being hung.
+    timeout-minutes: 60
     env:
       KSR_PLAYWRIGHT_CHANNEL: bundled
     strategy:
@@ -29,6 +32,10 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
+      # The npm 10 clients bundled with Node 20/22 still call the retired
+      # quick-audit endpoint. Pin one bulk-advisory client across both lanes.
+      - run: npm install --global npm@11.19.0
+      - run: npm --version
       - run: npm ci --ignore-scripts
       - run: npx playwright-core install --with-deps chromium
         timeout-minutes: 10

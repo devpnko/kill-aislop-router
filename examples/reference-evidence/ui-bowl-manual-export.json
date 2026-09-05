@@ -1,0 +1,141 @@
+{
+  "export_version": 1,
+  "provider": "uibowl",
+  "access_mode": "manual-export",
+  "captured_at": "2026-09-04T00:00:00.000Z",
+  "query_ids": ["comparison", "tabs", "sidebar", "evidence"],
+  "records": [
+    {
+      "product_record_id": "product-flowdesk",
+      "screen_record_id": "flowdesk-results",
+      "uri": "https://uibowl.io/reference/flowdesk-results",
+      "captured_at": "2026-09-04T00:00:00.000Z",
+      "query_ids": ["comparison", "tabs"],
+      "frames": [
+        {"frame_id": "flowdesk-primary", "role": "transactional", "core_task": true, "state": false},
+        {"frame_id": "flowdesk-state", "role": "state", "core_task": false, "state": true}
+      ],
+      "evidence_records": [
+        {
+          "evidence_id": "source-flowdesk",
+          "kind": "source-metadata",
+          "path": "flowdesk-source-metadata.json",
+          "digest": "sha256:6dceb9b7d3bad1d0e33af55c067f26fa142da7bf0a72d618d932cf7f326e97ac",
+          "frame_ids": ["flowdesk-primary", "flowdesk-state"],
+          "subject_bindings": [
+            {"subject_kind": "screen", "subject_record_id": "flowdesk-results"},
+            {"subject_kind": "product", "subject_record_id": "product-flowdesk"}
+          ]
+        }
+      ],
+      "popularity_records": [
+        {
+          "record_kind": "signal", "signal_id": "mau", "metric": "mau",
+          "subject_kind": "product", "subject_record_id": "product-flowdesk",
+          "raw_value": 91, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-flowdesk"]
+        },
+        {
+          "record_kind": "signal", "signal_id": "bookmarks", "metric": "bookmark-count",
+          "subject_kind": "screen", "subject_record_id": "flowdesk-results",
+          "raw_value": 88, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-flowdesk"]
+        }
+      ]
+    },
+    {
+      "product_record_id": "product-marketline",
+      "screen_record_id": "marketline-proof",
+      "uri": "https://uibowl.io/reference/marketline-proof",
+      "captured_at": "2026-09-04T00:00:00.000Z",
+      "query_ids": ["comparison", "evidence"],
+      "frames": [
+        {"frame_id": "marketline-primary", "role": "operational", "core_task": true, "state": false},
+        {"frame_id": "marketline-state", "role": "state", "core_task": false, "state": true}
+      ],
+      "evidence_records": [
+        {
+          "evidence_id": "source-marketline",
+          "kind": "source-metadata",
+          "path": "marketline-source-metadata.json",
+          "digest": "sha256:83b5c0cc285496e13e968a992761f98bbbf8584f970353d95c78e5fec1fc4a9a",
+          "frame_ids": ["marketline-primary", "marketline-state"],
+          "subject_bindings": [
+            {"subject_kind": "screen", "subject_record_id": "marketline-proof"},
+            {"subject_kind": "product", "subject_record_id": "product-marketline"}
+          ]
+        }
+      ],
+      "popularity_records": [
+        {
+          "record_kind": "signal", "signal_id": "mau", "metric": "mau",
+          "subject_kind": "product", "subject_record_id": "product-marketline",
+          "raw_value": 84, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-marketline"]
+        },
+        {
+          "record_kind": "signal", "signal_id": "bookmarks", "metric": "bookmark-count",
+          "subject_kind": "screen", "subject_record_id": "marketline-proof",
+          "raw_value": 82, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-marketline"]
+        }
+      ]
+    },
+    {
+      "product_record_id": "product-proofgrid",
+      "screen_record_id": "proofgrid-offers",
+      "uri": "https://uibowl.io/reference/proofgrid-offers",
+      "captured_at": "2026-09-04T00:00:00.000Z",
+      "query_ids": ["sidebar", "evidence"],
+      "frames": [
+        {"frame_id": "proofgrid-primary", "role": "operational", "core_task": true, "state": false},
+        {"frame_id": "proofgrid-state", "role": "state", "core_task": false, "state": true}
+      ],
+      "evidence_records": [
+        {
+          "evidence_id": "source-proofgrid",
+          "kind": "source-metadata",
+          "path": "proofgrid-source-metadata.json",
+          "digest": "sha256:665eee885fd7bbf7589d98c50b8db59fd9b7a8a70b7edf3e2f06d9333eec5ffe",
+          "frame_ids": ["proofgrid-primary", "proofgrid-state"],
+          "subject_bindings": [
+            {"subject_kind": "screen", "subject_record_id": "proofgrid-offers"},
+            {"subject_kind": "product", "subject_record_id": "product-proofgrid"}
+          ]
+        }
+      ],
+      "popularity_records": [
+        {
+          "record_kind": "signal", "signal_id": "mau", "metric": "mau",
+          "subject_kind": "product", "subject_record_id": "product-proofgrid",
+          "raw_value": 72, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-proofgrid"]
+        },
+        {
+          "record_kind": "signal", "signal_id": "bookmarks", "metric": "bookmark-count",
+          "subject_kind": "screen", "subject_record_id": "proofgrid-offers",
+          "raw_value": 76, "scope": "UI Bowl released-product collection",
+          "category": "all-released-products", "as_of": "2026-09-04T00:00:00.000Z",
+          "snapshot_at": "2026-09-04T00:00:00.000Z",
+          "normalization": {"formula": "linear-bounds-v1", "lower_bound": 0, "upper_bound": 100, "direction": "higher-is-better"},
+          "evidence_ids": ["source-proofgrid"]
+        }
+      ]
+    }
+  ]
+}

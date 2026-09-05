@@ -41,10 +41,21 @@ import {
   designExitCode,
   dispatchDesignPackets,
   dryRunDesignExploration,
+  inspectDesignStateLease,
   readDesignState,
+  recoverDesignStateLease,
   resumeDesignExploration,
   startDesignExploration
 } from "./design.mjs";
+import {
+  dispatchReferencePackets,
+  dryRunReferenceIntelligence,
+  readReferenceState,
+  recoverReferenceStateLease,
+  referenceExitCode,
+  resumeReferenceIntelligence,
+  startReferenceIntelligence
+} from "./reference.mjs";
 import { configureCodexReviewers } from "./codex.mjs";
 import { inspectSkillCatalog } from "./skill-catalog.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
@@ -80,7 +91,7 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "design", "host", "lease", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "host", "lease", "plugin", "reference"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
@@ -129,6 +140,13 @@ Usage:
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
   killsloprouter design status --run FILE [--json]
   killsloprouter design dispatch --run FILE --out-dir DIR
+  killsloprouter design lease-status --state FILE [--json]
+  killsloprouter design recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
+  killsloprouter reference run --brief FILE --out FILE [--host-config FILE]
+  killsloprouter reference run --resume FILE [--host-config FILE] [--selection FILE]
+  killsloprouter reference status --run FILE [--json]
+  killsloprouter reference dispatch --run FILE --out-dir DIR
+  killsloprouter reference recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -728,8 +746,50 @@ function designOutput(value, args) {
 
 function designCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "dispatch"].includes(command)) {
-    throw new RouterError("design requires run, status, or dispatch", 2);
+  if (!command || !["run", "status", "dispatch", "lease-status", "recover"].includes(command)) {
+    throw new RouterError("design requires run, status, dispatch, lease-status, or recover", 2);
+  }
+  if (command === "lease-status") {
+    if (!args.state) throw new RouterError("design lease-status requires --state", 2);
+    output(inspectDesignStateLease(args.state), args, (value) => [
+      "KillSlopRouter design state lease",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.status === "locked" ? [
+        `operation: ${value.operation}`,
+        `phase: ${value.phase}`,
+        `owner pid: ${value.owner_pid}`,
+        `owner pid in use: ${value.owner_pid_in_use}`,
+        `owner process alive: ${value.owner_process_alive}`,
+        `owner process identity matches: ${value.owner_process_identity_matches}`,
+        `acquired at: ${value.acquired_at}`,
+        `recover after: ${value.recover_after}`,
+        `lease digest: ${value.lease_digest}`
+      ] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (command === "recover") {
+    if (!args.state) throw new RouterError("design recover requires --state", 2);
+    const result = recoverDesignStateLease(args.state, {
+      ownerToken: args["owner-token"],
+      acquiredAt: args["acquired-at"],
+      stateDigest: args["state-digest"]
+    });
+    output(result, args, (value) => [
+      "KillSlopRouter design state lease recovery",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.recovery ? [
+        `outcome: ${value.recovery.outcome}`,
+        `recovery digest: ${value.recovery.recovery_digest}`,
+        `retry required: ${value.recovery.retry_required}`
+      ] : []),
+      ...(value.blocker ? [`blocker: ${value.blocker}`] : [])
+    ].join("\n") + "\n");
+    return;
   }
   if (command === "status" || command === "dispatch") {
     if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
@@ -787,6 +847,115 @@ function designCommand(args) {
   });
   designOutput(state, args);
   process.exitCode = designExitCode(state);
+}
+
+function formatReferenceState(state) {
+  const lines = [
+    `KillSlopRouter reference intelligence ${state.run_id || "dry-run"}`,
+    `status: ${state.status}`
+  ];
+  if (state.journey_identity) {
+    lines.push(`orchestrator: ${state.journey_identity.display_name}`);
+    lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
+  }
+  if (state.phase) lines.push(`phase: ${state.phase}`);
+  if (state.selection_scope_digest) lines.push(`selection scope: ${state.selection_scope_digest}`);
+  for (const item of state.ranking || []) {
+    lines.push(`rank: ${item.reference_id} (${item.product_fit_band}, popularity ${item.popularity_score})`);
+  }
+  for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+  for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
+  if (state.state_path) lines.push(`state: ${state.state_path}`);
+  if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  if (state.outputs?.reference_pack) {
+    lines.push(`reference pack: ${state.outputs.reference_pack.resolved_path || state.outputs.reference_pack.path} (${state.outputs.reference_pack.digest})`);
+  }
+  if (state.downstream) lines.push(`downstream: ${state.downstream}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function referenceOutput(value, args) {
+  if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  else process.stdout.write(formatReferenceState(value));
+}
+
+function referenceCommand(args) {
+  const command = args.subcommand;
+  if (!command || !["run", "status", "dispatch", "recover"].includes(command)) {
+    throw new RouterError("reference requires run, status, dispatch, or recover", 2);
+  }
+  if (command === "recover") {
+    if (!args.state) throw new RouterError("reference recover requires --state", 2);
+    const result = recoverReferenceStateLease(args.state, {
+      ownerToken: args["owner-token"],
+      acquiredAt: args["acquired-at"],
+      stateDigest: args["state-digest"]
+    });
+    output(result, args, (value) => [
+      "KillSlopRouter reference state lease recovery",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.recovery ? [
+        `outcome: ${value.recovery.outcome}`,
+        `recovery digest: ${value.recovery.recovery_digest}`,
+        `retry required: ${value.recovery.retry_required}`
+      ] : []),
+      ...(value.blocker ? [`blocker: ${value.blocker}`] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (command === "status" || command === "dispatch") {
+    if (!args.run) throw new RouterError(`reference ${command} requires --run`, 2);
+    const state = readReferenceState(args.run);
+    if (command === "status") {
+      referenceOutput(state, args);
+      return;
+    }
+    if (!args["out-dir"]) throw new RouterError("reference dispatch requires --out-dir", 2);
+    output(dispatchReferencePackets(state, args["out-dir"]), args);
+    return;
+  }
+
+  const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
+  if (args.resume) {
+    if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    const state = resumeReferenceIntelligence(args.resume, {
+      hostManifest,
+      resultPaths: args.results,
+      selectionPath: args.selection || null,
+      retry: args.retry || null
+    });
+    referenceOutput(state, args);
+    process.exitCode = referenceExitCode(state);
+    return;
+  }
+  if (!args.brief) throw new RouterError("reference run requires --brief", 2);
+  const router = readJson(defaultRouterPath, "default router");
+  const request = {
+    briefPath: args.brief,
+    hostManifest,
+    routerId: router.router_id,
+    routerVersion: router.router_version,
+    invocation: args.invocation || "explicit",
+    root: args.root || process.cwd()
+  };
+  if (args["dry-run"]) {
+    const report = dryRunReferenceIntelligence(request);
+    referenceOutput(report, args);
+    process.exitCode = referenceExitCode(report);
+    return;
+  }
+  if (!args.out) throw new RouterError("reference run requires --out for resumable state", 2);
+  const state = startReferenceIntelligence({
+    ...request,
+    statePath: args.out,
+    resultPaths: args.results,
+    selectionPath: args.selection || null,
+    retry: args.retry || null
+  });
+  referenceOutput(state, args);
+  process.exitCode = referenceExitCode(state);
 }
 
 function auditCommand(args) {
@@ -936,6 +1105,10 @@ export async function main(argv) {
   }
   if (args.command === "design") {
     designCommand(args);
+    return;
+  }
+  if (args.command === "reference") {
+    referenceCommand(args);
     return;
   }
   if (args.command === "audit") {

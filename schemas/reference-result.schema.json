@@ -1,0 +1,490 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-result.schema.json",
+  "title": "KillSlopRouter reference intelligence adapter result",
+  "type": "object",
+  "required": [
+    "reference_result_version", "kind", "packet_id", "provider_id", "actor",
+    "status", "packet_digest", "evidence"
+  ],
+  "properties": {
+    "reference_result_version": {"const": 1},
+    "kind": {"enum": ["reference-discovery", "reference-grammar", "reference-review"]},
+    "packet_id": {"type": "string", "minLength": 1},
+    "provider_id": {"type": "string", "minLength": 1},
+    "actor": {
+      "type": "object",
+      "required": ["actor_id", "kind"],
+      "properties": {
+        "actor_id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["agent", "skill", "human"]}
+      },
+      "additionalProperties": false
+    },
+    "status": {"const": "completed"},
+    "packet_digest": {"$ref": "#/$defs/digest"},
+    "subject_result_digest": {"$ref": "#/$defs/digest"},
+    "discovery_result_digest": {"$ref": "#/$defs/digest"},
+    "grammar_result_digest": {"$ref": "#/$defs/digest"},
+    "references": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "dispositions": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/disposition"}
+    },
+    "evidence": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "kind", "path"],
+        "properties": {
+          "evidence_id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["source-capture", "source-metadata", "analysis-report", "review-report"]},
+          "path": {"type": "string", "minLength": 1},
+          "reference_id": {"type": "string", "minLength": 1},
+          "product_record_id": {"type": "string", "minLength": 1},
+          "screen_record_id": {"type": "string", "minLength": 1},
+          "frame_ids": {"$ref": "#/$defs/strings"},
+          "subject_bindings": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"$ref": "#/$defs/subject_binding"}
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "reference-discovery"}}},
+      "then": {
+        "required": ["references"],
+        "properties": {
+          "evidence": {
+            "items": {
+              "required": [
+                "reference_id", "product_record_id", "screen_record_id", "frame_ids",
+                "subject_bindings"
+              ],
+              "properties": {
+                "kind": {"enum": ["source-capture", "source-metadata"]},
+                "frame_ids": {"minItems": 1}
+              }
+            }
+          },
+          "references": {
+            "type": "array", "minItems": 1,
+            "items": {"$ref": "#/$defs/discovery_reference"}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "reference-grammar"}}},
+      "then": {
+        "required": ["subject_result_digest", "references"],
+        "properties": {
+          "evidence": {
+            "items": {
+              "properties": {"kind": {"const": "analysis-report"}},
+              "not": {"anyOf": [
+                {"required": ["reference_id"]},
+                {"required": ["product_record_id"]},
+                {"required": ["screen_record_id"]},
+                {"required": ["frame_ids"]},
+                {"required": ["subject_bindings"]}
+              ]}
+            }
+          },
+          "references": {
+            "type": "array", "minItems": 1,
+            "items": {"$ref": "#/$defs/grammar_reference"}
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "reference-review"}}},
+      "then": {
+        "required": ["discovery_result_digest", "grammar_result_digest", "dispositions"],
+        "properties": {
+          "evidence": {
+            "items": {
+              "properties": {"kind": {"const": "review-report"}},
+              "not": {"anyOf": [
+                {"required": ["reference_id"]},
+                {"required": ["product_record_id"]},
+                {"required": ["screen_record_id"]},
+                {"required": ["frame_ids"]},
+                {"required": ["subject_bindings"]}
+              ]}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "strings": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "nonempty_strings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "subject_binding": {
+      "type": "object",
+      "required": ["subject_kind", "subject_record_id"],
+      "properties": {
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observation_id", "frame_id", "frame_role", "kind", "priority", "statement", "evidence_ids"],
+      "properties": {
+        "observation_id": {"type": "string", "minLength": 1},
+        "frame_id": {"type": "string", "minLength": 1},
+        "frame_role": {"enum": ["operational", "transactional", "navigational", "state", "promotional"]},
+        "kind": {"enum": ["structure", "hierarchy", "component", "navigation", "type", "color", "state"]},
+        "priority": {"enum": ["primary", "secondary", "supporting", "ambient"]},
+        "statement": {"type": "string", "minLength": 1},
+        "evidence_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "additionalProperties": false
+    },
+    "discovery_reference": {
+      "type": "object",
+      "required": [
+        "reference_id", "source", "app_name", "product_category", "screen_family",
+        "platform", "environment_of_use", "business_model", "session_shape", "locale",
+        "sampled_because", "family", "screen_role", "evidence_strength", "sampling",
+        "component_families", "patterns", "observed", "popularity", "rights"
+      ],
+      "properties": {
+        "reference_id": {"type": "string", "minLength": 1},
+        "source": {
+          "type": "object",
+          "required": ["provider", "uri", "record_id", "product_record_id", "screen_record_id", "captured_at"],
+          "properties": {
+            "provider": {"const": "uibowl"},
+            "uri": {"type": "string", "format": "uri"},
+            "record_id": {"type": "string", "minLength": 1},
+            "product_record_id": {"type": "string", "minLength": 1},
+            "screen_record_id": {"type": "string", "minLength": 1},
+            "captured_at": {"type": "string", "format": "date-time"}
+          },
+          "additionalProperties": false
+        },
+        "app_name": {"type": "string", "minLength": 1},
+        "product_category": {"type": "string", "minLength": 1},
+        "screen_family": {"type": "string", "minLength": 1},
+        "platform": {"enum": ["mobile", "desktop", "responsive"]},
+        "environment_of_use": {"type": "string", "minLength": 1},
+        "business_model": {"type": "string", "minLength": 1},
+        "session_shape": {"enum": ["one-shot", "repeated", "interrupted", "multi-session", "exploratory"]},
+        "locale": {"type": "string", "minLength": 1},
+        "sampled_because": {"type": "string", "minLength": 1},
+        "family": {
+          "type": "object",
+          "required": [
+            "family_id", "frame_count", "core_task_frame_count", "state_frame_count",
+            "promotional_frame_count", "frames"
+          ],
+          "properties": {
+            "family_id": {"type": "string", "minLength": 1},
+            "frame_count": {"type": "integer", "minimum": 1},
+            "core_task_frame_count": {"type": "integer", "minimum": 0},
+            "state_frame_count": {"type": "integer", "minimum": 0},
+            "promotional_frame_count": {"type": "integer", "minimum": 0}
+            ,"frames": {
+              "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "required": ["frame_id", "role", "core_task", "state"],
+                "properties": {
+                  "frame_id": {"type": "string", "minLength": 1},
+                  "role": {"enum": ["operational", "transactional", "navigational", "state", "promotional"]},
+                  "core_task": {"type": "boolean"},
+                  "state": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "screen_role": {"enum": ["operational", "transactional", "navigational", "state", "promotional"]},
+        "evidence_strength": {"enum": ["weak", "medium", "strong"]},
+        "sampling": {
+          "type": "object",
+          "required": ["ecosystem_id", "cohorts"],
+          "properties": {
+            "ecosystem_id": {"type": "string", "minLength": 1},
+            "cohorts": {
+              "type": "array", "minItems": 1, "uniqueItems": true,
+              "items": {"enum": [
+                "task-fit", "cross-domain", "competent-baseline",
+                "high-bookmark", "high-reach"
+              ]}
+            }
+          },
+          "additionalProperties": false
+        },
+        "component_families": {"$ref": "#/$defs/nonempty_strings"},
+        "patterns": {"$ref": "#/$defs/nonempty_strings"},
+        "observed": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/observation"}},
+        "popularity": {
+          "type": "object",
+          "required": ["status", "signals", "conflicts"],
+          "properties": {
+            "status": {"enum": ["verified-snapshot", "conflicted"]},
+            "signals": {
+              "type": "array", "minItems": 1,
+              "items": {"$ref": "#/$defs/popularity_signal"}
+            },
+            "conflicts": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/popularity_conflict"}
+            }
+          },
+          "additionalProperties": false
+        },
+        "rights": {
+          "type": "object",
+          "required": ["status", "redistribution", "creator_pixel_access"],
+          "properties": {
+            "status": {"enum": ["reference-only", "cleared"]},
+            "redistribution": {"const": false},
+            "creator_pixel_access": {"const": false}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "popularity_signal": {
+      "type": "object",
+      "required": [
+        "id", "metric", "raw_value", "normalized_score", "scope", "category",
+        "as_of", "subject_kind", "subject_record_id", "snapshot_at", "normalization",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "metric": {"enum": ["mau", "bookmark-count", "popular-rank", "curation-popularity"]},
+        "raw_value": {"type": "number"},
+        "normalized_score": {"type": "number", "minimum": 0, "maximum": 100},
+        "scope": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "as_of": {"type": "string", "format": "date-time"},
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1},
+        "snapshot_at": {"type": "string", "format": "date-time"},
+        "normalization": {
+          "type": "object",
+          "required": ["formula", "lower_bound", "upper_bound", "direction"],
+          "properties": {
+            "formula": {"const": "linear-bounds-v1"},
+            "lower_bound": {"type": "number"},
+            "upper_bound": {"type": "number"},
+            "direction": {"enum": ["higher-is-better", "lower-is-better"]}
+          },
+          "additionalProperties": false
+        },
+        "evidence_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "allOf": [{
+        "if": {"properties": {"metric": {"const": "mau"}}},
+        "then": {"properties": {"subject_kind": {"const": "product"}}}
+      }, {
+        "if": {"properties": {"metric": {"const": "popular-rank"}}},
+        "then": {"properties": {"normalization": {"properties": {
+          "direction": {"const": "lower-is-better"}
+        }}}},
+        "else": {"properties": {"normalization": {"properties": {
+          "direction": {"const": "higher-is-better"}
+        }}}}
+      }],
+      "additionalProperties": false
+    },
+    "popularity_conflict": {
+      "type": "object",
+      "required": [
+        "signal_id", "subject_kind", "subject_record_id", "raw_value", "as_of", "note",
+        "evidence_ids"
+      ],
+      "properties": {
+        "signal_id": {"type": "string", "minLength": 1},
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1},
+        "raw_value": {"type": "number"},
+        "as_of": {"type": "string", "format": "date-time"},
+        "note": {"type": "string", "minLength": 1},
+        "evidence_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "additionalProperties": false
+    },
+    "hierarchy_reasoning": {
+      "type": "object",
+      "required": [
+        "reasoning_id", "observed_priority", "user_decision", "likely_constraint",
+        "consequence_if_flattened", "confidence", "observed_ids"
+      ],
+      "properties": {
+        "reasoning_id": {"type": "string", "minLength": 1},
+        "observed_priority": {"enum": ["primary", "secondary", "supporting", "ambient"]},
+        "user_decision": {"type": "string", "minLength": 1},
+        "likely_constraint": {"type": "string", "minLength": 1},
+        "consequence_if_flattened": {"type": "string", "minLength": 1},
+        "confidence": {"enum": ["low", "medium", "high"]},
+        "observed_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "additionalProperties": false
+    },
+    "grammar_principle": {
+      "type": "object",
+      "required": [
+        "grammar_id", "dimension", "principle", "application", "application_conditions",
+        "tradeoff", "harmful_when", "requires_live_data", "avoid", "observed_ids",
+        "reasoning_ids"
+      ],
+      "properties": {
+        "grammar_id": {"type": "string", "minLength": 1},
+        "dimension": {"enum": [
+          "information-hierarchy", "navigation", "component-composition", "data-comparison",
+          "evidence-presentation", "typography", "color-roles", "density", "interaction", "responsive"
+        ]},
+        "principle": {"type": "string", "minLength": 1},
+        "application": {"type": "string", "minLength": 1},
+        "application_conditions": {"$ref": "#/$defs/nonempty_strings"},
+        "tradeoff": {"type": "string", "minLength": 1},
+        "harmful_when": {"$ref": "#/$defs/nonempty_strings"},
+        "requires_live_data": {"type": "boolean"},
+        "avoid": {"type": "string", "minLength": 1},
+        "observed_ids": {"$ref": "#/$defs/nonempty_strings"},
+        "reasoning_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "additionalProperties": false
+    },
+    "grammar_reference": {
+      "type": "object",
+      "required": [
+        "reference_id", "product_fit", "inferred_rationale", "locale_analysis",
+        "hierarchy_reasoning", "grammar"
+      ],
+      "properties": {
+        "reference_id": {"type": "string", "minLength": 1},
+        "product_fit": {
+          "type": "object",
+          "required": ["band", "score", "dimensions", "rationale", "observed_ids"],
+          "properties": {
+            "band": {"enum": ["exact", "adjacent", "weak"]},
+            "score": {"type": "integer", "minimum": 0, "maximum": 100},
+            "dimensions": {
+              "type": "object",
+              "required": ["user", "task", "screen", "trust", "density", "locale"],
+              "properties": {
+                "user": {"type": "integer", "minimum": 0, "maximum": 5},
+                "task": {"type": "integer", "minimum": 0, "maximum": 5},
+                "screen": {"type": "integer", "minimum": 0, "maximum": 5},
+                "trust": {"type": "integer", "minimum": 0, "maximum": 5},
+                "density": {"type": "integer", "minimum": 0, "maximum": 5},
+                "locale": {"type": "integer", "minimum": 0, "maximum": 5}
+              },
+              "additionalProperties": false
+            },
+            "rationale": {"type": "string", "minLength": 1},
+            "observed_ids": {"$ref": "#/$defs/nonempty_strings"}
+          },
+          "additionalProperties": false
+        },
+        "inferred_rationale": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["inference_id", "statement", "confidence", "observed_ids"],
+            "properties": {
+              "inference_id": {"type": "string", "minLength": 1},
+              "statement": {"type": "string", "minLength": 1},
+              "confidence": {"enum": ["low", "medium", "high"]},
+              "observed_ids": {"$ref": "#/$defs/nonempty_strings"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "locale_analysis": {
+          "type": "object",
+          "required": [
+            "source_locale", "target_locales", "transferability", "risks",
+            "verification_requirements"
+          ],
+          "properties": {
+            "source_locale": {"type": "string", "minLength": 1},
+            "target_locales": {"$ref": "#/$defs/nonempty_strings"},
+            "transferability": {"enum": ["direct", "adaptation-required", "unsupported"]},
+            "risks": {"$ref": "#/$defs/nonempty_strings"},
+            "verification_requirements": {"$ref": "#/$defs/nonempty_strings"}
+          },
+          "additionalProperties": false
+        },
+        "hierarchy_reasoning": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/$defs/hierarchy_reasoning"}
+        },
+        "grammar": {
+          "type": "array", "minItems": 1,
+          "items": {"$ref": "#/$defs/grammar_principle"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "disposition": {
+      "type": "object",
+      "required": [
+        "reference_id", "status", "popularity_verified", "product_fit_verified",
+        "source_identity_verified", "sampling_verified", "locale_transferability_verified",
+        "verified_component_families", "verified_patterns", "verified_evidence_ids",
+        "verified_observation_ids",
+        "verified_inference_ids", "verified_hierarchy_reasoning_ids",
+        "verified_grammar_ids", "copy_risk", "blockers"
+      ],
+      "properties": {
+        "reference_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["eligible", "blocked"]},
+        "popularity_verified": {"type": "boolean"},
+        "product_fit_verified": {"type": "boolean"},
+        "source_identity_verified": {"type": "boolean"},
+        "sampling_verified": {"type": "boolean"},
+        "locale_transferability_verified": {"type": "boolean"},
+        "verified_component_families": {"$ref": "#/$defs/strings"},
+        "verified_patterns": {"$ref": "#/$defs/strings"},
+        "verified_evidence_ids": {"$ref": "#/$defs/strings"},
+        "verified_observation_ids": {"$ref": "#/$defs/strings"},
+        "verified_inference_ids": {"$ref": "#/$defs/strings"},
+        "verified_hierarchy_reasoning_ids": {"$ref": "#/$defs/strings"},
+        "verified_grammar_ids": {"$ref": "#/$defs/strings"},
+        "copy_risk": {"enum": ["low", "medium", "high"]},
+        "blockers": {"$ref": "#/$defs/strings"}
+      },
+      "allOf": [{
+        "if": {"properties": {"status": {"const": "eligible"}}},
+        "then": {"properties": {
+          "copy_risk": {"const": "low"},
+          "verified_component_families": {"minItems": 1},
+          "verified_patterns": {"minItems": 1},
+          "verified_evidence_ids": {"minItems": 1},
+          "verified_observation_ids": {"minItems": 1},
+          "verified_inference_ids": {"minItems": 1},
+          "verified_hierarchy_reasoning_ids": {"minItems": 1},
+          "verified_grammar_ids": {"minItems": 1}
+        }}
+      }],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,23 @@
+{
+  "planning_gate_version": 1,
+  "protocol": {
+    "id": "service-planning",
+    "version": "1",
+    "authority": "external-owner-governed"
+  },
+  "project_id": "regional-price-results",
+  "surface": "consumer-product-ui",
+  "scope_id": "regional-results-reference-research",
+  "phase": "phase_1",
+  "gates": {
+    "G1": {
+      "status": "passed",
+      "note": "User and product problem are evidenced."
+    },
+    "G2": {
+      "status": "approved",
+      "note": "Information and trust requirements are owner approved."
+    }
+  },
+  "updated_at": "2026-09-04T00:00:00.000Z"
+}
