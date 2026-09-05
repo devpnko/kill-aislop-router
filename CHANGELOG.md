@@ -2,6 +2,64 @@
 
 ## Unreleased
 
+- Added a digest-bound, non-authoritative human-design reasoning registry and
+  a rights-safe 24-product/48-screen UI Bowl study. Reference discovery now
+  records screen-family strength, use environment, business/session context,
+  sampling cohort, visible priority, and snapshot-specific popularity;
+  promotional or single-frame evidence cannot establish operational grammar.
+  Grammar must trace visible hierarchy through a user decision, constraint,
+  flattening consequence, application conditions, tradeoff, harmful context,
+  live-data dependency, and anti-copy boundary. Sampling limits product and
+  ecosystem dominance through non-popularity reasoning cohorts, and conflicted
+  popularity ranks last without affecting eligibility. Completed,
+  reviewer-capture-ready packs can be bound as an optional, pixel-free creator
+  input to the existing exact-three design route without granting visual
+  authority or weakening Playwright and Owner gates. Metadata-only packs may
+  complete research but remain `manual_pending` at the design boundary.
+  Follow-up hardening schema-validates manual-export membership and forbids
+  network access in manual discovery and downstream design participants,
+  separates canonical product and screen identities, enumerates frame roles,
+  fixes popularity scope/category/normalization in the brief, recomputes
+  fit/popularity scores,
+  binds popularity to explicit product-or-screen subjects, carries reproducible
+  fit into the pack, and enforces target-locale transferability plus
+  critic-verified, frame-bound evidence closure,
+  and validates the same strict pack plus its exact completed producer state at
+  the design boundary. Eleven stage-scoped design checks now include linked
+  lenses, pass conditions, typed digest-bound evidence requirements, a
+  source-composition-independence check, and hard-failure codes. Design
+  participants receive only aliased causal reasoning and transferable grammar,
+  never source identities or observations, and every selected dimension needs
+  an applied or target-specific not-applicable trace. Final approved design
+  decisions retain a non-authoritative pack/producer/target/trace/review digest chain; omitting the pack
+  preserves the original design packet and receipt shape.
+  Browser evidence is never accepted as a manually recorded result. The
+  existing no-reference exact-three flow retains digest-locked custom
+  `browser-json-v1` Playwright compatibility, while a reference-backed flow
+  resolves every candidate browser packet to the official Playwright contract
+  without exposing reviewer-only source captures.
+
+- Reserved the KillSlopRouter parent identity across provider, result-actor,
+  Owner, and visual-authority fields. NFKC/case/whitespace comparison and exact
+  parent separator aliases close full-width, English, namespaced, and Korean
+  identity relabeling while preserving original provenance. Owner-direction
+  authority must match the independently verified Owner identity; children
+  remain internal participants and never become the presented workflow.
+
+- Added an optional, resumable reference-intelligence stage that binds an
+  approved service-planning frame, rights evidence, bounded UI Bowl queries,
+  popularity provenance, distinct researcher/critic children, and a real
+  Owner selection. Deterministic ranking applies popularity only inside equal
+  product-fit bands, and the compiled pixel-free grammar pack remains
+  `discovery-evidence-only` without visual or creator authority. Atomic state
+  leases, exact child checkpoints, idempotent crash recovery, tamper rejection,
+  pinned single-descriptor authority inputs, critic-verified component/pattern
+  coverage, and real child-process regressions preserve fail-closed execution. The
+  existing exact-three 3×3 design route remains unchanged.
+  Manual dispatch now emits a self-digested stage request alongside the
+  compatibility packet, containing public authority snapshots and only the
+  prior semantic results and evidence digests required by grammar or review.
+
 - Closed the standalone audit CLI's `--run` read race by binding path checks,
   parsing, and provenance to one descriptor before dispatch, ingest, triage,
   status, or finalization. Sealed adapter discovery now distinguishes the CJS
@@ -18,6 +76,18 @@
   verified source runtime and reuses its digest-bound readiness cache without
   cloning the complete runtime once per provider. The actual reviewer child
   still executes only from a fresh private runtime seal.
+
+- Bound official Codex readiness caching to pinned authentication content and
+  stable file identity while excluding expected hard-link lifecycle metadata.
+  Authentication changes during a probe, same-byte inode replacement, and
+  unresolved isolation cleanup fail closed without poisoning the cache; only
+  successful authenticated observations are cached. Authentication filesystem
+  errors and all nested Codex abnormal stdout/stderr or malformed JSON output
+  are reduced to fixed non-path-bearing public failures, and unsafe thread IDs
+  cannot enter actor or receipt provenance. The fixed diagnostic boundary also
+  covers runtime version probing, stores only the canonical numeric version
+  tuple, and gives post-review credential-view cleanup failure an integrated
+  fail-closed regression.
 
 - Preserved the documented standalone kill-ai-slop scanner-to-audit workflow
   without weakening parent identity: only the exact unbound compatibility

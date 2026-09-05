@@ -16,7 +16,7 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": ["artifact:read", "evidence:write", "browser:control", "network:external"]
+        "enum": ["artifact:read", "evidence:write", "browser:control", "reference-evidence:read", "network:external"]
       }
     },
     "providers": {
@@ -47,7 +47,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["artifact:read", "evidence:write", "browser:control", "network:external"]
+            "enum": ["artifact:read", "evidence:write", "browser:control", "reference-evidence:read", "network:external"]
           }
         },
         "timeout_ms": {"type": "integer", "minimum": 100, "maximum": 900000},

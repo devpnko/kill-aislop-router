@@ -1,0 +1,268 @@
+{
+  "human_design_reasoning_registry_version": 1,
+  "authority_scope": "non-authoritative-research-aid",
+  "source_pixels_included": false,
+  "research_basis": {
+    "source_provider": "uibowl",
+    "source_url": "https://uibowl.io/",
+    "sampled_at": "2026-09-04T00:00:00.000Z",
+    "sample_size": {
+      "products": 24,
+      "screens": 48,
+      "mobile_products": 12,
+      "desktop_products": 12
+    },
+    "selection_method": "Coverage-balanced sample across high bookmark, high reach, and task-fit cohorts; promotional captures were retained only as weak evidence.",
+    "caveats": [
+      "Popularity is a discovery prior, not proof that a screen is usable or appropriate for another product.",
+      "A captured screen reveals visible structure but not the original team's private intent or experiment results.",
+      "The corpus is a dated sample rather than an exhaustive copy of UI Bowl.",
+      "Copyright remains with the relevant rightsholders; no source pixels, assets, or copy may reach a creator pack."
+    ]
+  },
+  "design_checks": [
+    {
+      "check_id": "decision-inventory",
+      "lens_ids": ["decision-before-decoration", "object-state-first"],
+      "pass_condition": "Every primary visual group names the target user decision, the information needed for it, and the next permitted action.",
+      "required_evidence": ["candidate-rationale", "reference-reasoning-trace", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:decision-inventory"
+    },
+    {
+      "check_id": "state-cardinality",
+      "lens_ids": ["state-cardinality", "object-state-first"],
+      "pass_condition": "Each control exposes the target state model truthfully and does not reduce a multi-value state to a binary-looking control.",
+      "required_evidence": ["state-model", "prototype", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:state-cardinality"
+    },
+    {
+      "check_id": "accent-role-budget",
+      "lens_ids": ["color-role-budget", "expression-follows-promise"],
+      "pass_condition": "Brand, action, selection, semantic state, warning, data, and depth roles are explicit, non-conflicting, and accessible.",
+      "required_evidence": ["color-role-map", "contrast-report", "review-report"],
+      "stages": ["color-review"],
+      "failure_code": "reference-check-failed:accent-role-budget"
+    },
+    {
+      "check_id": "comparison-slot-alignment",
+      "lens_ids": ["comparison-axis-alignment", "typography-register-and-numeracy"],
+      "pass_condition": "Repeated objects keep comparable values, conditions, uncertainty, provenance, and actions in stable, scan-compatible slots.",
+      "required_evidence": ["prototype", "representative-data", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:comparison-slot-alignment"
+    },
+    {
+      "check_id": "risk-near-action",
+      "lens_ids": ["risk-near-action", "progressive-disclosure-by-consequence"],
+      "pass_condition": "Irreversible, paid, privacy-sensitive, or low-confidence actions show the relevant evidence, consequence, and recovery path before activation.",
+      "required_evidence": ["risk-action-map", "prototype", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:risk-near-action"
+    },
+    {
+      "check_id": "density-by-cadence",
+      "lens_ids": ["density-follows-cadence", "physical-environment"],
+      "pass_condition": "Information density follows the target task cadence, physical environment, interruption pattern, and decision frequency rather than a visual genre.",
+      "required_evidence": ["usage-context", "prototype", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:density-by-cadence"
+    },
+    {
+      "check_id": "live-data-scaffolding",
+      "lens_ids": ["live-data-scaffolding", "arrival-intent-distribution"],
+      "pass_condition": "Every dynamic-looking recommendation, count, social-proof element, or prompt declares its source, freshness, empty state, and failure behavior.",
+      "required_evidence": ["data-source-map", "state-evidence", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:live-data-scaffolding"
+    },
+    {
+      "check_id": "state-completeness",
+      "lens_ids": ["state-completeness-before-polish", "object-state-first"],
+      "pass_condition": "Loading, partial, empty, error, blocked, and success states preserve object identity, evidence truth, next action, and layout stability.",
+      "required_evidence": ["state-matrix", "browser-evidence", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:state-completeness"
+    },
+    {
+      "check_id": "responsive-reprioritization",
+      "lens_ids": ["responsive-reprioritization", "persistent-context"],
+      "pass_condition": "Small screens deliberately reprioritize decision, evidence, context, and action without clipping, overlay interception, or desktop-only shrinkage.",
+      "required_evidence": ["responsive-rationale", "playwright-evidence", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:responsive-reprioritization"
+    },
+    {
+      "check_id": "promotional-citation-firewall",
+      "lens_ids": ["decision-before-decoration", "expression-follows-promise"],
+      "pass_condition": "Operational hierarchy claims cite operational or state frames; promotional captures remain weak expression evidence and never establish task structure.",
+      "required_evidence": ["reference-capture-set", "source-composition-analysis", "reference-reasoning-trace", "review-report"],
+      "stages": ["direction-review"],
+      "failure_code": "reference-check-failed:promotional-citation-firewall"
+    },
+    {
+      "check_id": "source-composition-independence",
+      "lens_ids": ["decision-before-decoration", "expression-follows-promise"],
+      "pass_condition": "The target composition is derived from its own decision inventory, states, content bounds, and responsive priorities rather than a source product's component order or branded treatment.",
+      "required_evidence": ["reference-capture-set", "source-composition-analysis", "candidate-rationale", "review-report"],
+      "stages": ["direction-review", "color-review"],
+      "failure_code": "reference-check-failed:source-composition-independence"
+    }
+  ],
+  "lenses": [
+    {
+      "lens_id": "decision-before-decoration",
+      "question": "Which user decision must this screen make easier before visual expression is considered?",
+      "decision_test": "Name the decision, the evidence required for it, and the first visible object that serves it.",
+      "failure_if_ignored": "The screen becomes an attractive collection of equally weighted cards with no usable starting point.",
+      "applies_to": ["all-product-ui"],
+      "tradeoff": "A dominant decision path can reduce exposure of secondary capabilities, so alternate jobs need deliberate access.",
+      "anti_copy_boundary": "Transfer the decision ordering, never the source composition or styling."
+    },
+    {
+      "lens_id": "scope-ladder",
+      "question": "Which controls change global, product, workspace, object, or task scope?",
+      "decision_test": "Every navigation layer must identify the scope it changes and avoid duplicating another layer's responsibility.",
+      "failure_if_ignored": "Top navigation, tabs, sidebars, and filters compete as interchangeable decoration.",
+      "applies_to": ["multi-scope-ui", "operator-product-ui"],
+      "tradeoff": "More explicit scope levels improve orientation but consume space and can feel heavy on simple journeys.",
+      "anti_copy_boundary": "Do not import a sidebar or tab bar unless the target has the same scope boundary."
+    },
+    {
+      "lens_id": "object-state-first",
+      "question": "What object is changing, and which state transition matters now?",
+      "decision_test": "Place object identity, current state, permitted next action, and blocking condition in one traceable hierarchy.",
+      "failure_if_ignored": "Status becomes decorative color while users cannot tell what changed or what to do next.",
+      "applies_to": ["workflow-ui", "operator-product-ui", "transactional-ui"],
+      "tradeoff": "State-forward layouts can feel utilitarian unless product character is restored in lower-risk surfaces.",
+      "anti_copy_boundary": "Transfer the state logic, not another product's labels, columns, or status palette."
+    },
+    {
+      "lens_id": "comparison-axis-alignment",
+      "question": "Which attributes must remain aligned for a trustworthy comparison?",
+      "decision_test": "Repeated objects expose the same primary value, conditions, uncertainty, and action in stable positions.",
+      "failure_if_ignored": "Card variety creates scan friction and lets missing or unfavorable facts disappear into layout differences.",
+      "applies_to": ["results", "marketplace", "analytics", "pricing"],
+      "tradeoff": "Strict alignment limits expressive card variation and may require progressive detail for exceptional cases.",
+      "anti_copy_boundary": "Derive axes from target data and decisions rather than reproducing a source result card."
+    },
+    {
+      "lens_id": "risk-near-action",
+      "question": "What uncertainty, permission, consequence, or evidence belongs next to this action?",
+      "decision_test": "A consequential action displays the state and evidence needed to predict its outcome before activation.",
+      "failure_if_ignored": "The interface looks clean but reveals errors, locks, fees, or missing evidence only after commitment.",
+      "applies_to": ["high-trust-ui", "admin-ui", "commerce", "publishing"],
+      "tradeoff": "Visible risk information increases density, so low-consequence detail should remain progressive.",
+      "anti_copy_boundary": "Preserve the target's actual authority model; never borrow reassuring badges without evidence."
+    },
+    {
+      "lens_id": "progressive-disclosure-by-consequence",
+      "question": "Which details may be deferred without changing the user's decision or hiding risk?",
+      "decision_test": "Primary evidence remains visible; only reversible, secondary, or explanatory detail is collapsed.",
+      "failure_if_ignored": "Either everything is exposed at once or important uncertainty is hidden for visual cleanliness.",
+      "applies_to": ["dense-ui", "forms", "comparison", "settings"],
+      "tradeoff": "Disclosure reduces initial load but creates interaction cost and discoverability risk.",
+      "anti_copy_boundary": "Choose disclosure boundaries from consequence, not from a source accordion or modal pattern."
+    },
+    {
+      "lens_id": "persistent-context",
+      "question": "What context must remain visible while a user focuses on a subtask?",
+      "decision_test": "Focused flows retain enough object, scope, and return-path context to avoid accidental work in the wrong place.",
+      "failure_if_ignored": "Modal or detail work becomes visually isolated from the object and scope it will change.",
+      "applies_to": ["creation-flow", "admin-ui", "editing", "nested-navigation"],
+      "tradeoff": "Retained chrome competes with focus and may need dimming or compact treatment.",
+      "anti_copy_boundary": "Keep only context the target task needs; do not reproduce another product's shell."
+    },
+    {
+      "lens_id": "density-follows-cadence",
+      "question": "Is the task repeated, expert, comparative, occasional, or exploratory?",
+      "decision_test": "Spacing, control size, shortcuts, and information volume match task frequency and operator expertise.",
+      "failure_if_ignored": "Every service becomes either a sparse marketing page or an exhausting control panel.",
+      "applies_to": ["all-product-ui"],
+      "tradeoff": "Compact expert efficiency reduces approachability; spacious guidance slows repeated work.",
+      "anti_copy_boundary": "Do not treat density as a style token independent of user cadence."
+    },
+    {
+      "lens_id": "expression-follows-promise",
+      "question": "Which product promise should the interface make emotionally legible?",
+      "decision_test": "Expressive imagery, shape, motion, and tone reinforce the target promise without weakening task clarity.",
+      "failure_if_ignored": "Anti-slop cleanup collapses every product into paper-neutral gray cards, or decoration overwhelms the job.",
+      "applies_to": ["consumer-product-ui", "discovery", "learning", "community"],
+      "tradeoff": "Stronger expression increases differentiation but raises accessibility, performance, and maintenance costs.",
+      "anti_copy_boundary": "Derive expression from the target brand promise; a popular source mood is not visual authority."
+    },
+    {
+      "lens_id": "color-role-budget",
+      "question": "Which distinct jobs must color perform on this surface?",
+      "decision_test": "Brand, action, selection, status, warning, data series, and depth roles remain distinguishable and accessible.",
+      "failure_if_ignored": "One accent color carries every meaning or decorative colors compete with semantic state.",
+      "applies_to": ["all-product-ui"],
+      "tradeoff": "A broader role palette improves distinction but requires stricter token, contrast, and collision control.",
+      "anti_copy_boundary": "Transfer role relationships only; exact source colors and gradients are forbidden."
+    },
+    {
+      "lens_id": "state-completeness-before-polish",
+      "question": "Can the hierarchy survive loading, partial, empty, error, blocked, and success states?",
+      "decision_test": "Every required state preserves object identity, next action, evidence truth, and layout stability.",
+      "failure_if_ignored": "A polished happy-path mockup breaks when data is absent, long, uncertain, or unauthorized.",
+      "applies_to": ["all-product-ui"],
+      "tradeoff": "Designing full state coverage costs more up front but prevents late structural rework.",
+      "anti_copy_boundary": "Use the target's real states and data bounds rather than a reference product's placeholders."
+    },
+    {
+      "lens_id": "responsive-reprioritization",
+      "question": "Which decision, evidence, and action must survive when space becomes scarce?",
+      "decision_test": "Small-screen composition changes priority and interaction mechanics instead of merely shrinking or clipping desktop UI.",
+      "failure_if_ignored": "Visible controls become unreachable, overlap content, or preserve the wrong information at mobile width.",
+      "applies_to": ["responsive-ui", "mobile-product-ui"],
+      "tradeoff": "Recomposition can reduce cross-device visual symmetry and requires state-specific browser evidence.",
+      "anti_copy_boundary": "Derive mobile priority from the target decision path, not a source breakpoint or component arrangement."
+    },
+    {
+      "lens_id": "physical-environment",
+      "question": "At what distance, posture, lighting, and time pressure is the interface actually used?",
+      "decision_test": "Typography, target size, contrast, and density cite an observed use environment rather than an aesthetic mood.",
+      "failure_if_ignored": "A dark oversized field tool is copied into desk software, or a compact desktop pattern becomes unusable at arm's length.",
+      "applies_to": ["field-tool", "point-of-sale", "media-tool", "mobile-product-ui"],
+      "tradeoff": "Optimizing strongly for one environment can reduce flexibility in another and may require separate responsive regimes.",
+      "anti_copy_boundary": "Darkness, scale, and target size require target-environment evidence; they are not transferable style presets."
+    },
+    {
+      "lens_id": "state-cardinality",
+      "question": "How many truthful states can this control represent?",
+      "decision_test": "Binary controls are used only for binary state; multi-value authority or policy uses a control that exposes every meaningful value.",
+      "failure_if_ignored": "A familiar toggle makes a multi-state permission model look simpler by lying about available states.",
+      "applies_to": ["settings", "permissions", "filters", "workflow-ui"],
+      "tradeoff": "Truthful multi-state controls occupy more space and can require explanatory copy.",
+      "anti_copy_boundary": "Choose controls from the target state model, never from the prevalence of a source widget."
+    },
+    {
+      "lens_id": "arrival-intent-distribution",
+      "question": "What do users already know or intend when they arrive?",
+      "decision_test": "Entry navigation mirrors evidenced intent distribution instead of defaulting to search, a hero, or a category grid.",
+      "failure_if_ignored": "A visually fashionable entry pattern inserts a step before the job users came ready to perform.",
+      "applies_to": ["home", "discovery", "marketplace", "multi-service-product"],
+      "tradeoff": "Optimizing for common intent can make rare exploratory paths less prominent.",
+      "anti_copy_boundary": "Category structure and entry order require target behavioral evidence."
+    },
+    {
+      "lens_id": "live-data-scaffolding",
+      "question": "Does a recommendation, usage count, social proof, or suggested prompt have a real data source?",
+      "decision_test": "Every dynamic-looking scaffold declares its source, freshness, empty state, and failure behavior.",
+      "failure_if_ignored": "Suggestion chips, activity counts, rewards, and community modules become decorative demo content.",
+      "applies_to": ["ai-input", "community", "recommendations", "gamification"],
+      "tradeoff": "Live scaffolding improves relevance but adds latency, privacy, empty-state, and operational dependencies.",
+      "anti_copy_boundary": "If the target lacks the data contract, omit the pattern instead of simulating the source's vitality."
+    },
+    {
+      "lens_id": "typography-register-and-numeracy",
+      "question": "Which text is for scanning, reading, deciding, identifying, or comparing numbers?",
+      "decision_test": "Type roles, weights, line lengths, numeric alignment, and locale coverage follow information purpose and content bounds.",
+      "failure_if_ignored": "A fashionable display face or uniform type scale flattens identity, metadata, evidence, and comparable values.",
+      "applies_to": ["all-product-ui"],
+      "tradeoff": "More explicit typographic roles improve hierarchy but increase font, locale, and token complexity.",
+      "anti_copy_boundary": "Transfer role contrast and numeric behavior, never a source typeface, exact scale, or branded treatment."
+    }
+  ]
+}

@@ -868,17 +868,20 @@ test("Playwright scenario identity and manifest-relative paths remain bound acro
     fs.copyFileSync(paths.scenarios, sameBytes);
     fs.renameSync(paths.scenarios, displaced);
     fs.symlinkSync(sameBytes, paths.scenarios);
-    const symlinked = executeAuditPacket({
+    const symlinkedOutput = path.join(directory, "symlinked-scenario-output");
+    assert.throws(() => executeAuditPacket({
       run,
       packet,
       manifest,
-      outputDirectory: path.join(directory, "symlinked-scenario-output"),
+      outputDirectory: symlinkedOutput,
       outputGrantRoot: directory
+    }), (error) => {
+      assert.equal(error.exitCode, 4);
+      assert.match(error.message, /Playwright scenario file.*symlink/);
+      return true;
     });
-    assert.equal(symlinked.execution_status, "blocked_execution_error");
-    assert.match(symlinked.error, /Playwright scenario file.*symlink/);
-    assert.equal(symlinked.child_pid, null,
-      "a substituted scenario path must fail before the browser child starts");
+    assert.equal(fs.existsSync(symlinkedOutput), false,
+      "a substituted scenario path must fail before browser output or child creation");
     fs.rmSync(paths.scenarios);
     fs.renameSync(displaced, paths.scenarios);
     fs.rmSync(sameBytes);
@@ -1175,7 +1178,8 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
         ...run,
         run_id: blockedPacket.run_id,
         journey_identity: blockedPacket.journey_identity,
-        packets: [blockedPacket]
+        packets: [blockedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
       },
       packet: blockedPacket,
       manifest,

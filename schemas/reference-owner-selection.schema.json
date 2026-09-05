@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-owner-selection.schema.json",
+  "title": "KillSlopRouter owner reference selection",
+  "type": "object",
+  "required": [
+    "reference_owner_selection_version", "run_id", "journey_identity",
+    "selection_scope_digest", "owner_id", "status", "anchor_reference_id",
+    "supporting_reference_ids", "selected_grammar_ids", "rationale", "decided_at"
+  ],
+  "properties": {
+    "reference_owner_selection_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "selection_scope_digest": {"$ref": "#/$defs/digest"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["selected", "rejected"]},
+    "anchor_reference_id": {"type": ["string", "null"]},
+    "supporting_reference_ids": {"type": "array", "maxItems": 4, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "selected_grammar_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "rationale": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}},
+  "additionalProperties": false
+}

@@ -28,6 +28,9 @@ const FORBIDDEN_EVENT_ITEMS = new Set([
   "computer_use"
 ]);
 const AUTHENTICATION_FAILURE_PATTERN = /(?:\bnot logged in\b|\bauthentication (?:is )?(?:required|failed|unavailable)\b|\b(?:invalid|missing) (?:openai )?api key\b|\bplease (?:run )?codex login\b|\b(?:http(?: status)? )?401 unauthorized\b)/i;
+const THREAD_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/;
+
+class PublicReviewError extends Error {}
 
 function fail(message, exitCode = 1) {
   process.stderr.write(`KillSlopRouter Codex review: ${message}\n`);
@@ -35,7 +38,7 @@ function fail(message, exitCode = 1) {
 }
 
 function requireValue(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new PublicReviewError(message);
 }
 
 async function readStdin(limit = 16 * 1024 * 1024) {
@@ -227,14 +230,14 @@ function parseEventStream(stdout) {
   const events = String(stdout || "").split(/\r?\n/).filter((line) => line.trim()).map((line, index) => {
     try {
       return JSON.parse(line);
-    } catch (error) {
-      throw new Error(`Codex JSONL event ${index + 1} is invalid: ${error.message}`);
+    } catch {
+      throw new PublicReviewError(`Codex JSONL event ${index + 1} is invalid`);
     }
   });
   requireValue(events.length > 0, "Codex emitted no JSONL events");
   const threadEvents = events.filter((event) => event.type === "thread.started");
   requireValue(threadEvents.length === 1 && typeof threadEvents[0].thread_id === "string" &&
-    threadEvents[0].thread_id.length > 0,
+    THREAD_ID_PATTERN.test(threadEvents[0].thread_id),
   "Codex review requires exactly one identifiable fresh thread");
   requireValue(!events.some((event) => event.type === "turn.failed" || event.type === "error"),
     "Codex review event stream reported a failed turn");
@@ -253,8 +256,8 @@ function parseEventStream(stdout) {
   let review;
   try {
     review = JSON.parse(messages.at(-1));
-  } catch (error) {
-    throw new Error(`Codex structured review is invalid JSON: ${error.message}`);
+  } catch {
+    throw new PublicReviewError("Codex structured review is invalid JSON");
   }
   return { threadId: threadEvents[0].thread_id, review };
 }
@@ -367,6 +370,7 @@ async function main() {
   let child;
   let packetOutputSchema;
   let promptInput;
+  let authCleanup;
   try {
     packetOutputSchema = writePacketOutputSchema(
       inspection.outputSchema,
@@ -389,9 +393,19 @@ async function main() {
       maxBuffer: request.settings.max_output_bytes
     });
   } finally {
-    promptInput?.cleanup();
-    isolatedHome.cleanup();
-    inspection.cleanup?.();
+    try {
+      promptInput?.cleanup();
+    } finally {
+      authCleanup = isolatedHome.cleanup();
+      inspection.cleanup?.();
+    }
+  }
+  if (authCleanup.status !== "ready") {
+    pending(authCleanup.reason, {
+      runtime_digest: request.settings.runtime_digest,
+      model: request.settings.model
+    });
+    return;
   }
   const finishedAt = new Date().toISOString();
   if (child.error || child.status !== 0) {
@@ -402,7 +416,11 @@ async function main() {
       });
       return;
     }
-    throw new Error(child.error?.message || child.stderr?.trim() || `Codex runtime exited ${child.status}`);
+    throw new PublicReviewError(
+      child.error?.code === "ENOBUFS"
+        ? "Codex runtime output exceeded its fixed process boundary"
+        : "Codex runtime exited unsuccessfully"
+    );
   }
   verifyArtifacts(request.artifacts, "after");
   const { threadId, review: rawReview } = parseEventStream(child.stdout);
@@ -459,4 +477,6 @@ async function main() {
   }));
 }
 
-main().catch((error) => fail(error.message));
+main().catch((error) => fail(
+  error instanceof PublicReviewError ? error.message : "official Codex review failed"
+));

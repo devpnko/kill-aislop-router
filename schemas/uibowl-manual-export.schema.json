@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/uibowl-manual-export.schema.json",
+  "title": "KillSlopRouter UI Bowl manual export manifest",
+  "type": "object",
+  "required": [
+    "export_version", "provider", "access_mode", "captured_at", "query_ids", "records"
+  ],
+  "properties": {
+    "export_version": {"const": 1},
+    "provider": {"const": "uibowl"},
+    "access_mode": {"const": "manual-export"},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "query_ids": {"$ref": "#/$defs/nonempty_strings"},
+    "records": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/record"}
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "nonempty_strings": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "normalization": {
+      "type": "object",
+      "required": ["formula", "lower_bound", "upper_bound", "direction"],
+      "properties": {
+        "formula": {"const": "linear-bounds-v1"},
+        "lower_bound": {"type": "number"},
+        "upper_bound": {"type": "number"},
+        "direction": {"enum": ["higher-is-better", "lower-is-better"]}
+      },
+      "additionalProperties": false
+    },
+    "frame": {
+      "type": "object",
+      "required": ["frame_id", "role", "core_task", "state"],
+      "properties": {
+        "frame_id": {"$ref": "#/$defs/id"},
+        "role": {"enum": ["operational", "transactional", "navigational", "state", "promotional"]},
+        "core_task": {"type": "boolean"},
+        "state": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "subject_binding": {
+      "type": "object",
+      "required": ["subject_kind", "subject_record_id"],
+      "properties": {
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "evidence_record": {
+      "type": "object",
+      "required": ["evidence_id", "kind", "path", "digest", "frame_ids", "subject_bindings"],
+      "properties": {
+        "evidence_id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["source-capture", "source-metadata"]},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "frame_ids": {"$ref": "#/$defs/nonempty_strings"},
+        "subject_bindings": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/subject_binding"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "signal_record": {
+      "type": "object",
+      "required": [
+        "record_kind", "signal_id", "metric", "subject_kind", "subject_record_id",
+        "raw_value", "scope", "category", "as_of", "snapshot_at", "normalization",
+        "evidence_ids"
+      ],
+      "properties": {
+        "record_kind": {"const": "signal"},
+        "signal_id": {"$ref": "#/$defs/id"},
+        "metric": {"enum": ["mau", "bookmark-count", "popular-rank", "curation-popularity"]},
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1},
+        "raw_value": {"type": "number"},
+        "scope": {"type": "string", "minLength": 1},
+        "category": {"type": "string", "minLength": 1},
+        "as_of": {"type": "string", "format": "date-time"},
+        "snapshot_at": {"type": "string", "format": "date-time"},
+        "normalization": {"$ref": "#/$defs/normalization"},
+        "evidence_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "allOf": [{
+        "if": {"properties": {"metric": {"const": "popular-rank"}}},
+        "then": {"properties": {"normalization": {"properties": {
+          "direction": {"const": "lower-is-better"}
+        }}}},
+        "else": {"properties": {"normalization": {"properties": {
+          "direction": {"const": "higher-is-better"}
+        }}}}
+      }],
+      "additionalProperties": false
+    },
+    "conflict_record": {
+      "type": "object",
+      "required": [
+        "record_kind", "signal_id", "subject_kind", "subject_record_id", "raw_value", "as_of",
+        "evidence_ids"
+      ],
+      "properties": {
+        "record_kind": {"const": "conflict"},
+        "signal_id": {"$ref": "#/$defs/id"},
+        "subject_kind": {"enum": ["product", "screen"]},
+        "subject_record_id": {"type": "string", "minLength": 1},
+        "raw_value": {"type": "number"},
+        "as_of": {"type": "string", "format": "date-time"},
+        "evidence_ids": {"$ref": "#/$defs/nonempty_strings"}
+      },
+      "additionalProperties": false
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "product_record_id", "screen_record_id", "uri", "captured_at", "query_ids",
+        "frames", "evidence_records", "popularity_records"
+      ],
+      "properties": {
+        "product_record_id": {"type": "string", "minLength": 1},
+        "screen_record_id": {"type": "string", "minLength": 1},
+        "uri": {"type": "string", "format": "uri", "pattern": "^https://([^/]+\\.)?uibowl\\.io/"},
+        "captured_at": {"type": "string", "format": "date-time"},
+        "query_ids": {"$ref": "#/$defs/nonempty_strings"},
+        "frames": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/frame"}
+        },
+        "evidence_records": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/evidence_record"}
+        },
+        "popularity_records": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"oneOf": [
+            {"$ref": "#/$defs/signal_record"},
+            {"$ref": "#/$defs/conflict_record"}
+          ]}
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

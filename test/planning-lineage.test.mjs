@@ -589,6 +589,33 @@ test("G7 owner approval enforces the published top-level schema", () => {
   }
 });
 
+test("G7 owner evidence rejects KillSlopRouter parent identity aliases", () => {
+  for (const ownerId of [
+    "kill-slop-router",
+    "KillSlopRouter",
+    "killsloprouter:kill-slop-router",
+    "킬슬롭라우터",
+    "킬 슬롭 라우터"
+  ]) {
+    const fixture = createFixture();
+    try {
+      const approval = JSON.parse(fs.readFileSync(fixture.approvalPath, "utf8"));
+      approval.owner_id = ownerId;
+      writeJson(fixture.approvalPath, approval);
+      const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, "utf8"));
+      receipt.gates.G7.evidence.find((item) => item.kind === "owner-approval").digest =
+        hashArtifact(fixture.approvalPath);
+      writeJson(fixture.receiptPath, receipt);
+      const gate = resolveFixture(fixture);
+      assert.equal(gate.status, "blocked", ownerId);
+      assert.match(gate.unresolved.join("\n"),
+        /owner_id cannot use the KillSlopRouter parent identity/, ownerId);
+    } finally {
+      fs.rmSync(fixture.directory, { recursive: true, force: true });
+    }
+  }
+});
+
 test("a slice lineage cannot declare itself as a parent replacement", () => {
   const fixture = createFixture({ supersedesParent: true });
   try {

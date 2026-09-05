@@ -12,7 +12,6 @@
     "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
     "packet_id": {"type": "string", "minLength": 1},
     "provider_id": {"type": "string", "minLength": 1},
-    "participant": {"$ref": "participant.schema.json"},
     "actor": {
       "type": "object",
       "required": ["actor_id", "kind"],
@@ -45,22 +44,145 @@
     "source_design_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "palette": {"type": "object"},
     "color_system": {"type": "object"},
+    "reference_reasoning_trace": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "dimension", "disposition", "target_rationale", "grammar_ids", "reasoning_ids"
+        ],
+        "properties": {
+          "dimension": {"type": "string", "minLength": 1},
+          "disposition": {"enum": ["applied", "not-applicable"]},
+          "target_rationale": {"type": "string", "minLength": 1},
+          "design_choice": {"type": "string", "minLength": 1},
+          "user_decision": {"type": "string", "minLength": 1},
+          "target_constraint": {"type": "string", "minLength": 1},
+          "consequence_if_flattened": {"type": "string", "minLength": 1},
+          "grammar_ids": {"$ref": "#/$defs/strings"},
+          "reasoning_ids": {"$ref": "#/$defs/strings"}
+        },
+        "allOf": [{
+          "if": {"properties": {"disposition": {"const": "applied"}}},
+          "then": {"required": [
+            "design_choice", "user_decision", "target_constraint", "consequence_if_flattened"
+          ]},
+          "else": {
+            "not": {"anyOf": [
+              {"required": ["design_choice"]}, {"required": ["user_decision"]},
+              {"required": ["target_constraint"]}, {"required": ["consequence_if_flattened"]}
+            ]}
+          }
+        }],
+        "additionalProperties": false
+      }
+    },
+    "reference_checks": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["candidate_id", "checks", "rationale"],
+        "properties": {
+          "candidate_id": {"type": "string", "minLength": 1},
+          "checks": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": ["check_id", "passed", "evidence_bindings"],
+              "properties": {
+                "check_id": {"type": "string", "minLength": 1},
+                "passed": {"type": "boolean"},
+                "evidence_bindings": {
+                  "type": "array", "minItems": 1, "uniqueItems": true,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "evidence_role", "source_kind", "evidence_kind", "subject_id", "digest"
+                    ],
+                    "properties": {
+                      "evidence_role": {"type": "string", "minLength": 1},
+                      "source_kind": {"enum": [
+                        "candidate-field", "candidate-evidence", "browser-result",
+                        "browser-evidence", "review-evidence", "reference-authority"
+                      ]},
+                      "evidence_kind": {"type": "string", "minLength": 1},
+                      "subject_id": {"type": "string", "minLength": 1},
+                      "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "rationale": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
     "evidence": {
       "type": "array", "minItems": 1, "uniqueItems": true,
       "items": {
         "type": "object",
         "required": ["kind", "path"],
         "properties": {
-          "kind": {"enum": ["prototype", "screenshot", "test-report", "review-report", "token-spec", "font-report"]},
+          "kind": {"enum": ["prototype", "screenshot", "test-report", "review-report", "token-spec", "font-report", "design-contract", "source-composition-analysis"]},
           "path": {"type": "string", "minLength": 1},
           "viewport": {"type": "string", "minLength": 1},
           "state": {"type": "string", "minLength": 1},
-          "checks": {"$ref": "#/$defs/optional-strings"}
+          "checks": {"$ref": "#/$defs/optional-strings"},
+          "contract_roles": {"$ref": "#/$defs/strings"}
         },
+        "allOf": [{
+          "if": {"properties": {"kind": {"const": "design-contract"}}},
+          "then": {"required": ["contract_roles"]},
+          "else": {"not": {"required": ["contract_roles"]}}
+        }],
         "additionalProperties": false
       }
     }
   },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "direction-candidate"}}},
+      "then": {
+        "required": ["candidate_id", "baseline_digest", "intent", "signature", "rationale"],
+        "not": {"required": ["reference_checks"]}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "color-candidate"}}},
+      "then": {
+        "required": [
+          "candidate_id", "design_candidate_id", "color_strategy_id",
+          "source_design_digest", "palette", "color_system", "rationale"
+        ],
+        "not": {"required": ["reference_checks"]}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"enum": ["direction-review", "color-review"]}}},
+      "then": {
+        "required": ["scores", "ranking", "blockers"],
+        "not": {"required": ["reference_reasoning_trace"]}
+      }
+    },
+    {
+      "if": {"properties": {"kind": {"const": "browser-evidence"}}},
+      "then": {
+        "required": [
+          "candidate_id", "subject_kind", "subject_id", "subject_result_digest",
+          "browser_engine", "browser_engine_version", "checks",
+          "locales_tested", "states_tested"
+        ],
+        "allOf": [
+          {"not": {"required": ["reference_reasoning_trace"]}},
+          {"not": {"required": ["reference_checks"]}}
+        ]
+      }
+    }
+  ],
   "$defs": {
     "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "optional-strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}

@@ -63,6 +63,71 @@ override the verified visual intent and signature.
 5. Resolve the generated `visual_intents` entry from project, brand, approved-reference, or explicit owner evidence. Surface is semantic, not aesthetic: `marketing-editorial` does not authorize a paper/editorial look, and `operator-product-ui` does not prescribe a gray dashboard. Never use scanner output or anti-slop rules as visual direction.
 6. Keep visual intent unresolved when evidence is ambiguous. When direction already has exact project authority, create the receipt described in `<plugin-root>/docs/visual-intent-contract.md`, bind every evidence digest, and copy the exact mode, editorial boundary, energy, depth, `preserve`, and `avoid` values into the profile. Use editorial mode only when the evidence explicitly requires it; use `bounded` only with named scopes.
 7. If direction is genuinely undecided and the task needs visual creation, use `<plugin-root>/docs/design-exploration.md`. Build a brief from product and repository evidence with exactly three distinct project-specific theses, not three renamed style presets. Run the 3×3 direction matrix through authorized creators and separate Playwright packets using self-contained digest-bound prototypes, stop for the real owner to shortlist three, run the 3×3 color matrix, and stop again for exact owner approval. Missing adapters remain `manual_pending`; never author the owner files yourself.
+   When service planning is locked but the design inputs are still generic, the
+   owner may explicitly authorize the optional
+   `<plugin-root>/docs/reference-intelligence.md` stage first. Use UI Bowl or
+   another future approved source only as provenance-bound reference evidence.
+   In manual mode require a schema-valid, digest-bound export manifest and exact
+   membership for products, screens, frames, URLs, popularity, and the actual
+   evidence files. Pin each evidence file's content, digest, and physical
+   identity; close it over the enclosing product/screen, enumerated frames, and
+   explicit subject bindings. Observations must cite their bound screen/frame,
+   and popularity must cite the same product-or-screen subject. Never let a
+   provider invent or widen any of those fields, signal scope, category, or
+   normalization.
+
+   Rank popularity strongly only within an equal product-fit band, never across
+   fit bands or over hard gates. Recompute every signal and weighted score, rank
+   conflicted popularity last without making an otherwise sound reference
+   ineligible, and require repeated product-level claims across screens to be
+   canonically identical or explicitly conflicted. Permit Owner selection only
+   for independently verified `copy_risk: low` references. Require multi-frame
+   task evidence, screen-role
+   and evidence-strength labels, product/category/ecosystem/cohort diversity,
+   and a promotional-evidence firewall. Every transferable principle must trace
+   visible priority to the supported user decision, likely constraint,
+   flattening consequence, application conditions, tradeoff, harmful context,
+   live-data dependency, and anti-copy boundary.
+
+   Route distinct researcher and critic children and stop for the owner to
+   select one anchor plus cross-product/category/ecosystem supports. The full
+   pack may retain selected source identities, links, verified observations,
+   causal reasoning, grammar, and a path-free source-evidence digest manifest;
+   it contains no capture bytes or paths. A downstream creator receives only an
+   aliased, source-identity-free projection of causal reasoning and transferable
+   grammar. Treat research completion and design readiness separately. Require
+   the pack's router-recomputed `reviewer_source_capture_readiness` to be
+   `ready_at_compilation`, with no uncovered selected reference or verified
+   observation; `manual_pending` is valid research output but cannot start
+   design. Revalidate the exact capture coverage at design start. The optional
+   `reference_pack` must bind its exact completed producer
+   state and `reviewer_source_access` version 1 in
+   `digest-bound-internal-critic` mode. Limit its purposes to
+   `promotional-citation-firewall` and `source-composition-independence`, its
+   evidence kind to `source-capture`, and set redistribution, creator access,
+   browser-provider access, and external network false. Only an
+   `independent-reviewer` packet may receive the derived
+   `review_source_authority` and actual read-only artifacts under
+   `reference-evidence:read`; creator/browser packets must forbid that
+   permission and `network:external`, omit source authority, and preserve
+   `source_pixels_exposed_to_downstream_creator: false`. Bind the derived
+   authority's source-recipient provider and actor IDs across runs: none may
+   return as a direction/color creator or browser participant, while independent
+   reviewer reuse is allowed. Preserve the canonically ordered, digest-bound
+   source-recipient execution lineage from the producer; it may be empty only
+   for entirely manual production and must never be synthesized. Require
+   per-dimension traces and apply the eleven
+   fixed checks by stage: ten for direction and two
+   for color, with source-composition independence shared. Bind
+   `reference-capture-set` to `reference-authority/source-capture-set` and the
+   reviewer analysis to a schema-valid
+   `review-evidence/source-composition-analysis`. Preserve only the capture-set
+   and direction/color analysis digests in the final binding, never source
+   paths or pixels. It may supply reasoning
+   to the unchanged exact-three design route, but it does not authorize visual
+   intent/signature, select a thesis, start an unapproved creator, or replace
+   Playwright and Owner gates. Missing or unverified source access remains
+   `manual_pending`; do not scrape or silently enable MCP.
 8. Resolve `visual_signatures` separately. Inspect approved design tokens, CSS variables, theme configuration, brand mappings, fonts, type hierarchy, density, radii, geometry, strokes, shadows, separation, imagery, and motion for the routed surface. A value's frequency or presence in a logo is discovery evidence only, never proof of its UI role. Do not combine signatures from other product surfaces.
 9. If every aspect is authoritative, create the receipt described in `<plugin-root>/docs/visual-signature-contract.md`, map all nine aspects to digest-locked evidence, and copy the exact signature into the profile. If design exploration completed, use only its compiled `profile-bindings.json`; do not reinterpret the selected palette or style. If any role or source conflict is material, keep the signature unresolved and stop before creation. Never fill unresolved fields with an editorial, neutral, flat, or trend-based default.
 10. For a UI artifact, inventory the critical routes and interactive states before approval. Write deterministic Playwright scenarios for primary navigation, requested components, dialogs/drawers, empty/error/loading and permission states, and mobile behavior. Put the reviewed IDs in `evidence.required_scenarios` or pass `browser configure --required-scenarios`; every required scenario needs a state assertion. A visible `body` alone is not sufficient for an existing product. Keep the configure-generated `scenario_digest` and `browser_contract_digest`; do not weaken scenario actions, assertions, or viewport definitions between observation and redesign.
@@ -72,6 +137,24 @@ override the verified visual intent and signature.
 14. Start each `run` with state below the project's `.killsloprouter/` directory. Use the actual creator provider and session actor ID. Resume the same state until it is complete or an exact external action is required.
 15. Never overlap `run --out`, `run --resume`, or identity migration for the same state. An active state lease is a hard blocker. After a real orchestrator crash, inspect it with `lease status`; recover only with the exact owner token, acquisition timestamp, and state digest after `recover_after`. If recovery records `abandoned_after_crash`, require an explicit packet/provider/stage retry and never report the unknown child as `ran`.
 16. Retain the `resume_authority_digest` printed by a modern start outside the mutable state directory. Every integrated `run --resume` must pass that original value with `--authority-digest`. Never obtain a replacement value from the state being verified; if the original caller-held value is unavailable, fail closed and start a new journey from verified sources. The evidence-free `--migrate-identity` path is the only legacy bridge: it requires a byte-identical pre-mutation state backup outside the state directory plus that backup file's caller-retained SHA-256, accepts only a positively supported historical source and exact pre-identity shape, and emits a new resume authority for later resumes. Retain the backup because migration verification remains bound to it.
+17. Treat every pre-contract reference-intelligence preview as historical
+    evidence only. Do not hand-edit, re-sign, or resume it. Start a new
+    reference run from the unchanged external planning and Owner authority,
+    regenerate dry-run, packets, all child results, Owner selection, and pack,
+    then restart any design exploration that had bound the preview pack so its
+    reviewer source-access, capture readiness, capture-set authority, and
+    source-recipient separation plus its digest-bound execution lineage are
+    newly generated. A
+    design brief with no `reference_pack` keeps the existing exact-three flow.
+    Likewise, never backfill a design or reference automated attempt that lacks
+    its immutable execution-authority snapshot (and, for reference attempts,
+    the pinned authority-source sidecar) from a current host manifest. Start a
+    new run from verified external inputs; inspection-only/manual attempts do
+    not become automated evidence. Do not adopt an `approved/` or staging
+    directory left by a pre-transaction design run: only an exact sealed
+    `pending_finalization` checkpoint may be resumed. Preserve legacy output as
+    historical evidence and restart the design journey from unchanged external
+    authority.
 
 Use the command forms in `<plugin-root>/docs/automation-run.md`. Never overwrite an
 existing bootstrap configuration; inspect and migrate it deliberately.

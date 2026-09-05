@@ -6,7 +6,8 @@
   "required": [
     "design_exploration_run_version", "run_id", "journey_identity", "status", "phase", "state_path",
     "state_directory", "brief", "brief_source", "baseline", "packets", "packet_files",
-    "results", "attempts", "outputs", "blockers", "pending", "state_digest"
+    "results", "attempts", "lease_recoveries", "in_flight", "pending_finalization",
+    "outputs", "final_receipt_digests", "blockers", "pending", "state_digest"
   ],
   "properties": {
     "design_exploration_run_version": {"const": 1},
@@ -18,16 +19,98 @@
     "state_directory": {"type": "string", "minLength": 1},
     "brief": {"type": "object"},
     "brief_source": {"$ref": "#/$defs/snapshot"},
+    "reference_pack": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["source", "pack_digest", "normalized", "producer_state"],
+          "properties": {
+            "source": {"$ref": "#/$defs/snapshot"},
+            "pack_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "normalized": {"type": "object"},
+            "producer_state": {
+              "type": "object",
+              "required": [
+                "source", "state_digest", "run_id", "selection_digest", "result_digests",
+                "review_source_authority"
+              ],
+              "properties": {
+                "source": {"$ref": "#/$defs/snapshot"},
+                "state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "run_id": {"type": "string", "minLength": 1},
+                "selection_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                "result_digests": {
+                  "type": "object",
+                  "required": ["reference-discovery", "reference-grammar", "reference-review"],
+                  "properties": {
+                    "reference-discovery": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                    "reference-grammar": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+                    "reference-review": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+                  },
+                  "additionalProperties": false
+                },
+                "review_source_authority": {"$ref": "#/$defs/reviewSourceAuthority"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "baseline": {"$ref": "#/$defs/snapshot"},
     "packets": {"type": "array", "items": {"type": "object"}},
     "packet_files": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
     "results": {"type": "array", "items": {"type": "object"}},
-    "attempts": {"type": "array", "items": {"type": "object"}},
+    "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
+    "lease_recoveries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/leaseRecovery"}
+    },
+    "in_flight": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["packet_id", "provider_id", "attempt", "packet_digest", "started_at"],
+          "properties": {
+            "packet_id": {"type": "string", "minLength": 1},
+            "provider_id": {"type": "string", "minLength": 1},
+            "attempt": {"type": "integer", "minimum": 1},
+            "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "started_at": {"type": "string", "format": "date-time"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "shortlist": {"type": ["object", "null"]},
     "approval": {"type": ["object", "null"]},
     "selection_scope_digest": {"type": ["string", "null"]},
     "approval_scope_digest": {"type": ["string", "null"]},
+    "pending_finalization": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/pendingFinalization"}
+      ]
+    },
     "outputs": {"type": "object", "additionalProperties": {"$ref": "#/$defs/snapshot"}},
+    "final_receipt_digests": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["visual_intent", "visual_signature", "decision"],
+          "properties": {
+            "visual_intent": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "visual_signature": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "decision": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "blockers": {"type": "array", "items": {"type": "string"}},
     "pending": {"type": "array", "items": {"type": "string"}},
     "state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
@@ -48,6 +131,312 @@
         }
       },
       "additionalProperties": true
+    },
+    "reviewSourceAuthority": {
+      "type": "object",
+      "required": [
+        "review_source_authority_version", "pack_digest", "producer_state_digest",
+        "source_recipient_provider_ids", "source_recipient_actor_ids",
+        "source_recipient_execution_lineage", "captures", "capture_set_digest"
+      ],
+      "properties": {
+        "review_source_authority_version": {"const": 1},
+        "pack_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "producer_state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "source_recipient_provider_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "source_recipient_actor_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "source_recipient_execution_lineage": {
+          "$ref": "#/$defs/sourceRecipientExecutionLineage"
+        },
+        "captures": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["capture_alias", "reference_alias", "evidence_digest", "frames"],
+            "properties": {
+              "capture_alias": {"type": "string", "pattern": "^capture-[0-9]{3}$"},
+              "reference_alias": {"type": "string", "pattern": "^reference-[0-9]{3}$"},
+              "evidence_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+              "frames": {
+                "type": "array", "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["frame_alias", "role", "core_task", "state"],
+                  "properties": {
+                    "frame_alias": {"type": "string", "pattern": "^frame-[0-9]{3}$"},
+                    "role": {"enum": ["operational", "transactional", "navigational", "state", "promotional"]},
+                    "core_task": {"type": "boolean"},
+                    "state": {"type": "boolean"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "capture_set_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "$comment": "Runtime derives the sorted unique recipient arrays and execution lineage from the exact producer results and attempts, and binds them into capture_set_digest. A consuming design run forbids those providers and actors from direction/color creator and browser roles; independent reviewer overlap remains allowed.",
+      "additionalProperties": false
+    },
+    "sourceRecipientExecutionLineage": {
+      "type": "object",
+      "required": [
+        "reference_source_recipient_execution_lineage_version", "attempts",
+        "lineage_digest"
+      ],
+      "properties": {
+        "reference_source_recipient_execution_lineage_version": {"const": 1},
+        "attempts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sourceRecipientExecutionAttempt"}
+        },
+        "lineage_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "$comment": "Runtime orders attempts by packet_id using codepoint order and then by the integer attempt number. An empty array is valid when reference production was entirely manual and spawned no executable authority.",
+      "additionalProperties": false
+    },
+    "sourceRecipientExecutionAttempt": {
+      "type": "object",
+      "required": [
+        "packet_id", "attempt", "execution_status", "provider_id", "adapter",
+        "authority_digest", "provider_declaration_digest", "adapter_entrypoint"
+      ],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "attempt": {"type": "integer", "minimum": 1},
+        "execution_status": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "adapter": {
+          "enum": [
+            "kill-ai-slop-v1", "agent-json-v1", "skill-json-v1",
+            "browser-json-v1", "manual-v1"
+          ]
+        },
+        "authority_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "provider_declaration_digest": {
+          "type": "string", "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "adapter_entrypoint": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/sourceRecipientExecutionEntrypoint"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceRecipientExecutionEntrypoint": {
+      "type": "object",
+      "required": ["digest", "physical_identity_digest", "graph_digest"],
+      "properties": {
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "physical_identity_digest": {
+          "type": "string", "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "graph_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "executionAuthority": {
+      "type": "object",
+      "required": [
+        "design_execution_authority_version", "host_manifest",
+        "provider_declaration_digest", "adapter_entrypoint", "authority_digest"
+      ],
+      "properties": {
+        "design_execution_authority_version": {"const": 1},
+        "host_manifest": {"$ref": "#/$defs/snapshot"},
+        "provider_declaration_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "adapter_entrypoint": {
+          "oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]
+        },
+        "authority_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "pendingFinalization": {
+      "type": "object",
+      "required": [
+        "design_finalization_transaction_version", "directory", "staging_directory",
+        "files", "final_receipt_digests", "transaction_digest"
+      ],
+      "properties": {
+        "design_finalization_transaction_version": {"const": 1},
+        "directory": {"type": "string", "minLength": 1},
+        "staging_directory": {"type": "string", "minLength": 1},
+        "files": {
+          "type": "object",
+          "required": [
+            "decision", "visual_intent_receipt", "visual_signature_receipt",
+            "profile_bindings"
+          ],
+          "properties": {
+            "decision": {"$ref": "#/$defs/finalizationFile"},
+            "visual_intent_receipt": {"$ref": "#/$defs/finalizationFile"},
+            "visual_signature_receipt": {"$ref": "#/$defs/finalizationFile"},
+            "profile_bindings": {"$ref": "#/$defs/finalizationFile"}
+          },
+          "additionalProperties": false
+        },
+        "final_receipt_digests": {
+          "type": "object",
+          "required": ["visual_intent", "visual_signature", "decision"],
+          "properties": {
+            "visual_intent": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "visual_signature": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "decision": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+          },
+          "additionalProperties": false
+        },
+        "transaction_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "finalizationFile": {
+      "type": "object",
+      "required": ["name", "digest", "bytes"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "packet_id", "provider_id", "participant", "attempt", "packet_digest",
+        "execution_status"
+      ],
+      "properties": {
+        "packet_id": {"type": "string", "minLength": 1},
+        "provider_id": {"type": "string", "minLength": 1},
+        "participant": {"$ref": "participant.schema.json"},
+        "attempt": {"type": "integer", "minimum": 1},
+        "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "execution_status": {"type": "string", "minLength": 1},
+        "adapter": {
+          "type": ["string", "null"],
+          "enum": [
+            "kill-ai-slop-v1", "agent-json-v1", "skill-json-v1",
+            "browser-json-v1", "manual-v1", null
+          ]
+        },
+        "execution_authority": {"$ref": "#/$defs/executionAuthority"},
+        "recovery_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution_status": {
+                "anyOf": [
+                  {"const": "ran"},
+                  {
+                    "allOf": [
+                      {"pattern": "^blocked_"},
+                      {"not": {"enum": [
+                        "blocked_abandoned_after_crash",
+                        "blocked_abandoned_before_spawn"
+                      ]}}
+                    ]
+                  }
+                ]
+              }
+            },
+            "required": ["execution_status"]
+          },
+          "then": {"required": ["execution_authority"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_status": {"const": "manual_pending"},
+              "adapter": {
+                "type": "string",
+                "not": {"const": "manual-v1"}
+              }
+            },
+            "required": ["execution_status", "adapter"]
+          },
+          "then": {"required": ["execution_authority"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_status": {"enum": ["manual_pending", "manual_recorded"]},
+              "adapter": {"enum": ["manual-v1", null]}
+            },
+            "required": ["execution_status", "adapter"]
+          },
+          "then": {"not": {"required": ["execution_authority"]}}
+        }
+      ],
+      "additionalProperties": true
+    },
+    "processIdentity": {
+      "type": "object",
+      "required": ["process_identity_version", "method", "marker"],
+      "properties": {
+        "process_identity_version": {"const": 1},
+        "method": {"type": "string", "minLength": 1},
+        "marker": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "leaseRecovery": {
+      "type": "object",
+      "required": [
+        "design_lease_recovery_version", "run_id", "journey_identity",
+        "recovered_lease_digest", "recovered_owner_token_digest", "recovered_owner_pid",
+        "recovered_owner_process_identity", "recovered_operation", "recovered_phase",
+        "previous_state_digest", "observed_state_digest", "outcome", "abandoned_packet",
+        "retry_required", "recovered_at", "recovery_digest"
+      ],
+      "properties": {
+        "design_lease_recovery_version": {"const": 1},
+        "run_id": {"type": "string", "minLength": 1},
+        "journey_identity": {"$ref": "journey-identity.schema.json"},
+        "recovered_lease_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "recovered_owner_token_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "recovered_owner_pid": {"type": "integer", "minimum": 1},
+        "recovered_owner_process_identity": {"$ref": "#/$defs/processIdentity"},
+        "recovered_operation": {"type": "string", "minLength": 1},
+        "recovered_phase": {"type": "string", "minLength": 1},
+        "previous_state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "observed_state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "outcome": {"enum": [
+          "checkpoint_recovered", "abandoned_before_spawn", "abandoned_after_crash"
+        ]},
+        "abandoned_packet": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["packet_id", "provider_id", "attempt", "packet_digest"],
+              "properties": {
+                "packet_id": {"type": "string", "minLength": 1},
+                "provider_id": {"type": "string", "minLength": 1},
+                "attempt": {"type": "integer", "minimum": 1},
+                "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "retry_required": {"type": "boolean"},
+        "recovered_at": {"type": "string", "format": "date-time"},
+        "recovery_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": true

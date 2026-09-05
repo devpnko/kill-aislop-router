@@ -11,7 +11,8 @@
     "result": {
       "oneOf": [
         {"$ref": "./audit-result.schema.json"},
-        {"$ref": "./design-result.schema.json"}
+        {"$ref": "./design-result.schema.json"},
+        {"$ref": "./reference-result.schema.json"}
       ]
     },
     "metadata": {
