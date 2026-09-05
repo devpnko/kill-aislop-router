@@ -68,6 +68,44 @@ export const HOST_PERMISSION_SCOPES = new Set([
 
 const PROCESS_ADAPTERS = new Set(["agent-json-v1", "skill-json-v1", "browser-json-v1"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const SAFE_CODEX_PENDING_REASONS = new Set([
+  "official Codex runtime is missing",
+  "official Codex runtime is not executable",
+  "Codex authentication became unavailable during review",
+  "Codex authentication is unavailable: host auth.json is missing",
+  "Codex authentication is unavailable: host auth.json must be a regular non-symlink file",
+  "Codex authentication is unavailable: the host credential store could not be securely inspected",
+  "Codex authentication is unavailable: a protected temporary credential view could not be created",
+  "Codex authentication is unavailable: the protected temporary credential view could not be removed",
+  "Codex authentication is unavailable: authentication authority changed during the readiness probe",
+  "Codex authentication is unavailable: the runtime reported no authenticated session"
+]);
+const SAFE_CODEX_ADAPTER_FAILURES = new Set([
+  "Codex review did not explicitly check the exact assigned capability set",
+  "Codex review finding conflicts_with must be a unique array",
+  "Codex review may return conflict resolutions only for an adjudication packet"
+]);
+
+function publicOfficialCodexPendingReason(reason, settings = {}) {
+  if (SAFE_CODEX_PENDING_REASONS.has(reason)) return reason;
+  if (settings.skill_name && reason === `Codex review skill is missing: ${settings.skill_name}`) {
+    return reason;
+  }
+  return "official Codex reviewer is unavailable";
+}
+
+function publicOfficialCodexExecutionError(child) {
+  if (child.error?.code === "ENOBUFS") {
+    return "official Codex host adapter output exceeded the maxBuffer process boundary";
+  }
+  const prefix = "KillSlopRouter Codex review: ";
+  const stderr = String(child.stderr || "").trim();
+  if (stderr.startsWith(prefix) && !stderr.includes("\n")) {
+    const candidate = stderr.slice(prefix.length);
+    if (SAFE_CODEX_ADAPTER_FAILURES.has(candidate)) return candidate;
+  }
+  return "official Codex host adapter exited unsuccessfully";
+}
 
 function readPinnedExecutionJson(target, label, faultInjector = null) {
   try {
@@ -952,6 +990,18 @@ function runJsonProcess({
     };
   }
   if (child.error || child.status !== 0) {
+    const officialCodex = declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT;
+    if (officialCodex) {
+      return {
+        execution_status: "blocked_execution_error",
+        started_at: startedAt,
+        finished_at: finishedAt,
+        child_pid: child.pid || null,
+        exit_code: child.status,
+        signal: child.signal || null,
+        error: publicOfficialCodexExecutionError(child)
+      };
+    }
     const rawError = child.error?.message || child.stderr?.trim() || `child exited ${child.status}`;
     const boundaryError = child.error?.code === "ENOBUFS" ||
       /(?:EAGAIN|resource temporarily unavailable)[\s\S]*(?:write|buffer)|(?:write|buffer)[\s\S]*(?:EAGAIN|resource temporarily unavailable)/i
@@ -979,7 +1029,9 @@ function runJsonProcess({
       child_pid: child.pid || null,
       exit_code: child.status,
       signal: child.signal || null,
-      error: `host adapter emitted invalid JSON: ${error.message}`
+      error: declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT
+        ? "official Codex host adapter emitted invalid JSON"
+        : `host adapter emitted invalid JSON: ${error.message}`
     };
   }
   if (response?.host_adapter_response_version === 1 &&
@@ -994,7 +1046,7 @@ function runJsonProcess({
       exit_code: child.status,
       signal: child.signal || null,
       metadata: response.metadata || {},
-      reason: response.reason
+      reason: publicOfficialCodexPendingReason(response.reason, declaration.settings)
     };
   }
   if (response?.host_adapter_response_version !== 1 || !response.result) {

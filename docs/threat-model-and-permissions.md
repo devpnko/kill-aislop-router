@@ -344,6 +344,13 @@ same-UID process that momentarily replaces and restores the auth pathname is an
 ABA race outside this in-process boundary. Use a dedicated OS account,
 restricted worker, VM, or container when same-user interference is in scope.
 
+Only successful authenticated readiness is cached. Transient negative runtime
+status is retried under the same auth identity, and failed cleanup is an
+uncached `manual_pending` result. The official adapter and outer execution
+boundary never publish nested Codex stdout/stderr or JSON parser input on an
+abnormal path; they record fixed errors, and thread identifiers must satisfy a
+bounded safe pattern before entering provenance.
+
 Manifest validation does not create a private runtime copy per provider. It
 checks the configured source identities and caches only the resulting readiness
 probe under those identities. The private clone is deferred to the actual

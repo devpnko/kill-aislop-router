@@ -174,6 +174,21 @@ non-path-bearing readiness reasons; raw filesystem errors, auth content
 digests, and credential-store paths are not copied into setup output, host
 inspection, dry-run output, receipts, or stderr.
 
+Readiness cache identity includes pinned auth content plus stable file identity.
+Expected hard-link creation/removal metadata does not masquerade as credential
+mutation, while in-place byte changes and inode replacement invalidate the
+observation. Only a successful authenticated observation is cached; transient
+negative probes are retried. A change during the probe or unresolved temporary
+credential-view cleanup remains `manual_pending` and cannot become execution
+evidence.
+
+The nested runtime's raw stdout and stderr are never public error text. Unknown
+non-zero exits, output-boundary failures, invalid JSONL, invalid structured
+review JSON, and unsafe thread identifiers become fixed adapter errors before
+the outer execution ledger records them. This prevents error strings from
+turning credential paths, auth digests, or input fragments into state, audit,
+receipt, or terminal output.
+
 The configured runtime has a separate execution seal. Configuration records
 both content digests and filesystem identity digests for the executable and
 complete runtime root. Each probe and review copies that root into a private

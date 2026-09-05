@@ -676,7 +676,7 @@ function probeRuntime(runtimePath, runtimeAuthorityDigest) {
       auth_reason: AUTHENTICATION_REASONS.changed
     };
   }
-  runtimeProbeCache.set(cacheKey, result);
+  if (authenticated) runtimeProbeCache.set(cacheKey, result);
   return result;
 }
 

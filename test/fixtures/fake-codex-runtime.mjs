@@ -49,7 +49,9 @@ if (args[0] === "login" && args[1] === "status") {
     const next = count + 1;
     fs.writeFileSync(mode.auth_counter_path, `${next}\n`);
     authProbeCount = next;
-    authenticated = next <= (mode.auth_successes ?? 0);
+    authenticated = Number.isInteger(mode.auth_failures_before_success)
+      ? next > mode.auth_failures_before_success
+      : next <= (mode.auth_successes ?? 0);
   }
   if (authProbeCount === mode.mutate_auth_on_status_call) {
     fs.appendFileSync(path.join(process.env.CODEX_HOME, "auth.json"), " \n");
@@ -137,6 +139,14 @@ if (mode.exec_auth_failure) {
   process.stderr.write("Authentication failed: not logged in; please run codex login\n");
   process.exit(1);
 }
+if (mode.exec_unclassified_failure_output) {
+  process.stderr.write(`${mode.exec_unclassified_failure_output}\n`);
+  process.exit(7);
+}
+if (mode.invalid_jsonl_output) {
+  process.stdout.write(`${mode.invalid_jsonl_output}\n`);
+  process.exit(0);
+}
 
 let prompt = "";
 for await (const chunk of process.stdin) prompt += chunk;
@@ -185,7 +195,7 @@ if (mode.mutate_artifact) {
   fs.appendFileSync(contract.artifacts[0].resolved_path, "<!-- fake runtime mutation -->\n");
 }
 
-const threadId = `fixture-${contract.packet.provider.id}-${crypto.randomUUID()}`;
+const threadId = mode.thread_id || `fixture-${contract.packet.provider.id}-${crypto.randomUUID()}`;
 const review = mode.review || {
   verdict: "pass",
   capabilities_checked: contract.packet.assigned_capabilities,
@@ -201,7 +211,11 @@ const events = [
   }] : []),
   {
     type: "item.completed",
-    item: { id: "message", type: "agent_message", text: JSON.stringify(review) }
+    item: {
+      id: "message",
+      type: "agent_message",
+      text: mode.invalid_structured_review || JSON.stringify(review)
+    }
   },
   { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }
 ];

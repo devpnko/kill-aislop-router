@@ -77,6 +77,15 @@
   cloning the complete runtime once per provider. The actual reviewer child
   still executes only from a fresh private runtime seal.
 
+- Bound official Codex readiness caching to pinned authentication content and
+  stable file identity while excluding expected hard-link lifecycle metadata.
+  Authentication changes during a probe, same-byte inode replacement, and
+  unresolved isolation cleanup fail closed without poisoning the cache; only
+  successful authenticated observations are cached. Authentication filesystem
+  errors and all nested Codex abnormal stdout/stderr or malformed JSON output
+  are reduced to fixed non-path-bearing public failures, and unsafe thread IDs
+  cannot enter actor or receipt provenance.
+
 - Preserved the documented standalone kill-ai-slop scanner-to-audit workflow
   without weakening parent identity: only the exact unbound compatibility
   receipt may be parent-bound at ingest after real artifact path and digest

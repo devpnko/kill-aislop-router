@@ -11,6 +11,7 @@ import {
   codexRuntimePhysicalIdentityDigest,
   codexRuntimeRootDigest,
   codexRuntimeRootPhysicalIdentityDigest,
+  createIsolatedCodexHome,
   createCodexRuntimeSeal,
   verifyCodexRuntimeSeal
 } from "../src/codex.mjs";
@@ -103,6 +104,16 @@ function sealPacket(value) {
 
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function readTextTree(directory) {
+  const values = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) values.push(readTextTree(absolute));
+    else if (entry.isFile()) values.push(fs.readFileSync(absolute, "utf8"));
+  }
+  return values.join("\n");
 }
 
 function replaceWithSameBytes(target) {
@@ -710,6 +721,9 @@ test("same-inode same-size authentication changes invalidate an already-ready ca
     assert.equal(configured.status, 0, configured.stderr || configured.stdout);
     assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "1");
 
+    const fixedTime = new Date("2020-01-02T03:04:05.000Z");
+    fs.utimesSync(authPath, fixedTime, fixedTime);
+
     const first = loadFixtureManifest(fixture);
     assert.equal(first.providers["project-contract"].official_codex.readiness.status, "ready");
     assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
@@ -722,9 +736,14 @@ test("same-inode same-size authentication changes invalidate an already-ready ca
     const replacement = current.replace("true", "null");
     assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(current));
     fs.writeFileSync(authPath, replacement);
+    fs.utimesSync(authPath, fixedTime, fixedTime);
     const after = fs.statSync(authPath, { bigint: true });
+    assert.equal(after.dev, before.dev);
     assert.equal(after.ino, before.ino);
+    assert.equal(after.uid, before.uid);
+    assert.equal(after.mode, before.mode);
     assert.equal(after.size, before.size);
+    assert.equal(after.mtimeNs, before.mtimeNs);
 
     const refreshed = loadFixtureManifest(fixture);
     assert.equal(refreshed.providers["project-contract"].official_codex.readiness.status, "ready");
@@ -837,6 +856,169 @@ test("authentication filesystem failures stay path- and digest-free across publi
     }
   } finally {
     cleanup(fixture);
+  }
+});
+
+test("transient negative authentication readiness is retried under an unchanged identity", () => {
+  const fixture = projectFixture();
+  const authCounter = path.join(fixture.directory, "negative-auth-probe-count.txt");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_counter_path: authCounter,
+    auth_failures_before_success: 2
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 6, configured.stderr || configured.stdout);
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "1");
+
+    const stillUnavailable = loadFixtureManifest(fixture);
+    assert.equal(
+      stillUnavailable.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+    const recovered = loadFixtureManifest(fixture);
+    assert.equal(recovered.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+    const cached = loadFixtureManifest(fixture);
+    assert.equal(cached.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("authentication isolation and cleanup failures stay sanitized and retryable", () => {
+  const fixture = projectFixture();
+  const authCounter = path.join(fixture.directory, "cleanup-auth-probe-count.txt");
+  const authPath = path.join(fixture.authHome, "auth.json");
+  const sentinel = `${authPath}:credential-cleanup-sentinel`;
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_counter_path: authCounter,
+    auth_successes: 10
+  });
+  try {
+    const originalMkdtemp = fs.mkdtempSync;
+    fs.mkdtempSync = (prefix, ...args) => {
+      if (String(prefix).includes("killsloprouter-codex-home-")) throw new Error(sentinel);
+      return originalMkdtemp(prefix, ...args);
+    };
+    let createFailure;
+    try {
+      createFailure = withFixtureCodexHome(fixture, () => createIsolatedCodexHome());
+    } finally {
+      fs.mkdtempSync = originalMkdtemp;
+    }
+    assert.equal(createFailure.status, "manual_pending");
+    assert.equal(
+      createFailure.reason,
+      "Codex authentication is unavailable: a protected temporary credential view could not be created"
+    );
+    assert.equal(JSON.stringify(createFailure).includes(sentinel), false);
+    assert.equal(JSON.stringify(createFailure).includes(authPath), false);
+
+    const originalSymlink = fs.symlinkSync;
+    const originalLink = fs.linkSync;
+    fs.symlinkSync = () => { throw new Error(sentinel); };
+    fs.linkSync = () => { throw new Error(sentinel); };
+    let linkFailure;
+    try {
+      linkFailure = withFixtureCodexHome(fixture, () => createIsolatedCodexHome());
+    } finally {
+      fs.symlinkSync = originalSymlink;
+      fs.linkSync = originalLink;
+    }
+    assert.equal(linkFailure.status, "manual_pending");
+    assert.equal(
+      linkFailure.reason,
+      "Codex authentication is unavailable: a protected temporary credential view could not be created"
+    );
+    assert.equal(JSON.stringify(linkFailure).includes(sentinel), false);
+    assert.equal(JSON.stringify(linkFailure).includes(authPath), false);
+
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const originalRm = fs.rmSync;
+    const retainedHomes = [];
+    fs.rmSync = (target, ...args) => {
+      if (path.basename(String(target)).startsWith("killsloprouter-codex-home-")) {
+        retainedHomes.push(String(target));
+        throw new Error(sentinel);
+      }
+      return originalRm(target, ...args);
+    };
+    let cleanupFailure;
+    try {
+      cleanupFailure = loadFixtureManifest(fixture);
+    } finally {
+      fs.rmSync = originalRm;
+      for (const retainedHome of retainedHomes) {
+        originalRm(retainedHome, { recursive: true, force: true });
+      }
+    }
+    assert.equal(
+      cleanupFailure.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.equal(
+      cleanupFailure.providers["project-contract"].official_codex.readiness.reason,
+      "Codex authentication is unavailable: the protected temporary credential view could not be removed"
+    );
+    assert.equal(JSON.stringify(cleanupFailure).includes(sentinel), false);
+    assert.equal(JSON.stringify(cleanupFailure).includes(authPath), false);
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+
+    const recovered = loadFixtureManifest(fixture);
+    assert.equal(recovered.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("Codex child diagnostics and malformed output cannot disclose authentication authority", () => {
+  for (const failureMode of [
+    "exec_unclassified_failure_output",
+    "invalid_jsonl_output",
+    "invalid_structured_review",
+    "thread_id"
+  ]) {
+    const fixture = projectFixture();
+    const authPath = path.join(fixture.authHome, "auth.json");
+    const authDigest = hashArtifact(authPath);
+    const authContents = fs.readFileSync(authPath, "utf8").trim();
+    const sentinel = `${failureMode}:${authPath}:${authDigest}:${authContents}`;
+    writeJson(path.join(fixture.runtimeRoot, "mode.json"), { [failureMode]: sentinel });
+    try {
+      const configured = runCli(configureArgs(fixture, {
+        agents: ["project-contract"],
+        skill: false
+      }), fixture.directory);
+      assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+      const started = runCli(startArgs(fixture), fixture.directory);
+      assert.equal(started.status, 5, started.stderr || started.stdout);
+      const state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));
+      const attempt = state.attempts.find((candidate) =>
+        candidate.provider_id === "project-contract");
+      assert.equal(attempt.execution_status, "blocked_execution_error");
+      assert.equal(attempt.error, "official Codex host adapter exited unsuccessfully");
+
+      const publicOutputs = [
+        configured.stdout,
+        configured.stderr,
+        started.stdout,
+        started.stderr,
+        readTextTree(fixture.config)
+      ].join("\n");
+      for (const secretAuthority of [sentinel, authPath, authDigest, authContents]) {
+        assert.equal(publicOutputs.includes(secretAuthority), false,
+          `public output exposed ${failureMode} authentication authority`);
+      }
+    } finally {
+      cleanup(fixture);
+    }
   }
 });
 
