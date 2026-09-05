@@ -86,6 +86,15 @@ const RESERVED_PROVIDERS = new Set([
 ]);
 const SKILL_ONLY_PROVIDERS = new Set(["anti-slop"]);
 const runtimeProbeCache = new Map();
+const AUTHENTICATION_REASONS = Object.freeze({
+  missing: "Codex authentication is unavailable: host auth.json is missing",
+  unsupported: "Codex authentication is unavailable: host auth.json must be a regular non-symlink file",
+  inspection: "Codex authentication is unavailable: the host credential store could not be securely inspected",
+  isolation: "Codex authentication is unavailable: a protected temporary credential view could not be created",
+  cleanup: "Codex authentication is unavailable: the protected temporary credential view could not be removed",
+  changed: "Codex authentication is unavailable: authentication authority changed during the readiness probe",
+  runtime: "Codex authentication is unavailable: the runtime reported no authenticated session"
+});
 
 export const CODEX_REVIEW_ADAPTER_CONTRACT = "killsloprouter-codex-review-v1";
 
@@ -443,21 +452,37 @@ function sourceCodexHome() {
 export function createIsolatedCodexHome() {
   const sourceHome = sourceCodexHome();
   const sourceAuth = path.join(sourceHome, "auth.json");
-  if (!fs.existsSync(sourceAuth)) {
+  let authStat;
+  try {
+    authStat = fs.lstatSync(sourceAuth);
+  } catch (error) {
     return {
       status: "manual_pending",
-      reason: "Codex authentication is unavailable: the host auth.json is missing"
+      reason: error?.code === "ENOENT"
+        ? AUTHENTICATION_REASONS.missing
+        : AUTHENTICATION_REASONS.inspection
     };
   }
-  const authStat = fs.lstatSync(sourceAuth);
   if (!authStat.isFile() || authStat.isSymbolicLink()) {
     return {
       status: "manual_pending",
-      reason: "Codex authentication is unavailable: auth.json must be a regular non-symlink file"
+      reason: AUTHENTICATION_REASONS.unsupported
     };
   }
-  const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-codex-home-"));
-  fs.chmodSync(isolatedHome, 0o700);
+  let isolatedHome;
+  try {
+    isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-codex-home-"));
+    fs.chmodSync(isolatedHome, 0o700);
+  } catch {
+    if (isolatedHome) {
+      try {
+        fs.rmSync(isolatedHome, { recursive: true, force: true });
+      } catch {
+        return { status: "manual_pending", reason: AUTHENTICATION_REASONS.cleanup };
+      }
+    }
+    return { status: "manual_pending", reason: AUTHENTICATION_REASONS.isolation };
+  }
   const isolatedAuth = path.join(isolatedHome, "auth.json");
   try {
     try {
@@ -465,18 +490,24 @@ export function createIsolatedCodexHome() {
     } catch {
       fs.linkSync(sourceAuth, isolatedAuth);
     }
-  } catch (error) {
-    fs.rmSync(isolatedHome, { recursive: true, force: true });
-    return {
-      status: "manual_pending",
-      reason: `Codex authentication isolation is unavailable: ${error.message}`
-    };
+  } catch {
+    try {
+      fs.rmSync(isolatedHome, { recursive: true, force: true });
+    } catch {
+      return { status: "manual_pending", reason: AUTHENTICATION_REASONS.cleanup };
+    }
+    return { status: "manual_pending", reason: AUTHENTICATION_REASONS.isolation };
   }
   return {
     status: "ready",
     path: isolatedHome,
     cleanup() {
-      fs.rmSync(isolatedHome, { recursive: true, force: true });
+      try {
+        fs.rmSync(isolatedHome, { recursive: true, force: true });
+        return { status: "ready", reason: null };
+      } catch {
+        return { status: "manual_pending", reason: AUTHENTICATION_REASONS.cleanup };
+      }
     }
   };
 }
@@ -514,68 +545,106 @@ function runtimeVersion(runtimePath) {
   return value;
 }
 
-function authenticationProbeIdentity() {
+function authenticationProbeSnapshot() {
   const authPath = path.join(sourceCodexHome(), "auth.json");
   let stat;
   try {
     stat = fs.lstatSync(authPath, { bigint: true });
   } catch (error) {
     if (error?.code === "ENOENT") {
-      return canonicalDigest({
+      return {
+        identity: canonicalDigest({
+          codex_auth_probe_identity_version: 1,
+          path: authPath,
+          state: "missing"
+        }),
+        status: "manual_pending",
+        reason: AUTHENTICATION_REASONS.missing
+      };
+    }
+    return {
+      identity: canonicalDigest({
         codex_auth_probe_identity_version: 1,
         path: authPath,
-        state: "missing"
-      });
-    }
-    throw error;
+        state: "unreadable"
+      }),
+      status: "manual_pending",
+      reason: AUTHENTICATION_REASONS.inspection
+    };
   }
   if (!stat.isFile() || stat.isSymbolicLink()) {
-    return canonicalDigest({
+    return {
+      identity: canonicalDigest({
+        codex_auth_probe_identity_version: 1,
+        path: authPath,
+        state: "unsupported",
+        device: String(stat.dev),
+        inode: String(stat.ino),
+        links: String(stat.nlink),
+        mode: String(stat.mode),
+        size: String(stat.size),
+        mtime_ns: String(stat.mtimeNs),
+        ctime_ns: String(stat.ctimeNs)
+      }),
+      status: "manual_pending",
+      reason: AUTHENTICATION_REASONS.unsupported
+    };
+  }
+  let pinned;
+  try {
+    pinned = readFilePinned(authPath, {
+      label: "Codex authentication readiness source",
+      requireCallerOwned: false,
+      requireSingleLink: false
+    });
+  } catch {
+    return {
+      identity: canonicalDigest({
+        codex_auth_probe_identity_version: 1,
+        path: authPath,
+        state: "unreadable",
+        device: String(stat.dev),
+        inode: String(stat.ino),
+        mode: String(stat.mode),
+        size: String(stat.size),
+        mtime_ns: String(stat.mtimeNs)
+      }),
+      status: "manual_pending",
+      reason: AUTHENTICATION_REASONS.inspection
+    };
+  }
+  return {
+    identity: canonicalDigest({
       codex_auth_probe_identity_version: 1,
       path: authPath,
-      state: "unsupported",
-      device: String(stat.dev),
-      inode: String(stat.ino),
-      links: String(stat.nlink),
-      mode: String(stat.mode),
-      size: String(stat.size),
-      mtime_ns: String(stat.mtimeNs),
-      ctime_ns: String(stat.ctimeNs)
-    });
-  }
-  const pinned = readFilePinned(authPath, {
-    label: "Codex authentication readiness source",
-    requireCallerOwned: false,
-    requireSingleLink: false
-  });
-  return canonicalDigest({
-    codex_auth_probe_identity_version: 1,
-    path: authPath,
-    state: "regular-file",
-    content_digest: pinned.digest,
-    device: pinned.file_identity.device,
-    inode: pinned.file_identity.inode,
-    owner_uid: pinned.file_identity.owner_uid,
-    mode: String(pinned.file_identity.mode),
-    size: pinned.file_identity.size,
-    mtime_ns: pinned.file_identity.mtime_ns
-  });
+      state: "regular-file",
+      content_digest: pinned.digest,
+      device: pinned.file_identity.device,
+      inode: pinned.file_identity.inode,
+      owner_uid: pinned.file_identity.owner_uid,
+      mode: String(pinned.file_identity.mode),
+      size: pinned.file_identity.size,
+      mtime_ns: pinned.file_identity.mtime_ns
+    }),
+    status: "ready",
+    reason: null
+  };
 }
 
 function probeRuntime(runtimePath, runtimeAuthorityDigest) {
-  const authIdentityBefore = authenticationProbeIdentity();
-  const cacheKey = `${runtimeAuthorityDigest}\n${authIdentityBefore}`;
+  const authBefore = authenticationProbeSnapshot();
+  const cacheKey = `${runtimeAuthorityDigest}\n${authBefore.identity}`;
   if (runtimeProbeCache.has(cacheKey)) return runtimeProbeCache.get(cacheKey);
   const version = runtimeVersion(runtimePath);
+  if (authBefore.status !== "ready") {
+    return { version, authenticated: false, auth_reason: authBefore.reason };
+  }
   const isolated = createIsolatedCodexHome();
   if (isolated.status !== "ready") {
-    const result = { version, authenticated: false, auth_reason: isolated.reason };
-    if (authenticationProbeIdentity() === authIdentityBefore) {
-      runtimeProbeCache.set(cacheKey, result);
-    }
-    return result;
+    return { version, authenticated: false, auth_reason: isolated.reason };
   }
   let auth;
+  let cleanup;
   try {
     auth = spawnSync(runtimePath, ["login", "status"], {
       encoding: "utf8",
@@ -585,7 +654,10 @@ function probeRuntime(runtimePath, runtimeAuthorityDigest) {
       env: codexRuntimeEnvironment({ isolatedHome: isolated.path })
     });
   } finally {
-    isolated.cleanup();
+    cleanup = isolated.cleanup();
+  }
+  if (cleanup.status !== "ready") {
+    return { version, authenticated: false, auth_reason: cleanup.reason };
   }
   const authOutput = `${auth.stdout || ""}\n${auth.stderr || ""}`;
   const authenticated = !auth.error && auth.status === 0 && /^Logged in\b/m.test(authOutput);
@@ -594,14 +666,14 @@ function probeRuntime(runtimePath, runtimeAuthorityDigest) {
     authenticated,
     auth_reason: authenticated
       ? null
-      : auth.error?.message || auth.stderr?.trim() || auth.stdout?.trim() || "Codex authentication is unavailable"
+      : AUTHENTICATION_REASONS.runtime
   };
-  const authIdentityAfter = authenticationProbeIdentity();
-  if (authIdentityAfter !== authIdentityBefore) {
+  const authAfter = authenticationProbeSnapshot();
+  if (authAfter.status !== "ready" || authAfter.identity !== authBefore.identity) {
     return {
       version,
       authenticated: false,
-      auth_reason: "Codex authentication authority changed during the readiness probe"
+      auth_reason: AUTHENTICATION_REASONS.changed
     };
   }
   runtimeProbeCache.set(cacheKey, result);
@@ -863,7 +935,7 @@ export function validateOfficialCodexSettings(settings, {
       skillRoot,
       readiness: probe.authenticated
         ? { status: "ready", reason: null }
-        : { status: "manual_pending", reason: `Codex authentication is unavailable: ${probe.auth_reason}` }
+        : { status: "manual_pending", reason: probe.auth_reason }
     };
   }
 
@@ -894,7 +966,7 @@ export function validateOfficialCodexSettings(settings, {
       skillRoot,
       readiness: probe.authenticated
         ? { status: "ready", reason: null }
-        : { status: "manual_pending", reason: `Codex authentication is unavailable: ${probe.auth_reason}` },
+        : { status: "manual_pending", reason: probe.auth_reason },
       cleanup: runtimeSeal.cleanup
     };
   } catch (error) {

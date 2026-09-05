@@ -54,6 +54,13 @@ if (args[0] === "login" && args[1] === "status") {
   if (authProbeCount === mode.mutate_auth_on_status_call) {
     fs.appendFileSync(path.join(process.env.CODEX_HOME, "auth.json"), " \n");
   }
+  if (authProbeCount === mode.replace_auth_on_status_call && mode.replace_auth_source_path) {
+    const source = mode.replace_auth_source_path;
+    const replacement = `${source}.replacement-${process.pid}`;
+    const sourceStat = fs.statSync(source);
+    fs.writeFileSync(replacement, fs.readFileSync(source), { mode: sourceStat.mode & 0o777 });
+    fs.renameSync(replacement, source);
+  }
   if (!authenticated) {
     process.stderr.write("Not logged in\n");
     process.exit(1);

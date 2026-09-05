@@ -367,6 +367,7 @@ async function main() {
   let child;
   let packetOutputSchema;
   let promptInput;
+  let authCleanup;
   try {
     packetOutputSchema = writePacketOutputSchema(
       inspection.outputSchema,
@@ -389,9 +390,19 @@ async function main() {
       maxBuffer: request.settings.max_output_bytes
     });
   } finally {
-    promptInput?.cleanup();
-    isolatedHome.cleanup();
-    inspection.cleanup?.();
+    try {
+      promptInput?.cleanup();
+    } finally {
+      authCleanup = isolatedHome.cleanup();
+      inspection.cleanup?.();
+    }
+  }
+  if (authCleanup.status !== "ready") {
+    pending(authCleanup.reason, {
+      runtime_digest: request.settings.runtime_digest,
+      model: request.settings.model
+    });
+    return;
   }
   const finishedAt = new Date().toISOString();
   if (child.error || child.status !== 0) {

@@ -169,7 +169,10 @@ directory and removes it after the child exits. This keeps user config,
 installed skills, plugins, sessions, and unrelated Codex state out of the
 reviewer context without copying credential bytes into router artifacts or
 receipts. If the isolated auth link cannot be created, readiness remains
-`manual_pending`.
+`manual_pending`. Authentication filesystem failures are reduced to stable,
+non-path-bearing readiness reasons; raw filesystem errors, auth content
+digests, and credential-store paths are not copied into setup output, host
+inspection, dry-run output, receipts, or stderr.
 
 The configured runtime has a separate execution seal. Configuration records
 both content digests and filesystem identity digests for the executable and
@@ -224,7 +227,11 @@ Codex runtime inside a container, VM, restricted CI worker, or dedicated OS
 account whose readable filesystem contains only the reviewed artifact and
 required tool/skill runtime. Remove secrets and unrelated personal data before
 granting `artifact:read` or `network:external`. This project does not provide a
-container boundary or authenticate remote model identity.
+container boundary or authenticate remote model identity. A hostile process
+running as the same OS user can race mutable host pathnames, including a
+momentary replace-and-restore of the auth pathname; that ABA threat requires
+the dedicated-account or container boundary above and is not claimed as an
+in-process guarantee.
 
 ## Upgrade and removal
 

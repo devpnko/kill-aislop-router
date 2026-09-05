@@ -116,7 +116,7 @@ function replaceWithSameBytes(target) {
   fs.rmSync(displaced);
 }
 
-function runCli(args, cwd) {
+function runCli(args, cwd, { codexHome = undefined } = {}) {
   const commandArgs = [...args];
   const resumeIndex = commandArgs.indexOf("--resume");
   if (resumeIndex >= 0 && !commandArgs.includes("--migrate-identity") &&
@@ -130,6 +130,9 @@ function runCli(args, cwd) {
     }
   }
   const fixtureCodexHome = path.join(cwd, "codex-auth");
+  const selectedCodexHome = codexHome === undefined
+    ? (fs.existsSync(fixtureCodexHome) ? fixtureCodexHome : null)
+    : codexHome;
   return spawnSync(process.execPath, [cli, ...commandArgs], {
     cwd,
     encoding: "utf8",
@@ -139,7 +142,7 @@ function runCli(args, cwd) {
     env: {
       ...process.env,
       KILLSLOPROUTER_TEST_SECRET: "must-not-reach-the-review-runtime",
-      ...(fs.existsSync(fixtureCodexHome) ? { CODEX_HOME: fixtureCodexHome } : {})
+      ...(selectedCodexHome ? { CODEX_HOME: selectedCodexHome } : {})
     }
   });
 }
@@ -688,6 +691,150 @@ test("authentication mutation during the readiness probe fails closed without po
     const cached = loadFixtureManifest(fixture);
     assert.equal(cached.providers["project-contract"].official_codex.readiness.status, "ready");
     assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("same-inode same-size authentication changes invalidate an already-ready cache entry", () => {
+  const fixture = projectFixture();
+  const authCounter = path.join(fixture.directory, "same-inode-auth-probe-count.txt");
+  const authPath = path.join(fixture.authHome, "auth.json");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_counter_path: authCounter,
+    auth_successes: 10
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "1");
+
+    const first = loadFixtureManifest(fixture);
+    assert.equal(first.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+    const cached = loadFixtureManifest(fixture);
+    assert.equal(cached.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+
+    const before = fs.statSync(authPath, { bigint: true });
+    const current = fs.readFileSync(authPath, "utf8");
+    const replacement = current.replace("true", "null");
+    assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(current));
+    fs.writeFileSync(authPath, replacement);
+    const after = fs.statSync(authPath, { bigint: true });
+    assert.equal(after.ino, before.ino);
+    assert.equal(after.size, before.size);
+
+    const refreshed = loadFixtureManifest(fixture);
+    assert.equal(refreshed.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("same-byte authentication inode replacement during a probe fails closed", () => {
+  const fixture = projectFixture();
+  const authCounter = path.join(fixture.directory, "replacement-auth-probe-count.txt");
+  const authPath = path.join(fixture.authHome, "auth.json");
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_counter_path: authCounter,
+    auth_successes: 10,
+    replace_auth_on_status_call: 2,
+    replace_auth_source_path: authPath
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+    const bytesBefore = fs.readFileSync(authPath);
+    const inodeBefore = fs.statSync(authPath, { bigint: true }).ino;
+
+    const changedDuringProbe = loadFixtureManifest(fixture);
+    assert.equal(
+      changedDuringProbe.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.match(
+      changedDuringProbe.providers["project-contract"].official_codex.readiness.reason,
+      /authentication authority changed during the readiness probe/
+    );
+    assert.deepEqual(fs.readFileSync(authPath), bytesBefore);
+    assert.notEqual(fs.statSync(authPath, { bigint: true }).ino, inodeBefore);
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "2");
+
+    const recovered = loadFixtureManifest(fixture);
+    assert.equal(recovered.providers["project-contract"].official_codex.readiness.status, "ready");
+    assert.equal(fs.readFileSync(authCounter, "utf8").trim(), "3");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
+test("authentication filesystem failures stay path- and digest-free across public outputs", () => {
+  const fixture = projectFixture();
+  const authAlias = path.join(fixture.directory, "credential-store-alias");
+  const realAuthPath = path.join(fixture.authHome, "auth.json");
+  fs.symlinkSync(fixture.authHome, authAlias, "dir");
+  const lexicalAuthPath = path.join(authAlias, "auth.json");
+  const authDigest = hashArtifact(realAuthPath);
+  const authContents = fs.readFileSync(realAuthPath, "utf8").trim();
+  const expectedReason =
+    "Codex authentication is unavailable: the host credential store could not be securely inspected";
+  try {
+    const configured = runCli(
+      configureArgs(fixture, { agents: ["project-contract"], skill: false }),
+      fixture.directory,
+      { codexHome: authAlias }
+    );
+    assert.equal(configured.status, 6, configured.stderr || configured.stdout);
+    const receipt = JSON.parse(configured.stdout);
+    assert.equal(receipt.status, "manual_pending");
+    assert.equal(receipt.pending_reason, expectedReason);
+
+    const manifest = withCodexHome(authAlias, () => loadHostManifest(fixture.host));
+    assert.equal(
+      manifest.providers["project-contract"].official_codex.readiness.status,
+      "manual_pending"
+    );
+    assert.equal(
+      manifest.providers["project-contract"].official_codex.readiness.reason,
+      expectedReason
+    );
+
+    const dryRun = runCli([
+      ...startArgs(fixture).filter((value, index, values) =>
+        value !== "--out" && values[index - 1] !== "--out"),
+      "--dry-run"
+    ], fixture.directory, { codexHome: authAlias });
+    assert.equal(dryRun.status, 6, dryRun.stderr || dryRun.stdout);
+    const dryRunReport = JSON.parse(dryRun.stdout);
+    const readiness = dryRunReport.host_readiness.find((candidate) =>
+      candidate.provider_id === "project-contract");
+    assert.equal(readiness.execution_status, "manual_pending");
+    assert.equal(readiness.reason, expectedReason);
+
+    const publicOutputs = [
+      configured.stdout,
+      configured.stderr,
+      fs.readFileSync(path.join(fixture.config, "codex-host-setup-receipt.json"), "utf8"),
+      fs.readFileSync(fixture.host, "utf8"),
+      JSON.stringify(manifest),
+      dryRun.stdout,
+      dryRun.stderr
+    ].join("\n");
+    for (const secretAuthority of [
+      authAlias,
+      lexicalAuthPath,
+      fixture.authHome,
+      realAuthPath,
+      authDigest,
+      authContents
+    ]) {
+      assert.equal(publicOutputs.includes(secretAuthority), false,
+        `public output exposed authentication authority: ${secretAuthority}`);
+    }
   } finally {
     cleanup(fixture);
   }

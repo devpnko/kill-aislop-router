@@ -336,6 +336,14 @@ execution. It rechecks artifact locks after execution before result ingestion.
 Authentication/runtime/skill absence is `manual_pending`; changed locked bytes
 or invalid output block.
 
+Authentication readiness cache keys bind the pinned auth content and stable
+file identity, but those internal digests and the credential-store pathname are
+never public receipt fields. Filesystem failures use fixed non-path-bearing
+reasons. The router detects persistent auth changes across a probe; a hostile
+same-UID process that momentarily replaces and restores the auth pathname is an
+ABA race outside this in-process boundary. Use a dedicated OS account,
+restricted worker, VM, or container when same-user interference is in scope.
+
 Manifest validation does not create a private runtime copy per provider. It
 checks the configured source identities and caches only the resulting readiness
 probe under those identities. The private clone is deferred to the actual
