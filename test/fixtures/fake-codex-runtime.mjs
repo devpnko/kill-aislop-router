@@ -34,6 +34,10 @@ function requireIsolatedHome({ allowReviewSchema = false } = {}) {
 }
 
 if (args[0] === "--version") {
+  if (mode.version_failure_output) {
+    process.stderr.write(`${mode.version_failure_output}\n`);
+    process.exit(9);
+  }
   process.stdout.write(`${mode.version || "codex-cli 0.144.1"}\n`);
   process.exit(0);
 }
@@ -219,4 +223,8 @@ const events = [
   },
   { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }
 ];
+if (mode.auth_cleanup_observation_path) {
+  fs.writeFileSync(mode.auth_cleanup_observation_path, `${process.env.CODEX_HOME}\n`);
+  fs.chmodSync(process.env.CODEX_HOME, 0o000);
+}
 process.stdout.write(`${events.map((event) => JSON.stringify(event)).join("\n")}\n`);

@@ -84,7 +84,9 @@
   successful authenticated observations are cached. Authentication filesystem
   errors and all nested Codex abnormal stdout/stderr or malformed JSON output
   are reduced to fixed non-path-bearing public failures, and unsafe thread IDs
-  cannot enter actor or receipt provenance.
+  cannot enter actor or receipt provenance. The fixed diagnostic boundary also
+  covers runtime version probing, and post-review credential-view cleanup
+  failure has an integrated fail-closed regression.
 
 - Preserved the documented standalone kill-ai-slop scanner-to-audit workflow
   without weakening parent identity: only the exact unbound compatibility

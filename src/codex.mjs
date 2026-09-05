@@ -535,13 +535,13 @@ function runtimeVersion(runtimePath) {
     env: codexRuntimeEnvironment()
   });
   requireValue(!result.error && result.status === 0,
-    `Codex runtime version probe failed: ${result.error?.message || result.stderr?.trim() || result.status}`, 4);
+    "Codex runtime version probe failed", 4);
   const value = result.stdout.trim();
   const match = value.match(CODEX_VERSION_PATTERN);
-  requireValue(match, `unsupported Codex runtime version output: ${value || "empty"}`, 4);
+  requireValue(match, "unsupported Codex runtime version output", 4);
   const version = match.slice(1, 4).map(Number);
   requireValue(versionAtLeast(version, MIN_CODEX_VERSION),
-    `Codex runtime ${value} is older than required codex-cli ${MIN_CODEX_VERSION.join(".")}`, 4);
+    `Codex runtime is older than required codex-cli ${MIN_CODEX_VERSION.join(".")}`, 4);
   return value;
 }
 

@@ -182,12 +182,12 @@ negative probes are retried. A change during the probe or unresolved temporary
 credential-view cleanup remains `manual_pending` and cannot become execution
 evidence.
 
-The nested runtime's raw stdout and stderr are never public error text. Unknown
-non-zero exits, output-boundary failures, invalid JSONL, invalid structured
-review JSON, and unsafe thread identifiers become fixed adapter errors before
-the outer execution ledger records them. This prevents error strings from
-turning credential paths, auth digests, or input fragments into state, audit,
-receipt, or terminal output.
+The nested runtime's raw stdout and stderr are never public error text. Version
+probe failures and unsupported output, review-exec non-zero exits,
+output-boundary failures, invalid JSONL, invalid structured review JSON, and
+unsafe thread identifiers become fixed errors before the outer execution ledger
+records them. This prevents error strings from turning credential paths, auth
+digests, or input fragments into state, audit, receipt, or terminal output.
 
 The configured runtime has a separate execution seal. Configuration records
 both content digests and filesystem identity digests for the executable and

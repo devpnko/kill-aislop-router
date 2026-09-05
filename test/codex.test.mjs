@@ -978,6 +978,97 @@ test("authentication isolation and cleanup failures stay sanitized and retryable
   }
 });
 
+test("Codex runtime version failures never publish nested runtime diagnostics", () => {
+  for (const failureMode of ["version_failure_output", "version"]) {
+    const fixture = projectFixture();
+    const authPath = path.join(fixture.authHome, "auth.json");
+    const authDigest = hashArtifact(authPath);
+    const authContents = fs.readFileSync(authPath, "utf8").trim();
+    const sentinel = `${failureMode}:${authPath}:${authDigest}:${authContents}`;
+    writeJson(path.join(fixture.runtimeRoot, "mode.json"), { [failureMode]: sentinel });
+    try {
+      const configured = runCli(configureArgs(fixture, {
+        agents: ["project-contract"],
+        skill: false
+      }), fixture.directory);
+      assert.notEqual(configured.status, 0);
+      assert.match(
+        configured.stderr,
+        failureMode === "version_failure_output"
+          ? /Codex runtime version probe failed/
+          : /unsupported Codex runtime version output/
+      );
+      const publicOutputs = [
+        configured.stdout,
+        configured.stderr,
+        readTextTree(fixture.config)
+      ].join("\n");
+      for (const secretAuthority of [sentinel, authPath, authDigest, authContents]) {
+        assert.equal(publicOutputs.includes(secretAuthority), false,
+          `version probe exposed ${failureMode} authentication authority`);
+      }
+    } finally {
+      cleanup(fixture);
+    }
+  }
+});
+
+test("post-review credential cleanup failure stays manual_pending and path-free", {
+  timeout: 120_000
+}, () => {
+  const fixture = projectFixture();
+  const cleanupObservation = path.join(fixture.directory, "post-review-cleanup-home.txt");
+  const authPath = path.join(fixture.authHome, "auth.json");
+  const authDigest = hashArtifact(authPath);
+  const authContents = fs.readFileSync(authPath, "utf8").trim();
+  let retainedHome = null;
+  writeJson(path.join(fixture.runtimeRoot, "mode.json"), {
+    auth_cleanup_observation_path: cleanupObservation
+  });
+  try {
+    const configured = runCli(configureArgs(fixture, {
+      agents: ["project-contract"],
+      skill: false
+    }), fixture.directory);
+    assert.equal(configured.status, 0, configured.stderr || configured.stdout);
+
+    const started = runCli(startArgs(fixture), fixture.directory);
+    assert.equal(started.status, 6, started.stderr || started.stdout);
+    retainedHome = fs.readFileSync(cleanupObservation, "utf8").trim();
+    assert.ok(retainedHome.length > 0);
+    assert.equal(fs.existsSync(retainedHome), true);
+
+    const state = JSON.parse(fs.readFileSync(fixture.state, "utf8"));
+    const attempt = state.attempts.find((candidate) =>
+      candidate.provider_id === "project-contract");
+    assert.equal(attempt.execution_status, "manual_pending");
+    assert.equal(attempt.ingest_status, "not-recorded");
+    assert.equal(attempt.result_path, null);
+    assert.equal(
+      attempt.reason,
+      "Codex authentication is unavailable: the protected temporary credential view could not be removed"
+    );
+
+    const publicOutputs = [
+      configured.stdout,
+      configured.stderr,
+      started.stdout,
+      started.stderr,
+      readTextTree(fixture.config)
+    ].join("\n");
+    for (const secretAuthority of [retainedHome, authPath, authDigest, authContents]) {
+      assert.equal(publicOutputs.includes(secretAuthority), false,
+        "post-review cleanup exposed authentication authority");
+    }
+  } finally {
+    if (retainedHome && fs.existsSync(retainedHome)) {
+      fs.chmodSync(retainedHome, 0o700);
+      fs.rmSync(retainedHome, { recursive: true, force: true });
+    }
+    cleanup(fixture);
+  }
+});
+
 test("Codex child diagnostics and malformed output cannot disclose authentication authority", () => {
   for (const failureMode of [
     "exec_unclassified_failure_output",
