@@ -45,6 +45,17 @@ const referenceFixture = path.join(root, "test", "fixtures", "reference-host-ada
 const cli = path.join(root, "bin", "killsloprouter.mjs");
 const CHECKPOINT_CHILD_TIMEOUT_MS = 500;
 const exampleBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "design-brief.example.json"), "utf8"));
+// These tests exercise provenance/authority and the exact-three lifecycle, not
+// a repeated six-state browser benchmark for every independent tamper variant.
+// The dedicated Playwright E2E covers the complete six-state/two-locale matrix.
+// Every required dimension in this fixture still executes through the real
+// browser; no checks or production/example requirements are skipped.
+const fixtureBrief = {
+  ...exampleBrief,
+  product: { ...exampleBrief.product, required_states: ["default", "error"] },
+  evidence: { ...exampleBrief.evidence, required_states: ["default", "error"],
+    required_viewports: ["mobile", "desktop"] }
+};
 
 function workspace() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-design-"));
@@ -52,7 +63,7 @@ function workspace() {
   fs.mkdirSync(baseline, { recursive: true });
   fs.writeFileSync(path.join(baseline, "app.html"), "<!doctype html><main>existing operator UI</main>\n");
   const briefPath = path.join(directory, "design-brief.json");
-  fs.writeFileSync(briefPath, `${JSON.stringify(exampleBrief, null, 2)}\n`);
+  fs.writeFileSync(briefPath, `${JSON.stringify(fixtureBrief, null, 2)}\n`);
   const statePath = path.join(baseline, ".killsloprouter", "design-run.json");
   return { directory, baseline, briefPath, statePath };
 }
@@ -70,7 +81,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
   const runId = "reference-pack-fixture";
   const registry = loadHumanDesignReasoningRegistry();
   const planningFrame = {
-    ...structuredClone(exampleBrief.product),
+    ...structuredClone(fixtureBrief.product),
     density: "compact"
   };
   const reference = (id, role, product, category, ecosystem) => ({
@@ -404,7 +415,7 @@ function attachReferencePack(space, mutate = null, {
     })
   }, null, 2)}\n`);
   const productFrame = {
-    ...structuredClone(exampleBrief.product),
+    ...structuredClone(fixtureBrief.product),
     density: "compact"
   };
   const brief = {
