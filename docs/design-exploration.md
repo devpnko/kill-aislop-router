@@ -320,15 +320,74 @@ spawn in that flow.
 
 The bundled official Playwright adapter also accepts design browser packets.
 For that path, each creator returns exactly one digest-bound static `.html`
-prototype. Mark every demonstrated locale and state so the browser verifies
-coverage rather than trusting a claim:
+prototype.
+
+### Executed state proof
+
+Define exactly one reviewed scenario for every required state × locale in the
+digest-locked Playwright scenario file. Add `design: {state, locale}` to those
+scenarios; runtime scenarios without that field remain compatible. Missing or
+duplicate coverage is `manual_pending` before child spawn. `design run --dry-run`
+checks the same inventory. The default root scenario is not design-state proof.
+
+```json
+{
+  "id": "save-error.ko-KR",
+  "path": "/",
+  "design": {"state": "error", "locale": "ko-KR"},
+  "actions": [{"type": "click", "locator": "#save"}],
+  "assertions": [
+    {"type": "visible", "locator": "#save-error"},
+    {"type": "text", "locator": "#save-error", "value": "저장하지 못했습니다"}
+  ]
+}
+```
+
+Use real prototype controls and meaningful assertions. The complete
+[`design scenario example`](../examples/design-playwright-scenarios.example.json)
+covers the example brief's six states and two locales, but its generic test
+selectors are illustrative: replace them with the intended product interactions
+and share that reviewed interaction contract with the creator. A debug state
+switcher does not prove the real save/navigation workflow. Never add an internal
+JavaScript state switch after a failed native click or label it a successful
+user interaction.
+
+Use `browser configure --scenario <reviewed-file>` with the existing reviewed
+host setup to seal the changed file; do not manually update a digest. Keep the
+integrated runtime `required_scenarios` inventory separate from design-only
+cases when the same host serves both workflows. The adapter never starts a
+server, reads a profile command, or obtains new network authority for a design
+prototype.
+
+Mark the active state and its inherited locale. Exactly one matching state must
+be visible, outside hidden/inert/aria-hidden ancestors, with nonzero geometry.
+Its closest `lang` or `data-killsloprouter-locale` ancestor must match the case:
 
 ```html
-<section data-killsloprouter-locale="ko-KR">...</section>
-<section data-killsloprouter-locale="en-US">...</section>
-<section data-killsloprouter-state="default">...</section>
-<section data-killsloprouter-state="error">...</section>
+<main lang="ko-KR">
+  <section data-killsloprouter-state="default">...</section>
+  <section id="save-error" data-killsloprouter-state="error" hidden>...</section>
+</main>
 ```
+
+Each case opens a fresh browser context with its own locale and color scheme,
+performs the declared native actions, and checks the declared assertions plus
+the visible state/locale. Non-default states must start hidden and become
+visible through a native action. Showing every state at initial load does not
+prove an interaction. Static state boards need a separate review; they are not
+silently promoted to interactive evidence. Locale markers are an automated
+coverage check, not certification of translation quality.
+
+All required state/locale scenarios run at every required viewport and every
+configured color scheme. Overflow, clipping, keyboard, axe, console, and network
+checks run in those actual states. A failed action stops subsequent actions;
+assertions are marked skipped and diagnostic captures do not turn the case into
+a pass. Each execution has a unique screenshot and trace with content digests.
+[`design-playwright-report.schema.json`](../schemas/design-playwright-report.schema.json)
+version 2 records the full matrix. Ingest and resume recompute exact scenario
+steps, matrix coverage, viewport sizes, and screenshot/trace bindings from the
+immutable execution authority. A `ran` child with a failed check is still
+blocked at result ingest; it is never Owner approval.
 
 The official adapter requires a self-contained prototype: inline CSS/JS and
 `data:` or `blob:` assets. It opens only the exact bound HTML and blocks every
@@ -337,6 +396,15 @@ image cannot change after the prototype digest is recorded. It runs the pinned
 Chromium/axe harness. Exploration screenshots do not become approved pixel
 baselines. The later integrated artifact audit still requires served-artifact
 attestation and exact owner-approved baselines.
+
+Marker-only version-1 reports are historical diagnostics, not resumable design
+approval evidence under this contract. Preserve old state and outputs unchanged,
+configure reviewed scenarios using the updated bundled adapter, and start a new
+design run from verified external inputs. Do not rewrite/re-sign old reports,
+copy approvals, or delete a completed browser result to force a retry. An
+unaccepted browser attempt in a run that has no legacy accepted proof can be
+retried explicitly after restoring its unchanged bound inputs. An intentional
+prototype change requires a new run.
 
 The static-design path intentionally does not claim a real screen-reader run or
 an approved visual-regression comparison. If either check is added to the

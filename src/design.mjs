@@ -48,6 +48,7 @@ import {
   PLAYWRIGHT_PROVIDER_TARGET
 } from "./playwright.mjs";
 import { claimsSourceCompositionCopy } from "./source-composition.mjs";
+import { verifyDesignBrowserReport } from "./design-browser-proof.mjs";
 import {
   acquireStateLease,
   claimStaleStateLease,
@@ -106,6 +107,7 @@ function pinnedDesignSnapshot(pinned, root) {
 const HEX_PATTERN = /^#[0-9A-F]{6}$/;
 const CSS_TOKEN_PATTERN = /^--[a-z0-9][a-z0-9-]*$/;
 const DESIGN_EVIDENCE_KINDS = new Set([
+  "trace",
   "prototype", "screenshot", "test-report", "review-report", "token-spec", "font-report",
   "design-contract", "source-composition-analysis"
 ]);
@@ -1631,6 +1633,38 @@ function validateBrowserResult(state, packet, result) {
   requireValue(canonicalIdentityKey(result.actor.actor_id) !==
     canonicalIdentityKey(subject.normalized.actor.actor_id),
     "creator cannot provide browser evidence for its own candidate", 4);
+}
+
+function verifyOfficialDesignBrowserEvidence(packet, result, declaration) {
+  if (packet.design_task?.kind !== "browser-evidence" ||
+    declaration.settings?.contract !== PLAYWRIGHT_ADAPTER_CONTRACT) return;
+  const reports = result.evidence.filter((item) => item.kind === "test-report");
+  requireValue(reports.length === 1,
+    "official design browser requires exactly one executed state-proof report", 4);
+  try {
+    const report = readPinnedDesignJson(reports[0].path, "official design browser report").input;
+    verifyDesignBrowserReport(packet, report, {
+      scenarios: declaration.official_playwright.designScenarios,
+      scenarioDigest: declaration.settings.scenario_digest,
+      viewports: declaration.settings.viewports,
+      colorSchemes: declaration.settings.color_schemes
+    });
+    for (const kind of ["screenshot", "trace"]) {
+      const files = result.evidence.filter((item) => item.kind === kind);
+      requireValue(files.length === report.executions.length,
+        `official design browser ${kind} matrix is incomplete`, 4);
+      for (const execution of report.executions) {
+        const expectedPath = path.resolve(path.dirname(reports[0].path), execution[kind]);
+        const matches = files.filter((item) => path.resolve(item.path) === expectedPath &&
+          item.viewport === execution.viewport && item.state === execution.state);
+        requireValue(matches.length === 1 &&
+          hashArtifact(expectedPath) === execution[`${kind}_digest`],
+        `official design browser ${kind} is not bound to execution ${execution.execution_id}`, 4);
+      }
+    }
+  } catch (error) {
+    throw new RouterError(error.message, 4);
+  }
 }
 
 function candidateFieldEvidenceDigest(candidate, field) {
@@ -3726,6 +3760,11 @@ function verifyAttemptExecutionAuthority(
     !attempt.permission_scopes.some((scope) =>
       (packet.forbidden_permissions || []).includes(scope)),
   `design attempt ${packet.packet_id} does not satisfy its packet authority`, 4);
+  if (attempt.result_digest !== undefined) {
+    const record = resultForPacket(state, packet.packet_id);
+    requireValue(record, "executed design browser result is missing", 4);
+    verifyOfficialDesignBrowserEvidence(packet, record.normalized, declaration);
+  }
   verificationContext?.verifiedAttemptAuthorities.add(attempt);
 }
 
@@ -3954,6 +3993,7 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
     const resultPath = path.join(outputDirectory, "design-result.json");
     try {
       writeJsonAtomic(resultPath, result);
+      verifyOfficialDesignBrowserEvidence(packet, result, inspection.declaration);
       const record = recordResult(state, packet, result, resultPath);
       stored.result_path = resultPath;
       stored.result_digest = record.result_digest;
@@ -4590,6 +4630,10 @@ function dryPacket(state, kind, providerId, capabilities, strength, permissions,
     checks: kind === "browser-evidence" ? state.brief.evidence.required_checks : [],
     task: {
       kind,
+      ...(kind === "browser-evidence" ? {
+        locales: [...state.brief.locales],
+        required_states: [...state.brief.evidence.required_states]
+      } : {}),
       ...(state.reference_pack && referenceStage ? {
         reference_intelligence: referenceDesignContract(
           state,

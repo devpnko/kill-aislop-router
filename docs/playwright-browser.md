@@ -150,6 +150,14 @@ one-pixel `clip` or `clip-path` pattern is excluded from visible clipping
 findings; it remains covered by the ARIA and axe evidence.
 The complete shape is in `schemas/playwright-scenarios.schema.json`.
 
+For static design-exploration candidates, use the optional per-scenario
+`design: {state, locale}` binding and the stricter
+[executed-state contract](design-exploration.md#executed-state-proof). Each pair
+must have exactly one reviewed scenario at `/`; the adapter executes every pair
+at every required viewport and configured color scheme. Hidden markers alone do
+not count as tested states or languages. Ordinary served-application scenarios
+without this binding keep their existing behavior.
+
 Keyboard evidence follows sequential focus semantics: controls with
 `tabindex="-1"`, descendants of closed `details`, and descendants of hidden or
 inert ancestors are excluded. The walker continues through browser-internal

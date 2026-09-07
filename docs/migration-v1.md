@@ -2,6 +2,24 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Static design browser proof
+
+The official static-design adapter now requires reviewed scenario bindings for
+every required state × locale, executed at every viewport and configured color
+scheme. Its report is version 2 and includes native steps, visible-state proof,
+and digest-bound screenshots/traces. Ordinary runtime scenario contracts and
+the default exact-three design matrices are unchanged. Generic allowlisted
+no-reference Playwright adapters retain their existing explicit trust boundary.
+
+Existing official marker-only evidence must not be re-signed or upgraded in
+place. Keep the original run as history, review the
+[design scenario setup](design-exploration.md#executed-state-proof), reconfigure
+the host against the updated bundled adapter, and start a new run from verified
+brief/baseline/reference inputs. New Owner decisions must bind that new run.
+Missing scenario coverage stops before browser child spawn as `manual_pending`;
+failed executed checks stop result ingest. No automatic install, baseline
+promotion, owner approval, or product edit is part of this migration.
+
 ## Parent identity and catalog migration
 
 New runs bind `$killsloprouter:kill-slop-router` as the sole parent through a

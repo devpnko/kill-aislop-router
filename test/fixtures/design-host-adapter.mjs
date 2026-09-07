@@ -7,6 +7,7 @@ import {
   verifyParticipant
 } from "../../src/identity.mjs";
 import { canonicalDigest, hashArtifact } from "../../src/integrity.mjs";
+import { designPrototype } from "./design-browser-contract.mjs";
 
 let source = "";
 for await (const chunk of process.stdin) source += chunk;
@@ -256,7 +257,7 @@ function directionResult() {
   const task = packet.design_task;
   const prototypeContent = settings.duplicate_prototype
     ? "<!doctype html><html lang=\"en-US\"><head><meta name=\"viewport\" content=\"width=device-width\"><title>duplicate</title><style>body{color:#111827;background:#fff;font:16px sans-serif}button{padding:12px;color:#fff;background:#1d4ed8}</style></head><body><main><button>Review</button><p data-killsloprouter-locale=\"ko-KR\">검토</p><section data-killsloprouter-state=\"default selected loading empty error permission-denied\">duplicate fixture prototype</section></main></body></html>"
-    : `<!doctype html><html lang="en-US"><head><meta name="viewport" content="width=device-width"><title>${task.candidate_id}</title><style>body{color:#111827;background:#fff;font:16px sans-serif}main{padding:24px}button{padding:12px;color:#fff;background:#1d4ed8}</style></head><body><main><button>Review</button><p data-killsloprouter-locale="ko-KR">검토</p>${task.required_states.map((state) => `<section data-killsloprouter-state="${state}">${state}</section>`).join("")}<p>${task.candidate_id} fixture prototype</p></main></body></html>`;
+    : designPrototype({ title: task.candidate_id, states: task.required_states, locales: task.locales });
   const prototype = write(`${task.candidate_id}.html`, prototypeContent);
   const candidateSignature = signature(task);
   const fontReportDocument = {
@@ -548,7 +549,10 @@ function colorResult() {
     { role: "neutral", stops: ["#F8FAFC", "#CBD5E1", "#94A3B8", "#475569", "#0F172A"] }
   ];
   const gamutTargets = ["srgb", "display-p3-progressive"];
-  const prototype = write(`${task.candidate_id}.html`, `<!doctype html><html lang="en-US"><head><meta name="viewport" content="width=device-width"><title>${task.candidate_id}</title><style>body{color:${candidateRoles.text_primary};background:${candidateRoles.canvas};font:16px sans-serif}main{padding:24px}button{padding:12px;color:${candidateRoles.on_action};background:${candidateRoles.action_primary}}</style></head><body><main><p data-killsloprouter-locale="ko-KR">검토</p>${task.required_states.map((state) => `<section data-killsloprouter-state="${state}">${state}</section>`).join("")}<p>${task.candidate_id} color fixture</p><button>Decide</button></main></body></html>`);
+  const prototype = write(`${task.candidate_id}.html`, designPrototype({
+    title: task.candidate_id, states: task.required_states, locales: task.locales,
+    extraCss: `body{color:${candidateRoles.text_primary};background:${candidateRoles.canvas}}button{color:${candidateRoles.on_action};background:${candidateRoles.action_primary}}`
+  }));
   const tokenDocument = {
     design_token_spec_version: 1,
     color_space: task.color_strategy.color_space,

@@ -14,8 +14,10 @@ Every V1 journey carries a digest-bound `journey_identity` naming
 `anti-slop`, creators, scanners, and browser reviewers remain visible only as
 internal participant provenance; they never become the active mode.
 
-Version 1.0.0 is release-ready source. This repository does not publish an npm
-package or create a GitHub Release as part of the V1 work.
+The package retains version 1.0.0 for compatibility; a version number or passing
+contract tests do not certify complete design automation or aesthetic quality.
+Development branches require their own review and verification. This work does
+not publish an npm package or create a GitHub Release.
 
 ## What V1 does
 
@@ -340,14 +342,22 @@ declared color strategies for each shortlisted direction. It never treats
 
 The bundled official Playwright adapter can inspect digest-bound,
 self-contained static HTML candidate prototypes as well as the final served
-application. Candidate HTML marks its demonstrated locales and states
-explicitly; unbound local and network resources are blocked. Exploration
+application. Each required state/locale needs a reviewed, digest-bound scenario;
+the browser executes it at every required viewport and configured color scheme.
+Hidden DOM markers, inert buttons, and root-only screenshots are not state proof.
+Each case records native actions, visible-state assertions, a screenshot, and a
+trace. Unbound local and network resources are blocked. Exploration
 captures do not bypass the final audit's served-artifact attestation or
 approved pixel baseline. Design receipts authorize direction, not domain,
 privacy, runtime, release approval, or a reusable design system; those remain
 hard gates in the integrated run. Implement the selected evidence with one
 explicit project creator. A build/redesign route still requires a separately
 approved design system or an explicit project surface creator.
+
+See [design-state browser setup and migration](docs/design-exploration.md#executed-state-proof)
+and the [remaining design-journey work](docs/design-journey-work.md). The default
+host is manual-only, and the bundled Codex reviewer does not create or critique
+design-exploration candidates. Missing design adapters remain `manual_pending`.
 
 Every design browser result must come from a KSR-run, digest-locked
 `browser-json-v1` Playwright attempt; a manual JSON result is never accepted as

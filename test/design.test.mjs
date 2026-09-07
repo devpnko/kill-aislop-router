@@ -33,6 +33,7 @@ import {
 } from "../src/reference.mjs";
 import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
+import { designScenarios } from "./fixtures/design-browser-contract.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -44,6 +45,17 @@ const referenceFixture = path.join(root, "test", "fixtures", "reference-host-ada
 const cli = path.join(root, "bin", "killsloprouter.mjs");
 const CHECKPOINT_CHILD_TIMEOUT_MS = 500;
 const exampleBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "design-brief.example.json"), "utf8"));
+// These tests exercise provenance/authority and the exact-three lifecycle, not
+// a repeated six-state browser benchmark for every independent tamper variant.
+// The dedicated Playwright E2E covers the complete six-state/two-locale matrix.
+// Every required dimension in this fixture still executes through the real
+// browser; no checks or production/example requirements are skipped.
+const fixtureBrief = {
+  ...exampleBrief,
+  product: { ...exampleBrief.product, required_states: ["default", "error"] },
+  evidence: { ...exampleBrief.evidence, required_states: ["default", "error"],
+    required_viewports: ["mobile", "desktop"] }
+};
 
 function workspace() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-design-"));
@@ -51,7 +63,7 @@ function workspace() {
   fs.mkdirSync(baseline, { recursive: true });
   fs.writeFileSync(path.join(baseline, "app.html"), "<!doctype html><main>existing operator UI</main>\n");
   const briefPath = path.join(directory, "design-brief.json");
-  fs.writeFileSync(briefPath, `${JSON.stringify(exampleBrief, null, 2)}\n`);
+  fs.writeFileSync(briefPath, `${JSON.stringify(fixtureBrief, null, 2)}\n`);
   const statePath = path.join(baseline, ".killsloprouter", "design-run.json");
   return { directory, baseline, briefPath, statePath };
 }
@@ -69,7 +81,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
   const runId = "reference-pack-fixture";
   const registry = loadHumanDesignReasoningRegistry();
   const planningFrame = {
-    ...structuredClone(exampleBrief.product),
+    ...structuredClone(fixtureBrief.product),
     density: "compact"
   };
   const reference = (id, role, product, category, ecosystem) => ({
@@ -403,7 +415,7 @@ function attachReferencePack(space, mutate = null, {
     })
   }, null, 2)}\n`);
   const productFrame = {
-    ...structuredClone(exampleBrief.product),
+    ...structuredClone(fixtureBrief.product),
     density: "compact"
   };
   const brief = {
@@ -636,7 +648,7 @@ function provider(adapter, capabilities, strength, permissions, settings = {}) {
 
 let officialPlaywrightFixtureAuthority = null;
 
-function officialPlaywrightProvider(directory) {
+function officialPlaywrightProvider(directory, brief) {
   if (!officialPlaywrightFixtureAuthority) {
     const runtimeRoot = resolvePlaywrightRuntimeRoot();
     const entrypoint = playwrightAdapterPath();
@@ -658,12 +670,7 @@ function officialPlaywrightProvider(directory) {
   fs.mkdirSync(baselineDirectory, { recursive: true });
   fs.writeFileSync(scenarioFile, `${JSON.stringify({
     playwright_scenario_version: 1,
-    scenarios: [{
-      id: "design-fixture",
-      path: "/",
-      actions: [],
-      assertions: [{ type: "visible", locator: "body" }]
-    }]
+    scenarios: designScenarios(brief.evidence.required_states, brief.locales)
   }, null, 2)}\n`);
   const authority = officialPlaywrightFixtureAuthority;
   return {
@@ -726,7 +733,7 @@ function host(directory, settings = {}, mutate = null) {
   const manifestPath = path.join(directory, `host-${Math.random().toString(16).slice(2)}.json`);
   const brief = JSON.parse(fs.readFileSync(path.join(directory, "design-brief.json"), "utf8"));
   const browserProvider = brief.reference_pack
-    ? officialPlaywrightProvider(directory)
+    ? officialPlaywrightProvider(directory, brief)
     : provider("browser-json-v1", capabilities.browser, 3,
       ["artifact:read", "evidence:write", "browser:control"], settings.browser);
   const manifest = {
@@ -967,6 +974,66 @@ test("dry run exposes a 9-direction and 9-color matrix without mistaking routing
     assert.ok(state.packets.every((packet) =>
       Object.hasOwn(packet, "forbidden_permissions") === false),
     "no-pack packets must retain their legacy byte/API shape");
+  } finally {
+    fs.rmSync(space.directory, { recursive: true, force: true });
+  }
+});
+
+test("official design state proof blocks ingest, requires explicit retry, and rejects replay tamper", {
+  timeout: 240_000
+}, () => {
+  const space = workspace();
+  try {
+    // A bounded real-browser mechanics fixture; the complete product diversity
+    // and exact-three contract continue to be exercised by the other tests.
+    const brief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+    brief.locales = ["en-US"];
+    brief.product.required_states = ["default", "error"];
+    brief.evidence.required_states = ["default", "error"];
+    brief.evidence.required_viewports = ["mobile", "desktop"];
+    fs.writeFileSync(space.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
+    const makeHost = (limit) => host(space.directory, {}, (manifest) => {
+      manifest.providers["browser-evidence"] = officialPlaywrightProvider(space.directory, brief);
+      manifest.providers["browser-evidence"].settings.max_keyboard_tabs = limit;
+    });
+    const restricted = makeHost(1);
+    const dry = dryRunDesignExploration({
+      briefPath: space.briefPath, baselinePath: space.baseline, hostManifest: restricted
+    });
+    assert.equal(dry.status, "ready");
+    let state = startDesignExploration({
+      statePath: space.statePath, briefPath: space.briefPath,
+      baselinePath: space.baseline, hostManifest: restricted, root: space.directory
+    });
+    assert.equal(state.status, "blocked");
+    assert.equal(state.phase, "direction-browser-evidence");
+    const failures = state.attempts.filter((item) => item.packet_id.startsWith("browser-"));
+    assert.equal(failures.length, 9);
+    assert.ok(failures.every((item) => item.execution_status === "blocked_result_validation" &&
+      /failed or omitted check: keyboard/.test(item.error)), JSON.stringify(failures));
+    assert.equal(state.results.filter((item) => item.normalized.kind === "browser-evidence").length, 0);
+    const attempts = state.attempts.length;
+    state = resumeDesignExploration(space.statePath, { hostManifest: restricted });
+    assert.equal(state.attempts.length, attempts, "resume must not silently retry failed browser children");
+
+    const reviewed = makeHost(200);
+    state = resumeDesignExploration(space.statePath, { hostManifest: reviewed, retry: "browser-evidence" });
+    assert.equal(state.status, "manual_pending", JSON.stringify(state.blockers));
+    assert.equal(state.phase, "direction-selection", "real Owner shortlist remains a stop");
+    const accepted = state.results.filter((item) => item.normalized.kind === "browser-evidence");
+    assert.equal(accepted.length, 9);
+    assert.ok(accepted.every((item) => item.normalized.evidence.filter((e) => e.kind === "trace").length === 4));
+    assert.equal(state.shortlist, null);
+    const acceptedAttempts = state.attempts.length;
+    state = resumeDesignExploration(space.statePath, { hostManifest: reviewed });
+    assert.equal(state.attempts.length, acceptedAttempts, "accepted browser proof must not be rerun on resume");
+    assert.doesNotThrow(() => readDesignState(space.statePath));
+    const reportPath = accepted[0].normalized.evidence.find((item) => item.kind === "test-report").path;
+    const report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    report.executions.pop();
+    fs.writeFileSync(reportPath, `${JSON.stringify(report)}\n`);
+    assert.throws(() => resumeDesignExploration(space.statePath, { hostManifest: reviewed }),
+      /matrix is incomplete|changed after it was digest-bound/);
   } finally {
     fs.rmSync(space.directory, { recursive: true, force: true });
   }
