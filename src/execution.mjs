@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { selectDesignScenarios } from "./design-browser-proof.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runKillAiSlop, findKillAiSlopScanner } from "./adapters/kill-ai-slop.mjs";
@@ -751,6 +752,13 @@ function inspectVerifiedPacketAdapter(packet, manifest) {
       return manualPending(packet,
         `official static-design Playwright adapter cannot prove checks: ${unsupportedDesignChecks.join(", ")}`,
         manifest);
+    }
+    if (packet.design_task?.kind === "browser-evidence") {
+      try {
+        selectDesignScenarios(declaration.official_playwright?.designScenarios, packet.design_task);
+      } catch (error) {
+        return manualPending(packet, error.message, manifest);
+      }
     }
   }
   if (declaration.settings?.contract === CODEX_REVIEW_ADAPTER_CONTRACT && packet.design_packet_version === 1) {

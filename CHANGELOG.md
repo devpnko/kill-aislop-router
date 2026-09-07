@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Replaced marker-only static-design browser coverage with reviewed native
+  scenarios for the complete state × locale × viewport × color-scheme matrix.
+  Hidden states/locales, no-op controls, intercepted clicks, and pre-visible
+  non-default states fail closed. Each case retains exact steps, assertions,
+  checks, screenshot/trace digests, and version-2 report evidence; ingest and
+  replay verify it against the original host/scenario authority. Missing
+  bindings stop before child spawn. Legacy marker-only reports require a new
+  run, not re-signing. Runtime audit behavior, exact-three matrices, independent
+  reviewer and Owner gates remain unchanged. Contract test success is explicitly
+  distinguished from completed design automation and aesthetic quality.
+
 - Added a digest-bound, non-authoritative human-design reasoning registry and
   a rights-safe 24-product/48-screen UI Bowl study. Reference discovery now
   records screen-family strength, use environment, business/session context,

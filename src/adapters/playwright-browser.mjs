@@ -5,7 +5,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { canonicalDigest, hashArtifact, sha256, snapshotArtifact } from "../integrity.mjs";
+import { canonicalDigest, hashArtifact, readFilePinned, sha256, snapshotArtifact } from "../integrity.mjs";
+import {
+  validateDesignScenario,
+  selectDesignScenarios,
+  designBrowserCases,
+  designBrowserExecutionId
+} from "../design-browser-proof.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
@@ -19,7 +25,7 @@ const ASSERTION_TYPES = new Set([
   "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
   "computed-style"
 ]);
-const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
+const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions", "design"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
 const ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -146,6 +152,7 @@ function validateScenarioDocument(value) {
           "Playwright count assertion requires a non-negative integer value");
       }
     }
+    validateDesignScenario(scenario);
   }
   return value.scenarios;
 }
@@ -714,21 +721,29 @@ function hashFile(file) {
   return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
 }
 
-async function designMarkers(page, locales, states) {
-  return page.evaluate(({ requiredLocales, requiredStates }) => {
-    const localeFound = Object.fromEntries(requiredLocales.map((locale) => [locale,
-      document.documentElement.lang === locale || [...document.querySelectorAll("[data-killsloprouter-locale]")]
-        .some((element) => element.getAttribute("data-killsloprouter-locale") === locale)
-    ]));
-    const stateFound = Object.fromEntries(requiredStates.map((state) => [state,
-      [...document.querySelectorAll("[data-killsloprouter-state]")]
-        .some((element) => element.getAttribute("data-killsloprouter-state") === state)
-    ]));
-    return { localeFound, stateFound };
-  }, { requiredLocales: locales, requiredStates: states });
+async function inspectDesignState(page, state, locale) {
+  return page.evaluate(({ requiredState, requiredLocale }) => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 &&
+        element.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
+        !element.closest('[hidden], [inert], [aria-hidden="true"]');
+    };
+    const matches = [...document.querySelectorAll("[data-killsloprouter-state]")]
+      .filter((element) => element.getAttribute("data-killsloprouter-state") === requiredState &&
+        visible(element));
+    const stateVisible = matches.length === 1;
+    const localeRoot = stateVisible
+      ? matches[0].closest("[data-killsloprouter-locale], [lang]") : null;
+    const observedLocale = localeRoot?.getAttribute("data-killsloprouter-locale") ||
+      localeRoot?.getAttribute("lang") || null;
+    return { state_visible: stateVisible,
+      locale_visible: stateVisible && observedLocale === requiredLocale,
+      observed_locale: observedLocale, navigator_locale: navigator.language };
+  }, { requiredState: state, requiredLocale: locale });
 }
 
-async function runDesignBrowser(request, runtime) {
+async function runDesignBrowser(request, runtime, sealedScenarios) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   const task = packet.design_task;
   requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
@@ -746,7 +761,8 @@ async function runDesignBrowser(request, runtime) {
     "design prototype must be a regular non-symlink file");
   requireValue(path.extname(prototypePath).toLowerCase() === ".html",
     "official design Playwright accepts a static HTML prototype");
-  requireValue(hashFile(prototypePath) === prototype.digest, "design prototype digest mismatch");
+  const pinnedPrototype = readFilePinned(prototypePath, { label: "design prototype" });
+  requireValue(pinnedPrototype.digest === prototype.digest, "design prototype digest mismatch");
   const target = pathToFileURL(fs.realpathSync(prototypePath)).toString();
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
@@ -756,6 +772,8 @@ async function runDesignBrowser(request, runtime) {
   for (const viewport of requiredViewports) {
     requireValue(settings.viewports?.[viewport], `missing configured viewport: ${viewport}`);
   }
+  const scenarios = selectDesignScenarios(sealedScenarios, task);
+  const cases = designBrowserCases(scenarios, requiredViewports, settings.color_schemes);
   fs.mkdirSync(outputDirectory, { recursive: true });
 
   const { playwright, axeSource } = runtime;
@@ -775,26 +793,41 @@ async function runDesignBrowser(request, runtime) {
     console: true,
     network: true
   };
-  const localesFound = new Set();
-  const statesFound = new Set();
   try {
-    for (const viewportName of requiredViewports) {
+    for (const binding of cases) {
+      const viewportName = binding.viewport;
+      const scenario = scenarios.find((item) => item.id === binding.scenario);
       const viewport = settings.viewports[viewportName];
       const context = await browser.newContext({
         viewport,
-        colorScheme: settings.color_schemes?.[0] || "light",
-        locale: requiredLocales[0] || settings.locale,
+        colorScheme: binding.color_scheme,
+        locale: binding.locale,
         reducedMotion: "reduce",
         serviceWorkers: "block"
       });
       const execution = {
-        viewport: viewportName,
+        ...binding,
+        execution_id: designBrowserExecutionId(binding),
+        viewport_size: viewport,
+        actions: [],
+        assertions: [],
+        state_before: null,
+        state_after: false,
+        locale_after: false,
+        outcome: "failed",
         console_errors: [],
         page_errors: [],
         request_failures: [],
+        failed_responses: [],
         blocked_requests: []
       };
+      const checks = { ...aggregate };
+      // Each row starts independently; aggregate failure must not poison a
+      // later diagnostic row or disguise which exact cases passed.
+      for (const key of Object.keys(checks)) checks[key] =
+        !["visual-regression", "screen-reader"].includes(key);
       executions.push(execution);
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
       const page = await context.newPage();
       page.setDefaultTimeout(settings.navigation_timeout_ms);
       page.on("console", (message) => {
@@ -804,27 +837,72 @@ async function runDesignBrowser(request, runtime) {
       page.on("requestfailed", (failed) => execution.request_failures.push({
         url: failed.url(), error: failed.failure()?.errorText || "unknown"
       }));
+      page.on("response", (response) => {
+        if (response.status() >= 400) execution.failed_responses.push({
+          url: response.url(), status: response.status()
+        });
+      });
       await context.route("**/*", async (route) => {
         const url = route.request().url();
-        if (url === target) return route.continue();
+        if (url === target && route.request().method() === "GET") {
+          // Render the exact descriptor-pinned bytes for every case, never
+          // reopen a mutable prototype between locale/state captures.
+          return route.fulfill({ status: 200, contentType: "text/html; charset=utf-8",
+            body: pinnedPrototype.source });
+        }
         if (requestProtocolAllowed(url)) return route.continue();
         execution.blocked_requests.push({ url, origin: normalizedNetworkOrigin(url) });
         return route.abort("blockedbyclient");
       });
+      await context.routeWebSocket("**/*", async (socket) => {
+        execution.blocked_requests.push({ url: socket.url(), method: "WEBSOCKET" });
+        await socket.close({ code: 1008, reason: "KillSlopRouter static prototype has no network authority" });
+      });
       try {
         await page.goto(target, { waitUntil: "domcontentloaded", timeout: settings.navigation_timeout_ms });
-        const markers = await designMarkers(page, requiredLocales, requiredStates);
-        for (const [locale, found] of Object.entries(markers.localeFound)) if (found) localesFound.add(locale);
-        for (const [state, found] of Object.entries(markers.stateFound)) if (found) statesFound.add(state);
-        aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
+        execution.state_before = (await inspectDesignState(page, binding.state, binding.locale)).state_visible;
+        let failedAction = false;
+        for (const action of scenario.actions) {
+          if (failedAction) {
+            execution.actions.push({ step: action, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAction(page, action, settings.navigation_timeout_ms);
+            execution.actions.push({ step: action, status: "passed" });
+          } catch (error) {
+            failedAction = true;
+            execution.actions.push({ step: action, status: "failed", error: error.message });
+          }
+        }
+        for (const assertion of scenario.assertions) {
+          if (failedAction) {
+            execution.assertions.push({ step: assertion, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAssertion(page, assertion, settings.navigation_timeout_ms);
+            execution.assertions.push({ step: assertion, status: "passed" });
+          } catch (error) {
+            execution.assertions.push({ step: assertion, status: "failed", error: error.message });
+          }
+        }
+        const observed = await inspectDesignState(page, binding.state, binding.locale);
+        execution.state_after = observed.state_visible;
+        execution.locale_after = observed.locale_visible;
+        execution.observed_locale = observed.observed_locale;
+        execution.navigator_locale = observed.navigator_locale;
+        checks.state = !failedAction && execution.assertions.every((item) => item.status === "passed") &&
+          execution.state_after && execution.locale_after &&
+          (binding.state === "default" || execution.state_before === false);
 
         execution.overflow = await inspectOverflow(page);
-        aggregate.overflow &&= !execution.overflow.document_overflow &&
+        checks.overflow = !execution.overflow.document_overflow &&
           execution.overflow.offenders.length === 0 &&
           execution.overflow.overlaps.length === 0 &&
           execution.overflow.clipped_text.length === 0;
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
-        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+        checks.keyboard = execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
 
         const originalViewport = page.viewportSize();
         await page.setViewportSize({
@@ -832,22 +910,22 @@ async function runDesignBrowser(request, runtime) {
           height: originalViewport.height
         });
         execution.zoom_200 = await inspectOverflow(page);
-        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+        checks["zoom-200"] = !execution.zoom_200.document_overflow &&
           execution.zoom_200.offenders.length === 0 &&
           execution.zoom_200.overlaps.length === 0 &&
           execution.zoom_200.clipped_text.length === 0;
         await page.setViewportSize(originalViewport);
 
         execution.axe = await runAxe(page, axeSource);
-        aggregate.contrast &&= !execution.axe.violations.some((item) => item.id === "color-contrast");
-        aggregate["aria-semantics"] &&= !execution.axe.violations.some((item) => item.id !== "color-contrast");
+        checks.contrast = !execution.axe.violations.some((item) => item.id === "color-contrast");
+        checks["aria-semantics"] = !execution.axe.violations.some((item) => item.id !== "color-contrast");
         const ariaSnapshot = await page.locator("body").ariaSnapshot();
-        aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
-        aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
-        aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
+        checks["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
 
-        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        const screenshotName = `${execution.execution_id}.png`;
         await stabilizeVisualCapture(page);
+        const captureState = await inspectDesignState(page, binding.state, binding.locale);
+        checks.state &&= captureState.state_visible && captureState.locale_visible;
         await page.screenshot({
           path: path.join(outputDirectory, screenshotName),
           fullPage: true,
@@ -855,29 +933,45 @@ async function runDesignBrowser(request, runtime) {
           caret: "hide",
           scale: "css"
         });
-        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+        execution.screenshot = screenshotName;
+        execution.screenshot_digest = hashFile(path.join(outputDirectory, screenshotName));
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName, state: binding.state });
+      } catch (error) {
+        checks.state = false;
+        execution.error = error.message;
       } finally {
+        const traceName = `${execution.execution_id}.zip`;
+        await context.tracing.stop({ path: path.join(outputDirectory, traceName) });
+        execution.trace = traceName;
+        execution.trace_digest = hashFile(path.join(outputDirectory, traceName));
+        evidence.push({ kind: "trace", path: traceName, viewport: viewportName, state: binding.state });
+        checks.console = execution.console_errors.length === 0 && execution.page_errors.length === 0;
+        checks.network = execution.request_failures.length === 0 &&
+          execution.failed_responses.length === 0 && execution.blocked_requests.length === 0;
+        checks.state &&= Boolean(execution.screenshot);
+        execution.checks = Object.fromEntries(requiredChecks.map((check) => [check, checks[check] === true]));
+        execution.outcome = Object.values(execution.checks).every(Boolean) ? "passed" : "failed";
+        for (const check of requiredChecks) aggregate[check] &&= execution.checks[check];
         await context.close();
       }
     }
   } finally {
     await browser.close();
   }
-  aggregate.state &&= requiredLocales.every((locale) => localesFound.has(locale)) &&
-    requiredStates.every((state) => statesFound.has(state));
   const checks = Object.fromEntries(requiredChecks.map((check) => [check, aggregate[check] === true]));
   const reportName = `${safeId(task.subject_id)}--playwright-report.json`;
   const report = {
-    design_playwright_report_version: 1,
+    design_playwright_report_version: 2,
     run_id: request.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
+    scenario_digest: settings.scenario_digest,
     subject_id: task.subject_id,
     subject_result_digest: task.subject_result_digest,
     prototype: { path: prototypePath, digest: prototype.digest },
     browser: { engine: "playwright", implementation: "chromium", version: browserVersion },
     checks,
-    locales_found: [...localesFound],
-    states_found: [...statesFound],
+    coverage_semantics: "native-scenario-visible-state-locale-matrix",
     executions
   };
   fs.writeFileSync(path.join(outputDirectory, reportName), `${JSON.stringify(report, null, 2)}\n`);
@@ -899,8 +993,10 @@ async function runDesignBrowser(request, runtime) {
       browser_engine: "playwright",
       browser_engine_version: browserVersion,
       checks,
-      locales_tested: [...localesFound],
-      states_tested: [...statesFound],
+      locales_tested: requiredLocales.filter((locale) => executions
+        .filter((item) => item.locale === locale).every((item) => item.checks.state)),
+      states_tested: requiredStates.filter((state) => executions
+        .filter((item) => item.state === state).every((item) => item.checks.state)),
       evidence
     },
     metadata: {
@@ -945,7 +1041,7 @@ async function run(request) {
   const childAuthority = readPlaywrightChildAuthority(request, settings);
 
   if (packet.design_task?.kind === "browser-evidence") {
-    return runDesignBrowser(request, childAuthority.runtime);
+    return runDesignBrowser(request, childAuthority.runtime, childAuthority.scenarios);
   }
 
   const scenarios = childAuthority.scenarios;

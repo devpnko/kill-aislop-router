@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { selectDesignScenarios } from "../src/design-browser-proof.mjs";
+import { validatePlaywrightScenarioDocument } from "../src/playwright.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -16,6 +18,23 @@ function satisfiesRequiredObject(schema, value) {
   }
   return (schema.required || []).every((key) => Object.hasOwn(value, key));
 }
+
+test("published design-state proof and scenario examples preserve exact matrix coverage", () => {
+  const report = readSchema("design-playwright-report.schema.json");
+  assert.equal(report.properties.design_playwright_report_version.const, 2);
+  assert.ok(report.$defs.execution.required.includes("trace_digest"));
+  assert.ok(report.$defs.execution.required.includes("actions"));
+  assert.ok(report.$defs.execution.required.includes("locale_after"));
+  const scenario = readSchema("playwright-scenarios.schema.json");
+  assert.deepEqual(scenario.$defs.scenario.properties.design.required, ["state", "locale"]);
+  const document = validatePlaywrightScenarioDocument(JSON.parse(fs.readFileSync(
+    path.join(root, "examples", "design-playwright-scenarios.example.json"), "utf8")));
+  const brief = JSON.parse(fs.readFileSync(path.join(root, "examples", "design-brief.example.json"), "utf8"));
+  const selected = selectDesignScenarios(document.scenarios, {
+    locales: brief.locales, required_states: brief.evidence.required_states
+  });
+  assert.equal(selected.length, brief.locales.length * brief.evidence.required_states.length);
+});
 
 test("published start authority schema rejects an empty parent-owned path contract", () => {
   const schema = readSchema("automation-start-authority-receipt.schema.json");

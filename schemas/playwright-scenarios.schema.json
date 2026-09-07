@@ -20,6 +20,15 @@
       "properties": {
         "id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
         "path": {"type": "string", "pattern": "^/"},
+        "design": {
+          "type": "object",
+          "required": ["state", "locale"],
+          "properties": {
+            "state": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"},
+            "locale": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$"}
+          },
+          "additionalProperties": false
+        },
         "actions": {
           "type": "array",
           "maxItems": 100,
@@ -31,6 +40,13 @@
           "items": {"$ref": "#/$defs/assertion"}
         }
       },
+      "allOf": [{
+        "if": {"required": ["design"]},
+        "then": {
+          "required": ["assertions"],
+          "properties": {"path": {"const": "/"}, "assertions": {"minItems": 1}}
+        }
+      }],
       "additionalProperties": false
     },
     "action": {

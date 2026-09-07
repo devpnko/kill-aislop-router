@@ -127,7 +127,7 @@
         "type": "object",
         "required": ["kind", "path"],
         "properties": {
-          "kind": {"enum": ["prototype", "screenshot", "test-report", "review-report", "token-spec", "font-report", "design-contract", "source-composition-analysis"]},
+          "kind": {"enum": ["prototype", "screenshot", "trace", "test-report", "review-report", "token-spec", "font-report", "design-contract", "source-composition-analysis"]},
           "path": {"type": "string", "minLength": 1},
           "viewport": {"type": "string", "minLength": 1},
           "state": {"type": "string", "minLength": 1},

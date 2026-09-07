@@ -18,6 +18,7 @@ import {
   resolvePlaywrightRuntimeRoot
 } from "../src/playwright.mjs";
 import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
+import { designScenarios, designPrototype } from "./fixtures/design-browser-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -1021,11 +1022,18 @@ for (const authorityKind of ["scenario-file", "baseline-directory"]) {
 }
 
 test("official Playwright adapter verifies a digest-bound static design prototype", {
-  timeout: 60_000
+  timeout: 120_000
 }, () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
   try {
     const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: designScenarios()
+    });
+    const configuredProfile = readJson(paths.profile);
+    configuredProfile.evidence.required_scenarios = designScenarios().map((item) => item.id);
+    writeJson(paths.profile, configuredProfile);
     configurePlaywright({
       profilePath: paths.profile,
       hostManifestPath: paths.host,
@@ -1033,14 +1041,7 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome"
     });
     const prototype = path.join(directory, "candidate.html");
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Design candidate</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
-<body><main data-killsloprouter-locale="en-US">
-<p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype());
     const capabilities = [
       "responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence",
       "contrast-evidence", "zoom-evidence"
@@ -1110,18 +1111,20 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     assert.ok(Object.values(result.result.checks).every(Boolean));
     assert.deepEqual(new Set(result.result.locales_tested), new Set(["en-US", "ko-KR"]));
     assert.deepEqual(new Set(result.result.states_tested), new Set(["default", "error"]));
+    const proof = readJson(result.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.equal(proof.design_playwright_report_version, 2);
+    assert.equal(proof.executions.length, 8);
+    assert.ok(proof.executions.every((item) => item.outcome === "passed"));
+    assert.equal(result.result.evidence.filter((item) => item.kind === "trace").length, 8);
     assert.deepEqual(
       new Set(result.result.evidence.filter((item) => item.kind === "screenshot").map((item) => item.viewport)),
       new Set(["mobile", "desktop"])
     );
 
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
-<body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype({
+      extraCss: '.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}.clipped{width:100px;white-space:nowrap;overflow:hidden}',
+      extra: '<h2 class="clipped">Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div>'
+    }));
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
     layoutPacket.run_id = "official-design-browser-layout-run";
@@ -1154,15 +1157,7 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
 
     fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Unbound resource</title>
-<link rel="stylesheet" href="./unbound.css">
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
-<body><main data-killsloprouter-locale="en-US">
-<p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype({ extraHead: '<link rel="stylesheet" href="./unbound.css">' }));
     const blockedPacket = structuredClone(packet);
     blockedPacket.packet_id = "browser-design-unbound-resource";
     blockedPacket.run_id = "official-design-browser-block-run";
@@ -1192,6 +1187,94 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     const blockedReport = readJson(blockedReportPath);
     assert.ok(blockedReport.executions.every((execution) =>
       execution.blocked_requests.some((item) => item.url.endsWith("/unbound.css"))));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official design child rejects hidden states/locales, no-op actions, and intercepted mobile clicks", {
+  timeout: 180_000
+}, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-design-proof-regression-"));
+  try {
+    const scenarios = designScenarios();
+    const paths = bootstrapProject(directory, scenarios.map((item) => item.id));
+    writeJson(paths.scenarios, { playwright_scenario_version: 1, scenarios });
+    configurePlaywright({ profilePath: paths.profile, hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173", browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome" });
+    const host = readJson(paths.host);
+    host.providers["browser-evidence"].settings.navigation_timeout_ms = 1000;
+    host.providers["browser-evidence"].settings.color_schemes = ["light", "dark"];
+    writeJson(paths.host, host);
+    const manifest = loadHostManifest(paths.host);
+    const prototype = path.join(directory, "prototype.html");
+    const packet = {
+      design_packet_version: 1, packet_id: "design-state-proof", stage_id: "browser-evidence",
+      run_id: "design-state-proof", journey_identity: createJourneyIdentity({
+        runId: "design-state-proof", routerVersion: "1.0.0"
+      }),
+      participant: createParticipant({ providerId: "browser-evidence", stageId: "browser-evidence",
+        designTaskKind: "browser-evidence" }),
+      provider: { id: "browser-evidence" }, minimum_strength: 3,
+      assigned_capabilities: ["responsive-evidence", "keyboard-evidence", "state-evidence",
+        "overflow-evidence", "contrast-evidence", "zoom-evidence"],
+      required_permissions: ["artifact:read", "evidence:write", "browser:control"],
+      evidence_contract: { required_viewports: ["mobile", "desktop"], required_checks: [
+        "keyboard", "state", "overflow", "contrast", "zoom-200", "aria-semantics", "console", "network"
+      ] },
+      design_task: { kind: "browser-evidence", subject_kind: "direction-candidate",
+        subject_id: "candidate", subject_result_digest: `sha256:${"3".repeat(64)}`,
+        prototypes: [{ path: prototype, digest: `sha256:${"2".repeat(64)}` }],
+        locales: ["en-US", "ko-KR"], required_states: ["default", "error"] }
+    };
+    sealPacket(packet);
+    const missing = structuredClone(packet);
+    missing.design_task.required_states.push("permission-denied");
+    sealPacket(missing);
+    const pending = inspectPacketAdapter(missing, manifest);
+    assert.equal(pending.execution_status, "manual_pending");
+    assert.match(pending.reason, /permission-denied/);
+    assert.equal(pending.child_pid, undefined);
+
+    const cases = [
+      { name: "no-op-error", options: { brokenState: "error" },
+        failed: (e) => e.state === "error" },
+      { name: "hidden-korean-marker", options: { brokenLocale: "ko-KR",
+        extra: '<p hidden data-killsloprouter-locale="ko-KR">숨겨진 한국어</p>' },
+        failed: (e) => e.locale === "ko-KR" },
+      { name: "already-visible-states", options: { allStatesVisible: true },
+        failed: (e) => e.state === "error" },
+      { name: "mobile-pointer-interception", options: {
+        extra: '<div class="interceptor" aria-hidden="true"></div>',
+        extraCss: '@media(max-width:500px){.interceptor{position:fixed;inset:0;z-index:9999}}'
+      }, failed: (e) => e.viewport === "mobile" }
+    ];
+    for (const item of cases) await t.test(item.name, () => {
+      fs.writeFileSync(prototype, designPrototype(item.options));
+      packet.design_task.prototypes[0].digest = hashArtifact(prototype);
+      sealPacket(packet);
+      const result = executeAuditPacket({
+        run: { run_id: packet.run_id, journey_identity: packet.journey_identity, packets: [packet],
+          creator: { provider_id: "fixture-creator", actor_id: "fixture-creator" },
+          scope: { kind: "design-exploration" }, artifacts: [snapshotArtifact(prototype, { root: directory })],
+          results: [] },
+        packet, manifest, outputDirectory: path.join(directory, item.name)
+      });
+      assert.equal(result.execution_status, "ran", result.error);
+      assert.notEqual(result.child_pid, process.pid);
+      assert.equal(result.result.checks.state, false);
+      const report = readJson(result.result.evidence.find((entry) => entry.kind === "test-report").path);
+      assert.equal(report.executions.length, 16);
+      for (const execution of report.executions) {
+        assert.equal(execution.checks.state, !item.failed(execution), JSON.stringify(execution));
+        assert.ok(execution.trace_digest);
+      }
+      if (item.name === "mobile-pointer-interception") {
+        const mobile = report.executions.filter((entry) => entry.viewport === "mobile");
+        assert.ok(mobile.every((entry) => entry.actions.some((action) => action.status === "failed")));
+        assert.ok(mobile.every((entry) => entry.assertions.every((assertion) => assertion.status === "skipped")));
+      }
+    });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
