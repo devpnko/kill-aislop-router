@@ -227,6 +227,8 @@ assert.ok(identityFixtures.presentation_cases.some((item) =>
 "orchestrator identity fixture must allow qualified internal-critic wording");
 assert.doesNotMatch(packageJson.scripts.test, /e2e-shard|(?:playwright|design|dogfood|codex)\.test\.mjs/,
   "the bounded default suite must not accidentally absorb the isolated E2E inventory");
+assert.match(packageJson.scripts["test:e2e"], /^node --test --test-concurrency=2 /,
+  "bound E2E file workers before positional test paths, not as ignored child arguments");
 assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
   "design child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/reference\.test\.mjs/,
