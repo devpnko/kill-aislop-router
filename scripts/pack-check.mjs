@@ -79,6 +79,9 @@ try {
     "schemas/reference-lease-recovery.schema.json",
     "schemas/reference-owner-selection.schema.json",
     "schemas/reference-pack.schema.json",
+    "schemas/component-recipe.schema.json",
+    "schemas/component-specs.schema.json",
+    "src/component-recipes.mjs",
     "schemas/reference-packet.schema.json",
     "schemas/reference-result.schema.json",
     "schemas/reference-run.schema.json",
@@ -98,6 +101,7 @@ try {
     "docs/design-exploration.md",
     "docs/design-journey-work.md",
     "docs/reference-intelligence.md",
+    "docs/component-recipes.md",
     "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
     "docs/reviews/fable-5.1-reference-intelligence.md",
     "docs/codex-plugin.md",
@@ -119,6 +123,8 @@ try {
     "examples/design-brief.example.json",
     "examples/design-playwright-scenarios.example.json",
     "examples/reference-brief.example.json",
+    "examples/component-recipe.example.json",
+    "examples/component-card-recipe.example.json",
     "examples/reference-evidence/flowdesk-source-metadata.json",
     "examples/reference-evidence/marketline-source-metadata.json",
     "examples/reference-evidence/owner-request.md",
@@ -215,6 +221,11 @@ import fs from "node:fs";
 import path from "node:path";
 const root = ${JSON.stringify(installedRoot)};
 const reference = await import("killsloprouter/reference");
+const components = await import(path.join(root, "src", "component-recipes.mjs"));
+for (const name of ["component-recipe.example.json", "component-card-recipe.example.json"]) {
+  components.validateComponentRecipe(JSON.parse(fs.readFileSync(path.join(root, "examples", name), "utf8")));
+}
+assert.equal(typeof components.componentSchemaContract("specs").schema, "object");
 const brief = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-brief.example.json"), "utf8"));
 const manualExport = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-evidence", "ui-bowl-manual-export.json"), "utf8"));
 const registry = JSON.parse(fs.readFileSync(path.join(root, "registry", "human-design-reasoning.json"), "utf8"));

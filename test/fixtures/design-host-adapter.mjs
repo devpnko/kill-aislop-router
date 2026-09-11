@@ -8,6 +8,7 @@ import {
 } from "../../src/identity.mjs";
 import { canonicalDigest, hashArtifact } from "../../src/integrity.mjs";
 import { designPrototype } from "./design-browser-contract.mjs";
+import { componentSpecs } from "./component-recipe-fixture.mjs";
 
 let source = "";
 for await (const chunk of process.stdin) source += chunk;
@@ -249,6 +250,11 @@ function designContractEvidence(task, candidateId) {
       `${role} is derived from the target decision, state, data, and responsive contract.`
     ]))
   };
+  if (task.reference_intelligence.component_recipe_contract && !settings.omit_component_specs) {
+    document.component_specs = componentSpecs(task.reference_intelligence.component_recipe_contract.recipes,
+      task.reference_intelligence.component_recipe_contract.required_viewports, task.required_states);
+    if (settings.component_spec_tamper) document.component_specs[0].recipe_digest = `sha256:${"0".repeat(64)}`;
+  }
   const target = write(`${candidateId}-design-contract.json`, JSON.stringify(document));
   return { kind: "design-contract", path: target, contract_roles: contractRoles };
 }

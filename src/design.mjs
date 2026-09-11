@@ -50,6 +50,15 @@ import {
 import { claimsSourceCompositionCopy } from "./source-composition.mjs";
 import { verifyDesignBrowserReport } from "./design-browser-proof.mjs";
 import {
+  COMPONENT_CRAFT_CHECK,
+  componentSchemaContract,
+  projectComponentRecipe,
+  selectedComponentRecipes,
+  validateComponentSpecs,
+  validateComponentViewports,
+  validateComponentRangeMapping
+} from "./component-recipes.mjs";
+import {
   acquireStateLease,
   claimStaleStateLease,
   commitStateLeaseWrite,
@@ -824,6 +833,9 @@ function validatePinnedReferencePack(brief, pinned, root) {
   requireValue(pinned.digest === brief.reference_pack.digest,
     "reference intelligence pack file digest mismatch", 4);
   const pack = validateReferencePack(pinned.input);
+  requireValue(!pack.verified_grammar.some((item) => item.component_recipe) ||
+    brief.evidence.required_viewports.length >= 3,
+  "component recipe craft evidence needs three distinct project viewports before creation", 4);
   requireValue(pack.project_id === brief.project_id && pack.surface === brief.surface,
     "reference intelligence pack conflicts with the design project or surface", 4);
   requireValue(referenceProductMatches(pack, brief),
@@ -850,6 +862,14 @@ function resolveReferencePack(brief, root) {
   const target = path.resolve(root, brief.reference_pack.path);
   const pinned = readPinnedDesignJson(target, "reference intelligence pack");
   return validatePinnedReferencePack(brief, pinned, root);
+}
+
+function validateComponentBrowserPreflight(referencePack, brief, hostManifest) {
+  if (!referencePack?.normalized.verified_grammar.some((item) => item.component_recipe)) return;
+  const browser = hostManifest?.providers?.[brief.providers.browser_evidence];
+  if (browser?.settings?.contract === PLAYWRIGHT_ADAPTER_CONTRACT) {
+    validateComponentViewports(browser.settings.viewports, brief.evidence.required_viewports);
+  }
 }
 
 function resolveReviewerSourceArtifacts(state) {
@@ -894,6 +914,9 @@ function referenceProjection(pack) {
     tradeoff: item.tradeoff,
     harmful_when: structuredClone(item.harmful_when),
     requires_live_data: item.requires_live_data,
+    ...(item.component_recipe ? {
+      component_recipe: projectComponentRecipe(item.component_recipe)
+    } : {}),
     avoid: item.avoid,
     reasoning_ids: item.reasoning_ids.map((id) => reasoningAliases.get(id))
   }));
@@ -906,8 +929,10 @@ function referenceProjection(pack) {
 }
 
 function referenceChecksForStage(pack, stage) {
-  return pack.downstream_contract.design_check_contracts.filter((check) =>
-    check.stages.includes(stage));
+  return [
+    ...pack.downstream_contract.design_check_contracts,
+    ...(pack.verified_grammar.some((item) => item.component_recipe) ? [COMPONENT_CRAFT_CHECK] : [])
+  ].filter((check) => check.stages.includes(stage));
 }
 
 function creatorContractRoles(checks) {
@@ -954,6 +979,18 @@ function referenceDesignContract(state, stage, audience) {
     } : {}),
     causal_reasoning: projection.causal_reasoning,
     transferable_grammar: projection.transferable_grammar,
+    ...(projection.transferable_grammar.some((item) => item.component_recipe) ? {
+      component_recipe_contract: {
+        specification_field: "design-contract.component_specs",
+        ...componentSchemaContract("specs"),
+        recipes: selectedComponentRecipes(projection.transferable_grammar),
+        required_viewports: [...state.brief.evidence.required_viewports],
+        required_states: [...state.brief.evidence.required_states],
+        human_authorship_certified: false,
+        visual_authority_granted: false,
+        rule: "Implement the visual craft as well as layout. Bind actual project values, part selectors, interaction/state treatments and compact/medium/wide viewport mappings in component_specs. Preserve target character and comparison axes; inspect the rendered specimen independently. Do not equate scanner/browser success with aesthetic approval."
+      }
+    } : {}),
     trace_dimensions: [...new Set(projection.transferable_grammar
       .filter((item) => stage === "color-review"
         ? item.dimension === "color-roles" : item.dimension !== "color-roles")
@@ -1214,7 +1251,7 @@ function validateDesignContractEvidence(state, result, stage) {
   const document = readEvidenceJson(evidence[0],
     `${result.kind} ${result.candidate_id} design contract`);
   exact(document, new Set([
-    "design_contract_evidence_version", "candidate_id", "contract_roles", "claims"
+    "design_contract_evidence_version", "candidate_id", "contract_roles", "claims", "component_specs"
   ]), "design contract evidence");
   requireValue(document.design_contract_evidence_version === 1,
     "design_contract_evidence_version must be 1", 4);
@@ -1230,6 +1267,9 @@ function validateDesignContractEvidence(state, result, stage) {
   requireValue(containsAll(document.contract_roles, required),
     `${result.kind} ${result.candidate_id} design contract omits required roles: ${required
       .filter((role) => !document.contract_roles.includes(role)).join(", ")}`, 4);
+  validateComponentSpecs(document.component_specs,
+    selectedComponentRecipes(referenceProjection(state.reference_pack.normalized).transferable_grammar),
+    state.brief.evidence);
 }
 
 function readEvidenceJson(item, label) {
@@ -1541,8 +1581,7 @@ function validateCandidateSourceIndependence(state, result, label) {
   const prototypes = result.evidence.filter((item) => item.kind === "prototype")
     .map((item) => fs.readFileSync(item.path, "utf8"));
   const contractClaims = result.evidence.filter((item) => item.kind === "design-contract")
-    .map((item) => Object.values(readEvidenceJson(item,
-      `${label} source-composition contract`).claims || {}));
+    .map((item) => readEvidenceJson(item, `${label} source-composition contract`));
   const candidateContent = {
     rationale: result.rationale,
     intent: result.intent,
@@ -1635,9 +1674,16 @@ function validateBrowserResult(state, packet, result) {
     "creator cannot provide browser evidence for its own candidate", 4);
 }
 
-function verifyOfficialDesignBrowserEvidence(packet, result, declaration) {
+function verifyOfficialDesignBrowserEvidence(state, packet, result, declaration) {
   if (packet.design_task?.kind !== "browser-evidence" ||
     declaration.settings?.contract !== PLAYWRIGHT_ADAPTER_CONTRACT) return;
+  if (state.reference_pack?.normalized.verified_grammar.some((item) => item.component_recipe)) {
+    validateComponentViewports(declaration.settings.viewports, state.brief.evidence.required_viewports);
+    const subject = resultForCandidate(state, packet.design_task.subject_id, packet.design_task.subject_kind);
+    const evidence = subject.normalized.evidence.find((item) => item.kind === "design-contract");
+    validateComponentRangeMapping(readEvidenceJson(evidence, "component craft specification").component_specs,
+      declaration.settings.viewports);
+  }
   const reports = result.evidence.filter((item) => item.kind === "test-report");
   requireValue(reports.length === 1,
     "official design browser requires exactly one executed state-proof report", 4);
@@ -3763,7 +3809,7 @@ function verifyAttemptExecutionAuthority(
   if (attempt.result_digest !== undefined) {
     const record = resultForPacket(state, packet.packet_id);
     requireValue(record, "executed design browser result is missing", 4);
-    verifyOfficialDesignBrowserEvidence(packet, record.normalized, declaration);
+    verifyOfficialDesignBrowserEvidence(state, packet, record.normalized, declaration);
   }
   verificationContext?.verifiedAttemptAuthorities.add(attempt);
 }
@@ -3993,7 +4039,7 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
     const resultPath = path.join(outputDirectory, "design-result.json");
     try {
       writeJsonAtomic(resultPath, result);
-      verifyOfficialDesignBrowserEvidence(packet, result, inspection.declaration);
+      verifyOfficialDesignBrowserEvidence(state, packet, result, inspection.declaration);
       const record = recordResult(state, packet, result, resultPath);
       stored.result_path = resultPath;
       stored.result_digest = record.result_digest;
@@ -4160,6 +4206,7 @@ function continueDesignExplorationWithLease(state, lease, {
     state.brief,
     hostManifest
   );
+  validateComponentBrowserPreflight(state.reference_pack, state.brief, hostManifest);
   requireValue(!shortlistPath || !state.shortlist,
     "design shortlist is already digest-bound and cannot be replaced", 4);
   requireValue(!approvalPath || !state.approval,
@@ -4381,6 +4428,7 @@ export function startDesignExploration({
     const brief = validateDesignBrief(pinnedBrief.input);
     const referencePack = resolveReferencePack(brief, root);
     assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
+    validateComponentBrowserPreflight(referencePack, brief, hostManifest);
     const runId = crypto.randomUUID();
     const state = sealState({
       design_exploration_run_version: 1,
@@ -4660,6 +4708,7 @@ export function dryRunDesignExploration({
   const brief = validateDesignBrief(pinnedBrief.input);
   const referencePack = resolveReferencePack(brief, root);
   assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
+  validateComponentBrowserPreflight(referencePack, brief, hostManifest);
   const state = {
     run_id: "dry-run",
     journey_identity: createJourneyIdentity({

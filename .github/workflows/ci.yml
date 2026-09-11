@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     # The complete design/reference E2E intentionally exercises real child
     # processes, Playwright, crash recovery, and exact 3x3 lifecycle replay.
+    # Deterministic shards keep that complete inventory across two file workers.
     # A clean Linux lane can exceed 20 minutes without being hung.
     timeout-minutes: 60
     env:

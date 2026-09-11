@@ -2,6 +2,16 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Optional component craft recipes
+
+The additive [component recipe contract](component-recipes.md) is opt-in for
+new reference runs. Adapters need support for `component_recipe` and candidate
+`design-contract.component_specs`; missing fields fail closed. Use the updated
+Router for the whole journey. Do not mutate existing packs, ledgers, selections
+or approvals to add recipes: bind a fresh producer run and fresh Owner selection.
+No-recipe runs retain their existing matrices and review sets. This development
+does not install or migrate global plugins automatically.
+
 ## Static design browser proof
 
 The official static-design adapter now requires reviewed scenario bindings for

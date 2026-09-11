@@ -115,8 +115,24 @@ override the verified visual intent and signature.
    return as a direction/color creator or browser participant, while independent
    reviewer reuse is allowed. Preserve the canonically ordered, digest-bound
    source-recipient execution lineage from the producer; it may be empty only
-   for entirely manual production and must never be synthesized. Require
-   per-dimension traces and apply the eleven
+   for entirely manual production and must never be synthesized.
+   For requests to transfer card/table craft, not just layout, use
+   `<plugin-root>/docs/component-recipes.md`. Put the actual scoped families in
+   `coverage.required_recipe_families`; do not merely add a generic aesthetic
+   adjective. Require capture-bound anatomy, surface, edge, elevation, type,
+   spacing, color, imagery and motion treatments, interaction states, and
+   compact/medium/wide variants. Label unseen responsive behavior
+   `target-proposal`; do not infer a tested mobile design from desktop pixels.
+   Keep exact source literals/pixels private. Creators instead bind concrete
+   target values, part selectors, state treatments, stress cases and responsive
+   mappings in `design-contract.component_specs`, preserving project character.
+   Do not flatten a rich reference into default paper-neutral cards or combine
+   incompatible component skins. Three distinct browser widths and the derived
+   independent `component-craft-and-reflow` check are required once recipes are
+   selected. Inspect the actual specimen; browser/scanner success cannot certify
+   taste or human authorship. Components become approved shared assets only
+   after the existing Owner and systemization gates.
+   Require per-dimension traces and apply the eleven
    fixed checks by stage: ten for direction and two
    for color, with source-composition independence shared. Bind
    `reference-capture-set` to `reference-authority/source-capture-set` and the

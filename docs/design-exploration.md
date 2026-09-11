@@ -132,6 +132,12 @@ rows with renamed versions of `editorial`, `minimal SaaS`, or another familiar
 template. A useful row explains how this product's object, task, trust, brand,
 or subject world creates a distinct visual logic.
 
+When the selected reference pack includes component recipes, follow
+[component craft and responsive recipes](component-recipes.md): require three
+distinct browser widths, preserve visual treatments in `component_specs`, and
+inspect the rendered specimen through `component-craft-and-reflow` in both
+direction and color review. A readable spec alone is not visual approval.
+
 ## Dry run
 
 The baseline may be a file or directory. If it is a directory, keep state below

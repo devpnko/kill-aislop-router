@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
+import { componentSchemaContract, validateComponentRecipe } from "./component-recipes.mjs";
 import { fileURLToPath } from "node:url";
 import {
   executeAuditPacket,
@@ -141,6 +142,20 @@ function sameStringSet(left, right) {
   return Array.isArray(left) && Array.isArray(right) &&
     left.length === right.length && new Set(left).size === left.length &&
     left.every((item) => right.includes(item));
+}
+
+function validateGrammarComponentRecipe(grammar, source, observations, evidence) {
+  if (grammar.component_recipe === undefined) return;
+  validateComponentRecipe(grammar.component_recipe, grammar.observed_ids);
+  requireValue(source.component_families.includes(grammar.component_recipe.family),
+    `component recipe family is not source-bound: ${grammar.component_recipe.family}`, 4);
+  for (const id of grammar.observed_ids) {
+    const observation = observations.find((item) => item.observation_id === id);
+    requireValue(observation && observation.frame_role !== "promotional" &&
+      observation.evidence_ids.some((evidenceId) => evidence.some((item) =>
+        (item.id === evidenceId || item.evidence_id === evidenceId) && item.kind === "source-capture")),
+    "component recipe requires non-promotional source-capture observations, not metadata", 4);
+  }
 }
 
 function productFitScore(dimensions) {
@@ -925,7 +940,7 @@ export function validateReferencePack(input) {
     exact(grammar, new Set([
       "grammar_id", "dimension", "principle", "application", "application_conditions",
       "tradeoff", "harmful_when", "requires_live_data", "avoid", "observed_ids",
-      "reasoning_ids", "reference_id"
+      "reasoning_ids", "reference_id", "component_recipe"
     ]), "reference intelligence pack grammar");
     safeId(grammar.grammar_id, "reference intelligence pack grammar_id");
     requireValue(!grammarIds.has(grammar.grammar_id),
@@ -953,6 +968,9 @@ export function validateReferencePack(input) {
     requireValue(grammar.reasoning_ids.every((id) =>
       reasoningIds.has(id) && reasoningReferences.get(id) === grammar.reference_id),
     `reference grammar ${grammar.grammar_id} cites unverified cross-reference reasoning`, 4);
+    validateGrammarComponentRecipe(grammar,
+      input.references.find((item) => item.reference_id === grammar.reference_id),
+      input.verified_observations, input.evidence_manifest);
     if (OPERATIONAL_GRAMMAR_DIMENSIONS.has(grammar.dimension)) {
       const citedObservations = [
         ...grammar.observed_ids,
@@ -1964,7 +1982,7 @@ export function validateReferenceBrief(input, { root = process.cwd(), verifyEvid
 
   exact(input.coverage, new Set([
     "minimum_verified_references", "maximum_references", "required_component_families",
-    "required_patterns", "required_grammar_dimensions", "sampling_policy"
+    "required_patterns", "required_grammar_dimensions", "sampling_policy", "required_recipe_families"
   ]), "reference brief coverage");
   requireValue(Number.isInteger(input.coverage.minimum_verified_references) &&
     input.coverage.minimum_verified_references >= 3,
@@ -1975,6 +1993,13 @@ export function validateReferenceBrief(input, { root = process.cwd(), verifyEvid
   "reference maximum_references must be between the minimum and 24");
   uniqueStrings(input.coverage.required_component_families,
     "reference brief coverage.required_component_families");
+  if (input.coverage.required_recipe_families !== undefined) {
+    uniqueStrings(input.coverage.required_recipe_families,
+      "reference brief coverage.required_recipe_families");
+    requireValue(input.coverage.required_recipe_families.every((family) =>
+      input.coverage.required_component_families.includes(family)),
+    "required recipe families must belong to required component families");
+  }
   uniqueStrings(input.coverage.required_patterns, "reference brief coverage.required_patterns");
   uniqueStrings(input.coverage.required_grammar_dimensions,
     "reference brief coverage.required_grammar_dimensions", { allowed: GRAMMAR_DIMENSIONS });
@@ -2197,6 +2222,11 @@ function grammarPacket(state, discovery) {
       subject_result_digest: discovery.result_digest,
       product_frame: structuredClone(state.brief.planning.product_frame),
       required_dimensions: [...state.brief.coverage.required_grammar_dimensions],
+      ...(state.brief.coverage.required_recipe_families ? {
+        required_recipe_families: [...state.brief.coverage.required_recipe_families],
+        component_recipe_contract: componentSchemaContract("recipe"),
+        component_recipe_rule: "Extract concrete surface, edge, depth, type, spacing, color, imagery and motion relationships plus compact/medium/wide composition and interaction treatments. Cite capture observations; label unobserved responsive behavior target-proposal. Preserve character rather than flattening it. No source literals, pixels, identities or assets may reach creators."
+      } : {}),
       human_design_reasoning: reasoningTaskContract(state),
       rule: "separate observation from inference and trace each principle through visible priority, supported user decision, likely constraint, flattening consequence, applicability, and tradeoff"
     }
@@ -3112,7 +3142,7 @@ function validateGrammar(state, result, discovery) {
       exact(grammar, new Set([
         "grammar_id", "dimension", "principle", "application", "application_conditions",
         "tradeoff", "harmful_when", "requires_live_data", "avoid", "observed_ids",
-        "reasoning_ids"
+        "reasoning_ids", "component_recipe"
       ]), `reference grammar ${entry.reference_id} principle`);
       safeId(grammar.grammar_id, "reference grammar_id");
       requireValue(!grammarIds.has(grammar.grammar_id), `duplicate grammar id: ${grammar.grammar_id}`, 4);
@@ -3134,13 +3164,15 @@ function validateGrammar(state, result, discovery) {
         `reference grammar ${grammar.grammar_id} cites unknown hierarchy reasoning`, 4);
       const language = `${grammar.principle} ${grammar.application} ` +
         `${grammar.application_conditions.join(" ")} ${grammar.tradeoff} ` +
-        `${grammar.harmful_when.join(" ")} ${grammar.avoid}`;
+        `${grammar.harmful_when.join(" ")} ${grammar.avoid}` +
+        (grammar.component_recipe ? ` ${JSON.stringify(grammar.component_recipe)}` : "");
       requireValue(!SOURCE_STYLE_LITERAL_PATTERN.test(language) &&
         !SOURCE_PIXEL_MATERIAL_PATTERN.test(language),
         `reference grammar ${grammar.grammar_id} contains source-specific copying instructions`, 4);
       uniqueStrings(grammar.observed_ids, `reference grammar ${grammar.grammar_id}.observed_ids`);
       requireValue(grammar.observed_ids.every((id) => observationIds.has(id)),
         `reference grammar ${grammar.grammar_id} cites unknown observation`, 4);
+      validateGrammarComponentRecipe(grammar, source, source.observed, discovery.normalized.evidence);
       if (OPERATIONAL_GRAMMAR_DIMENSIONS.has(grammar.dimension)) {
         const directObservations = grammar.observed_ids.map((id) => observationsById.get(id));
         const reasoningObservations = grammar.reasoning_ids.flatMap((id) =>
@@ -4032,6 +4064,14 @@ function coverageAndRanking(state) {
   for (const dimension of state.brief.coverage.required_grammar_dimensions) {
     if (!dimensions.has(dimension)) blockers.push(`missing verified grammar dimension: ${dimension}`);
   }
+  const recipeFamilies = new Set(eligible.flatMap((item) =>
+    grammarEntries.get(item.reference_id).grammar.filter((entry) =>
+      verifiedGrammar.has(entry.grammar_id) && entry.component_recipe &&
+      dispositions.get(item.reference_id).verified_component_families.includes(entry.component_recipe.family))
+      .map((entry) => entry.component_recipe.family)));
+  for (const family of state.brief.coverage.required_recipe_families || []) {
+    if (!recipeFamilies.has(family)) blockers.push(`missing verified component recipe: ${family}`);
+  }
   const sampling = state.brief.coverage.sampling_policy;
   const distinctProducts = new Set(eligible.map((item) =>
     item.source.product_record_id.trim().toLocaleLowerCase("en")));
@@ -4253,6 +4293,11 @@ function validateSelectionInput(state, input) {
     requireValue(state.brief.coverage.required_grammar_dimensions.every((item) =>
       selectedDimensions.has(item)),
     "reference owner selection does not cover every required grammar dimension", 4);
+    const selectedRecipes = grammar.references.flatMap((entry) => entry.grammar)
+      .filter((item) => input.selected_grammar_ids.includes(item.grammar_id) && item.component_recipe);
+    requireValue((state.brief.coverage.required_recipe_families || []).every((family) =>
+      selectedRecipes.some((item) => item.component_recipe.family === family)),
+    "reference owner selection omits a required component recipe", 4);
   } else {
     requireValue(input.anchor_reference_id === null &&
       Array.isArray(input.supporting_reference_ids) && input.supporting_reference_ids.length === 0 &&
@@ -4311,6 +4356,10 @@ function writeSelectionTemplate(state, targetDirectory = path.join(state.state_d
   for (const dimension of state.brief.coverage.required_grammar_dimensions) {
     const item = selectedGrammar.find((grammarItem) => grammarItem.dimension === dimension);
     if (item) chosen.push(item.grammar_id);
+  }
+  for (const family of state.brief.coverage.required_recipe_families || []) {
+    const item = selectedGrammar.find((grammarItem) => grammarItem.component_recipe?.family === family);
+    if (item && !chosen.includes(item.grammar_id)) chosen.push(item.grammar_id);
   }
   writeJsonAtomic(target, {
     reference_owner_selection_version: 1,

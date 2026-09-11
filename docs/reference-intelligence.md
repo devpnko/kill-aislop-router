@@ -16,6 +16,12 @@ The intended roles are:
 - downstream creator: receives only the creator-safe projection of aliased
   causal reasoning and grammar, never source identities, observations, or pixels.
 
+For requests about actual card/table appearance as well as layout, enable
+[component craft recipes](component-recipes.md). They carry concrete visual
+treatments and responsive variants into typed target specifications and an
+independent rendered-craft check, without exposing source pixels or changing
+the default exact-three route.
+
 ## Why popularity is useful but subordinate
 
 Popularity is a strong prior among references that solve the same kind of
