@@ -1,0 +1,36 @@
+{
+  "component_recipe_version": 1,
+  "family": "result-card",
+  "anatomy": [
+    {"part_id": "identity", "role": "Recognize the object", "priority": "primary", "treatment": "Strong title above the supporting label, aligned to a stable inner edge."},
+    {"part_id": "summary", "role": "Make the primary decision", "priority": "primary", "treatment": "Prominent value with adjacent unit and condition, preserving numeral rhythm."},
+    {"part_id": "media", "role": "Differentiate the object when appropriate", "priority": "secondary", "treatment": "Consistent crop with a deliberate focal point; no stretched or fabricated imagery."},
+    {"part_id": "action", "role": "Take the permitted next step", "priority": "primary", "treatment": "One clear action, visually distinct from passive badges and metadata."}
+  ],
+  "visual_treatment": {
+    "surface": "Keep a distinct material plane and locally quiet text regions rather than making the entire card uniformly pale.",
+    "edges": "Outer curve and media clipping share one corner family; selected edges do not change dimensions.",
+    "elevation": "Retain the target depth ladder for separation and feedback; removing all depth is not an anti-slop rule.",
+    "typography": "Differentiate title, value, unit and condition; wrapping preserves recognizable object names.",
+    "spacing": "Tighter title/label and value/unit groups; larger gaps separate decision, media and action.",
+    "color": "Coordinate media with project surfaces; distinguish brand emphasis, selection, action and semantic warning.",
+    "imagery": "Target-owned or licensed media with a meaningful crop, never lifted brand artwork.",
+    "motion": "Brief reversible feedback without reading-position jumps; preserve clarity under reduced motion."
+  },
+  "preserve_character": ["Keep project energy, material contrast, media presence and hierarchy instead of reducing every card to a thin outline."],
+  "coherence_rules": ["Neighboring cards and tables share type roles, corner family, depth and semantic colors while retaining their different information jobs."],
+  "responsive_variants": [
+    {"range": "compact", "basis": "target-proposal", "observed_ids": [], "composition": "One readable column with title and condition before supporting media; keep the primary action reachable without overlap.", "preserved_parts": ["identity", "summary", "media", "action"], "deferred_parts": [], "access_path": "Touch and keyboard reach the same visible action.", "overflow_strategy": "reflow"},
+    {"range": "medium", "basis": "target-proposal", "observed_ids": [], "composition": "Add columns only when real titles and conditions fit; align actions without truncating meaning.", "preserved_parts": ["identity", "summary", "media", "action"], "deferred_parts": [], "access_path": "Each card retains a predictable focus order and explicit action.", "overflow_strategy": "reflow"},
+    {"range": "wide", "basis": "target-proposal", "observed_ids": [], "composition": "Increase readable columns rather than decorative chrome; align comparison-critical summaries across cards.", "preserved_parts": ["identity", "summary", "media", "action"], "deferred_parts": [], "access_path": "Equivalent keyboard and pointer access; no hidden hover-only action.", "overflow_strategy": "reflow"}
+  ],
+  "interaction_states": {
+    "rest": "Stable material and grouping hierarchy.",
+    "hover": "Local feedback that does not suggest passive content is clickable.",
+    "focus-visible": "Unclipped outline around the focused action, distinct from selection.",
+    "active": "Persistent selection with both visual and semantic indication.",
+    "disabled": "Readable content and a clear reason the action is unavailable."
+  },
+  "content_stress": ["Long Korean and mixed-script titles", "Missing media", "Different value lengths and units", "Partial data and denied actions"],
+  "intermediate_width_behavior": "Change column count when content requires it; test just before and after the transition and under text zoom, keeping readable type, focal crops and nonoverlapping actions."
+}

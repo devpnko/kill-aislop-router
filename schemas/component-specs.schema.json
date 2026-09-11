@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/component-specs.schema.json",
+  "title": "Candidate component_specs field inside digest-bound design-contract evidence",
+  "type": "array", "minItems": 1,
+  "items": {
+    "type": "object", "required": ["grammar_id", "recipe_digest", "disposition", "rationale"],
+    "properties": {
+      "grammar_id": {"type": "string", "minLength": 1},
+      "recipe_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+      "disposition": {"enum": ["applied", "not-applicable"]},
+      "rationale": {"$ref": "component-recipe.schema.json#/$defs/text"},
+      "visual_values": {"$ref": "component-recipe.schema.json#/$defs/visual_aspects"},
+      "part_selectors": {"$ref": "#/$defs/text_map"},
+      "state_treatments": {"$ref": "#/$defs/text_map"},
+      "interaction_treatments": {"$ref": "component-recipe.schema.json#/$defs/interactions"},
+      "coherence": {"$ref": "component-recipe.schema.json#/$defs/text"},
+      "content_stress": {"$ref": "component-recipe.schema.json#/$defs/strings"},
+      "intermediate_width_behavior": {"$ref": "component-recipe.schema.json#/$defs/text"},
+      "responsive": {
+        "type": "array", "minItems": 3,
+        "items": {
+          "type": "object",
+          "required": ["range", "viewport", "composition", "preserved_parts", "deferred_parts", "access_path", "overflow_strategy"],
+          "properties": {
+            "range": {"enum": ["compact", "medium", "wide"]},
+            "viewport": {"$ref": "component-recipe.schema.json#/$defs/text"},
+            "composition": {"$ref": "component-recipe.schema.json#/$defs/text"},
+            "preserved_parts": {"$ref": "component-recipe.schema.json#/$defs/strings"},
+            "deferred_parts": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+            "access_path": {"$ref": "component-recipe.schema.json#/$defs/text"},
+            "overflow_strategy": {"enum": ["reflow", "contained-scroll", "none"]}
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "allOf": [{
+      "if": {"properties": {"disposition": {"const": "applied"}}},
+      "then": {"required": ["visual_values", "part_selectors", "responsive", "state_treatments", "interaction_treatments", "coherence", "content_stress", "intermediate_width_behavior"]},
+      "else": {"not": {"anyOf": [
+        {"required": ["visual_values"]}, {"required": ["part_selectors"]},
+        {"required": ["responsive"]}, {"required": ["state_treatments"]},
+        {"required": ["interaction_treatments"]}, {"required": ["coherence"]},
+        {"required": ["content_stress"]}, {"required": ["intermediate_width_behavior"]}
+      ]}}
+    }],
+    "additionalProperties": false
+  },
+  "$defs": {
+    "text_map": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}}
+  }
+}

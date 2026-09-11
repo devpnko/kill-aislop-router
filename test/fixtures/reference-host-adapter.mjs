@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { componentRecipe } from "./component-recipe-fixture.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
@@ -453,6 +454,10 @@ function grammarResult() {
         observed_ids: [reasoningObservationId]
       }],
       grammar: referenceDimensions.map((dimension) => ({
+        ...(settings.component_recipes && dimension === "data-comparison" &&
+          reference.component_families.includes("comparison-table") ? {
+            component_recipe: componentRecipe()
+          } : {}),
         grammar_id: `grammar-${reference.reference_id}-${dimension}`,
         dimension,
         principle: `${dimension} should make the main comparison and its confidence legible at a glance.`,
@@ -474,6 +479,12 @@ function grammarResult() {
   });
   if (settings.missing_hierarchy_reasoning) {
     references[0].hierarchy_reasoning = [];
+  }
+  if (settings.component_recipe_fault) {
+    const recipe = references.flatMap((entry) => entry.grammar).find((entry) => entry.component_recipe).component_recipe;
+    if (settings.component_recipe_fault === "missing-elevation") delete recipe.visual_treatment.elevation;
+    if (settings.component_recipe_fault === "source-literal") recipe.visual_treatment.edges = "Use source 12px radius";
+    if (settings.component_recipe_fault === "mobile-overclaim") recipe.responsive_variants[0].basis = "observed";
   }
   if (settings.forged_fit_score) {
     references[0].product_fit.score = 0;

@@ -544,6 +544,7 @@
         "reasoning_ids", "reference_id"
       ],
       "properties": {
+        "component_recipe": {"$ref": "component-recipe.schema.json"},
         "grammar_id": {"$ref": "#/$defs/id"},
         "dimension": {"enum": [
           "information-hierarchy", "navigation", "component-composition", "data-comparison",

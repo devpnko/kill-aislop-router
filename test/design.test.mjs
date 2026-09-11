@@ -34,6 +34,7 @@ import {
 import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { designScenarios } from "./fixtures/design-browser-contract.mjs";
+import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -321,6 +322,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
 function attachReferencePack(space, mutate = null, {
   accessMode = "manual-export",
   includeCaptures = true,
+  componentRecipes = false,
   historicalFailedDiscoveryEntrypoint = null
 } = {}) {
   const source = path.join(space.directory, "reference-source");
@@ -530,7 +532,7 @@ function attachReferencePack(space, mutate = null, {
       "reference-grammar-analyst": provider([
         "reference-grammar-extraction", "information-hierarchy-analysis",
         "component-pattern-analysis", "product-fit-analysis"
-      ], 3),
+      ], 3, { component_recipes: componentRecipes }),
       "reference-independent-critic": provider([
         "reference-evidence-review", "anti-copy-review", "product-fit-review",
         "popularity-ranking-review"
@@ -1559,6 +1561,109 @@ test("reference pack physical identity and grammar-to-reasoning edges remain fai
   } finally {
     fs.rmSync(crosswired.directory, { recursive: true, force: true });
   }
+});
+
+test("component craft specifications survive direction/color browser review, Owner gates and final resume", () => {
+  const space = workspace();
+  try {
+    const brief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+    brief.evidence.required_viewports = ["mobile", "tablet", "desktop"];
+    fs.writeFileSync(space.briefPath, JSON.stringify(brief));
+    attachReferencePack(space, null, { componentRecipes: true });
+    const manifest = host(space.directory);
+    const state = startDesignExploration({ statePath: space.statePath,
+      briefPath: space.briefPath, baselinePath: space.baseline, hostManifest: manifest,
+      root: space.directory });
+    assert.equal(state.status, "manual_pending", JSON.stringify(state.blockers));
+    assert.equal(state.phase, "direction-selection");
+    const creator = state.packets.find((item) => item.design_task.kind === "direction-candidate");
+    const contract = creator.design_task.reference_intelligence.component_recipe_contract;
+    assert.ok(contract.recipes.length > 0);
+    assert.equal(contract.human_authorship_certified, false);
+    assert.equal(contract.schema_digest, canonicalDigest(contract.schema));
+    assert.doesNotMatch(JSON.stringify(contract.schema), /"\$ref"/);
+    assertPublishedSchema("design-packet", creator);
+    assertPublishedSchema("design-packet", state.packets.find((item) => item.packet_id === "direction-review"));
+    assert.doesNotMatch(JSON.stringify(contract), /obs-flowdesk|uibowl\.io|\.png/);
+    const reviewer = state.results.find((item) => item.normalized.kind === "direction-review");
+    for (const candidate of reviewer.normalized.reference_checks) {
+      const check = candidate.checks.find((item) => item.check_id === "component-craft-and-reflow");
+      assert.equal(check.passed, true);
+      assert.ok(check.evidence_bindings.some((item) => item.evidence_role === "component-craft-spec" && item.evidence_kind === "design-contract"));
+      assert.ok(check.evidence_bindings.some((item) => item.evidence_role === "playwright-evidence"));
+    }
+    const result = state.results.find((item) => item.normalized.kind === "direction-candidate");
+    const specimen = result.normalized.evidence.find((item) => item.kind === "design-contract");
+    const document = JSON.parse(fs.readFileSync(specimen.path, "utf8"));
+    assert.deepEqual(document.component_specs[0].responsive.map((item) => item.viewport), ["mobile", "tablet", "desktop"]);
+    assert.match(document.component_specs[0].visual_values.typography, /16px/);
+    const reviewPacket = state.packets.find((item) => item.packet_id === reviewer.packet_id);
+    const badReview = JSON.parse(fs.readFileSync(reviewer.source.resolved_path, "utf8"));
+    badReview.reference_checks[0].checks.find((item) => item.check_id === "component-craft-and-reflow").passed = false;
+    assert.throws(() => validateDesignResult(state, reviewPacket, badReview, reviewer.source.resolved_path),
+      /failure requires a matching hard blocker/);
+    const resumed = resumeDesignExploration(space.statePath, { hostManifest: manifest });
+    assert.equal(resumed.attempts.length, state.attempts.length);
+    // Fixture Owner decisions exercise the gate; they are not product approval.
+    let finalState = resumeDesignExploration(space.statePath, {
+      hostManifest: manifest, shortlistPath: writeShortlist(space, resumed)
+    });
+    assert.equal(finalState.status, "manual_pending", JSON.stringify(finalState.blockers));
+    assert.equal(finalState.phase, "owner-approval");
+    const colorReview = finalState.results.find((item) => item.normalized.kind === "color-review");
+    assert.equal(colorReview.normalized.reference_checks.length, 9);
+    assertPublishedSchema("design-packet", finalState.packets.find((item) => item.packet_id === colorReview.packet_id));
+    for (const color of finalState.results.filter((item) => item.normalized.kind === "color-candidate")) {
+      const colorSpec = color.normalized.evidence.find((item) => item.kind === "design-contract");
+      const colorDocument = JSON.parse(fs.readFileSync(colorSpec.path, "utf8"));
+      assertPublishedSchema("component-specs", colorDocument.component_specs);
+      assert.deepEqual(colorDocument.component_specs[0].responsive.map((item) => item.viewport), ["mobile", "tablet", "desktop"]);
+      const checks = colorReview.normalized.reference_checks.find((item) => item.candidate_id === color.normalized.candidate_id);
+      const craft = checks.checks.find((item) => item.check_id === "component-craft-and-reflow");
+      assert.equal(craft.passed, true);
+      assert.ok(craft.evidence_bindings.some((item) => item.evidence_role === "component-craft-spec"));
+      assert.ok(craft.evidence_bindings.some((item) => item.evidence_role === "playwright-evidence"));
+    }
+    finalState = resumeDesignExploration(space.statePath, {
+      hostManifest: manifest, approvalPath: writeApproval(space, finalState)
+    });
+    assert.equal(finalState.status, "complete");
+    const replay = resumeDesignExploration(space.statePath, { hostManifest: manifest });
+    assert.equal(replay.state_digest, finalState.state_digest);
+    assert.equal(replay.attempts.length, finalState.attempts.length);
+    document.component_specs[0].visual_values.elevation = "flattened after review";
+    fs.writeFileSync(specimen.path, JSON.stringify(document));
+    assert.throws(() => readDesignState(space.statePath), /design result evidence state binding mismatch/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+for (const [name, settings] of [
+  ["missing component specification", { omit_component_specs: true }],
+  ["mismatched recipe digest", { component_spec_tamper: true }]
+]) test(`component craft blocks ${name} before browser spawn`, () => {
+  const space = workspace();
+  try {
+    const brief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+    brief.evidence.required_viewports = ["mobile", "tablet", "desktop"];
+    fs.writeFileSync(space.briefPath, JSON.stringify(brief));
+    attachReferencePack(space, null, { componentRecipes: true });
+    const state = startDesignExploration({ statePath: space.statePath,
+      briefPath: space.briefPath, baselinePath: space.baseline,
+      hostManifest: host(space.directory, { direction: settings }), root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.match(state.blockers.join(" "), /component recipe/);
+    assert.ok(state.attempts.every((item) => item.adapter !== "browser-json-v1"));
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("component craft requires three viewports at preflight without changing the ordinary two-viewport route", () => {
+  const space = workspace();
+  try {
+    attachReferencePack(space, null, { componentRecipes: true });
+    assert.throws(() => dryRunDesignExploration({ briefPath: space.briefPath,
+      baselinePath: space.baseline, hostManifest: host(space.directory), root: space.directory }), /three distinct project viewports/);
+    assert.equal(fs.existsSync(space.statePath), false);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
 });
 
 test("bound reference reasoning requires creator traces and independent design checks", () => {

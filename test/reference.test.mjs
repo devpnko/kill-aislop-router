@@ -22,6 +22,7 @@ import {
   validateReferencePack
 } from "../src/reference.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
+import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -533,6 +534,57 @@ function writeSelection(space, state, mutate = null) {
   writeJson(target, selection);
   return target;
 }
+
+test("component recipes survive child execution, independent reference review, Owner selection and resume", () => {
+  const space = workspace();
+  try {
+    space.brief.coverage.required_recipe_families = ["comparison-table"];
+    writeJson(space.briefPath, space.brief);
+    const configured = host(space, { grammar: { component_recipes: true } });
+    let state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "manual_pending", JSON.stringify(state.blockers));
+    assert.equal(state.phase, "owner-reference-selection");
+    assert.equal(state.attempts.filter((attempt) => attempt.execution_status === "ran").length, 3);
+    const packet = state.packets.find((item) => item.packet_id === "reference-grammar");
+    assert.deepEqual(packet.reference_task.required_recipe_families, ["comparison-table"]);
+    const contract = packet.reference_task.component_recipe_contract;
+    assert.equal(contract.schema_digest, canonicalDigest(contract.schema));
+    assert.doesNotMatch(JSON.stringify(contract.schema), /"\$ref"/);
+    assertPublishedSchema("reference-packet", packet);
+    state = resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest,
+      selectionPath: writeSelection(space, state) });
+    assert.equal(state.status, "complete", JSON.stringify(state.blockers));
+    const pack = JSON.parse(fs.readFileSync(state.outputs.reference_pack.resolved_path, "utf8"));
+    assert.ok(pack.verified_grammar.some((item) => item.component_recipe?.family === "comparison-table"));
+    validateReferencePack(pack);
+    const again = resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest });
+    assert.equal(again.attempts.length, state.attempts.length);
+    const recipe = pack.verified_grammar.find((item) => item.component_recipe).component_recipe;
+    recipe.visual_treatment.surface = "Changed after review";
+    assert.throws(() => validateReferencePack(pack), /digest mismatch/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+for (const [name, settings, expected] of [
+  ["missing requested recipes", {}, /missing verified component recipe/],
+  ["abstract craft without elevation", { grammar: { component_recipes: true, component_recipe_fault: "missing-elevation" } }, /elevation/],
+  ["invented mobile observation", { grammar: { component_recipes: true, component_recipe_fault: "mobile-overclaim" } }, /observed_ids/],
+  ["literal source styling", { grammar: { component_recipes: true, component_recipe_fault: "source-literal" } }, /source-specific copying/],
+  ["metadata pretending to be a visual reference", { discovery: { metadata_only: true }, grammar: { component_recipes: true } }, /source-capture/]
+]) test(`component recipe child boundary blocks ${name}`, () => {
+  const space = workspace();
+  try {
+    space.brief.coverage.required_recipe_families = ["comparison-table"];
+    writeJson(space.briefPath, space.brief);
+    const configured = host(space, settings);
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.match(state.blockers.join(" "), expected);
+    assert.equal(state.outputs.reference_pack, undefined);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
 
 function writeDesignBriefFromReferenceState(space, state) {
   const designBrief = JSON.parse(fs.readFileSync(

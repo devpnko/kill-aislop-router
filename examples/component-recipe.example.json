@@ -1,0 +1,36 @@
+{
+  "component_recipe_version": 1,
+  "family": "comparison-table",
+  "anatomy": [
+    {"part_id": "identity", "role": "Identify the compared object", "priority": "primary", "treatment": "Semibold label aligned with the object value; preserve a clear leading edge."},
+    {"part_id": "value", "role": "Compare the main value with its unit", "priority": "primary", "treatment": "Tabular numerals, aligned decimal positions, subdued but adjacent units."},
+    {"part_id": "conditions", "role": "Show qualification and uncertainty before action", "priority": "primary", "treatment": "Readable secondary type with explicit missing-value markers; never a decorative badge alone."},
+    {"part_id": "detail", "role": "Open secondary provenance", "priority": "supporting", "treatment": "A restrained text action with a distinct focus outline."}
+  ],
+  "visual_treatment": {
+    "surface": "Distinct table plane against the application canvas; the header is slightly more saturated than ordinary rows.",
+    "edges": "Quiet row separators; stronger group boundaries; outer curvature shares the surrounding panel family.",
+    "elevation": "Retain the project's layered panel depth; reserve a stronger shadow for an open detail overlay.",
+    "typography": "Semibold object labels, tabular comparison numerals, readable regular conditions, smaller adjacent units.",
+    "spacing": "Row rhythm is compact but consistent; inset alignment is shared by header and cells, with more space between attribute groups than between a value and its unit.",
+    "color": "Action, selected row, uncertain condition and quantitative emphasis use separate project color roles; avoid painting every row with the brand accent.",
+    "imagery": "Only target-owned object identifiers when they improve scanning; do not insert promotional artwork into comparison cells.",
+    "motion": "Brief selection feedback without geometry shifts; expanding detail preserves reading position and respects reduced motion."
+  },
+  "preserve_character": ["Keep confident numerical hierarchy and the target's deliberate surface depth; do not bleach all distinctions to paper-neutral panels."],
+  "coherence_rules": ["Use the same type roles, corner family, focus treatment and depth ladder as the surrounding product, not an unrelated card kit."],
+  "responsive_variants": [
+    {"range": "compact", "basis": "target-proposal", "observed_ids": [], "composition": "Retain aligned comparison attributes in a bounded scroll region with persistent identity; put secondary provenance behind an explicit accessible action.", "preserved_parts": ["identity", "value", "conditions"], "deferred_parts": ["detail"], "access_path": "Keyboard-reachable detail action opens provenance and returns focus to the same row.", "overflow_strategy": "contained-scroll"},
+    {"range": "medium", "basis": "target-proposal", "observed_ids": [], "composition": "Keep header and row alignment; wrap conditions while retaining value alignment and an explicit detail action.", "preserved_parts": ["identity", "value", "conditions", "detail"], "deferred_parts": [], "access_path": "Inline detail action; no hover-only access.", "overflow_strategy": "contained-scroll"},
+    {"range": "wide", "basis": "target-proposal", "observed_ids": [], "composition": "Expose all comparison columns and group boundaries on one plane with stable numeric alignment.", "preserved_parts": ["identity", "value", "conditions", "detail"], "deferred_parts": [], "access_path": "Inline pointer and keyboard actions preserve row context.", "overflow_strategy": "none"}
+  ],
+  "interaction_states": {
+    "rest": "Readable row divisions without making every row a floating card.",
+    "hover": "Subtle row-plane tint without shifting text or becoming the only action cue.",
+    "focus-visible": "Unclipped high-contrast outline on the exact focused control.",
+    "active": "Persistent selected-row treatment distinguishable from transient hover.",
+    "disabled": "Explain why the action is unavailable while retaining readable value and evidence text."
+  },
+  "content_stress": ["Long Korean object names", "Mixed digits, decimal values and units", "Missing conditions and low confidence", "Empty results and failed detail loads"],
+  "intermediate_width_behavior": "Test widths between named viewports and text zoom; wrap conditions before any primary comparison attribute is obscured. Never shrink desktop text to make the table fit."
+}

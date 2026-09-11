@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added optional capture-bound component craft recipes: anatomy, eight visual
+  treatments, interaction states and compact/medium/wide variants. Selected
+  recipes require digest-bound target specifications, distinct browser widths
+  and independent rendered-craft review in direction and color stages. Child
+  packets carry closed schemas rather than unresolved package-relative paths.
+  The no-recipe exact-three flow, source-pixel boundary and Owner gates remain
+  unchanged. Recipes are not approved themes or human-authorship certification.
+
 - Replaced marker-only static-design browser coverage with reviewed native
   scenarios for the complete state × locale × viewport × color-scheme matrix.
   Hidden states/locales, no-op controls, intercepted clicks, and pre-visible

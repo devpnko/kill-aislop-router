@@ -353,6 +353,7 @@
         "reasoning_ids"
       ],
       "properties": {
+        "component_recipe": {"$ref": "component-recipe.schema.json"},
         "grammar_id": {"type": "string", "minLength": 1},
         "dimension": {"enum": [
           "information-hierarchy", "navigation", "component-composition", "data-comparison",

@@ -134,6 +134,7 @@
         "minimum_verified_references": {"type": "integer", "minimum": 3, "maximum": 24},
         "maximum_references": {"type": "integer", "minimum": 3, "maximum": 24},
         "required_component_families": {"$ref": "#/$defs/strings"},
+        "required_recipe_families": {"$ref": "#/$defs/strings"},
         "required_patterns": {"$ref": "#/$defs/strings"},
         "required_grammar_dimensions": {
           "type": "array", "minItems": 1, "uniqueItems": true,
