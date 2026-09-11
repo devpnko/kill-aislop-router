@@ -74,6 +74,51 @@ These are local results, not Node 20/22 CI results. Check both CI lanes on the
 follow-up PR's exact head before rollout. They are also not real-product UAT or
 an Owner approval of the synthetic specimens.
 
+## CI timeout follow-up
+
+Both Node 20 and Node 22 jobs for commit
+`03f7e225d099c8946e0d0bda82d0fa5a110496d7` exhausted their 60-minute job budget.
+Node 20 was cancelled during the complete E2E command and skipped the package
+step. Node 22 completed E2E in 57m07s and passed the package step, but its whole
+job was cancelled at cleanup. The [original CI run](https://github.com/devpnko/kill-aislop-router/actions/runs/34554641733)
+is therefore cancelled, not passing. Completed steps and a local pass above are
+not substitutes for a successful whole CI lane on the new head.
+
+The follow-up moves all 42 design cases into `test/design-suite.mjs` and
+registers them through eight deterministic entrypoints. The E2E worker limit
+remains two; `node --test test/design.test.mjs` retains its complete standalone
+behavior. Eight new inventory regressions verify exact names, disjoint and
+complete assignment, callback/options preservation, valid selectors, actual
+entrypoints, no skips/exclusivity, and real standalone/sharded execution.
+
+The implementation author and the same independent read-only reviewer each
+compared the extracted body with the prior commit: after removing only the
+registration helper and restoring the test import name, all 152,311 bytes of
+fixtures, test options, callbacks and assertions match. The reviewer found no
+confirmed defect, lost test, overlapping fixture output, production contract
+change or new Node 20/22 API requirement. This review did not execute the full
+suite or CI and is not Owner or merge approval.
+
+Completed follow-up local verification:
+
+- `npm run check`: PASS, 260 tests, no failures/skips; static checks and example
+  doctor passed on Node 26.8.1.
+- New shard inventory: 8/8 on both Node 26.8.1 and Node 20.19.5.
+- `npm run pack:check`: isolated install and consumer checks passed.
+- Production dependency audit: no reported vulnerabilities.
+- `npm run test:e2e`: PASS, 353 tests, no failures/skips/cancellations;
+  1,542,114.5 ms (25m42s) on Node 26.8.1. All 42 existing design cases and the
+  eight new shard regressions executed, alongside the unchanged full integrated,
+  official Playwright, reference, identity, lease and dogfood inventory.
+
+The preceding unsharded local run took 37m30s. These are observed run durations,
+not a controlled performance benchmark or a guarantee for CI. Fresh exact-head
+Node 20/22 CI results remain required before rollout.
+
+The locally installed Homebrew Node 22 cannot start because its `simdjson`
+dynamic library is missing. No global runtime or plugin was repaired or
+replaced; the fresh CI Node 22 lane remains required.
+
 ## Remaining rollout and product gates
 
 - Keep this follow-up dependent on PR #12; do not merge or publish automatically.

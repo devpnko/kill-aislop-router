@@ -225,12 +225,18 @@ for (const fixtureId of [
 assert.ok(identityFixtures.presentation_cases.some((item) =>
   item.id === "allowed-internal-critic" && item.allowed === true),
 "orchestrator identity fixture must allow qualified internal-critic wording");
-assert.doesNotMatch(packageJson.scripts.test, /e2e-shard|(?:playwright|design|dogfood|codex)\.test\.mjs/,
+assert.doesNotMatch(packageJson.scripts.test, /(?:e2e|design)-shard-|(?:playwright|design|dogfood|codex)\.test\.mjs/,
   "the bounded default suite must not accidentally absorb the isolated E2E inventory");
 assert.match(packageJson.scripts["test:e2e"], /^node --test --test-concurrency=2 /,
   "bound E2E file workers before positional test paths, not as ignored child arguments");
-assert.match(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
-  "design child-process coverage must remain in the E2E script");
+assert.match(packageJson.scripts["test:e2e"], /test\/design-shard-\*\.test\.mjs/,
+  "the complete design child-process inventory must remain in bounded E2E shards");
+assert.doesNotMatch(packageJson.scripts["test:e2e"], /test\/design\.test\.mjs/,
+  "E2E must not execute the unsharded design inventory twice");
+for (const script of ["test", "test:e2e"]) {
+  assert.match(packageJson.scripts[script], /test\/design-sharding\.test\.mjs/,
+    `${script} must verify complete and unique design shard coverage`);
+}
 assert.match(packageJson.scripts["test:e2e"], /test\/reference\.test\.mjs/,
   "reference intelligence child-process coverage must remain in the E2E script");
 assert.match(packageJson.scripts["test:e2e"], /test\/codex\.test\.mjs/,

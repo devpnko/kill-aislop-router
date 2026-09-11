@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Split the complete design E2E inventory into eight deterministic shards while
+  retaining the two-worker limit and standalone test entrypoint. Inventory
+  regressions reject omitted, duplicate, skipped and invalid shard selections.
+  Existing child-process, browser, authority and crash-recovery assertions are
+  unchanged; sharding does not turn a timed-out CI lane into a passing result.
+
 - Added optional capture-bound component craft recipes: anatomy, eight visual
   treatments, interaction states and compact/medium/wide variants. Selected
   recipes require digest-bound target specifications, distinct browser widths

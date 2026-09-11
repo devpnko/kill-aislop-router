@@ -78,6 +78,11 @@ isolated real child-process, Codex-host, design, and Playwright inventory;
 `npm run check` adds static contracts and the example doctor verification. CI
 runs all three layers on Node 20 and Node 22.
 
+The full E2E command retains two file workers and includes all eight deterministic
+design shards. The fast suite verifies their complete, non-overlapping inventory;
+no browser checks are dropped. For standalone design debugging,
+`node --test test/design.test.mjs` still runs the entire design suite.
+
 ## Codex plugin
 
 Install the local Codex plugin once, then invoke the same bundled CLI from
