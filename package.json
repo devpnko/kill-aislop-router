@@ -20,6 +20,7 @@
     "./identity": "./src/identity.mjs",
     "./state-lease": "./src/state-lease-public.mjs",
     "./skill-catalog": "./src/skill-catalog.mjs",
+    "./plugin-sync": "./src/plugin-sync.mjs",
     "./playwright": "./src/playwright.mjs",
     "./planning": "./src/planning.mjs"
   },
@@ -41,7 +42,7 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "test": "node --test test/audit.test.mjs test/bootstrap-plugin.test.mjs test/orchestrator-identity.test.mjs test/path-security.test.mjs test/planning-lineage.test.mjs test/route.test.mjs test/schema-contract.test.mjs test/sealed-entrypoint.test.mjs test/state-lease.test.mjs test/usage-help.test.mjs",
+    "test": "node --test test/audit.test.mjs test/bootstrap-plugin.test.mjs test/orchestrator-identity.test.mjs test/path-security.test.mjs test/planning-lineage.test.mjs test/route.test.mjs test/schema-contract.test.mjs test/sealed-entrypoint.test.mjs test/state-lease.test.mjs test/usage-help.test.mjs test/plugin-sync.test.mjs",
     "test:e2e": "node --test test/e2e-shard-*.test.mjs test/playwright.test.mjs test/design.test.mjs test/dogfood.test.mjs test/codex.test.mjs test/orchestrator-identity.test.mjs test/state-lease.test.mjs test/path-security.test.mjs",
     "test:playwright": "node --test test/playwright.test.mjs",
     "check": "npm test && node scripts/static-check.mjs && node scripts/check-example-doctor.mjs",

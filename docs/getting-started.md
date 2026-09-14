@@ -18,6 +18,10 @@ If the preview reports `identity_conflict` for the old local `kill-slop-router` 
 
 ## Start in a project
 
+For multiple Codex accounts, [enable account version sync](account-plugin-sync.md)
+once so future KSR installations update the enrolled profiles together. Turning
+it off returns to manual per-account updates.
+
 Open the target repository in Codex and say:
 
 ```text

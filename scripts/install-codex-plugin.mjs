@@ -13,6 +13,7 @@ import {
   migrateLegacySkillEntry,
   PLUGIN_BUNDLE_ENTRIES
 } from "../src/skill-catalog.mjs";
+import { pluginAccountSync, readPluginSyncPolicy } from "../src/plugin-sync.mjs";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = ".killsloprouter-plugin-installed.json";
@@ -198,6 +199,7 @@ function main() {
   const marketplace = path.join(installHome, ".agents", "plugins", "marketplace.json");
   const marketplaceValue = nextMarketplace(marketplace);
   const isDefaultHome = installHome === path.resolve(os.homedir());
+  const syncPolicy = readPluginSyncPolicy(installHome);
   const catalogBefore = inspectSkillCatalog({ home: installHome, assumeCanonical: true });
   const canonicalBlocked = catalogBefore.canonical.status === "unsafe-or-incomplete" ||
     (catalogBefore.canonical.status === "refresh-required" && !args.force);
@@ -231,6 +233,10 @@ function main() {
       marketplace_name: marketplaceValue.name,
       would_replace_marked_install: fs.existsSync(target) && Boolean(args.force),
       would_activate: args.activate && isDefaultHome,
+      account_sync: {
+        mode: syncPolicy.mode, accounts: syncPolicy.accounts,
+        would_apply: args.activate && isDefaultHome && syncPolicy.mode === "shared"
+      },
       would_migrate_legacy_entry: Boolean(args.migrateLegacyEntry &&
         catalogBefore.legacy.status !== "absent" &&
         catalogBefore.legacy.status !== "verified-explicit-shim"),
@@ -245,7 +251,9 @@ function main() {
     : { status: "not_requested", backup: null };
   const marketplaceBackup = updateMarketplace(marketplace, marketplaceValue);
   const activation = args.activate && isDefaultHome
-    ? activatePlugin(marketplaceValue.name)
+    ? syncPolicy.mode === "shared"
+      ? pluginAccountSync({ home: installHome, apply: true })
+      : activatePlugin(marketplaceValue.name)
     : { ok: true, skipped: true, reason: isDefaultHome ? "--no-activate" : "non-default home" };
   process.stdout.write(`${JSON.stringify({
     ok: activation.ok,

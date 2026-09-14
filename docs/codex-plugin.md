@@ -208,6 +208,11 @@ and `status` tools while retaining the same host manifest and digest checks.
 
 ## Update
 
+When you use multiple Codex accounts, enable [account version sync](account-plugin-sync.md)
+to update enrolled profiles together. `plugin sync --mode shared` turns it ON;
+`--mode per-account` turns it OFF without changing installed versions. The normal
+installer honors this saved preference, and `--no-activate` skips all account activation.
+
 Refresh from a reviewed checkout:
 
 ```bash

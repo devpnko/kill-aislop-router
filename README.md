@@ -87,6 +87,9 @@ runs all three layers on Node 20 and Node 22.
 
 ## Codex plugin
 
+Multiple Codex accounts can opt into [one synchronized KSR version](docs/account-plugin-sync.md).
+The `plugin sync` toggle selects shared updates or manual per-account management.
+
 Install the local Codex plugin once, then invoke the same bundled CLI from
 any project. The shortest install from the default branch is one command:
 
