@@ -119,6 +119,16 @@ function parseArgs(argv) {
 function help() {
   return `KillSlopRouter
 
+Start here:
+  1. Install the reviewed Codex plugin once (see README.md#codex-plugin).
+  2. In your project, start a new Codex thread and say:
+     Use $killsloprouter:kill-slop-router to inspect this project's current UI and continue the safest eligible journey.
+  3. For direct CLI use, run "killsloprouter doctor" before "run --dry-run".
+
+The plugin is the parent workflow; reviewers such as anti-slop are internal children.
+Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
+Guide: https://github.com/devpnko/kill-aislop-router/blob/main/docs/getting-started.md
+
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
@@ -914,7 +924,7 @@ function auditCommand(args) {
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.json) args.format = "json";
-  if (args.help) {
+  if (args.help || argv.length === 0) {
     process.stdout.write(help());
     return;
   }

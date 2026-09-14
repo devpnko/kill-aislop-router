@@ -11,6 +11,14 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
 ## Parent identity invariant
 
+At the start of a new journey, briefly tell the user that KillSlopRouter is
+inspecting the project and which gate is next. After each pass, lead with the
+current stage/status, distinguish providers that actually ran from
+`manual_pending`, give the exact next action or Owner choice, and report state
+and receipt hashes when available. Keep the CLI ledger authoritative; this
+plain-language handoff is not a substitute for receipts. For first-use wording
+and supported commands, consult `<plugin-root>/docs/getting-started.md`.
+
 An explicit KillSlopRouter request binds the namespaced
 `$killsloprouter:kill-slop-router` entrypoint as the sole orchestrator for the
 whole journey. Create and preserve the CLI's digest-bound `journey_identity`
