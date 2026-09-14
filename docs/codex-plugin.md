@@ -208,6 +208,12 @@ and `status` tools while retaining the same host manifest and digest checks.
 
 ## Update
 
+Multiple Codex accounts use [shared versions by default](account-plugin-sync.md)
+when no preference is saved. The first activating installation saves the discovered
+target list; existing explicit OFF choices stay OFF. `plugin sync --mode shared` turns it ON;
+`--mode per-account` turns it OFF without changing installed versions. The normal
+installer honors this saved preference, and `--no-activate` skips all account activation.
+
 Refresh from a reviewed checkout:
 
 ```bash
