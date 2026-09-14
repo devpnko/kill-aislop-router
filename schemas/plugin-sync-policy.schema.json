@@ -7,7 +7,7 @@
   "required": ["plugin_sync_version", "mode", "accounts"],
   "properties": {
     "plugin_sync_version": { "const": 1 },
-    "mode": { "enum": ["shared", "per-account"] },
+    "mode": { "enum": ["shared", "per-account"], "default": "shared" },
     "accounts": {
       "type": "array",
       "maxItems": 32,

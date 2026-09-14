@@ -30,14 +30,18 @@ function accountPath(value, home) {
   const resolved = secureExistingDirectory(value, "Codex account home");
   if (!inside(resolved, home)) throw new Error("account home must be below the selected user home");
   const config = path.join(resolved, "config.toml");
+  const auth = path.join(resolved, "auth.json");
   const plugins = path.join(resolved, "plugins");
   if (fs.existsSync(config)) secureExistingRegularFile(config, "Codex account configuration");
+  // A logged-in home need not have customized settings yet. Inspect only the
+  // credential file's path/type, never its contents.
+  else if (fs.existsSync(auth)) secureExistingRegularFile(auth, "Codex account credential marker");
   else if (fs.existsSync(plugins)) secureExistingDirectory(plugins, "Codex account plugins");
   else throw new Error(`not an existing Codex account home: ${resolved}`);
   return resolved;
 }
 
-function validatePolicy(value, home) {
+function validatePolicy(value, home, { allowEmptyShared = false } = {}) {
   if (!value || Object.keys(value).sort().join(",") !== "accounts,mode,plugin_sync_version" ||
       value.plugin_sync_version !== 1 || !MODES.includes(value.mode) ||
       !Array.isArray(value.accounts) || value.accounts.length > MAX_ACCOUNTS) {
@@ -52,7 +56,7 @@ function validatePolicy(value, home) {
   if (new Set(accounts).size !== accounts.length || accounts.some((a) => accounts.some((b) => a !== b && inside(a, b)))) {
     throw new Error("account homes must be unique and must not overlap");
   }
-  if (value.mode === "shared" && !accounts.length) throw new Error("shared mode requires at least one enrolled account");
+  if (value.mode === "shared" && !accounts.length && !allowEmptyShared) throw new Error("shared mode requires at least one enrolled account");
   return { plugin_sync_version: 1, mode: value.mode, accounts };
 }
 
@@ -60,16 +64,18 @@ export function readPluginSyncPolicy(home = os.homedir()) {
   // Preserve the installer's supported first-install --home path, which may
   // not exist yet. Reading policy must not create that directory during preview.
   secureWritablePath(home, "plugin sync home");
-  if (!fs.existsSync(home)) return { plugin_sync_version: 1, mode: "per-account", accounts: [] };
+  if (!fs.existsSync(home)) return { plugin_sync_version: 1, mode: "shared", accounts: [] };
   const locations = syncPaths(home);
   secureWritablePath(locations.config, "plugin sync policy");
-  if (!fs.existsSync(locations.config)) return { plugin_sync_version: 1, mode: "per-account", accounts: [] };
+  if (!fs.existsSync(locations.config)) return { plugin_sync_version: 1, mode: "shared", accounts: discoverPluginAccounts(locations.home) };
   return validatePolicy(readJsonPinned(locations.config).input, locations.home);
 }
 
 export function discoverPluginAccounts(home = os.homedir()) {
   const locations = syncPaths(home);
   const candidates = [path.join(locations.home, ".codex")];
+  const active = process.env.CODEX_HOME;
+  if (active && path.isAbsolute(active) && inside(trustedPlatformPath(active), locations.home)) candidates.push(active);
   const parent = path.join(locations.home, ".codex-accounts");
   if (fs.existsSync(parent)) {
     secureExistingDirectory(parent, "Codex accounts directory");
@@ -77,9 +83,9 @@ export function discoverPluginAccounts(home = os.homedir()) {
       if (entry.isDirectory() && !entry.isSymbolicLink()) candidates.push(path.join(parent, entry.name));
     }
   }
-  return candidates.filter((candidate) => {
-    try { accountPath(candidate, locations.home); return true; } catch { return false; }
-  }).sort();
+  return [...new Set(candidates.flatMap((candidate) => {
+    try { return [accountPath(candidate, locations.home)]; } catch { return []; }
+  }))].sort();
 }
 
 function withSyncLock(locations, action) {
@@ -192,10 +198,8 @@ function inspectCachedAccount(account, target, storage) {
   };
 }
 
-function inspectAccount(account, target, storage) {
-  verifyStorage(storage, target);
-  const response = codexJson(account, ["list", "--marketplace", target.marketplace]);
-  verifyStorage(storage, target);
+function inspectAccount(account, target, storage, invoke) {
+  const response = invoke(["list", "--marketplace", target.marketplace]);
   if (!Array.isArray(response.installed)) throw new Error("unrecognized Codex plugin list response");
   const entries = response.installed.filter((entry) => entry.pluginId === `killsloprouter@${target.marketplace}`);
   if (entries.length > 1) throw new Error("duplicate account plugin entries");
@@ -212,24 +216,31 @@ function sameTarget(home, target) {
   if (canonicalDigest(targetPlugin(home)) !== canonicalDigest(target)) throw new Error("canonical plugin changed during account sync; retry against one installed version");
 }
 
-function inspectOrSyncAccount(account, target, { apply, home, enrolled }) {
+function inspectOrSyncAccount(account, target, { apply, home, enrolled, verifyInputs }) {
   try {
     accountPath(account, home);
     const storage = accountStorage(account, enrolled);
-    sameTarget(home, target);
+    verifyInputs();
     // Inspect existing bytes before any CLI call: list can refresh local caches
     // and must not erase evidence of a conflicting same-version payload.
     const cached = inspectCachedAccount(account, target, storage);
     if (!apply) return cached;
     // Codex can refresh local caches while listing plugins. Query it only on
     // explicit apply, after validating every filesystem destination.
-    const before = inspectAccount(account, target, storage);
+    const invoke = (args) => {
+      verifyInputs();
+      accountPath(account, home);
+      verifyStorage(storage, target);
+      const response = codexJson(account, args);
+      verifyStorage(storage, target);
+      verifyInputs();
+      return response;
+    };
+    const before = inspectAccount(account, target, storage, invoke);
     if (!["missing", "outdated"].includes(before.status)) return { ...before, cache_shared_with: storage.shared_with };
-    verifyStorage(storage, target);
-    const result = codexJson(account, ["add", `killsloprouter@${target.marketplace}`]);
+    const result = invoke(["add", `killsloprouter@${target.marketplace}`]);
     if (result.pluginId !== `killsloprouter@${target.marketplace}` || result.version !== target.version) throw new Error("Codex installed a different plugin or version");
-    sameTarget(home, target);
-    const after = inspectAccount(account, target, storage);
+    const after = inspectAccount(account, target, storage, invoke);
     if (after.status !== "synced") throw new Error("account plugin was not verified after installation");
     return { ...after, previous_version: before.installed_version, changed: true, cache_shared_with: storage.shared_with };
   } catch (error) {
@@ -238,22 +249,30 @@ function inspectOrSyncAccount(account, target, { apply, home, enrolled }) {
 }
 
 function performSync(locations, policy, apply) {
+  const enrollmentRequired = policy.mode === "shared" && !policy.accounts.length;
   const report = {
     plugin_sync_receipt_version: 1,
     mode: policy.mode, policy_digest: canonicalDigest(policy),
-    config_path: locations.config, applied: apply && policy.mode === "shared",
+    config_path: locations.config, applied: apply && policy.mode === "shared" && !enrollmentRequired,
     accounts: [], target: null, blockers: [],
     next: "start a new Codex thread after syncing; existing threads keep their loaded skills"
   };
-  try {
-    report.target = targetPlugin(locations.home);
-    report.accounts = policy.accounts.map((account) => inspectOrSyncAccount(account, report.target, {
-      home: locations.home, apply: report.applied, enrolled: policy.accounts
-    }));
+  const verifyInputs = () => {
     sameTarget(locations.home, report.target);
     if (apply && canonicalDigest(readPluginSyncPolicy(locations.home)) !== report.policy_digest) throw new Error("plugin sync policy changed during activation");
+  };
+  if (enrollmentRequired) {
+    report.blockers.push("no existing Codex account homes found; initialize a Codex account or enroll an existing home with --account-home");
+    report.next = "initialize a Codex account, then preview plugin sync --dry-run before applying";
+  } else try {
+    report.target = targetPlugin(locations.home);
+    report.accounts = policy.accounts.map((account) => inspectOrSyncAccount(account, report.target, {
+      home: locations.home, apply: report.applied, enrolled: policy.accounts, verifyInputs
+    }));
+    verifyInputs();
   } catch (error) { report.blockers.push(error.message); }
-  report.status = report.blockers.length || report.accounts.some((account) => account.status === "failed")
+  report.status = enrollmentRequired ? "enrollment_required"
+    : report.blockers.length || report.accounts.some((account) => account.status === "failed")
     ? "blocked"
     : policy.mode === "per-account" ? "per-account"
     : report.accounts.every((account) => account.status === "synced") ? "synced"
@@ -275,12 +294,18 @@ export function pluginAccountSync({ home = os.homedir(), mode, accounts, discove
   const locations = syncPaths(home);
   const work = () => {
     const previous = readPluginSyncPolicy(locations.home);
+    const configured = fs.existsSync(locations.config);
     if (discover && accounts !== undefined) throw new Error("choose explicit account homes or discovery, not both");
     const requested = accounts ?? (discover ? discoverPluginAccounts(locations.home) : previous.accounts);
-    const policy = validatePolicy({ ...previous, mode: mode ?? previous.mode, accounts: requested }, locations.home);
+    const policy = validatePolicy({ ...previous, mode: mode ?? previous.mode, accounts: requested }, locations.home, {
+      // Only an unconfigured default may be empty; persisted shared policies
+      // and explicit enrollment still require actual accounts.
+      allowEmptyShared: !configured && accounts === undefined && !discover
+    });
     if (accounts !== undefined || discover) policy.accounts = policy.accounts.map((account) => accountPath(account, locations.home));
-    const changing = mode !== undefined || accounts !== undefined || discover;
-    if (changing && !dryRun) {
+    const changing = mode !== undefined || accounts !== undefined || discover || (apply && !configured);
+    const savePolicy = changing && !dryRun && (policy.mode !== "shared" || policy.accounts.length > 0);
+    if (savePolicy) {
       if (fs.existsSync(locations.config)) {
         const backup = secureWritablePath(`${locations.config}.bak.${crypto.randomUUID()}`, "plugin sync policy backup");
         fs.copyFileSync(locations.config, backup, fs.constants.COPYFILE_EXCL);
@@ -288,7 +313,7 @@ export function pluginAccountSync({ home = os.homedir(), mode, accounts, discove
       writeJsonAtomic(locations.config, policy);
     }
     const report = performSync(locations, policy, apply && !dryRun);
-    return { ...report, dry_run: dryRun, policy_saved: changing && !dryRun, discovered_accounts: discoverPluginAccounts(locations.home) };
+    return { ...report, dry_run: dryRun, policy_saved: savePolicy, discovered_accounts: discoverPluginAccounts(locations.home) };
   };
   return (apply && !dryRun) || ((mode !== undefined || accounts !== undefined || discover) && !dryRun)
     ? withSyncLock(locations, work) : work();

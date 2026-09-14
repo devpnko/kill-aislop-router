@@ -4,26 +4,28 @@
 
 | Setting | Behavior |
 | --- | --- |
-| ON — `shared` | Apply one verified canonical plugin version to every enrolled account, including on subsequent KSR installations. Verify each installed cache against the source payload/runtime digests. |
-| OFF — `per-account` | Stop KSR's automatic fan-out and leave activation to each Codex account. This is the default for existing installations. |
+| ON — `shared` (default) | Apply one verified canonical plugin version to every enrolled account, including on subsequent KSR installations. Verify each installed cache against the source payload/runtime digests. |
+| OFF — `per-account` | Stop KSR's automatic fan-out and leave activation to each Codex account. An explicitly saved OFF preference is preserved. |
+
+Without a saved policy, KSR previews the shared default using existing account homes. The first explicit apply (including a normal activating KSR installation) saves that exact account list before invoking Codex. Later accounts are not silently enrolled. A status check, dry-run, or `--no-activate` installation never saves the default or activates accounts. If no account exists, sync returns `enrollment_required`, not success, and does not create a Codex home or persist an empty shared policy.
 
 Turning OFF does not downgrade or uninstall anything. Codex itself may refresh a local plugin cache when it lists or loads plugins; OFF cannot freeze a version against that behavior. Existing shared plugin-directory links also remain shared. Independent historical version pinning would require separately managed plugin sources and authority. Existing KSR integrity gates may still block a stale version, and continuing an audit follows the existing resume and digest rules.
 
 ## Toggle and apply
 
-Install the reviewed KSR build normally, then preview account discovery:
+Preview the first installation with `plugin install --dry-run`; its `account_sync` section shows the default targets. A normal activating installation applies and saves that list. To preview or apply sync separately using the installed build:
 
 ```bash
-killsloprouter plugin sync --mode shared --discover-accounts --dry-run --json
+killsloprouter plugin sync --dry-run --json
 ```
 
-Discovery lists the default `~/.codex` and existing direct account homes under `~/.codex-accounts`. Preview and status read local files only and never invoke Codex, since even `plugin list` can refresh caches. They report `cached`/`cache_missing`, not verified activation. Review the list, then turn ON and synchronize:
+Discovery lists the default `~/.codex`, existing direct account homes under `~/.codex-accounts`, and an existing custom `CODEX_HOME` below the selected user home. Preview and status read local files only and never invoke Codex, since even `plugin list` can refresh caches. They report `cached`/`cache_missing`, not verified activation. Review the list, then synchronize:
 
 ```bash
-killsloprouter plugin sync --mode shared --discover-accounts --apply --json
+killsloprouter plugin sync --apply --json
 ```
 
-Or enroll exact homes with repeated `--account-home /absolute/account/directory` instead of `--discover-accounts`. New account directories are not silently enrolled after this step. Use discovery again when adding accounts.
+Enroll exact homes with repeated `--account-home /absolute/account/directory`, or explicitly refresh enrollment with `--mode shared --discover-accounts --dry-run` followed by the same options with `--apply`. New account directories are not silently enrolled after the first saved list. An explicit saved `per-account` choice overrides the new default; use `--mode shared` to turn it back on.
 
 Turn OFF without changing installed versions:
 
@@ -44,11 +46,13 @@ The setting is saved in `~/.killsloprouter/plugin-sync.json`. Policy changes pre
 
 An explicit apply uses only `codex plugin list --marketplace NAME --json` and `codex plugin add killsloprouter@NAME --json`, with the enrolled home as the child process's `CODEX_HOME`. Both calls may update Codex's local plugin state. KSR never copies authentication files or starts a reviewer/browser run. The selected local marketplace must point to the verified canonical `~/plugins/killsloprouter` bundle. It does not fetch a moving GitHub branch.
 
-Matching accounts are skipped. Disabled plugins remain disabled and appear as `disabled`; the sync is not reported complete. A failed account, conflicting source, modified cache, or changing canonical payload prevents a success report. An apply attempt records per-account results and hashes under `~/.killsloprouter/plugin-sync-receipts/`; a partial attempt can be retried after resolving its cause. Account updates are sequential, not one atomic transaction across Codex homes. Earlier successful updates remain in place if a later account fails.
+Matching accounts are skipped. Disabled plugins remain disabled and appear as `disabled`; the sync is not reported complete. A failed account, conflicting source, modified cache, or changing canonical payload prevents a success report. Both the policy and canonical payload are checked before and after every Codex command; a mid-run policy change blocks the next install and all later account children. An apply attempt records per-account results and hashes under `~/.killsloprouter/plugin-sync-receipts/`; a partial attempt can be retried after resolving its cause. Account updates are sequential, not one atomic transaction across Codex homes. Earlier successful updates remain in place if a later account fails.
 
 Mutating sync/configuration commands use an exclusive lock. If a process crashes with the lock present, inspect `~/.killsloprouter/plugin-sync.lock` and confirm that the previous operation ended before explicitly moving that exact file to a backup path. The command never treats a PID alone as stale-lock authority or automatically deletes an existing lock.
 
-The normal `plugin install`/installer script honors `shared` after copying and verifying the new build. Its `--dry-run` reports enrolled targets, and `--no-activate` skips activation for all accounts. Without a shared setting it retains its existing current-account behavior. Refresh the plugin cachebuster when distributing changed bytes so Codex can create a new versioned cache. After sync, start a new Codex thread to load the updated skill. Existing project adapter locks may require an explicit reconfiguration for a new runtime; receipts are never rewritten to hide a mismatch.
+The normal `plugin install`/installer script honors the shared default or saved choice after copying and verifying the new build. Its `--dry-run` reports the effective targets, and `--no-activate` skips activation for all accounts. An explicitly saved `per-account` setting retains the existing current-account install behavior. Refresh the plugin cachebuster when distributing changed bytes so Codex can create a new versioned cache. After sync, start a new Codex thread to load the updated skill. Existing project adapter locks may require an explicit reconfiguration for a new runtime; receipts are never rewritten to hide a mismatch.
+
+Migration note: earlier versions interpreted a missing policy as OFF; it now means shared. Existing policy files and receipt versions are unchanged. To keep current-account-only installation, save `plugin sync --mode per-account` before an activating update, or use the installer's `--no-activate` option.
 
 ## Settings UI integration
 

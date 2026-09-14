@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { canonicalDigest } from "../src/integrity.mjs";
+import { readPluginSyncPolicy } from "../src/plugin-sync.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -37,16 +38,21 @@ if (args[1] === "add") {
   fs.writeFileSync(record,JSON.stringify({pluginId:"killsloprouter@personal",name:"killsloprouter",version,installed:true,enabled:true,source:{source:"local",path:source}}));
   console.log(JSON.stringify({pluginId:"killsloprouter@personal",version,installedPath:cache}));
 } else if (args[1] === "list") {
+  if (fs.existsSync(path.join(account,"change-policy-on-list"))) {
+    const config=path.join(home,".killsloprouter/plugin-sync.json");
+    const policy=JSON.parse(fs.readFileSync(config));
+    fs.writeFileSync(config,JSON.stringify({...policy,mode:"per-account"}));
+  }
   if (fs.existsSync(path.join(account,"refresh-on-list"))) {
     fs.cpSync(source,path.join(account,"plugins/cache/personal/killsloprouter",version),{recursive:true});
   }
   console.log(JSON.stringify({installed:fs.existsSync(record)?[JSON.parse(fs.readFileSync(record))]:[]}));
 } else process.exit(8);
 `, { mode: 0o700 });
-  const run = (args) => spawnSync(process.execPath, [cli, ...args], {
+  const run = (args, environment = {}) => spawnSync(process.execPath, [cli, ...args], {
     cwd: home, encoding: "utf8", timeout: 60_000,
     env: { ...process.env, HOME: home, USERPROFILE: home, CODEX_HOME: accounts[2],
-      PATH: `${bin}${path.delimiter}${process.env.PATH}`, KSR_SYNC_FIXTURE_HOME: home }
+      PATH: `${bin}${path.delimiter}${process.env.PATH}`, KSR_SYNC_FIXTURE_HOME: home, ...environment }
   });
   const installed = run(["plugin", "install", "--no-activate"]);
   assert.equal(installed.status, 0, installed.stderr || installed.stdout);
@@ -65,7 +71,8 @@ test("shared toggle previews without writes, syncs enrolled accounts, and is ide
   const f = fixture();
   try {
     const initial = output(f.run(["plugin","sync","--json"]));
-    assert.equal(initial.mode,"per-account");
+    assert.equal(initial.mode,"shared");
+    assert.equal(initial.accounts.length,3);
     assert.equal(fs.existsSync(f.config),false);
     const preview = output(f.run(["plugin","sync","--mode","shared","--discover-accounts","--dry-run","--json"]));
     assert.equal(preview.status,"sync_required");
@@ -91,6 +98,99 @@ test("shared toggle previews without writes, syncs enrolled accounts, and is ide
     assert.equal(again.status,0,again.stdout);
     assert.equal(f.calls().filter((call)=>call.args[1]==="add").length,3);
     assert.equal(output(again).accounts.some((account)=>account.changed),false);
+  } finally { f.cleanup(); }
+});
+
+test("default shared installation freezes discovered enrollment and preserves an explicit OFF", () => {
+  const f=fixture();
+  try {
+    const preview=output(f.run(["plugin","install","--force","--dry-run"]));
+    assert.equal(preview.account_sync.mode,"shared");
+    assert.equal(preview.account_sync.accounts.length,3);
+    assert.equal(preview.account_sync.would_apply,true);
+    assert.equal(fs.existsSync(f.config),false);
+    assert.equal(f.calls().length,0);
+    const installed=f.run(["plugin","install","--force"]);
+    assert.equal(installed.status,0,installed.stderr || installed.stdout);
+    assert.equal(output(installed).activation.status,"synced");
+    const policy=JSON.parse(fs.readFileSync(f.config));
+    assert.equal(policy.mode,"shared");
+    assert.equal(policy.accounts.length,3);
+    const extra=path.join(f.home,".codex-accounts/account4");
+    fs.mkdirSync(extra); fs.writeFileSync(path.join(extra,"config.toml"),"");
+    const count=f.calls().length;
+    const again=output(f.run(["plugin","sync","--apply","--json"]));
+    assert.equal(again.accounts.length,3);
+    assert.equal(again.discovered_accounts.length,4);
+    assert.equal(f.calls().slice(count).some((call)=>call.account===extra),false);
+    assert.equal(f.run(["plugin","sync","--mode","per-account","--json"]).status,0);
+    const off=JSON.parse(fs.readFileSync(f.config));
+    assert.equal(off.mode,"per-account");
+    const offPreview=output(f.run(["plugin","install","--force","--dry-run"]));
+    assert.equal(offPreview.account_sync.mode,"per-account");
+    assert.equal(offPreview.account_sync.would_apply,false);
+    const reinstalled=f.run(["plugin","install","--force","--no-activate"]);
+    assert.equal(reinstalled.status,0,reinstalled.stdout);
+    assert.deepEqual(JSON.parse(fs.readFileSync(f.config)),off);
+  } finally { f.cleanup(); }
+});
+
+test("default shared mode includes an existing custom active home but never creates a missing one", () => {
+  const f=fixture();
+  try {
+    const active=path.join(f.home,"custom-codex");
+    fs.mkdirSync(active); fs.writeFileSync(path.join(active,"config.toml"),"");
+    const preview=output(f.run(["plugin","sync","--dry-run","--json"],{CODEX_HOME:active}));
+    assert.equal(preview.mode,"shared");
+    assert.equal(preview.accounts.length,4);
+    assert.equal(f.calls().length,0);
+    const missing=path.join(f.home,"future-home");
+    assert.deepEqual(readPluginSyncPolicy(missing),{plugin_sync_version:1,mode:"shared",accounts:[]});
+    assert.equal(fs.existsSync(missing),false);
+  } finally { f.cleanup(); }
+});
+
+test("default shared mode with no accounts reports enrollment required, never synchronized", () => {
+  const f=fixture();
+  try {
+    for (const account of f.accounts) {
+      fs.unlinkSync(path.join(account,"config.toml"));
+      fs.unlinkSync(path.join(account,"auth.json"));
+    }
+    for (const args of [["plugin","sync","--json"],["plugin","sync","--apply","--json"]]) {
+      const result=f.run(args);
+      assert.equal(result.status,5,result.stderr || result.stdout);
+      assert.equal(output(result).mode,"shared");
+      assert.equal(output(result).status,"enrollment_required");
+      assert.equal(output(result).policy_saved,false);
+    }
+    assert.equal(fs.existsSync(f.config),false);
+    assert.equal(f.calls().length,0);
+  } finally { f.cleanup(); }
+});
+
+test("default shared discovery recognizes a logged-in home without reading credentials", () => {
+  const f=fixture();
+  try {
+    fs.unlinkSync(path.join(f.accounts[1],"config.toml"));
+    fs.chmodSync(path.join(f.accounts[1],"auth.json"),0o000);
+    const result=f.run(["plugin","sync","--dry-run","--json"]);
+    assert.equal(result.status,5,result.stderr || result.stdout);
+    assert.equal(output(result).accounts.length,3);
+    assert.equal(output(result).accounts.every((account)=>account.status==="cache_missing"),true);
+    assert.equal(f.calls().length,0);
+  } finally { f.cleanup(); }
+});
+
+test("a policy change during plugin list blocks add and all subsequent account children", () => {
+  const f=fixture();
+  try {
+    fs.writeFileSync(path.join(f.accounts[0],"change-policy-on-list"),"");
+    const result=f.run(["plugin","sync","--mode","shared","--discover-accounts","--apply","--json"]);
+    assert.equal(result.status,5,result.stdout);
+    assert.equal(output(result).status,"blocked");
+    assert.deepEqual(f.calls().map((call)=>call.args[1]),["list"],result.stdout);
+    assert.match(output(result).accounts[0].error,/policy changed/);
   } finally { f.cleanup(); }
 });
 
@@ -168,6 +268,11 @@ test("sync rejects policy commands, symlink accounts, and concurrent mutation lo
     fs.writeFileSync(f.config,JSON.stringify({plugin_sync_version:1,mode:"shared",accounts:f.accounts,command:"do-not-run"}));
     assert.notEqual(f.run(["plugin","sync","--apply","--json"]).status,0);
     assert.equal(f.calls().length,0);
+    fs.writeFileSync(f.config,JSON.stringify({plugin_sync_version:1,mode:"shared",accounts:[]}));
+    const empty=f.run(["plugin","sync","--apply","--json"]);
+    assert.notEqual(empty.status,0);
+    assert.match(empty.stderr,/at least one enrolled account/);
+    assert.equal(f.calls().length,0,"a stored empty policy must not fall back to default discovery");
     fs.unlinkSync(f.config);
     const alias=path.join(f.home,"alias"); fs.symlinkSync(f.accounts[0],alias,"dir");
     assert.notEqual(f.run(["plugin","sync","--mode","shared","--account-home",alias,"--apply","--json"]).status,0);

@@ -196,8 +196,9 @@ try {
   const syncStatus = run(process.execPath, [
     installedCli, "plugin", "sync", "--home", isolatedHome, "--json"
   ], { cwd: consumer });
-  assert.equal(syncStatus.status, 0, syncStatus.stderr || syncStatus.stdout);
-  assert.equal(JSON.parse(syncStatus.stdout).mode, "per-account");
+  assert.equal(syncStatus.status, 5, syncStatus.stderr || syncStatus.stdout);
+  assert.equal(JSON.parse(syncStatus.stdout).mode, "shared");
+  assert.equal(JSON.parse(syncStatus.stdout).status, "enrollment_required");
   assert.equal(fs.existsSync(path.join(isolatedHome, ".killsloprouter", "plugin-sync.json")), false);
   const doctor = run(process.execPath, [
     installedCli,

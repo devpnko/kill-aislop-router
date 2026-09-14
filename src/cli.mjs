@@ -130,6 +130,7 @@ Start here:
 
 The plugin is the parent workflow; reviewers such as anti-slop are internal children.
 Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
+Account plugin versions default to shared; an explicit per-account OFF preference is preserved.
 Guide: https://github.com/devpnko/kill-aislop-router/blob/feat/usage-onboarding/docs/getting-started.md
 
 Usage:

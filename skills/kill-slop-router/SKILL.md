@@ -12,6 +12,7 @@ Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 For a request to sync KSR plugin versions across Codex accounts or toggle that
 setting, use `<plugin-root>/docs/account-plugin-sync.md` before project bootstrap.
 The bundled `plugin sync` command owns the preference and per-account checks.
+No saved preference means shared versions; preserve an explicit OFF choice.
 Use the user's named accounts, or preview discovery for an all-account request;
 apply only the authorized enrollment. Report preference saved separately from
 verified synchronization. This is plugin maintenance and does not complete any
