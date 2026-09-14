@@ -53,6 +53,15 @@ does not implicitly download a browser.
 
 ## Quickstart
 
+For project use, start with the [project guide](docs/getting-started.md):
+install one reviewed plugin build, open the target repository in a new Codex
+thread, and invoke `$killsloprouter:kill-slop-router`. The CLI also prints this
+starting path when run with no arguments or `--help`. The setup and approval
+gates remain fail-closed; installation alone does not run a project audit.
+
+The commands below verify this source checkout rather than start a journey in
+another project.
+
 From a clean checkout:
 
 ```bash
