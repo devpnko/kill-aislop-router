@@ -67,6 +67,9 @@ const BOOLEAN_OPTIONS = new Set([
   "migrate-legacy-entry",
   "module-graph"
 ]);
+const PLUGIN_SYNC_OPTIONS = new Set([
+  "home", "mode", "account-home", "discover-accounts", "apply", "dry-run", "json", "format"
+]);
 
 function parseArgs(argv) {
   const args = {
@@ -95,6 +98,9 @@ function parseArgs(argv) {
     }
     if (!token.startsWith("--")) throw new RouterError(`unexpected argument: ${token}`, 2);
     const key = token.slice(2);
+    if (args.command === "plugin" && args.subcommand === "sync" && !PLUGIN_SYNC_OPTIONS.has(key)) {
+      throw new RouterError(`unknown plugin sync option: --${key}`, 2);
+    }
     if (BOOLEAN_OPTIONS.has(key)) {
       args[key] = true;
       continue;

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { canonicalDigest } from "../src/integrity.mjs";
-import { readPluginSyncPolicy } from "../src/plugin-sync.mjs";
+import { readPluginSyncPolicy, withPluginSyncTransaction } from "../src/plugin-sync.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -38,6 +38,13 @@ if (args[1] === "add") {
   fs.writeFileSync(record,JSON.stringify({pluginId:"killsloprouter@personal",name:"killsloprouter",version,installed:true,enabled:true,source:{source:"local",path:source}}));
   console.log(JSON.stringify({pluginId:"killsloprouter@personal",version,installedPath:cache}));
 } else if (args[1] === "list") {
+  const loseLock=path.join(account,"replace-lock-on-list");
+  const loseAfterAdd=path.join(account,"replace-lock-after-add");
+  if (fs.existsSync(loseLock) || (fs.existsSync(loseAfterAdd) && fs.existsSync(record))) {
+    const lock=path.join(home,".killsloprouter/plugin-sync.lock");
+    fs.writeFileSync(lock+".replacement","fixture-replacement-owner");
+    fs.renameSync(lock+".replacement",lock);
+  }
   if (fs.existsSync(path.join(account,"change-policy-on-list"))) {
     const config=path.join(home,".killsloprouter/plugin-sync.json");
     const policy=JSON.parse(fs.readFileSync(config));
@@ -66,6 +73,21 @@ if (args[1] === "add") {
 }
 
 function output(result) { assert.notEqual(result.stdout, "", result.stderr); return JSON.parse(result.stdout); }
+
+function copyHook(f, body) {
+  const file=path.join(f.home,"copy-hook.cjs");
+  fs.writeFileSync(file, `const fs=require("node:fs"), path=require("node:path");
+const {spawnSync}=require("node:child_process");
+const original=fs.cpSync; let fired=false;
+fs.cpSync=function(source,target,...options){
+  if(!fired && String(target).includes(".killsloprouter-install-")){
+    fired=true;
+    ${body}
+  }
+  return original.call(this,source,target,...options);
+};`);
+  return {NODE_OPTIONS:`--require ${JSON.stringify(file)}`};
+}
 
 test("shared toggle previews without writes, syncs enrolled accounts, and is idempotent", () => {
   const f = fixture();
@@ -318,5 +340,137 @@ test("existing shared plugin folders require an enrolled owner and never get rew
     assert.equal(off.status,0,off.stdout);
     assert.equal(fs.readlinkSync(linked),owner);
     assert.equal(f.calls().length,count,"OFF must not invoke the auto-refreshing Codex CLI");
+  } finally { f.cleanup(); }
+});
+
+test("installer rejects an existing lease before any canonical, marketplace, shim or account mutation", () => {
+  const f=fixture();
+  try {
+    const lock=path.join(f.home,".killsloprouter/plugin-sync.lock");
+    fs.writeFileSync(lock,"fixture-existing-owner");
+    const before=fs.statSync(f.target).ino;
+    const marketplace=path.join(f.home,".agents/plugins/marketplace.json");
+    const marketBytes=fs.readFileSync(marketplace,"utf8");
+    const legacy=path.join(f.accounts[0],"skills/kill-slop-router/SKILL.md");
+    fs.mkdirSync(path.dirname(legacy),{recursive:true});
+    fs.writeFileSync(legacy,"fixture full legacy entry\n");
+    for(const flags of [[],["--no-activate"]]) {
+      const result=f.run(["plugin","install","--force","--migrate-legacy-entry",...flags]);
+      assert.notEqual(result.status,0);
+      assert.match(result.stderr,/already locked/);
+      assert.equal(fs.statSync(f.target).ino,before);
+      assert.equal(fs.readFileSync(marketplace,"utf8"),marketBytes);
+      assert.equal(fs.readFileSync(legacy,"utf8"),"fixture full legacy entry\n");
+      assert.equal(fs.existsSync(path.join(f.home,"plugins/.killsloprouter-backups")),false);
+      assert.equal(fs.existsSync(f.config),false);
+      assert.equal(f.calls().length,0);
+      assert.equal(fs.readFileSync(lock,"utf8"),"fixture-existing-owner");
+    }
+  } finally { f.cleanup(); }
+});
+
+test("install and enrollment changes serialize under one lease before selecting activation targets", () => {
+  const f=fixture();
+  try {
+    assert.equal(f.run(["plugin","sync","--mode","per-account","--json"]).status,0);
+    const before=fs.readFileSync(f.config,"utf8");
+    const attempts=path.join(f.home,"concurrent-attempts.json");
+    const configure=[cli,"plugin","sync","--mode","shared","--account-home",f.accounts[1],"--json"];
+    const install=[cli,"plugin","install","--force","--no-activate"];
+    const hooked=copyHook(f, `
+      const results=${JSON.stringify([configure,install])}.map(args=>{
+        const result=spawnSync(process.execPath,args,{env:{...process.env,NODE_OPTIONS:""},encoding:"utf8"});
+        return {status:result.status,stderr:result.stderr};
+      });
+      fs.writeFileSync(${JSON.stringify(attempts)},JSON.stringify(results));`);
+    const result=f.run(["plugin","install","--force"],hooked);
+    assert.equal(result.status,0,result.stderr || result.stdout);
+    for(const attempt of JSON.parse(fs.readFileSync(attempts))) {
+      assert.notEqual(attempt.status,0);
+      assert.match(attempt.stderr,/already locked/);
+    }
+    assert.equal(fs.readFileSync(f.config,"utf8"),before);
+    assert.deepEqual(f.calls().filter(call=>call.args[1]==="add").map(call=>call.account),[f.accounts[2]]);
+    const saved=f.run(configure.slice(1));
+    assert.equal(saved.status,5,saved.stderr || saved.stdout);
+    assert.equal(output(saved).policy_saved,true);
+    assert.equal(output(saved).status,"sync_required");
+    const count=f.calls().length;
+    const next=f.run(["plugin","install","--force"]);
+    assert.equal(next.status,0,next.stderr || next.stdout);
+    assert.deepEqual(output(next).activation.accounts.map(account=>account.account_home),[fs.realpathSync(f.accounts[1])]);
+    assert.equal(f.calls().slice(count).every(call=>fs.realpathSync(call.account)===fs.realpathSync(f.accounts[1])),true);
+  } finally { f.cleanup(); }
+});
+
+test("an out-of-band policy edit during staging blocks publication and stale per-account activation", () => {
+  const f=fixture();
+  try {
+    assert.equal(f.run(["plugin","sync","--mode","per-account","--json"]).status,0);
+    const before=fs.statSync(f.target).ino;
+    const changed={plugin_sync_version:1,mode:"shared",accounts:[fs.realpathSync(f.accounts[1])]};
+    const hooked=copyHook(f,`fs.writeFileSync(${JSON.stringify(f.config)},${JSON.stringify(JSON.stringify(changed))});`);
+    const result=f.run(["plugin","install","--force"],hooked);
+    assert.notEqual(result.status,0);
+    assert.match(result.stderr,/policy changed during installation/);
+    assert.equal(fs.statSync(f.target).ino,before);
+    assert.deepEqual(JSON.parse(fs.readFileSync(f.config)),changed);
+    assert.equal(f.calls().length,0);
+    assert.equal(fs.existsSync(path.join(f.home,"plugins/.killsloprouter-backups")),false);
+  } finally { f.cleanup(); }
+});
+
+test("lost lock ownership blocks later children and receipt persistence, including after the last add", () => {
+  for(const afterAdd of [false,true]) {
+    const f=fixture();
+    try {
+      const selected=afterAdd ? f.accounts.slice(-1) : f.accounts;
+      fs.writeFileSync(path.join(selected[0],afterAdd?"replace-lock-after-add":"replace-lock-on-list"),"");
+      const result=f.run(["plugin","sync","--mode","shared",...selected.flatMap(account=>["--account-home",account]),"--apply","--json"]);
+      assert.notEqual(result.status,0);
+      assert.match(result.stderr,/lock ownership changed/);
+      assert.deepEqual(f.calls().map(call=>call.args[1]),afterAdd?["list","add","list"]:["list"]);
+      assert.equal(fs.existsSync(path.join(f.home,".killsloprouter/plugin-sync-receipts")),false);
+      assert.equal(fs.readFileSync(path.join(f.home,".killsloprouter/plugin-sync.lock"),"utf8"),"fixture-replacement-owner");
+    } finally { f.cleanup(); }
+  }
+});
+
+test("case-equivalent account homes are rejected before a policy can be poisoned", (t) => {
+  const f=fixture();
+  try {
+    const alias=path.join(f.home,".CODEX");
+    if(!fs.existsSync(alias)) { t.skip("requires a case-insensitive filesystem"); return; }
+    const result=f.run(["plugin","sync","--mode","shared","--account-home",f.accounts[0],"--account-home",alias,"--apply","--json"]);
+    assert.notEqual(result.status,0);
+    assert.match(result.stderr,/unique/);
+    assert.equal(fs.existsSync(f.config),false);
+    assert.equal(f.calls().length,0);
+    assert.equal(f.run(["plugin","sync","--mode","per-account","--json"]).status,0,"invalid input must not poison later OFF");
+  } finally { f.cleanup(); }
+});
+
+test("unknown sync options never fall back to shared discovery or change enrollment", () => {
+  const f=fixture();
+  try {
+    for(const option of ["--account-hmoe","--subcommand","--force"]) {
+      const result=f.run(["plugin","sync","--mode","shared",option,f.accounts[1],"--apply","--json"]);
+      assert.equal(result.status,2,result.stdout);
+      assert.match(result.stderr,/unknown plugin sync option/);
+      assert.equal(fs.existsSync(f.config),false);
+      assert.equal(f.calls().length,0);
+      assert.equal(fs.existsSync(path.join(f.home,".killsloprouter/plugin-sync.lock")),false);
+    }
+  } finally { f.cleanup(); }
+});
+
+test("installer-bound sync capability cannot run after the lease is released", () => {
+  const f=fixture();
+  try {
+    let transaction;
+    withPluginSyncTransaction(f.home, value=>{ transaction=value; value.verifyLease(); });
+    assert.throws(()=>transaction.sync({mode:"per-account"}),/lock ownership changed/);
+    assert.equal(fs.existsSync(f.config),false);
+    assert.equal(f.calls().length,0);
   } finally { f.cleanup(); }
 });

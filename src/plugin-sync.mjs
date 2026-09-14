@@ -49,7 +49,9 @@ function validatePolicy(value, home, { allowEmptyShared = false } = {}) {
   }
   const accounts = value.accounts.map((entry) => {
     if (typeof entry !== "string" || !path.isAbsolute(entry)) throw new Error("account home must be an absolute directory");
-    const resolved = trustedPlatformPath(entry);
+    // Canonicalize existing components before uniqueness checks (including
+    // case aliases on macOS). Missing enrolled homes remain reportable/off-able.
+    const resolved = secureWritablePath(entry, "Codex account home");
     if (!inside(resolved, home)) throw new Error("account home must be below the selected user home");
     return resolved;
   });
@@ -104,13 +106,25 @@ function withSyncLock(locations, action) {
     fs.writeFileSync(fd, contents);
     fs.fsyncSync(fd);
     const identity = fs.fstatSync(fd);
-    try { return action(); } finally {
-      verifySecureDirectoryIdentity(parent);
-      const current = fs.lstatSync(lock);
-      if (current.dev !== identity.dev || current.ino !== identity.ino || fs.readFileSync(lock,"utf8") !== contents) {
-        throw new Error("plugin sync lock ownership changed; preserve the lock for inspection");
+    let held = true;
+    const verifyLease = () => {
+      try {
+        if (!held) throw new Error("transaction ended");
+        verifySecureDirectoryIdentity(parent);
+        secureExistingRegularFile(lock, "plugin sync lock", { singleLink: true });
+        const current = fs.lstatSync(lock);
+        if (current.dev !== identity.dev || current.ino !== identity.ino || fs.readFileSync(lock, "utf8") !== contents) {
+          throw new Error("owner identity mismatch");
+        }
+      } catch (cause) {
+        throw new Error("plugin sync lock ownership changed; preserve the lock for inspection", { cause });
       }
-      fs.unlinkSync(lock);
+    };
+    try {
+      verifyLease();
+      return action(verifyLease);
+    } finally {
+      try { verifyLease(); fs.unlinkSync(lock); } finally { held = false; }
     }
   } finally { fs.closeSync(fd); }
 }
@@ -248,7 +262,7 @@ function inspectOrSyncAccount(account, target, { apply, home, enrolled, verifyIn
   }
 }
 
-function performSync(locations, policy, apply) {
+function performSync(locations, policy, apply, verifyLease) {
   const enrollmentRequired = policy.mode === "shared" && !policy.accounts.length;
   const report = {
     plugin_sync_receipt_version: 1,
@@ -258,6 +272,7 @@ function performSync(locations, policy, apply) {
     next: "start a new Codex thread after syncing; existing threads keep their loaded skills"
   };
   const verifyInputs = () => {
+    verifyLease();
     sameTarget(locations.home, report.target);
     if (apply && canonicalDigest(readPluginSyncPolicy(locations.home)) !== report.policy_digest) throw new Error("plugin sync policy changed during activation");
   };
@@ -279,6 +294,9 @@ function performSync(locations, policy, apply) {
     : report.accounts.every((account) => account.status === "cached") ? "verification_required" : "sync_required";
   report.ok = ["synced", "per-account"].includes(report.status);
   if (apply) {
+    // Loss of ownership is not a completed attempt: do not persist a receipt
+    // from a transaction that no longer owns its serialization boundary.
+    verifyLease();
     report.recorded_at = new Date().toISOString();
     const file = path.join(locations.receipts, `${crypto.randomUUID()}.json`);
     report.receipt_path = file;
@@ -288,33 +306,48 @@ function performSync(locations, policy, apply) {
   return report;
 }
 
+function syncUnderLease({ mode, accounts, discover = false, dryRun = false, apply = false }, locations, verifyLease) {
+  verifyLease();
+  const previous = readPluginSyncPolicy(locations.home);
+  const configured = fs.existsSync(locations.config);
+  if (discover && accounts !== undefined) throw new Error("choose explicit account homes or discovery, not both");
+  const requested = accounts ?? (discover ? discoverPluginAccounts(locations.home) : previous.accounts);
+  const policy = validatePolicy({ ...previous, mode: mode ?? previous.mode, accounts: requested }, locations.home, {
+    // Only an unconfigured default may be empty; persisted shared policies
+    // and explicit enrollment still require actual accounts.
+    allowEmptyShared: !configured && accounts === undefined && !discover
+  });
+  if (accounts !== undefined || discover) policy.accounts = policy.accounts.map((account) => accountPath(account, locations.home));
+  const changing = mode !== undefined || accounts !== undefined || discover || (apply && !configured);
+  const savePolicy = changing && !dryRun && (policy.mode !== "shared" || policy.accounts.length > 0);
+  if (savePolicy) {
+    verifyLease();
+    if (fs.existsSync(locations.config)) {
+      const backup = secureWritablePath(`${locations.config}.bak.${crypto.randomUUID()}`, "plugin sync policy backup");
+      fs.copyFileSync(locations.config, backup, fs.constants.COPYFILE_EXCL);
+    }
+    writeJsonAtomic(locations.config, policy);
+  }
+  const report = performSync(locations, policy, apply && !dryRun, verifyLease);
+  return { ...report, dry_run: dryRun, policy_saved: savePolicy, discovered_accounts: discoverPluginAccounts(locations.home) };
+}
+
+// Trusted synchronous installer coordinator. The bound sync closure cannot
+// change homes or escape/reuse the held lease; no caller-controlled skipLock.
+export function withPluginSyncTransaction(home, action) {
+  const root = ensureSecureDirectory(home, "plugin installation home").real_path;
+  const locations = syncPaths(root);
+  return withSyncLock(locations, (verifyLease) => action(Object.freeze({
+    verifyLease,
+    sync: (options = {}) => syncUnderLease(options, locations, verifyLease)
+  })));
+}
+
 // Exported for a settings UI: dry-run previews the toggle, configure saves it,
 // and apply performs bounded official Codex plugin installs for enrolled homes.
 export function pluginAccountSync({ home = os.homedir(), mode, accounts, discover = false, dryRun = false, apply = false } = {}) {
   const locations = syncPaths(home);
-  const work = () => {
-    const previous = readPluginSyncPolicy(locations.home);
-    const configured = fs.existsSync(locations.config);
-    if (discover && accounts !== undefined) throw new Error("choose explicit account homes or discovery, not both");
-    const requested = accounts ?? (discover ? discoverPluginAccounts(locations.home) : previous.accounts);
-    const policy = validatePolicy({ ...previous, mode: mode ?? previous.mode, accounts: requested }, locations.home, {
-      // Only an unconfigured default may be empty; persisted shared policies
-      // and explicit enrollment still require actual accounts.
-      allowEmptyShared: !configured && accounts === undefined && !discover
-    });
-    if (accounts !== undefined || discover) policy.accounts = policy.accounts.map((account) => accountPath(account, locations.home));
-    const changing = mode !== undefined || accounts !== undefined || discover || (apply && !configured);
-    const savePolicy = changing && !dryRun && (policy.mode !== "shared" || policy.accounts.length > 0);
-    if (savePolicy) {
-      if (fs.existsSync(locations.config)) {
-        const backup = secureWritablePath(`${locations.config}.bak.${crypto.randomUUID()}`, "plugin sync policy backup");
-        fs.copyFileSync(locations.config, backup, fs.constants.COPYFILE_EXCL);
-      }
-      writeJsonAtomic(locations.config, policy);
-    }
-    const report = performSync(locations, policy, apply && !dryRun);
-    return { ...report, dry_run: dryRun, policy_saved: savePolicy, discovered_accounts: discoverPluginAccounts(locations.home) };
-  };
+  const work = (verifyLease = () => {}) => syncUnderLease({ mode, accounts, discover, dryRun, apply }, locations, verifyLease);
   return (apply && !dryRun) || ((mode !== undefined || accounts !== undefined || discover) && !dryRun)
     ? withSyncLock(locations, work) : work();
 }
