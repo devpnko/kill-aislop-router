@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added opt-in `popularity_prior.unavailable_policy: fit-only`. Export, child
+  result and pack contracts preserve subject-bound unavailable signals with
+  evidence, reason and check time but no invented value, score or as-of date.
+  This policy ranks by product-fit band, fit score and stable ID, excluding all
+  popularity from ranking. Legacy policy, coverage, independent review, source
+  access, Owner gates and the exact-three design route remain unchanged.
+  Existing ledgers are not migrated; new fields require a capable pinned build.
+  Reference guidance distinguishes component transfer from source-brand themes.
+  Discovery now requires the exact exported popularity-record set, rejecting
+  omitted or repeated conflicts even when other signals are unavailable.
+
 - Split the complete design E2E inventory into eight deterministic shards while
   retaining the two-worker limit and standalone test entrypoint. Inventory
   regressions reject omitted, duplicate, skipped and invalid shard selections.

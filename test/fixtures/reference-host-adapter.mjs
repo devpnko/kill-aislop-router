@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { componentRecipe } from "./component-recipe-fixture.mjs";
+import { missingPopularity, unavailableRecord, unavailableSignal } from "./unavailable-popularity.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
@@ -217,7 +218,8 @@ function discoveryResult() {
             ? "product-not-flowdesk" : `product-${item.reference_id}`
         }]
       };
-    const popularityRecords = packet.reference_task.popularity_prior.signals.map((signal) => ({
+    const popularityRecords = packet.reference_task.popularity_prior.signals.map((signal) => {
+      const record = {
       record_kind: "signal",
       signal_id: signal.id,
       metric: signal.metric,
@@ -232,7 +234,9 @@ function discoveryResult() {
       snapshot_at: "2026-09-04T01:00:00.000Z",
       normalization: signal.normalization,
       evidence_ids: [`metadata-${item.reference_id}`]
-    }));
+      };
+      return missingPopularity(settings, index, signal.id) ? unavailableRecord(record) : record;
+    });
     if (settings.popularity_conflict_first && index === 0) {
       const signal = packet.reference_task.popularity_prior.signals[0];
       popularityRecords.push({
@@ -333,7 +337,9 @@ function discoveryResult() {
         evidence_ids: [`${settings.metadata_only ? "metadata" : "source"}-${item.reference_id}`]
       }] : [])],
       popularity: {
-        status: settings.popularity_conflict_first && item === referenceDefinitions[0]
+        status: packet.reference_task.popularity_prior.signals.some((signal) =>
+          missingPopularity(settings, index, signal.id)) ? "unavailable"
+          : settings.popularity_conflict_first && item === referenceDefinitions[0]
           ? "conflicted" : "verified-snapshot",
         signals: packet.reference_task.popularity_prior.signals.map((signal) => {
           const rawValue = settings.metric_specific_popularity &&
@@ -348,7 +354,7 @@ function discoveryResult() {
             (normalization.upper_bound - normalization.lower_bound);
           const normalizedScore = Number(((normalization.direction === "higher-is-better"
             ? ratio : 1 - ratio) * 100).toFixed(6));
-          return {
+          const observed = {
             id: signal.id,
             metric: signal.metric,
             raw_value: rawValue,
@@ -365,8 +371,18 @@ function discoveryResult() {
             normalization,
             evidence_ids: [`metadata-${item.reference_id}`]
           };
+          if (!missingPopularity(settings, index, signal.id)) return observed;
+          const unavailable = unavailableSignal(observed);
+          if (index === 0) {
+            if (settings.unavailable_fault === "zero") unavailable.raw_value = 0;
+            if (settings.unavailable_fault === "score") unavailable.normalized_score = 0;
+            if (settings.unavailable_fault === "reason") unavailable.reason = "Changed after export";
+            if (settings.unavailable_fault === "timestamp") unavailable.checked_at = "2026-09-05T00:00:00.000Z";
+            if (settings.unavailable_fault === "subject") unavailable.subject_record_id = "wrong-subject";
+          }
+          return unavailable;
         }),
-        conflicts: settings.popularity_conflict_first && item === referenceDefinitions[0]
+        conflicts: settings.popularity_conflict_first && item === referenceDefinitions[0] && !settings.omit_conflict_first
           ? [{
               signal_id: packet.reference_task.popularity_prior.signals[0].id,
               subject_kind: packet.reference_task.popularity_prior.signals[0].subject_kind,
@@ -544,7 +560,7 @@ function reviewResult() {
         status: blocked ? "blocked" : "eligible",
         popularity_verified: !blocked &&
           (reference.popularity.status === "verified-snapshot" ||
-            Boolean(settings.verify_conflicted_popularity)),
+            Boolean(settings.verify_conflicted_popularity) || Boolean(settings.verify_unavailable_popularity)),
         product_fit_verified: !blocked,
         source_identity_verified: !blocked,
         sampling_verified: !blocked,

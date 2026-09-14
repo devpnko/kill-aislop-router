@@ -178,6 +178,7 @@
       "type": "object",
       "required": ["role", "primary_sort", "signals", "cannot_affect"],
       "properties": {
+        "unavailable_policy": {"const": "fit-only"},
         "role": {"const": "within-fit-band-ranking-only"},
         "primary_sort": {"const": "product-fit-band"},
         "signals": {

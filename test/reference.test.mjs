@@ -5,6 +5,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawn, spawnSync } from "node:child_process";
 import test from "node:test";
+import { missingPopularity, unavailableRecord } from "./fixtures/unavailable-popularity.mjs";
 import { fileURLToPath } from "node:url";
 import { loadHostManifest } from "../src/execution.mjs";
 import { dryRunDesignExploration } from "../src/design.mjs";
@@ -19,7 +20,8 @@ import {
   resumeReferenceIntelligence,
   startReferenceIntelligence,
   validateReferenceBrief,
-  validateReferencePack
+  validateReferencePack,
+  validateUiBowlManualExport
 } from "../src/reference.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
@@ -129,7 +131,7 @@ function manualExportFor(space, settings = {}) {
             ? 100 - exportReferences[0].popularity
             : exportReferences[0].popularity;
         }
-        return {
+        const record = {
           record_kind: "signal",
           signal_id: signal.id,
           metric: signal.metric,
@@ -146,6 +148,7 @@ function manualExportFor(space, settings = {}) {
           evidence_ids: [signal.subject_kind === "product" && sharedProduct
             ? signalEvidenceId : `metadata-${item.id}`]
         };
+        return missingPopularity(settings, index, signal.id) ? unavailableRecord(record) : record;
       });
       if (settings.popularity_conflict_first && index === 0) {
         const signal = brief.popularity_prior.signals[0];
@@ -534,6 +537,220 @@ function writeSelection(space, state, mutate = null) {
   writeJson(target, selection);
   return target;
 }
+
+for (const mode of ["all", "first", "none"]) test(
+  `fit-only popularity ${mode}: real children, Owner stop, pack and idempotent resume`, () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    const configured = host(space, { discovery: { unavailable_popularity: mode },
+      grammar: { component_recipes: true } });
+    assertPublishedSchema("reference-brief", space.brief);
+    assertPublishedSchema("uibowl-manual-export", JSON.parse(fs.readFileSync(space.exportPath)));
+    let state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "manual_pending", JSON.stringify(state.blockers));
+    assert.equal(state.phase, "owner-reference-selection");
+    assert.equal(state.selection, null);
+    assert.equal(state.attempts.filter((a) => a.execution_status === "ran" && a.child_pid > 0).length, 3);
+    assert.equal(state.packets[0].reference_task.popularity_prior.unavailable_policy, "fit-only");
+    assert.deepEqual(state.ranking.map((r) => r.reference_id),
+      ["marketline-proof", "flowdesk-results", "proofgrid-offers", "megashop-ranking"]);
+    const discovery = state.results.find((r) => r.packet_id === "reference-discovery").normalized;
+    assertPublishedSchema("reference-result", discovery);
+    for (const reference of discovery.references) {
+      const rank = state.ranking.find((r) => r.reference_id === reference.reference_id);
+      if (reference.popularity.status === "unavailable") {
+        assert.equal(rank.popularity_score, null);
+        assert.equal(rank.popularity_verified, false);
+        for (const signal of reference.popularity.signals) {
+          assert.equal(Object.hasOwn(signal, "raw_value"), false);
+          assert.equal(Object.hasOwn(signal, "normalized_score"), false);
+        }
+      }
+    }
+    state = resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest,
+      selectionPath: writeSelection(space, state) });
+    assert.equal(state.status, "complete", JSON.stringify(state.blockers));
+    const pack = JSON.parse(fs.readFileSync(state.outputs.reference_pack.resolved_path));
+    assertPublishedSchema("reference-pack", pack);
+    validateReferencePack(pack);
+    assert.equal(pack.ranking_policy.within_band, "fit-score-descending");
+    assert.equal(pack.ranking_policy.unverified_or_conflicted_popularity, "excluded-from-ranking");
+    assert.equal(pack.downstream_contract.visual_authority_granted, false);
+    assert.equal(pack.downstream_contract.exact_three_3x3_route_unchanged, true);
+    assert.equal(pack.downstream_contract.source_pixels_included, false);
+    const resumed = resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest });
+    assert.equal(resumed.attempts.length, state.attempts.length);
+    // Historical policy cannot be changed even if an attacker re-seals the pack and state.
+    rewritePackAndResealState(space, (p) => {
+      delete p.ranking_policy.unavailable_policy;
+      p.ranking_policy.within_band = "popularity-descending";
+      p.ranking_policy.unverified_or_conflicted_popularity = "rank-last-within-fit-band";
+    });
+    assert.throws(() => readReferenceState(space.statePath), /fit-only|diverge/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("unavailable popularity is opt-in and strict starts fail before any child", () => {
+  const space = workspace();
+  try {
+    const configured = host(space, { discovery: { unavailable_popularity: "all" } });
+    assert.throws(() => startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory }),
+    /requires explicit unavailable_policy/);
+    assert.equal(fs.existsSync(space.statePath), false);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("fit-only dry-run reports the actual policy and preserves legacy report shape", () => {
+  const space = workspace();
+  try {
+    const legacy = dryRunReferenceIntelligence({ briefPath: space.briefPath, root: space.directory });
+    assert.deepEqual(legacy.popularity_policy, { primary: "product-fit-band",
+      within_band: "popularity-descending", can_override_hard_gates: false });
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    refreshManualExport(space, { unavailable_popularity: "all" });
+    const fitOnly = dryRunReferenceIntelligence({ briefPath: space.briefPath, root: space.directory });
+    assert.deepEqual(fitOnly.popularity_policy, { primary: "product-fit-band",
+      within_band: "fit-score-descending", unavailable_policy: "fit-only",
+      unverified_or_conflicted_popularity: "excluded-from-ranking", can_override_hard_gates: false });
+    assert.equal(fs.existsSync(space.statePath), false);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+for (const [name, mutate, expected] of [
+  ["zero", (s) => s.raw_value = 0, /unsupported field/],
+  ["score", (s) => s.normalized_score = 0, /unsupported field/],
+  ["missing reason", (s) => delete s.reason, /reason/],
+  ["missing check time", (s) => delete s.checked_at, /checked_at/],
+  ["fake as-of", (s) => s.as_of = "2026-09-04T01:00:00.000Z", /unsupported field/],
+  ["bad metric", (s) => s.metric = "estimated-popularity", /metric/],
+  ["product count on screen", (s) => s.metric = "mau", /metric/],
+  ["unknown evidence", (s) => s.evidence_ids = ["not-exported"], /subject-bound/],
+  ["subject drift", (s) => s.subject_record_id = "another-screen", /subject conflicts/]
+]) test(`unavailable export rejects ${name}`, () => {
+  const space = workspace();
+  try {
+    const input = manualExportFor(space, { unavailable_popularity: "all" });
+    mutate(input.records[0].popularity_records[0]);
+    assert.throws(() => validateUiBowlManualExport(input), expected);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+for (const fault of ["zero", "score", "reason", "timestamp", "subject"]) test(
+  `unavailable discovery child cannot launder ${fault}`, () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    const configured = host(space, { discovery: { unavailable_popularity: "all", unavailable_fault: fault } });
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.equal(state.results.length, 0);
+    assert.match(JSON.stringify(state.blockers), /unsupported field|absent from its manual export|subject conflicts/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("unavailable popularity cannot be verified by a critic", () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    const configured = host(space, { discovery: { unavailable_popularity: "all" },
+      critic: { verify_unavailable_popularity: true } });
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.match(JSON.stringify(state.blockers), /cannot verify unavailable popularity/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("partial unavailable signals preserve known conflicts without scoring the reference", () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    space.brief.popularity_prior.signals.push({ ...structuredClone(space.brief.popularity_prior.signals[0]),
+      id: "bookmarks", metric: "bookmark-count" });
+    const configured = host(space, { discovery: { unavailable_signal_ids: ["bookmarks"], popularity_conflict_first: true } });
+    let state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.phase, "owner-reference-selection", JSON.stringify(state.blockers));
+    state = resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest,
+      selectionPath: writeSelection(space, state) });
+    assert.equal(state.status, "complete", JSON.stringify(state.blockers));
+    const pack = JSON.parse(fs.readFileSync(state.outputs.reference_pack.resolved_path));
+    assertPublishedSchema("reference-pack", pack);
+    const first = pack.references.find((r) => r.reference_id === "flowdesk-results");
+    assert.equal(first.popularity.conflicts.length, 1);
+    assert.equal(first.popularity.signals[0].raw_value, 96);
+    assert.equal(first.popularity.signals[1].availability, "unavailable");
+    assert.equal(first.popularity.computed_score, null);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("unavailable same-product claims cannot switch between known and missing across screens", () => {
+  for (const mode of ["all", "first"]) {
+    const space = workspace();
+    try {
+      space.brief.popularity_prior.unavailable_policy = "fit-only";
+      space.brief.popularity_prior.signals[0].subject_kind = "product";
+      refreshManualExport(space, { unavailable_popularity: mode,
+        shared_product_first_two: true, identical_shared_product_signal: true });
+      if (mode === "all") assert.doesNotThrow(() => validateReferenceBrief(space.brief, { root: space.directory }));
+      else assert.throws(() => validateReferenceBrief(space.brief, { root: space.directory }), /unavailable claims differ/);
+    } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+  }
+});
+
+test("unavailable child cannot omit a known conflict from the exact export", () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    space.brief.popularity_prior.signals.push({ ...structuredClone(space.brief.popularity_prior.signals[0]),
+      id: "bookmarks", metric: "bookmark-count" });
+    const configured = host(space, { discovery: { unavailable_signal_ids: ["bookmarks"],
+      popularity_conflict_first: true, omit_conflict_first: true } });
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.equal(state.results.length, 0);
+    assert.match(JSON.stringify(state.blockers), /exact manual-export popularity records including conflicts/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+for (const [settings, expected] of [
+  [{ self_review: true }, /cannot review its own/],
+  [{ omit_first_evidence_verification: true }, /leaves source evidence unverified/]
+]) test(`unavailable policy preserves independent evidence gates: ${JSON.stringify(settings)}`, () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    const configured = host(space, { discovery: { unavailable_popularity: "all" }, critic: settings });
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.status, "blocked");
+    assert.match(JSON.stringify(state.blockers), expected);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("fit-only brief mode rejects misspellings and legacy-policy mutation on resume", () => {
+  const space = workspace();
+  try {
+    for (const policy of [null, false, "allow", "zero"]) {
+      space.brief.popularity_prior.unavailable_policy = policy;
+      assert.throws(() => validateReferenceBrief(space.brief, { root: space.directory }), /unavailable_policy/);
+    }
+    delete space.brief.popularity_prior.unavailable_policy;
+    const configured = host(space);
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.phase, "owner-reference-selection");
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    writeJson(space.briefPath, space.brief);
+    assert.throws(() => resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest }),
+      /digest|changed|identity/);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
 
 test("component recipes survive child execution, independent reference review, Owner selection and resume", () => {
   const space = workspace();
