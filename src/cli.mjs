@@ -127,7 +127,7 @@ Start here:
 
 The plugin is the parent workflow; reviewers such as anti-slop are internal children.
 Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
-Guide: https://github.com/devpnko/kill-aislop-router/blob/main/docs/getting-started.md
+Guide: https://github.com/devpnko/kill-aislop-router/blob/feat/usage-onboarding/docs/getting-started.md
 
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
