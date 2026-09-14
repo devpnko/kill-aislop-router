@@ -190,6 +190,45 @@ function popularityPolicyMatches(value, policy) {
     canonicalDigest(value.normalization) === canonicalDigest(policy.normalization);
 }
 
+const UNAVAILABLE_POPULARITY_FIELDS = [
+  "availability", "id", "metric", "subject_kind", "subject_record_id", "scope",
+  "category", "normalization", "checked_at", "reason", "evidence_ids"
+];
+
+function fitOnlyPopularity(policy) {
+  return policy?.unavailable_policy === "fit-only";
+}
+
+function isUnavailablePopularity(signal) {
+  return signal?.availability === "unavailable";
+}
+
+function unavailablePopularityRecord(signal) {
+  const { availability, id, ...record } = signal;
+  return { record_kind: availability, signal_id: id, ...record };
+}
+
+function unavailablePopularitySignal(record) {
+  const { record_kind, signal_id, ...signal } = record;
+  return { availability: record_kind, id: signal_id, ...signal };
+}
+
+function validateUnavailablePopularity(signal, label) {
+  exact(signal, new Set(UNAVAILABLE_POPULARITY_FIELDS), label);
+  requireValue(isUnavailablePopularity(signal), `${label}.availability must be unavailable`, 4);
+  safeId(signal.id, `${label}.id`);
+  requireValue(["mau", "bookmark-count", "popular-rank", "curation-popularity"].includes(signal.metric) &&
+    ["product", "screen"].includes(signal.subject_kind) &&
+    (signal.metric !== "mau" || signal.subject_kind === "product"),
+  `${label} metric or subject is invalid`, 4);
+  for (const field of ["subject_record_id", "scope", "category", "reason"]) {
+    string(signal[field], `${label}.${field}`);
+  }
+  timestamp(signal.checked_at, `${label}.checked_at`);
+  validatePopularityNormalization(signal.normalization, signal.metric, `${label}.normalization`, 4);
+  uniqueStrings(signal.evidence_ids, `${label}.evidence_ids`);
+}
+
 function normalizedPopularityScore(signal) {
   const { lower_bound: lower, upper_bound: upper, direction } = signal.normalization;
   const bounded = Math.min(upper, Math.max(lower, signal.raw_value));
@@ -203,6 +242,7 @@ function weightedPopularityScore(signals, policySignals) {
   let numerator = 0;
   let denominator = 0;
   for (const signal of signals) {
+    if (isUnavailablePopularity(signal)) return null;
     const configured = weights.get(signal.id);
     if (!configured || !popularityPolicyMatches(signal, configured)) return null;
     numerator += normalizedPopularityScore(signal) * configured.weight;
@@ -645,7 +685,7 @@ export function validateReferencePack(input) {
     exact(reference.popularity, new Set([
       "status", "signals", "conflicts", "verified", "computed_score"
     ]), `${label}.popularity`);
-    requireValue(["verified-snapshot", "conflicted"].includes(reference.popularity.status),
+    requireValue(["verified-snapshot", "conflicted", "unavailable"].includes(reference.popularity.status),
       `${label}.popularity.status is invalid`, 4);
     requireValue(typeof reference.popularity.verified === "boolean",
       `${label}.popularity.verified must be boolean`, 4);
@@ -654,6 +694,17 @@ export function validateReferencePack(input) {
     `${label}.popularity.signals must be non-empty`, 4);
     const signalIds = new Set();
     for (const signal of reference.popularity.signals) {
+      if (isUnavailablePopularity(signal)) {
+        requireValue(fitOnlyPopularity(input.ranking_policy),
+          `${label} unavailable popularity requires explicit fit-only policy`, 4);
+        validateUnavailablePopularity(signal, `${label}.popularity unavailable signal`);
+        requireValue(!signalIds.has(signal.id), `${label}.popularity repeats signal ${signal.id}`, 4);
+        signalIds.add(signal.id);
+        requireValue(signal.subject_record_id === (signal.subject_kind === "product"
+          ? reference.source.product_record_id : reference.source.screen_record_id),
+        `${label}.popularity signal subject conflicts with its source`, 4);
+        continue;
+      }
       exact(signal, new Set([
         "id", "metric", "raw_value", "normalized_score", "scope", "category",
         "as_of", "subject_kind", "subject_record_id", "snapshot_at", "normalization",
@@ -704,6 +755,9 @@ export function validateReferencePack(input) {
       ]), `${label}.popularity conflict`);
       requireValue(signalIds.has(conflict.signal_id),
         `${label}.popularity conflict cites an unknown signal`, 4);
+      requireValue(!reference.popularity.signals.some((signal) =>
+        signal.id === conflict.signal_id && isUnavailablePopularity(signal)),
+      `${label}.popularity cannot declare the same signal unavailable and conflicted`, 4);
       requireValue(["product", "screen"].includes(conflict.subject_kind) &&
         conflict.subject_record_id === (conflict.subject_kind === "product"
           ? reference.source.product_record_id : reference.source.screen_record_id),
@@ -714,7 +768,13 @@ export function validateReferencePack(input) {
       string(conflict.note, `${label}.popularity conflict.note`);
       uniqueStrings(conflict.evidence_ids, `${label}.popularity conflict.evidence_ids`);
     }
-    if (reference.popularity.status === "conflicted") {
+    const hasUnavailable = reference.popularity.signals.some(isUnavailablePopularity);
+    requireValue(hasUnavailable === (reference.popularity.status === "unavailable"),
+      `${label} unavailable popularity status does not match its signals`, 4);
+    if (hasUnavailable) {
+      requireValue(reference.popularity.verified === false && reference.popularity.computed_score === null,
+        `${label} unavailable popularity must remain unverified and unscored`, 4);
+    } else if (reference.popularity.status === "conflicted") {
       requireValue(reference.popularity.conflicts.length > 0 &&
         reference.popularity.verified === false &&
         reference.popularity.computed_score === null,
@@ -987,11 +1047,15 @@ export function validateReferencePack(input) {
 
   exact(input.ranking_policy, new Set([
     "primary", "within_band", "unverified_or_conflicted_popularity",
-    "popularity_cannot_affect", "signals"
+    "popularity_cannot_affect", "signals", "unavailable_policy"
   ]), "reference intelligence pack ranking_policy");
+  requireValue(!Object.hasOwn(input.ranking_policy, "unavailable_policy") ||
+    fitOnlyPopularity(input.ranking_policy), "reference pack unavailable_policy is invalid", 4);
   requireValue(input.ranking_policy.primary === "product-fit-band" &&
-    input.ranking_policy.within_band === "popularity-descending" &&
-    input.ranking_policy.unverified_or_conflicted_popularity === "rank-last-within-fit-band" &&
+    input.ranking_policy.within_band === (fitOnlyPopularity(input.ranking_policy)
+      ? "fit-score-descending" : "popularity-descending") &&
+    input.ranking_policy.unverified_or_conflicted_popularity === (fitOnlyPopularity(input.ranking_policy)
+      ? "excluded-from-ranking" : "rank-last-within-fit-band") &&
     sameStringSet(input.ranking_policy.popularity_cannot_affect,
       ["eligibility", "hard-gates", "owner-approval"]),
   "reference intelligence pack weakens popularity isolation", 4);
@@ -1024,11 +1088,16 @@ export function validateReferencePack(input) {
     rankingSignalIds.add(signal.id);
   }
   for (const reference of input.references) {
+    requireValue(reference.popularity.signals.length === input.ranking_policy.signals.length &&
+      reference.popularity.signals.every((signal) => input.ranking_policy.signals.some((policy) =>
+        popularityPolicyMatches(signal, policy))),
+    `reference intelligence pack ${reference.reference_id} popularity policy mismatch`, 4);
     const recomputed = weightedPopularityScore(
       reference.popularity.signals,
       input.ranking_policy.signals
     );
-    requireValue(recomputed !== null &&
+    requireValue((recomputed !== null || (fitOnlyPopularity(input.ranking_policy) &&
+      reference.popularity.signals.some(isUnavailablePopularity))) &&
       (reference.popularity.verified
         ? reference.popularity.computed_score === recomputed
         : reference.popularity.computed_score === null),
@@ -1186,6 +1255,10 @@ function reasoningTaskContract(state) {
 }
 
 function manualPopularityRecordKey(record) {
+  if (record.record_kind === "unavailable") {
+    validateUnavailablePopularity(unavailablePopularitySignal(record), "unavailable popularity record");
+    return canonicalDigest({ ...record, evidence_ids: [...record.evidence_ids].sort() });
+  }
   if (record.record_kind === "conflict") {
     return canonicalDigest({
       record_kind: record.record_kind,
@@ -1242,6 +1315,10 @@ function manualPopularityProductEvidence(record, evidenceById) {
 }
 
 function manualPopularitySignalClaim(record, evidenceById) {
+  if (record.record_kind === "unavailable") {
+    const { evidence_ids: _ids, ...claim } = record;
+    return { ...claim, product_subject_evidence: manualPopularityProductEvidence(record, evidenceById) };
+  }
   return {
     signal_id: record.signal_id,
     metric: record.metric,
@@ -1368,9 +1445,13 @@ export function validateUiBowlManualExport(input, label = "UI Bowl manual export
     const popularityRecords = new Set();
     for (const [popularityIndex, popularity] of record.popularity_records.entries()) {
       const popularityLabel = `${recordLabel}.popularity_records[${popularityIndex}]`;
-      requireValue(["signal", "conflict"].includes(popularity.record_kind),
+      requireValue(["signal", "conflict", "unavailable"].includes(popularity.record_kind),
         `${popularityLabel}.record_kind is invalid`, 4);
-      const fields = popularity.record_kind === "signal"
+      const unavailable = popularity.record_kind === "unavailable";
+      const fields = unavailable
+        ? ["record_kind", "signal_id", ...UNAVAILABLE_POPULARITY_FIELDS.filter((field) =>
+            !["availability", "id"].includes(field))]
+        : popularity.record_kind === "signal"
         ? [
             "record_kind", "signal_id", "metric", "subject_kind", "subject_record_id",
             "raw_value", "scope", "category", "as_of", "snapshot_at", "normalization",
@@ -1388,10 +1469,14 @@ export function validateUiBowlManualExport(input, label = "UI Bowl manual export
         (popularity.subject_kind === "product"
           ? record.product_record_id : record.screen_record_id),
       `${popularityLabel} subject conflicts with its export record`, 4);
-      requireValue(typeof popularity.raw_value === "number" &&
-        Number.isFinite(popularity.raw_value),
-      `${popularityLabel}.raw_value must be finite`, 4);
-      timestamp(popularity.as_of, `${popularityLabel}.as_of`);
+      if (unavailable) {
+        validateUnavailablePopularity(unavailablePopularitySignal(popularity), popularityLabel);
+      } else {
+        requireValue(typeof popularity.raw_value === "number" &&
+          Number.isFinite(popularity.raw_value),
+        `${popularityLabel}.raw_value must be finite`, 4);
+        timestamp(popularity.as_of, `${popularityLabel}.as_of`);
+      }
       uniqueStrings(popularity.evidence_ids, `${popularityLabel}.evidence_ids`);
       requireValue(popularity.evidence_ids.every((id) => evidenceIds.has(id) &&
         evidenceSubjects.get(id).has(
@@ -1461,7 +1546,9 @@ function buildManualExportIndex(brief, loadedExports) {
         const configured = configuredSignals.get(popularity.signal_id);
         requireValue(configured && configured.subject_kind === popularity.subject_kind,
           `${label} record ${record.screen_record_id} has an unconfigured popularity subject`, 4);
-        if (popularity.record_kind === "signal") {
+        if (["signal", "unavailable"].includes(popularity.record_kind)) {
+          requireValue(popularity.record_kind !== "unavailable" || fitOnlyPopularity(brief.popularity_prior),
+            `${label} unavailable popularity requires explicit unavailable_policy: fit-only`, 4);
           requireValue(popularityPolicyMatches({
             id: popularity.signal_id,
             ...popularity
@@ -1502,6 +1589,11 @@ function buildManualExportIndex(brief, loadedExports) {
     "UI Bowl manual exports do not cover the exact bounded query set", 4);
   for (const [subjectKey, entries] of productSignalClaims) {
     if (entries.length < 2) continue;
+    if (entries.some((entry) => entry.claim.record_kind === "unavailable")) {
+      requireValue(new Set(entries.map((entry) => canonicalDigest(entry.claim))).size === 1,
+        `UI Bowl product popularity ${subjectKey} unavailable claims differ across screens`, 4);
+      continue;
+    }
     const snapshotClaims = new Set(entries.map((entry) => entry.claim.snapshot_at));
     requireValue(snapshotClaims.size === 1,
       `UI Bowl product popularity ${subjectKey} snapshot_at differs across screens`, 4);
@@ -2046,8 +2138,11 @@ export function validateReferenceBrief(input, { root = process.cwd(), verifyEvid
     "promotional captures must remain weak evidence only");
 
   exact(input.popularity_prior, new Set([
-    "role", "primary_sort", "signals", "cannot_affect"
+    "role", "primary_sort", "signals", "cannot_affect", "unavailable_policy"
   ]), "reference brief popularity_prior");
+  requireValue(!Object.hasOwn(input.popularity_prior, "unavailable_policy") ||
+    fitOnlyPopularity(input.popularity_prior),
+  "reference brief unavailable_policy must be fit-only when present");
   requireValue(input.popularity_prior.role === "within-fit-band-ranking-only",
     "popularity may rank only within an equal product-fit band");
   requireValue(input.popularity_prior.primary_sort === "product-fit-band",
@@ -2874,14 +2969,14 @@ function validateDiscovery(state, result, evidenceIds) {
     }
     exact(reference.popularity, new Set(["status", "signals", "conflicts"]),
       `reference ${reference.reference_id}.popularity`);
-    requireValue(["verified-snapshot", "conflicted"].includes(reference.popularity.status),
+    requireValue(["verified-snapshot", "conflicted", "unavailable"].includes(reference.popularity.status),
       `reference ${reference.reference_id} popularity status is invalid`, 4);
     requireValue(Array.isArray(reference.popularity.conflicts),
       `reference ${reference.reference_id} popularity conflicts must be an array`, 4);
     if (reference.popularity.status === "verified-snapshot") {
       requireValue(reference.popularity.conflicts.length === 0,
         `reference ${reference.reference_id} verified popularity cannot retain conflicts`, 4);
-    } else {
+    } else if (reference.popularity.status === "conflicted") {
       requireValue(reference.popularity.conflicts.length > 0,
         `reference ${reference.reference_id} conflicted popularity requires conflict evidence`, 4);
     }
@@ -2890,8 +2985,10 @@ function validateDiscovery(state, result, evidenceIds) {
     `reference ${reference.reference_id} must report every configured popularity signal`, 4);
     const expectedSignals = new Map(state.brief.popularity_prior.signals.map((item) => [item.id, item]));
     const seenSignals = new Set();
+    const submittedPopularityKeys = new Set();
     for (const signal of reference.popularity.signals) {
-      exact(signal, new Set([
+      const unavailable = isUnavailablePopularity(signal);
+      exact(signal, new Set(unavailable ? UNAVAILABLE_POPULARITY_FIELDS : [
         "id", "metric", "raw_value", "normalized_score", "scope", "category", "as_of",
         "subject_kind", "subject_record_id", "snapshot_at", "normalization", "evidence_ids"
       ]), `reference ${reference.reference_id} popularity signal`);
@@ -2904,23 +3001,29 @@ function validateDiscovery(state, result, evidenceIds) {
       requireValue(!seenSignals.has(signal.id),
         `reference ${reference.reference_id} repeats popularity signal: ${signal.id}`, 4);
       seenSignals.add(signal.id);
-      requireValue(typeof signal.raw_value === "number" && Number.isFinite(signal.raw_value),
-        `reference ${reference.reference_id} popularity raw_value must be numeric`, 4);
-      requireValue(typeof signal.normalized_score === "number" &&
-        signal.normalized_score >= 0 && signal.normalized_score <= 100,
-      `reference ${reference.reference_id} popularity normalized_score must be 0-100`, 4);
-      validatePopularityNormalization(signal.normalization, signal.metric,
-        `reference ${reference.reference_id} popularity normalization`, 4);
-      requireValue(signal.normalized_score === normalizedPopularityScore(signal),
-      `reference ${reference.reference_id} popularity normalized_score is not router-reproducible`, 4);
-      string(signal.scope, `reference ${reference.reference_id} popularity.scope`);
-      string(signal.category, `reference ${reference.reference_id} popularity.category`);
-      timestamp(signal.as_of, `reference ${reference.reference_id} popularity.as_of`);
+      if (unavailable) {
+        requireValue(fitOnlyPopularity(state.brief.popularity_prior),
+          `reference ${reference.reference_id} unavailable popularity requires explicit fit-only policy`, 4);
+        validateUnavailablePopularity(signal, `reference ${reference.reference_id} unavailable signal`);
+      } else {
+        requireValue(typeof signal.raw_value === "number" && Number.isFinite(signal.raw_value),
+          `reference ${reference.reference_id} popularity raw_value must be numeric`, 4);
+        requireValue(typeof signal.normalized_score === "number" &&
+          signal.normalized_score >= 0 && signal.normalized_score <= 100,
+        `reference ${reference.reference_id} popularity normalized_score must be 0-100`, 4);
+        validatePopularityNormalization(signal.normalization, signal.metric,
+          `reference ${reference.reference_id} popularity normalization`, 4);
+        requireValue(signal.normalized_score === normalizedPopularityScore(signal),
+        `reference ${reference.reference_id} popularity normalized_score is not router-reproducible`, 4);
+        string(signal.scope, `reference ${reference.reference_id} popularity.scope`);
+        string(signal.category, `reference ${reference.reference_id} popularity.category`);
+        timestamp(signal.as_of, `reference ${reference.reference_id} popularity.as_of`);
+        timestamp(signal.snapshot_at,
+          `reference ${reference.reference_id} popularity.snapshot_at`);
+      }
       requireValue(signal.subject_record_id === (signal.subject_kind === "product"
         ? reference.source.product_record_id : reference.source.screen_record_id),
       `reference ${reference.reference_id} popularity subject conflicts with its source`, 4);
-      timestamp(signal.snapshot_at,
-        `reference ${reference.reference_id} popularity.snapshot_at`);
       uniqueStrings(signal.evidence_ids,
         `reference ${reference.reference_id} popularity.evidence_ids`);
       requireValue(signal.evidence_ids.every((id) => evidenceIds.has(id)),
@@ -2935,7 +3038,7 @@ function validateDiscovery(state, result, evidenceIds) {
         )),
       `reference ${reference.reference_id} popularity lacks record-bound source evidence`, 4);
       if (manualExportIndex) {
-        const manualKey = manualPopularityRecordKey({
+        const manualKey = manualPopularityRecordKey(unavailable ? unavailablePopularityRecord(signal) : {
           record_kind: "signal",
           signal_id: signal.id,
           metric: signal.metric,
@@ -2952,9 +3055,13 @@ function validateDiscovery(state, result, evidenceIds) {
         requireValue(manualRecords.get(reference.reference_id)
           .popularity_record_keys.has(manualKey),
         `reference ${reference.reference_id} popularity signal ${signal.id} is absent from its manual export`, 4);
+        submittedPopularityKeys.add(manualKey);
       }
       signal.evidence_ids.forEach((id) => usedEvidenceIds.add(id));
     }
+    requireValue(reference.popularity.signals.some(isUnavailablePopularity) ===
+      (reference.popularity.status === "unavailable"),
+    `reference ${reference.reference_id} unavailable popularity status does not match its signals`, 4);
     for (const [conflictIndex, conflict] of reference.popularity.conflicts.entries()) {
       exact(conflict, new Set([
         "signal_id", "subject_kind", "subject_record_id", "raw_value", "as_of", "note",
@@ -2962,6 +3069,9 @@ function validateDiscovery(state, result, evidenceIds) {
       ]), `reference ${reference.reference_id} popularity conflict[${conflictIndex}]`);
       requireValue(expectedSignals.has(conflict.signal_id),
         `reference ${reference.reference_id} popularity conflict cites an unknown signal`, 4);
+      requireValue(!reference.popularity.signals.some((signal) =>
+        signal.id === conflict.signal_id && isUnavailablePopularity(signal)),
+      `reference ${reference.reference_id} cannot declare the same signal unavailable and conflicted`, 4);
       const expectedConflictSignal = expectedSignals.get(conflict.signal_id);
       requireValue(conflict.subject_kind === expectedConflictSignal.subject_kind &&
         conflict.subject_record_id === (conflict.subject_kind === "product"
@@ -2998,8 +3108,16 @@ function validateDiscovery(state, result, evidenceIds) {
         requireValue(manualRecords.get(reference.reference_id)
           .popularity_record_keys.has(manualKey),
         `reference ${reference.reference_id} popularity conflict ${conflict.signal_id} is absent from its manual export`, 4);
+        requireValue(!submittedPopularityKeys.has(manualKey),
+          `reference ${reference.reference_id} repeats a popularity conflict`, 4);
+        submittedPopularityKeys.add(manualKey);
       }
       conflict.evidence_ids.forEach((id) => usedEvidenceIds.add(id));
+    }
+    if (manualExportIndex) {
+      requireValue(sameStringSet([...submittedPopularityKeys],
+        [...manualRecords.get(reference.reference_id).popularity_record_keys]),
+      `reference ${reference.reference_id} must preserve the exact manual-export popularity records including conflicts`, 4);
     }
     exact(reference.rights, new Set(["status", "redistribution", "creator_pixel_access"]),
       `reference ${reference.reference_id}.rights`);
@@ -3273,7 +3391,7 @@ function validateReview(state, result, discovery, grammar) {
     requireValue(discoveredReference.observed
       .filter((item) => verifiedObserved.has(item.observation_id))
       .every((item) => item.evidence_ids.every((id) => verifiedEvidence.has(id))) &&
-      (!disposition.popularity_verified || (
+      ((!disposition.popularity_verified && discoveredReference.popularity.status !== "unavailable") || (
         discoveredReference.popularity.signals.every((item) =>
           item.evidence_ids.every((id) => verifiedEvidence.has(id))) &&
         discoveredReference.popularity.conflicts.every((item) =>
@@ -3297,9 +3415,9 @@ function validateReview(state, result, discovery, grammar) {
     requireValue(verifiedGrammar.every((item) =>
       item.observed_ids.every((id) => verifiedObserved.has(id))),
     `reference review ${disposition.reference_id} verifies grammar without its observations`, 4);
-    if (discoveredReference.popularity.status === "conflicted") {
+    if (["conflicted", "unavailable"].includes(discoveredReference.popularity.status)) {
       requireValue(disposition.popularity_verified === false,
-        `reference review ${disposition.reference_id} cannot verify conflicted popularity`, 4);
+        `reference review ${disposition.reference_id} cannot verify ${discoveredReference.popularity.status} popularity`, 4);
     }
     if (discoveredReference.screen_role === "promotional" ||
       discoveredReference.evidence_strength === "weak") {
@@ -4166,8 +4284,9 @@ function coverageAndRanking(state) {
     };
   }).sort((left, right) =>
     FIT_BAND_WEIGHT[right.product_fit_band] - FIT_BAND_WEIGHT[left.product_fit_band] ||
-    Number(right.popularity_verified) - Number(left.popularity_verified) ||
-    (right.popularity_score ?? -1) - (left.popularity_score ?? -1) ||
+    (fitOnlyPopularity(state.brief.popularity_prior) ? 0 :
+      Number(right.popularity_verified) - Number(left.popularity_verified) ||
+      (right.popularity_score ?? -1) - (left.popularity_score ?? -1)) ||
     right.product_fit_score - left.product_fit_score ||
     left.reference_id.localeCompare(right.reference_id));
   return { eligible, ranking, blockers };
@@ -4509,8 +4628,11 @@ function buildExpectedReferencePack(state, compiledAt) {
     verified_grammar: verifiedGrammar,
     ranking_policy: {
       primary: "product-fit-band",
-      within_band: "popularity-descending",
-      unverified_or_conflicted_popularity: "rank-last-within-fit-band",
+      within_band: fitOnlyPopularity(state.brief.popularity_prior)
+        ? "fit-score-descending" : "popularity-descending",
+      unverified_or_conflicted_popularity: fitOnlyPopularity(state.brief.popularity_prior)
+        ? "excluded-from-ranking" : "rank-last-within-fit-band",
+      ...(fitOnlyPopularity(state.brief.popularity_prior) ? { unavailable_policy: "fit-only" } : {}),
       popularity_cannot_affect: ["eligibility", "hard-gates", "owner-approval"],
       signals: structuredClone(state.brief.popularity_prior.signals)
     },
@@ -5019,7 +5141,10 @@ export function dryRunReferenceIntelligence({
     },
     popularity_policy: {
       primary: "product-fit-band",
-      within_band: "popularity-descending",
+      within_band: fitOnlyPopularity(brief.popularity_prior) ? "fit-score-descending" : "popularity-descending",
+      ...(fitOnlyPopularity(brief.popularity_prior) ? {
+        unavailable_policy: "fit-only", unverified_or_conflicted_popularity: "excluded-from-ranking"
+      } : {}),
       can_override_hard_gates: false
     },
     readiness,

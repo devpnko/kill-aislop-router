@@ -11,6 +11,13 @@ detector. Browser success and zero scanner hits are not aesthetic approval.
 
 ## Collect concrete craft
 
+A source is provenance, not the name of the target theme. A checked row with
+a name and purpose can inform one choice component without adopting the source's
+menu placement, palette, typography or whole product composition. Choose list,
+segmented control, grid or table according to the actual task and cardinality;
+do not make a previously useful component a universal preset. See
+[fit-first reference selection](reference-fit-first.md).
+
 Attach `component_recipe` to a grammar principle. See the
 [schema](../schemas/component-recipe.schema.json) and
 [table example](../examples/component-recipe.example.json) and

@@ -76,11 +76,19 @@ override the verified visual intent and signature.
    provider invent or widen any of those fields, signal scope, category, or
    normalization.
 
-   Rank popularity strongly only within an equal product-fit band, never across
+   By default, rank popularity strongly only within an equal product-fit band, never across
    fit bands or over hard gates. Recompute every signal and weighted score, rank
    conflicted popularity last without making an otherwise sound reference
    ineligible, and require repeated product-level claims across screens to be
-   canonically identical or explicitly conflicted. Permit Owner selection only
+   canonically identical or explicitly conflicted. If a new brief explicitly opts into
+   `popularity_prior.unavailable_policy: fit-only`, follow
+   `<plugin-root>/docs/reference-fit-first.md`: require evidence-bound
+   unavailable records instead of guessed counts, rank by fit without popularity,
+   and keep numeric verification false for missing signals. Never retrofit the
+   policy into an active run. A component reference is not a product theme:
+   describe the transferable part and its task fit, not “Gemini mode” or another
+   source-brand preset. Keep project visual authority and Owner selection separate.
+   Permit Owner selection only
    for independently verified `copy_risk: low` references. Require multi-frame
    task evidence, screen-role
    and evidence-strength labels, product/category/ecosystem/cohort diversity,

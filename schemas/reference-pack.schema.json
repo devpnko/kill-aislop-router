@@ -70,8 +70,9 @@
       ],
       "properties": {
         "primary": {"const": "product-fit-band"},
-        "within_band": {"const": "popularity-descending"},
-        "unverified_or_conflicted_popularity": {"const": "rank-last-within-fit-band"},
+        "within_band": {"enum": ["popularity-descending", "fit-score-descending"]},
+        "unverified_or_conflicted_popularity": {"enum": ["rank-last-within-fit-band", "excluded-from-ranking"]},
+        "unavailable_policy": {"const": "fit-only"},
         "popularity_cannot_affect": {
           "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true,
           "items": {"enum": ["eligibility", "hard-gates", "owner-approval"]}
@@ -81,6 +82,17 @@
           "items": {"$ref": "#/$defs/ranking_signal"}
         }
       },
+      "allOf": [{
+        "if": {"required": ["unavailable_policy"]},
+        "then": {"properties": {
+          "within_band": {"const": "fit-score-descending"},
+          "unverified_or_conflicted_popularity": {"const": "excluded-from-ranking"}
+        }},
+        "else": {"properties": {
+          "within_band": {"const": "popularity-descending"},
+          "unverified_or_conflicted_popularity": {"const": "rank-last-within-fit-band"}
+        }}
+      }],
       "additionalProperties": false
     },
     "downstream_contract": {
@@ -466,10 +478,13 @@
           "type": "object",
           "required": ["status", "signals", "conflicts", "verified", "computed_score"],
           "properties": {
-            "status": {"enum": ["verified-snapshot", "conflicted"]},
+            "status": {"enum": ["verified-snapshot", "conflicted", "unavailable"]},
             "signals": {
               "type": "array", "minItems": 1, "uniqueItems": true,
-              "items": {"$ref": "#/$defs/popularity_signal"}
+              "items": {"oneOf": [
+                {"$ref": "#/$defs/popularity_signal"},
+                {"$ref": "reference-popularity-unavailable.schema.json#/$defs/signal"}
+              ]}
             },
             "conflicts": {
               "type": "array", "uniqueItems": true,

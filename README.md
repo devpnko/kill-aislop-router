@@ -42,6 +42,11 @@ not publish an npm package or create a GitHub Release.
 - Binds runtime redesign to a finalized pre-change audit executed by the official Playwright child adapter.
 - Resolves missing direction through a resumable 3-thesis × 3-depth exploration, owner shortlist, 3-strategy color matrix, and exact owner-approved receipts.
 
+Reference-backed design can opt into [fit-first reference selection](docs/reference-fit-first.md)
+when popularity counts are unavailable. Missing numbers stay explicitly unknown;
+they are never fabricated as zero. A referenced component does not select a
+source-brand theme or replace project visual authority.
+
 ## Requirements
 
 - Node.js 20 or 22

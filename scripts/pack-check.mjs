@@ -79,6 +79,7 @@ try {
     "schemas/reference-lease-recovery.schema.json",
     "schemas/reference-owner-selection.schema.json",
     "schemas/reference-pack.schema.json",
+    "schemas/reference-popularity-unavailable.schema.json",
     "schemas/component-recipe.schema.json",
     "schemas/component-specs.schema.json",
     "src/component-recipes.mjs",
@@ -101,6 +102,7 @@ try {
     "docs/design-exploration.md",
     "docs/design-journey-work.md",
     "docs/reference-intelligence.md",
+    "docs/reference-fit-first.md",
     "docs/component-recipes.md",
     "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
     "docs/reviews/fable-5.1-reference-intelligence.md",
@@ -123,6 +125,7 @@ try {
     "examples/design-brief.example.json",
     "examples/design-playwright-scenarios.example.json",
     "examples/reference-brief.example.json",
+    "examples/reference-brief.fit-only.example.json",
     "examples/component-recipe.example.json",
     "examples/component-card-recipe.example.json",
     "examples/reference-evidence/flowdesk-source-metadata.json",
@@ -238,7 +241,20 @@ const referencePacketSchema = JSON.parse(fs.readFileSync(path.join(root, "schema
 const referenceDispatchSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "reference-dispatch-request.schema.json"), "utf8"));
 const sourceCompositionSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-source-composition-analysis.schema.json"), "utf8"));
 reference.validateReferenceBrief(brief, { root });
+const fitBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-brief.fit-only.example.json"), "utf8"));
+reference.validateReferenceBrief(fitBrief, { root });
+assert.equal(fitBrief.popularity_prior.unavailable_policy, "fit-only");
 reference.validateUiBowlManualExport(manualExport);
+// Shape-only synthetic unavailable records; no real source file is rewritten.
+const unavailableExport = structuredClone(manualExport);
+for (const record of unavailableExport.records) {
+  record.popularity_records = record.popularity_records.map((item) => {
+    const { raw_value, as_of, snapshot_at, ...rest } = item;
+    return { ...rest, record_kind: "unavailable", checked_at: "2026-09-04T01:00:00.000Z",
+      reason: "Synthetic package fixture: no count was observed." };
+  });
+}
+reference.validateUiBowlManualExport(unavailableExport);
 reference.validateHumanDesignReasoningRegistry(registry);
 assert.ok(manualExport.records.flatMap((record) => record.evidence_records).every((evidence) => evidence.kind === "source-metadata"));
 assert.equal(sourceCompositionSchema.properties.design_source_composition_analysis_version.const, 1);
@@ -339,6 +355,13 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   assert.equal(referenceDryReport.reasoning_registry.design_check_count, 11);
   assert.ok(referenceDryReport.readiness.every((item) =>
     item.execution_status === "manual_pending"));
+  const fitDryRun = run(process.execPath, [installedCli, "reference", "run",
+    "--brief", path.join(installedRoot, "examples", "reference-brief.fit-only.example.json"),
+    "--root", installedRoot, "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(fitDryRun.status, 6, fitDryRun.stderr || fitDryRun.stdout);
+  assert.equal(JSON.parse(fitDryRun.stdout).status, "manual_pending");
+  assert.equal(JSON.parse(fitDryRun.stdout).popularity_policy.within_band, "fit-score-descending");
+  assert.equal(JSON.parse(fitDryRun.stdout).popularity_policy.unavailable_policy, "fit-only");
 
   const dryRun = run(process.execPath, [
     installedCli,

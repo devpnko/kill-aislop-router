@@ -241,10 +241,13 @@
           "type": "object",
           "required": ["status", "signals", "conflicts"],
           "properties": {
-            "status": {"enum": ["verified-snapshot", "conflicted"]},
+            "status": {"enum": ["verified-snapshot", "conflicted", "unavailable"]},
             "signals": {
               "type": "array", "minItems": 1,
-              "items": {"$ref": "#/$defs/popularity_signal"}
+              "items": {"oneOf": [
+                {"$ref": "#/$defs/popularity_signal"},
+                {"$ref": "reference-popularity-unavailable.schema.json#/$defs/signal"}
+              ]}
             },
             "conflicts": {
               "type": "array",

@@ -24,6 +24,11 @@ the default exact-three route.
 
 ## Why popularity is useful but subordinate
 
+When the source does not expose a usable count, use the opt-in
+[fit-first / unavailable contract](reference-fit-first.md) in a new brief.
+Do not invent a count to satisfy the legacy numeric-only policy below. The
+default policy is unchanged; the opt-in policy excludes popularity from ranking.
+
 Popularity is a strong prior among references that solve the same kind of
 problem. It is not a universal design score. A high-MAU shopping home page is
 not better evidence for a dense evidence-review console than a lower-traffic
