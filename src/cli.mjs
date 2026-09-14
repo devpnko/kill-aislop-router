@@ -358,7 +358,7 @@ function pluginCommand(args) {
     if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     else process.stdout.write([
       "KillSlopRouter account version sync",
-      `mode: ${result.mode === "shared" ? "shared (ON)" : "per-account manual updates (OFF)"}`,
+      `mode: ${result.mode === "shared" ? "shared (ON)" : "per-account (KSR auto-sync OFF)"}`,
       `status: ${result.status}${result.dry_run ? " (preview)" : ""}`,
       `version: ${result.target?.version || "unavailable"}`,
       ...result.accounts.map((account) => `${account.account_home}: ${account.status}${account.error ? ` — ${account.error}` : ""}`),

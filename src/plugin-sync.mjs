@@ -144,11 +144,35 @@ function targetPlugin(home) {
   };
 }
 
-function verifyCache(account, entry, target) {
+function accountStorage(account, enrolled) {
+  const plugins = path.join(account, "plugins");
+  const stat = fs.lstatSync(plugins, { throwIfNoEntry: false });
+  if (!stat?.isSymbolicLink()) return { root: secureWritablePath(plugins, "account plugins"), shared_with: null };
+  const link = fs.readlinkSync(plugins);
+  const destination = trustedPlatformPath(path.resolve(path.dirname(plugins), link));
+  const owner = enrolled.find((candidate) => candidate !== account && path.join(candidate, "plugins") === destination);
+  if (!owner) throw new Error("shared plugin folder must point directly to another enrolled account's real plugins directory");
+  if (process.getuid && stat.uid !== process.getuid()) throw new Error("shared plugin folder link must belong to the current user");
+  return {
+    root: secureExistingDirectory(destination, "enrolled shared plugin folder"), shared_with: owner,
+    link_path: plugins, link_value: link, link_device: stat.dev, link_inode: stat.ino
+  };
+}
+
+function verifyStorage(storage, target) {
+  if (storage.link_path) {
+    const stat = fs.lstatSync(storage.link_path);
+    if (!stat.isSymbolicLink() || stat.dev !== storage.link_device || stat.ino !== storage.link_inode ||
+        fs.readlinkSync(storage.link_path) !== storage.link_value) throw new Error("shared plugin folder link changed during synchronization");
+  }
+  return secureWritablePath(path.join(storage.root, "cache", target.marketplace, "killsloprouter", target.version), "account plugin cache");
+}
+
+function verifyCache(storage, entry, target) {
   if (entry.source?.source !== "local" || typeof entry.source.path !== "string" ||
       secureExistingDirectory(entry.source.path, "account plugin source") !== target.source) throw new Error("account plugin points at a different source");
   if (entry.version !== target.version) return false;
-  const cache = path.join(account, "plugins", "cache", target.marketplace, "killsloprouter", target.version);
+  const cache = verifyStorage(storage, target);
   secureExistingDirectory(cache, "account plugin cache");
   const marker = createPluginInstallMarker({ root: cache, version: target.package_version });
   if (["marker_digest", "payload_digest", "runtime_digest", "canonical_skill_digest"].some((key) => marker[key] !== target[key])) {
@@ -157,8 +181,21 @@ function verifyCache(account, entry, target) {
   return true;
 }
 
-function inspectAccount(account, target) {
+function inspectCachedAccount(account, target, storage) {
+  const cache = verifyStorage(storage, target);
+  const present = fs.existsSync(cache);
+  if (present) verifyCache(storage, { version: target.version, source: { source: "local", path: target.source } }, target);
+  return {
+    account_home: account, status: present ? "cached" : "cache_missing",
+    cached_version: present ? target.version : null, activation_verified: false,
+    cache_shared_with: storage.shared_with
+  };
+}
+
+function inspectAccount(account, target, storage) {
+  verifyStorage(storage, target);
   const response = codexJson(account, ["list", "--marketplace", target.marketplace]);
+  verifyStorage(storage, target);
   if (!Array.isArray(response.installed)) throw new Error("unrecognized Codex plugin list response");
   const entries = response.installed.filter((entry) => entry.pluginId === `killsloprouter@${target.marketplace}`);
   if (entries.length > 1) throw new Error("duplicate account plugin entries");
@@ -167,7 +204,7 @@ function inspectAccount(account, target) {
   if (entry.installed !== true || typeof entry.enabled !== "boolean") throw new Error("invalid Codex installed-plugin metadata");
   // Disabled plugins stay disabled; add would otherwise silently enable them.
   if (!entry.enabled) return { account_home: account, status: "disabled", installed_version: entry.version };
-  const matches = verifyCache(account, entry, target);
+  const matches = verifyCache(storage, entry, target);
   return { account_home: account, status: matches ? "synced" : "outdated", installed_version: entry.version };
 }
 
@@ -175,18 +212,26 @@ function sameTarget(home, target) {
   if (canonicalDigest(targetPlugin(home)) !== canonicalDigest(target)) throw new Error("canonical plugin changed during account sync; retry against one installed version");
 }
 
-function inspectOrSyncAccount(account, target, { apply, home }) {
+function inspectOrSyncAccount(account, target, { apply, home, enrolled }) {
   try {
     accountPath(account, home);
+    const storage = accountStorage(account, enrolled);
     sameTarget(home, target);
-    const before = inspectAccount(account, target);
-    if (!apply || !["missing", "outdated"].includes(before.status)) return before;
+    // Inspect existing bytes before any CLI call: list can refresh local caches
+    // and must not erase evidence of a conflicting same-version payload.
+    const cached = inspectCachedAccount(account, target, storage);
+    if (!apply) return cached;
+    // Codex can refresh local caches while listing plugins. Query it only on
+    // explicit apply, after validating every filesystem destination.
+    const before = inspectAccount(account, target, storage);
+    if (!["missing", "outdated"].includes(before.status)) return { ...before, cache_shared_with: storage.shared_with };
+    verifyStorage(storage, target);
     const result = codexJson(account, ["add", `killsloprouter@${target.marketplace}`]);
     if (result.pluginId !== `killsloprouter@${target.marketplace}` || result.version !== target.version) throw new Error("Codex installed a different plugin or version");
     sameTarget(home, target);
-    const after = inspectAccount(account, target);
+    const after = inspectAccount(account, target, storage);
     if (after.status !== "synced") throw new Error("account plugin was not verified after installation");
-    return { ...after, previous_version: before.installed_version, changed: true };
+    return { ...after, previous_version: before.installed_version, changed: true, cache_shared_with: storage.shared_with };
   } catch (error) {
     return { account_home: account, status: "failed", error: error.message };
   }
@@ -203,7 +248,7 @@ function performSync(locations, policy, apply) {
   try {
     report.target = targetPlugin(locations.home);
     report.accounts = policy.accounts.map((account) => inspectOrSyncAccount(account, report.target, {
-      home: locations.home, apply: report.applied
+      home: locations.home, apply: report.applied, enrolled: policy.accounts
     }));
     sameTarget(locations.home, report.target);
     if (apply && canonicalDigest(readPluginSyncPolicy(locations.home)) !== report.policy_digest) throw new Error("plugin sync policy changed during activation");
@@ -211,7 +256,8 @@ function performSync(locations, policy, apply) {
   report.status = report.blockers.length || report.accounts.some((account) => account.status === "failed")
     ? "blocked"
     : policy.mode === "per-account" ? "per-account"
-    : report.accounts.every((account) => account.status === "synced") ? "synced" : "sync_required";
+    : report.accounts.every((account) => account.status === "synced") ? "synced"
+    : report.accounts.every((account) => account.status === "cached") ? "verification_required" : "sync_required";
   report.ok = ["synced", "per-account"].includes(report.status);
   if (apply) {
     report.recorded_at = new Date().toISOString();

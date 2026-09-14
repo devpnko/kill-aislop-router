@@ -37,6 +37,9 @@ if (args[1] === "add") {
   fs.writeFileSync(record,JSON.stringify({pluginId:"killsloprouter@personal",name:"killsloprouter",version,installed:true,enabled:true,source:{source:"local",path:source}}));
   console.log(JSON.stringify({pluginId:"killsloprouter@personal",version,installedPath:cache}));
 } else if (args[1] === "list") {
+  if (fs.existsSync(path.join(account,"refresh-on-list"))) {
+    fs.cpSync(source,path.join(account,"plugins/cache/personal/killsloprouter",version),{recursive:true});
+  }
   console.log(JSON.stringify({installed:fs.existsSync(record)?[JSON.parse(fs.readFileSync(record))]:[]}));
 } else process.exit(8);
 `, { mode: 0o700 });
@@ -71,6 +74,7 @@ test("shared toggle previews without writes, syncs enrolled accounts, and is ide
     assert.equal(fs.existsSync(f.config),false);
     assert.equal(fs.existsSync(path.join(f.home,".killsloprouter/plugin-sync.lock")),false);
     assert.equal(f.calls().some((call)=>call.args[1]==="add"),false);
+    assert.equal(f.calls().length,0,"preview must not invoke Codex because list may refresh caches");
     const applied = f.run(["plugin","sync","--mode","shared","--discover-accounts","--apply","--json"]);
     assert.equal(applied.status,0,applied.stderr || applied.stdout);
     const receipt = output(applied);
@@ -101,7 +105,8 @@ test("OFF preserves each account version and re-enabling shared mode resumes syn
     const off=f.run(["plugin","sync","--mode","per-account","--apply","--json"]);
     assert.equal(off.status,0,off.stdout);
     assert.equal(output(off).applied,false);
-    assert.equal(output(off).accounts[1].status,"outdated");
+    assert.equal(output(off).accounts[1].status,"cached");
+    assert.equal(output(off).accounts[1].activation_verified,false);
     assert.equal(JSON.parse(fs.readFileSync(record)).version,"0.9.0");
     assert.equal(f.calls().filter((call)=>call.args[1]==="add").length,3);
     const on=f.run(["plugin","sync","--mode","shared","--apply","--json"]);
@@ -137,11 +142,16 @@ test("same-version cache tamper and canonical tamper block instead of being sile
   try {
     const synced=output(f.run(["plugin","sync","--mode","shared","--discover-accounts","--apply","--json"]));
     const cache=path.join(f.accounts[1],"plugins/cache/personal/killsloprouter",synced.target.version);
+    const callsBefore=f.calls().filter((call)=>fs.realpathSync(call.account)===fs.realpathSync(f.accounts[1])).length;
+    fs.writeFileSync(path.join(f.accounts[1],"refresh-on-list"),"");
     fs.appendFileSync(path.join(cache,"README.md"),"\nmodified\n");
     const tampered=f.run(["plugin","sync","--apply","--json"]);
     assert.equal(tampered.status,5);
     assert.equal(output(tampered).accounts[1].status,"failed");
     assert.match(output(tampered).accounts[1].error,/cache does not match/);
+    assert.equal(f.calls().filter((call)=>fs.realpathSync(call.account)===fs.realpathSync(f.accounts[1])).length,callsBefore,
+      "tampered target must block before Codex list can refresh it");
+    assert.match(fs.readFileSync(path.join(cache,"README.md"),"utf8"),/modified/);
     assert.equal(f.calls().filter((call)=>call.args[1]==="add").length,3);
     const before=f.calls().length;
     fs.appendFileSync(path.join(f.target,"README.md"),"\nmodified\n");
@@ -182,5 +192,26 @@ test("installer follows shared policy while dry-run and no-activate perform no a
     assert.equal(refreshed.status,0,refreshed.stderr || refreshed.stdout);
     assert.equal(output(refreshed).activation.status,"synced");
     assert.equal(f.calls().filter((call)=>call.args[1]==="add").length,3);
+  } finally { f.cleanup(); }
+});
+
+test("existing shared plugin folders require an enrolled owner and never get rewired by the toggle", () => {
+  const f=fixture();
+  try {
+    const owner=path.join(f.accounts[0],"plugins");
+    fs.mkdirSync(owner);
+    const linked=path.join(f.accounts[1],"plugins");
+    fs.symlinkSync(owner,linked,"dir");
+    const refused=f.run(["plugin","sync","--mode","shared","--account-home",f.accounts[1],"--apply","--json"]);
+    assert.equal(refused.status,5);
+    assert.equal(f.calls().length,0);
+    const applied=f.run(["plugin","sync","--mode","shared","--discover-accounts","--apply","--json"]);
+    assert.equal(applied.status,0,applied.stdout);
+    assert.equal(output(applied).accounts[1].cache_shared_with,fs.realpathSync(f.accounts[0]));
+    const count=f.calls().length;
+    const off=f.run(["plugin","sync","--mode","per-account","--json"]);
+    assert.equal(off.status,0,off.stdout);
+    assert.equal(fs.readlinkSync(linked),owner);
+    assert.equal(f.calls().length,count,"OFF must not invoke the auto-refreshing Codex CLI");
   } finally { f.cleanup(); }
 });
