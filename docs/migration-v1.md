@@ -2,6 +2,24 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Explicit project-root discovery and setup guidance
+
+`doctor`, `plan`, `run`, `host configure-codex` and `browser configure` now
+resolve an implicit profile only inside an explicit `--root`. Previously they
+could silently read the invoking project's profile instead. No upward search
+is performed across that explicit boundary. Invocations without `--root`
+retain upward discovery; explicit `--profile` still takes precedence. Scripts
+that intentionally shared a profile while using another root must now pass
+that profile explicitly. A missing or non-directory explicit root is an error.
+
+Doctor JSON adds `project_root` and `next_actions`; existing fields, readiness
+semantics and exit codes remain. A missing profile's `next_required_command`
+now points to bootstrap. Human-readable run output adds attempt counts and
+continuation hints using the currently executing Node/bundled CLI paths, not
+PATH lookup. Automation state and signed receipt JSON are unchanged.
+The hints cannot authorize a missing adapter, original resume authority,
+browser proof or Owner approval. See [setup and continuation](project-setup.md).
+
 ## Parent identity and catalog migration
 
 New runs bind `$killsloprouter:kill-slop-router` as the sole parent through a

@@ -59,6 +59,11 @@ thread, and invoke `$killsloprouter:kill-slop-router`. The CLI also prints this
 starting path when run with no arguments or `--help`. The setup and approval
 gates remain fail-closed; installation alone does not run a project audit.
 
+The [first-project checklist](docs/project-setup.md) explains initial authority,
+reviewer/Playwright setup, and what to retain before continuing in another
+conversation. `doctor` gives ordered setup actions; run output shows actual
+attempts and the next action without changing approval or receipt semantics.
+
 The commands below verify this source checkout rather than start a journey in
 another project.
 
