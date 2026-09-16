@@ -13,6 +13,8 @@ import {
   migrateLegacySkillEntry,
   PLUGIN_BUNDLE_ENTRIES
 } from "../src/skill-catalog.mjs";
+import { readPluginSyncPolicy, withPluginSyncTransaction } from "../src/plugin-sync.mjs";
+import { canonicalDigest } from "../src/integrity.mjs";
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MARKER = ".killsloprouter-plugin-installed.json";
@@ -90,7 +92,8 @@ function nextMarketplace(file) {
   return data;
 }
 
-function copyBundle(target, { force }) {
+function copyBundle(target, { force, verifyInputs }) {
+  verifyInputs();
   for (const entry of PLUGIN_BUNDLE_ENTRIES) {
     if (!fs.existsSync(path.join(sourceRoot, entry))) throw new Error(`plugin bundle is missing ${entry}`);
   }
@@ -107,6 +110,7 @@ function copyBundle(target, { force }) {
   let backup = null;
   try {
     for (const entry of PLUGIN_BUNDLE_ENTRIES) {
+      verifyInputs();
       fs.cpSync(path.join(sourceRoot, entry), path.join(staging, entry), {
         recursive: true,
         errorOnExist: true,
@@ -115,6 +119,7 @@ function copyBundle(target, { force }) {
     }
     const runtimeRoot = path.join(staging, ".runtime");
     for (const packageName of RUNTIME_PACKAGES) {
+      verifyInputs();
       let packageFile;
       try {
         packageFile = requireFromSource.resolve(`${packageName}/package.json`);
@@ -137,12 +142,14 @@ function copyBundle(target, { force }) {
       version: packageJson.version
     }));
 
+    verifyInputs();
     if (fs.existsSync(target)) {
       const backupRoot = path.join(path.dirname(target), ".killsloprouter-backups");
       fs.mkdirSync(backupRoot, { recursive: true });
       backup = path.join(backupRoot, `killsloprouter-${timestamp()}-${crypto.randomUUID()}`);
       fs.renameSync(target, backup);
     }
+    verifyInputs();
     fs.renameSync(staging, target);
     return backup;
   } catch (error) {
@@ -184,20 +191,19 @@ function activatePlugin(marketplaceName) {
   }
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    process.stdout.write(help());
-    return;
-  }
-  const installHome = path.resolve(args.home || os.homedir());
-  if (installHome === path.parse(installHome).root) {
-    throw new Error("refusing to use a filesystem root as the plugin home");
-  }
+function installPlugin(args, installHome, transaction) {
   const target = path.join(installHome, "plugins", "killsloprouter");
   const marketplace = path.join(installHome, ".agents", "plugins", "marketplace.json");
   const marketplaceValue = nextMarketplace(marketplace);
   const isDefaultHome = installHome === path.resolve(os.homedir());
+  const syncPolicy = readPluginSyncPolicy(installHome);
+  const policyDigest = canonicalDigest(syncPolicy);
+  const verifyInputs = () => {
+    transaction.verifyLease();
+    if (canonicalDigest(readPluginSyncPolicy(installHome)) !== policyDigest) {
+      throw new Error("plugin sync policy changed during installation; retry against the saved policy");
+    }
+  };
   const catalogBefore = inspectSkillCatalog({ home: installHome, assumeCanonical: true });
   const canonicalBlocked = catalogBefore.canonical.status === "unsafe-or-incomplete" ||
     (catalogBefore.canonical.status === "refresh-required" && !args.force);
@@ -206,7 +212,7 @@ function main() {
   );
   const legacyBlocked = legacyConflict && !args.migrateLegacyEntry;
   if (canonicalBlocked || legacyBlocked) {
-    process.stdout.write(`${JSON.stringify({
+    return {
       ok: false,
       status: "identity_conflict",
       skill_catalog: catalogBefore,
@@ -217,12 +223,10 @@ function main() {
         : canonicalBlocked
           ? "move the unverified canonical plugin aside, then reinstall"
         : catalogBefore.migration.command
-    }, null, 2)}\n`);
-    process.exitCode = 5;
-    return;
+    };
   }
   if (args.dryRun) {
-    process.stdout.write(`${JSON.stringify({
+    return {
       ok: true,
       dry_run: true,
       source: sourceRoot,
@@ -231,23 +235,32 @@ function main() {
       marketplace_name: marketplaceValue.name,
       would_replace_marked_install: fs.existsSync(target) && Boolean(args.force),
       would_activate: args.activate && isDefaultHome,
+      account_sync: {
+        mode: syncPolicy.mode, accounts: syncPolicy.accounts,
+        would_apply: args.activate && isDefaultHome && syncPolicy.mode === "shared"
+      },
       would_migrate_legacy_entry: Boolean(args.migrateLegacyEntry &&
         catalogBefore.legacy.status !== "absent" &&
         catalogBefore.legacy.status !== "verified-explicit-shim"),
       skill_catalog: catalogBefore
-    }, null, 2)}\n`);
-    return;
+    };
   }
 
-  const pluginBackup = copyBundle(target, { force: Boolean(args.force) });
+  const pluginBackup = copyBundle(target, { force: Boolean(args.force), verifyInputs });
+  verifyInputs();
   const legacyMigration = args.migrateLegacyEntry
     ? migrateLegacySkillEntry({ home: installHome })
     : { status: "not_requested", backup: null };
+  verifyInputs();
   const marketplaceBackup = updateMarketplace(marketplace, marketplaceValue);
+  verifyInputs();
   const activation = args.activate && isDefaultHome
-    ? activatePlugin(marketplaceValue.name)
+    ? syncPolicy.mode === "shared"
+      ? transaction.sync({ apply: true })
+      : activatePlugin(marketplaceValue.name)
     : { ok: true, skipped: true, reason: isDefaultHome ? "--no-activate" : "non-default home" };
-  process.stdout.write(`${JSON.stringify({
+  verifyInputs();
+  return {
     ok: activation.ok,
     plugin_target: target,
     plugin_backup: pluginBackup,
@@ -258,8 +271,27 @@ function main() {
     activation,
     skill_catalog: inspectSkillCatalog({ home: installHome }),
     next: "start a new Codex thread and invoke $killsloprouter:kill-slop-router"
-  }, null, 2)}\n`);
-  if (!activation.ok) process.exitCode = 5;
+  };
+}
+
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    process.stdout.write(help());
+    return;
+  }
+  const installHome = path.resolve(args.home || os.homedir());
+  if (installHome === path.parse(installHome).root) {
+    throw new Error("refusing to use a filesystem root as the plugin home");
+  }
+  // Serialize before policy/catalog reads or any bundle, shim, marketplace or
+  // account writes. Preview remains file-only and never creates a lock/home.
+  const result = args.dryRun
+    ? installPlugin(args, installHome, null)
+    : withPluginSyncTransaction(installHome, (transaction) => installPlugin(args, installHome, transaction));
+  // Ownership/release must succeed before emitting a successful installation.
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (!result.ok) process.exitCode = 5;
 }
 
 try {

@@ -164,7 +164,10 @@ function runtimeMatchesTrustedPackage(root) {
     try {
       trusted = path.dirname(requireFromPackage.resolve(`${packageName}/package.json`));
     } catch {
-      return false;
+      // A packaged plugin carries its pinned runtime in .runtime, not a
+      // development node_modules tree. Compare against that independently
+      // copied package when resolving from an installed or Codex cache root.
+      trusted = path.join(packageRoot, ".runtime", "node_modules", packageName);
     }
     return realDirectory(installed) && realDirectory(trusted) &&
       hashArtifact(installed, { ignores: [] }) === hashArtifact(trusted, { ignores: [] });

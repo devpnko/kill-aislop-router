@@ -9,7 +9,24 @@ Use the plugin's bundled `bin/killsloprouter.mjs` CLI as the deterministic route
 authority. Resolve the plugin root two directories above this skill directory.
 Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
+For a request to sync KSR plugin versions across Codex accounts or toggle that
+setting, use `<plugin-root>/docs/account-plugin-sync.md` before project bootstrap.
+The bundled `plugin sync` command owns the preference and per-account checks.
+No saved preference means shared versions; preserve an explicit OFF choice.
+Use the user's named accounts, or preview discovery for an all-account request;
+apply only the authorized enrollment. Report preference saved separately from
+verified synchronization. This is plugin maintenance and does not complete any
+project audit gate.
+
 ## Parent identity invariant
+
+At the start of a new journey, briefly tell the user that KillSlopRouter is
+inspecting the project and which gate is next. After each pass, lead with the
+current stage/status, distinguish providers that actually ran from
+`manual_pending`, give the exact next action or Owner choice, and report state
+and receipt hashes when available. Keep the CLI ledger authoritative; this
+plain-language handoff is not a substitute for receipts. For first-use wording
+and supported commands, consult `<plugin-root>/docs/getting-started.md`.
 
 An explicit KillSlopRouter request binds the namespaced
 `$killsloprouter:kill-slop-router` entrypoint as the sole orchestrator for the

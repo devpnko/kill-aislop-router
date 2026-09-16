@@ -40,6 +40,7 @@ try {
     "src/state-lease.mjs",
     "src/state-lease-public.mjs",
     "src/bootstrap.mjs",
+    "src/plugin-sync.mjs",
     "src/codex.mjs",
     "src/design.mjs",
     "src/design-browser-proof.mjs",
@@ -93,6 +94,7 @@ try {
     "schemas/playwright-scenarios.schema.json",
     "schemas/playwright-setup-receipt.schema.json",
     "schemas/plugin-install-marker.schema.json",
+    "schemas/plugin-sync-policy.schema.json",
     "schemas/legacy-skill-shim-marker.schema.json",
     "schemas/project-profile.schema.json",
     "schemas/visual-intent-receipt.schema.json",
@@ -107,6 +109,7 @@ try {
     "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
     "docs/reviews/fable-5.1-reference-intelligence.md",
     "docs/codex-plugin.md",
+    "docs/account-plugin-sync.md",
     "docs/codex-review-host.md",
     "docs/surface-contract.md",
     "docs/visual-intent-contract.md",
@@ -305,6 +308,11 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   ], { cwd: consumer });
   assert.equal(referenceContractExport.status, 0,
     referenceContractExport.stderr || referenceContractExport.stdout);
+  const syncExport = run(process.execPath, [
+    "--input-type=module", "--eval",
+    "import('killsloprouter/plugin-sync').then((module) => { if (!module.pluginAccountSync || !module.readPluginSyncPolicy) process.exit(1); })"
+  ], { cwd: consumer });
+  assert.equal(syncExport.status, 0, syncExport.stderr || syncExport.stdout);
 
   const installedProfile = path.join(installedRoot, "examples", "project-profile.example.json");
   const installedHost = path.join(installedRoot, "examples", "host-adapter.example.json");
@@ -323,6 +331,13 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   assert.match(pluginReceipt.skill_catalog.canonical.marker_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(pluginReceipt.skill_catalog.canonical.payload_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(pluginReceipt.skill_catalog.canonical.runtime_digest, /^sha256:[a-f0-9]{64}$/);
+  const syncStatus = run(process.execPath, [
+    installedCli, "plugin", "sync", "--home", isolatedHome, "--json"
+  ], { cwd: consumer });
+  assert.equal(syncStatus.status, 5, syncStatus.stderr || syncStatus.stdout);
+  assert.equal(JSON.parse(syncStatus.stdout).mode, "shared");
+  assert.equal(JSON.parse(syncStatus.stdout).status, "enrollment_required");
+  assert.equal(fs.existsSync(path.join(isolatedHome, ".killsloprouter", "plugin-sync.json")), false);
   const doctor = run(process.execPath, [
     installedCli,
     "doctor",

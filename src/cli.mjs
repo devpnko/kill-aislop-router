@@ -58,6 +58,7 @@ import {
 } from "./reference.mjs";
 import { configureCodexReviewers } from "./codex.mjs";
 import { inspectSkillCatalog } from "./skill-catalog.mjs";
+import { pluginAccountSync } from "./plugin-sync.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 
@@ -70,10 +71,15 @@ const BOOLEAN_OPTIONS = new Set([
   "json",
   "force",
   "no-activate",
+  "apply",
+  "discover-accounts",
   "allow-external",
   "migrate-identity",
   "migrate-legacy-entry",
   "module-graph"
+]);
+const PLUGIN_SYNC_OPTIONS = new Set([
+  "home", "mode", "account-home", "discover-accounts", "apply", "dry-run", "json", "format"
 ]);
 
 function parseArgs(argv) {
@@ -103,6 +109,9 @@ function parseArgs(argv) {
     }
     if (!token.startsWith("--")) throw new RouterError(`unexpected argument: ${token}`, 2);
     const key = token.slice(2);
+    if (args.command === "plugin" && args.subcommand === "sync" && !PLUGIN_SYNC_OPTIONS.has(key)) {
+      throw new RouterError(`unknown plugin sync option: --${key}`, 2);
+    }
     if (BOOLEAN_OPTIONS.has(key)) {
       args[key] = true;
       continue;
@@ -117,9 +126,9 @@ function parseArgs(argv) {
     } else if (key === "result") {
       args.results.push(value);
       args.result = value;
-    } else if (key === "skill-provider") {
-      args["skill-provider"] ||= [];
-      args["skill-provider"].push(value);
+    } else if (["skill-provider", "account-home"].includes(key)) {
+      args[key] ||= [];
+      args[key].push(value);
     } else {
       args[key] = value;
     }
@@ -130,8 +139,20 @@ function parseArgs(argv) {
 function help() {
   return `KillSlopRouter
 
+Start here:
+  1. Install the reviewed Codex plugin once (see README.md#codex-plugin).
+  2. In your project, start a new Codex thread and say:
+     Use $killsloprouter:kill-slop-router to inspect this project's current UI and continue the safest eligible journey.
+  3. For direct CLI use, run "killsloprouter doctor" before "run --dry-run".
+
+The plugin is the parent workflow; reviewers such as anti-slop are internal children.
+Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
+Account plugin versions default to shared; an explicit per-account OFF preference is preserved.
+Guide: https://github.com/devpnko/kill-aislop-router/blob/feat/usage-onboarding/docs/getting-started.md
+
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
+  killsloprouter plugin sync [--mode shared|per-account] [--account-home DIR ... | --discover-accounts] [--apply] [--dry-run] [--json]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
   killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
   killsloprouter browser configure --base-url URL --required-scenarios ID,ID [--scenario FILE] [options]
@@ -353,8 +374,29 @@ function hostCommand(args) {
 }
 
 function pluginCommand(args) {
+  if (args.subcommand === "sync") {
+    const result = pluginAccountSync({
+      home: args.home || os.homedir(), mode: args.mode,
+      accounts: args["account-home"], discover: Boolean(args["discover-accounts"]),
+      dryRun: Boolean(args["dry-run"]), apply: Boolean(args.apply)
+    });
+    if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    else process.stdout.write([
+      "KillSlopRouter account version sync",
+      `mode: ${result.mode === "shared" ? "shared (ON)" : "per-account (KSR auto-sync OFF)"}`,
+      `status: ${result.status}${result.dry_run ? " (preview)" : ""}`,
+      `version: ${result.target?.version || "unavailable"}`,
+      ...result.accounts.map((account) => `${account.account_home}: ${account.status}${account.error ? ` — ${account.error}` : ""}`),
+      ...result.blockers.map((blocker) => `blocker: ${blocker}`),
+      `settings: ${result.config_path}`,
+      ...(result.receipt_path ? [`receipt: ${result.receipt_path} (${result.receipt_digest})`] : []),
+      "next: plugin sync --apply to sync enrolled accounts; --mode per-account turns automatic updates off"
+    ].join("\n") + "\n");
+    process.exitCode = result.ok ? 0 : 5;
+    return;
+  }
   if (args.subcommand !== "install") {
-    throw new RouterError("plugin requires the install subcommand", 2);
+    throw new RouterError("plugin requires the install subcommand or sync", 2);
   }
   const installer = path.join(packageRoot, "scripts", "install-codex-plugin.mjs");
   const installerArgs = [installer];
@@ -366,7 +408,7 @@ function pluginCommand(args) {
   const result = spawnSync(process.execPath, installerArgs, {
     encoding: "utf8",
     shell: false,
-    timeout: 30_000
+    timeout: 3_000_000
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
@@ -1083,7 +1125,7 @@ function auditCommand(args) {
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.json) args.format = "json";
-  if (args.help) {
+  if (args.help || argv.length === 0) {
     process.stdout.write(help());
     return;
   }

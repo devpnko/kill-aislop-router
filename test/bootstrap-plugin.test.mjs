@@ -430,6 +430,13 @@ test("Codex plugin installer preserves marketplace entries and refreshes only ma
       "4.13.0");
     assert.equal(fs.existsSync(path.join(target, ".runtime", "node_modules", "playwright-core", "LICENSE")), true);
     assert.equal(fs.existsSync(path.join(target, ".runtime", "node_modules", "axe-core", "LICENSE")), true);
+    const installedDoctor = runNode(path.join(target, "bin", "killsloprouter.mjs"), [
+      "doctor", "--profile", path.join(root, "examples", "project-profile.example.json"),
+      "--format", "json"
+    ], directory);
+    const installedDoctorReport = JSON.parse(installedDoctor.stdout);
+    assert.equal(installedDoctorReport.skill_catalog.canonical.status, "installed");
+    assert.equal(installedDoctorReport.skill_catalog.status, "ready");
 
     const registered = readJson(marketplace);
     assert.equal(registered.interface.displayName, "My Plugins");

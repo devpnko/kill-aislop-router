@@ -60,6 +60,15 @@ does not implicitly download a browser.
 
 ## Quickstart
 
+For project use, start with the [project guide](docs/getting-started.md):
+install one reviewed plugin build, open the target repository in a new Codex
+thread, and invoke `$killsloprouter:kill-slop-router`. The CLI also prints this
+starting path when run with no arguments or `--help`. The setup and approval
+gates remain fail-closed; installation alone does not run a project audit.
+
+The commands below verify this source checkout rather than start a journey in
+another project.
+
 From a clean checkout:
 
 ```bash
@@ -89,6 +98,10 @@ no browser checks are dropped. For standalone design debugging,
 `node --test test/design.test.mjs` still runs the entire design suite.
 
 ## Codex plugin
+
+Multiple Codex accounts default to [one synchronized KSR version](docs/account-plugin-sync.md).
+The `plugin sync` toggle selects shared updates or account-managed activation;
+existing explicit OFF choices are preserved.
 
 Install the local Codex plugin once, then invoke the same bundled CLI from
 any project. The shortest install from the default branch is one command:
