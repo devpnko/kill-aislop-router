@@ -46,6 +46,12 @@ Ask KSR to report four things after each pass: **current stage and status**, **w
 
 The plugin should state these in plain language alongside the exact files or commands for the current project. It should not bury the next step in a full receipt dump.
 
+For the first project, use the [setup and continuation checklist](project-setup.md).
+`doctor` now returns ordered `next_actions` with required inputs and references;
+text run output distinguishes actual attempts from pending work and shows how
+to resume after the stop is resolved. The hints do not replace evidence or
+grant execution permission.
+
 ## Direct CLI / troubleshooting
 
 Running the bundled CLI with no arguments or `--help` prints the short start path and full command reference. For a configured project:
@@ -56,3 +62,8 @@ killsloprouter run --task audit --artifact ./src --scope runtime --out .killslop
 ```
 
 These are checks, not evidence that an adapter ran. `doctor` may exit non-zero while project authority is unresolved. The direct `run` form requires the project's actual task, artifact, surface binding, scope, host configuration, and any required planning evidence; do not copy the example unchanged into a different project. For the complete integrated commands and resume rules, see [automation run](automation-run.md). For existing UIs and official browser setup, see [closed-loop UI review](existing-ui-closed-loop.md) and [Playwright evidence](playwright-browser.md).
+
+When invoked outside the target project, use `--root /absolute/project`.
+Explicit `--root` discovers only that root's `.killsloprouter/profile.json`,
+not the caller's or an ancestor's profile. Pass `--profile` explicitly for an
+intentionally separate configuration.

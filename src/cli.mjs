@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -61,6 +62,7 @@ import { inspectSkillCatalog } from "./skill-catalog.mjs";
 import { pluginAccountSync } from "./plugin-sync.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
+import { automationGuidance, doctorNextActions } from "./usage-guidance.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -148,7 +150,8 @@ Start here:
 The plugin is the parent workflow; reviewers such as anti-slop are internal children.
 Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
 Account plugin versions default to shared; an explicit per-account OFF preference is preserved.
-Guide: https://github.com/devpnko/kill-aislop-router/blob/feat/usage-onboarding/docs/getting-started.md
+Guide (bundled): ${path.join(packageRoot, "docs", "getting-started.md")}
+Project setup (bundled): ${path.join(packageRoot, "docs", "project-setup.md")}
 
 Usage:
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
@@ -274,7 +277,7 @@ function browserCommand(args) {
     throw new RouterError("browser requires the configure or attest subcommand", 2);
   }
   if (!args["base-url"]) throw new RouterError("browser configure requires --base-url", 2);
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   if (!profilePath) throw new RouterError("browser configure requires a project profile", 2);
   const hostManifestPath = path.resolve(args["host-config"] ||
     path.join(path.dirname(profilePath), "host-adapters.json"));
@@ -335,7 +338,7 @@ function hostCommand(args) {
   if (!args.runtime || !args.model) {
     throw new RouterError("host configure-codex requires --runtime and --model", 2);
   }
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   if (!profilePath) throw new RouterError("host configure-codex requires a project profile", 2);
   const hostManifestPath = path.resolve(args["host-config"] ||
     path.join(path.dirname(profilePath), "host-adapters.json"));
@@ -416,9 +419,26 @@ function pluginCommand(args) {
   process.exitCode = result.status ?? 5;
 }
 
+function projectProfilePath(args) {
+  if (args.root) {
+    try {
+      if (!fs.statSync(path.resolve(args.root)).isDirectory()) throw new Error("not a directory");
+    } catch {
+      throw new RouterError("--root must be an existing directory", 2);
+    }
+  }
+  if (args.profile) return path.resolve(args.profile);
+  if (!args.root) return findProjectProfile(process.cwd());
+  // An explicit project root is a discovery boundary, not a request to inherit
+  // the invoking or enclosing project's authority. Explicit --profile is the
+  // compatibility path for a deliberately shared/custom configuration.
+  const candidate = path.join(path.resolve(args.root), ".killsloprouter", "profile.json");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
 function loadContext(args) {
   const routerPath = path.resolve(args.router || defaultRouterPath);
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   return {
     routerPath,
     router: readJson(routerPath, "router"),
@@ -476,6 +496,7 @@ function doctor(args) {
     router_path: context.routerPath,
     skill_catalog: skillCatalog,
     profile_path: context.profilePath,
+    project_root: routingRoot(context.profilePath, args.root || null),
     project_id: context.profile?.project_id || null,
     surface_contract: context.profile?.surface_contract || null,
     surface_boundary: surfaceBoundary,
@@ -493,10 +514,13 @@ function doctor(args) {
     completion_eligible: false,
     next_required_command: !catalogReady
       ? (skillCatalog.migration.command || skillCatalog.migration.reason)
-      : visualIntentsReady && visualSignaturesReady
-        ? "killsloprouter run --dry-run"
-        : "resolve and digest-lock project visual authority"
+      : !context.profilePath
+        ? "killsloprouter bootstrap"
+        : visualIntentsReady && visualSignaturesReady
+          ? "killsloprouter run --dry-run"
+          : "resolve and digest-lock project visual authority"
   };
+  report.next_actions = doctorNextActions(report);
   const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
@@ -520,7 +544,8 @@ function doctor(args) {
     `boundary: ${report.execution_boundary}`,
     `execution readiness: ${report.execution_readiness}`,
     `completion eligible: ${report.completion_eligible}`,
-    `next: ${report.next_required_command}`
+    `next: ${report.next_required_command}`,
+    ...report.next_actions.map((action) => `setup ${action.id}: ${action.instruction} (${action.documentation})`)
   ].join("\n") + "\n";
   return { status: report.status, output: rendered };
 }
@@ -587,7 +612,7 @@ function defaultPacketsDir(runPath) {
   return `${stem}.packets`;
 }
 
-function formatAutomationState(state) {
+function formatAutomationState(state, args) {
   const lines = [
     `KillSlopRouter automation ${state.run_id || "dry-run"}`,
     `status: ${state.status}`
@@ -608,6 +633,10 @@ function formatAutomationState(state) {
   for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
   if (state.state_path) lines.push(`state: ${state.state_path}`);
   if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  lines.push(...automationGuidance(state, {
+    hostConfig: args["host-config"] ? path.resolve(args["host-config"]) : null,
+    commandPrefix: [process.execPath, path.join(packageRoot, "bin", "killsloprouter.mjs")]
+  }));
   return `${lines.join("\n")}\n`;
 }
 
@@ -615,7 +644,7 @@ function automationOutput(value, args) {
   if (args.json || args.format === "json") {
     process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
   } else {
-    process.stdout.write(formatAutomationState(value));
+    process.stdout.write(formatAutomationState(value, args));
   }
 }
 
