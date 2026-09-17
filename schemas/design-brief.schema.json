@@ -13,6 +13,18 @@
     "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "screen_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
     "locales": {"$ref": "#/$defs/strings"},
+    "reference_requirement": {
+      "type": "object",
+      "required": ["mode", "required_recipe_families"],
+      "properties": {
+        "mode": {"const": "required"},
+        "required_recipe_families": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"}
+        }
+      },
+      "additionalProperties": false
+    },
     "reference_pack": {
       "type": "object",
       "required": ["path", "digest", "producer_state", "reviewer_source_access"],
@@ -160,5 +172,9 @@
       "additionalProperties": false
     }
   },
+  "allOf": [{
+    "if": {"required": ["reference_requirement"]},
+    "then": {"required": ["reference_pack"]}
+  }],
   "additionalProperties": false
 }

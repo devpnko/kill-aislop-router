@@ -2,6 +2,18 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Reference-required design and unified delivery
+
+New briefs may declare `reference_requirement` and assert it with
+`design run --require-reference`. Missing verified reference packs or requested
+component recipes block creation. The immutable brief preserves the requirement
+on resume. Existing no-reference briefs remain valid and retain their exact-three
+flow, but status explicitly reports `not_bound`; they are not reference-derived.
+`design provenance` is a separate derived report, not a mutation of signed state
+JSON. `capabilities` inspects the executing package, not global/account loading.
+See [reference delivery](reference-delivery.md). Keep old runs and selections as
+history; start a successor rather than adding references retrospectively.
+
 ## Optional component craft recipes
 
 The additive [component recipe contract](component-recipes.md) is opt-in for

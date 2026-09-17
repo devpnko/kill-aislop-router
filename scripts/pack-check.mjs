@@ -42,6 +42,7 @@ try {
     "src/state-lease-public.mjs",
     "src/bootstrap.mjs",
     "src/plugin-sync.mjs",
+    "src/distribution.mjs",
     "src/codex.mjs",
     "src/design.mjs",
     "src/design-browser-proof.mjs",
@@ -109,6 +110,7 @@ try {
     "docs/reference-intelligence.md",
     "docs/reference-fit-first.md",
     "docs/component-recipes.md",
+    "docs/reference-delivery.md",
     "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
     "docs/reviews/fable-5.1-reference-intelligence.md",
     "docs/codex-plugin.md",
@@ -181,6 +183,20 @@ try {
 
   const installedRoot = path.join(consumer, "node_modules", "killsloprouter");
   const installedCli = path.join(installedRoot, "bin", "killsloprouter.mjs");
+  const capabilities = run(process.execPath, [installedCli, "capabilities", "--json"], { cwd: consumer });
+  assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
+  const distribution = JSON.parse(capabilities.stdout);
+  assert.equal(distribution.status, "available");
+  assert.equal(distribution.features.length, 6);
+  assert.ok(distribution.features.every((item) => item.status === "available"));
+  assert.equal(distribution.project_reference_bound, false);
+  assert.equal(distribution.live_skill_loading_verified, false);
+  const unboundReference = run(process.execPath, [installedCli, "design", "run",
+    "--brief", path.join(installedRoot, "examples/design-brief.example.json"),
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"),
+    "--require-reference", "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(unboundReference.status, 5, unboundReference.stderr || unboundReference.stdout);
+  assert.match(unboundReference.stderr, /reference_requirement.mode=required/);
   const help = run(process.execPath, [installedCli, "--help"], { cwd: consumer });
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /host configure-codex/);
@@ -329,6 +345,12 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   ], { cwd: consumer });
   assert.equal(pluginInstall.status, 0, pluginInstall.stderr || pluginInstall.stdout);
   const pluginReceipt = JSON.parse(pluginInstall.stdout);
+  const pluginCapabilities = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "bin/killsloprouter.mjs"), "capabilities", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginCapabilities.status, 0, pluginCapabilities.stderr || pluginCapabilities.stdout);
+  assert.deepEqual(JSON.parse(pluginCapabilities.stdout), distribution,
+    "npm consumer and isolated installed plugin must deliver the same reference feature bytes");
   assert.equal(pluginReceipt.skill_catalog.status, "ready");
   assert.equal(pluginReceipt.skill_catalog.canonical.status, "installed");
   assert.match(pluginReceipt.skill_catalog.canonical.marker_digest, /^sha256:[a-f0-9]{64}$/);

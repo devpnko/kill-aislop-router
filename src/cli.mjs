@@ -39,6 +39,8 @@ import { hashArtifact, readJsonPinned } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
 import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
 import {
+  assertDesignReferenceRequirement,
+  designReferenceDelivery,
   designExitCode,
   dispatchDesignPackets,
   dryRunDesignExploration,
@@ -63,6 +65,7 @@ import { pluginAccountSync } from "./plugin-sync.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
 import { automationGuidance, doctorNextActions } from "./usage-guidance.mjs";
+import { inspectDistribution } from "./distribution.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -78,7 +81,8 @@ const BOOLEAN_OPTIONS = new Set([
   "allow-external",
   "migrate-identity",
   "migrate-legacy-entry",
-  "module-graph"
+  "module-graph",
+  "require-reference"
 ]);
 const PLUGIN_SYNC_OPTIONS = new Set([
   "home", "mode", "account-home", "discover-accounts", "apply", "dry-run", "json", "format"
@@ -111,6 +115,10 @@ function parseArgs(argv) {
     }
     if (!token.startsWith("--")) throw new RouterError(`unexpected argument: ${token}`, 2);
     const key = token.slice(2);
+    if (key === "require-reference" &&
+        !(args.command === "design" && ["run", "status", "provenance", "dispatch"].includes(args.subcommand))) {
+      throw new RouterError("--require-reference is only supported by design run/status/provenance/dispatch", 2);
+    }
     if (args.command === "plugin" && args.subcommand === "sync" && !PLUGIN_SYNC_OPTIONS.has(key)) {
       throw new RouterError(`unknown plugin sync option: --${key}`, 2);
     }
@@ -154,15 +162,17 @@ Guide (bundled): ${path.join(packageRoot, "docs", "getting-started.md")}
 Project setup (bundled): ${path.join(packageRoot, "docs", "project-setup.md")}
 
 Usage:
+  killsloprouter capabilities [--json]
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
   killsloprouter plugin sync [--mode shared|per-account] [--account-home DIR ... | --discover-accounts] [--apply] [--dry-run] [--json]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
   killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
   killsloprouter browser configure --base-url URL --required-scenarios ID,ID [--scenario FILE] [options]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
-  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
+  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE] [--require-reference]
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
   killsloprouter design status --run FILE [--json]
+  killsloprouter design provenance --run FILE [--json]
   killsloprouter design dispatch --run FILE --out-dir DIR
   killsloprouter design lease-status --state FILE [--json]
   killsloprouter design recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
@@ -798,6 +808,14 @@ function formatDesignState(state) {
     lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
   }
   if (state.phase) lines.push(`phase: ${state.phase}`);
+  const reference = state.design_exploration_run_version === 1
+    ? designReferenceDelivery(state)
+    : state.design_exploration_dry_run_version === 1 ? state.reference_delivery : null;
+  if (reference) {
+    lines.push(`reference delivery: ${reference.status}`);
+    lines.push(reference.note);
+    if (reference.pack_digest) lines.push(`reference pack: ${reference.pack_digest}`);
+  }
   if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
   if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
   for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
@@ -817,8 +835,8 @@ function designOutput(value, args) {
 
 function designCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "dispatch", "lease-status", "recover"].includes(command)) {
-    throw new RouterError("design requires run, status, dispatch, lease-status, or recover", 2);
+  if (!command || !["run", "status", "provenance", "dispatch", "lease-status", "recover"].includes(command)) {
+    throw new RouterError("design requires run, status, provenance, dispatch, lease-status, or recover", 2);
   }
   if (command === "lease-status") {
     if (!args.state) throw new RouterError("design lease-status requires --state", 2);
@@ -862,9 +880,15 @@ function designCommand(args) {
     ].join("\n") + "\n");
     return;
   }
-  if (command === "status" || command === "dispatch") {
+  if (["status", "provenance", "dispatch"].includes(command)) {
     if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
     const state = readDesignState(args.run);
+    assertDesignReferenceRequirement(state.brief, args["require-reference"]);
+    if (command === "provenance") {
+      output(designReferenceDelivery(state), args, (value) =>
+        `KillSlopRouter reference delivery: ${value.status}\n${value.note}\n`);
+      return;
+    }
     if (command === "status") {
       designOutput(state, args);
       return;
@@ -878,6 +902,7 @@ function designCommand(args) {
   if (args.resume) {
     if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
     const state = resumeDesignExploration(args.resume, {
+      requireReference: Boolean(args["require-reference"]),
       hostManifest,
       resultPaths: args.results,
       shortlistPath: args.shortlist || null,
@@ -894,6 +919,7 @@ function designCommand(args) {
   const router = readJson(defaultRouterPath, "default router");
   const request = {
     briefPath: args.brief,
+    requireReference: Boolean(args["require-reference"]),
     baselinePath: args.baseline,
     hostManifest,
     routerId: router.router_id,
@@ -1156,6 +1182,17 @@ export async function main(argv) {
   if (args.json) args.format = "json";
   if (args.help || argv.length === 0) {
     process.stdout.write(help());
+    return;
+  }
+  if (args.command === "capabilities") {
+    const report = inspectDistribution();
+    output(report, args, (value) => [
+      `KillSlopRouter ${value.plugin_version}`,
+      `distribution: ${value.status} (${value.distribution_digest})`,
+      ...value.features.map((feature) => `${feature.id}: ${feature.status}`),
+      value.note
+    ].join("\n") + "\n");
+    process.exitCode = report.status === "available" ? 0 : 5;
     return;
   }
   if (args.command === "bootstrap") {

@@ -78,6 +78,22 @@ test("legacy no-recipe flow stays unchanged and does not acquire unbound recipe 
   assert.throws(() => validateComponentSpecs(specs, recipes, { ...evidence, required_viewports: ["mobile", "desktop"] }), /three distinct/);
 });
 
+test("a required family cannot be discarded while an unrelated recipe supplies the craft pass", () => {
+  const requiredRecipe = componentRecipe();
+  const otherRecipe = { ...componentRecipe(), family: "other-family" };
+  const recipes = selectedComponentRecipes([
+    { grammar_id: "required-grammar", component_recipe: requiredRecipe },
+    { grammar_id: "other-grammar", component_recipe: otherRecipe }
+  ]);
+  const specs = componentSpecs(recipes, evidence.required_viewports, evidence.required_states);
+  validateComponentSpecs(specs, recipes, evidence, [requiredRecipe.family]);
+  specs[0] = { grammar_id: recipes[0].grammar_id, recipe_digest: recipes[0].recipe_digest,
+    disposition: "not-applicable", rationale: "Keep the unrelated family only." };
+  validateComponentSpecs(specs, recipes, evidence);
+  assert.throws(() => validateComponentSpecs(specs, recipes, evidence, [requiredRecipe.family]), /required component recipes were not applied/);
+  assert.throws(() => validateComponentSpecs(undefined, [], evidence, [requiredRecipe.family]), /required component recipes are missing/);
+});
+
 test("responsive proof cannot rename one desktop width as three sizes or reverse width order", () => {
   const { specs } = setup();
   const viewports = { mobile: { width: 390 }, tablet: { width: 768 }, desktop: { width: 1440 } };

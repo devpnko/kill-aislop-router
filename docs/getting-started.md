@@ -34,6 +34,12 @@ The first pass reads the project contract and existing evidence. It may bootstra
 
 ## Read the result
 
+For UI Bowl or reference-derived design, use the
+[reference delivery checks](reference-delivery.md) first. The exact installed
+CLI must expose reference/component capabilities, and the project must bind a
+verified pack. Ask for `design provenance` alongside candidate previews.
+`not_bound` means no reference was delivered, even if browser tests pass.
+
 Ask KSR to report four things after each pass: **current stage and status**, **what actually ran versus `manual_pending`**, **the exact next action or Owner choice**, and **state/receipt hashes**. Typical stops are:
 
 | Status | What to do |

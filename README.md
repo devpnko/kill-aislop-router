@@ -1,5 +1,10 @@
 # KillSlopRouter
 
+For UI Bowl/reference-derived design, verify the exact installed bundle and
+bind the reference before creation. A Git push or browser pass does not prove
+reference delivery. See [reference delivery and recovery](docs/reference-delivery.md)
+for `capabilities`, `design run --require-reference`, and `design provenance`.
+
 KillSlopRouter selects independent anti-slop reviewers, executes explicitly
 authorized host adapters, and records the evidence needed to approve an exact
 artifact version. It keeps route planning, tool execution, scanner triage,
