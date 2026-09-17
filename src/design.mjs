@@ -833,6 +833,12 @@ function validatePinnedReferencePack(brief, pinned, root) {
   requireValue(pinned.digest === brief.reference_pack.digest,
     "reference intelligence pack file digest mismatch", 4);
   const pack = validateReferencePack(pinned.input);
+  const recipeFamilies = pack.verified_grammar.filter((item) => item.component_recipe)
+    .map((item) => item.component_recipe.family);
+  const missingFamilies = (brief.reference_requirement?.required_recipe_families || [])
+    .filter((family) => !recipeFamilies.includes(family));
+  requireValue(missingFamilies.length === 0,
+    `reference requirement is missing selected component recipes: ${missingFamilies.join(", ")}; complete a new reference selection before design creation`, 5);
   requireValue(!pack.verified_grammar.some((item) => item.component_recipe) ||
     brief.evidence.required_viewports.length >= 3,
   "component recipe craft evidence needs three distinct project viewports before creation", 4);
@@ -965,6 +971,9 @@ function referenceDesignContract(state, stage, audience) {
   const body = {
     audience,
     pack_digest: state.reference_pack.pack_digest,
+    ...(state.brief.reference_requirement ? {
+      reference_requirement: structuredClone(state.brief.reference_requirement)
+    } : {}),
     authority_scope: pack.authority_scope,
     reasoning_registry_digest: pack.provenance.reasoning_registry_digest,
     source_pixels_included: false,
@@ -1013,7 +1022,7 @@ export function validateDesignBrief(brief) {
   exact(brief, new Set([
     "design_brief_version", "project_id", "surface", "screen_id", "locales", "product",
     "baseline_policy", "editorial_boundary", "directions", "color_strategies", "providers",
-    "evidence", "reference_pack"
+    "evidence", "reference_pack", "reference_requirement"
   ]), "design brief");
   requireValue(brief.design_brief_version === 1, "design_brief_version must be 1");
   string(brief.project_id, "design brief project_id");
@@ -1021,6 +1030,19 @@ export function validateDesignBrief(brief) {
   safeId(brief.screen_id, "design brief screen_id");
   uniqueStrings(brief.locales, "design brief locales");
   validateProduct(brief.product);
+  if (brief.reference_requirement !== undefined) {
+    exact(brief.reference_requirement, new Set(["mode", "required_recipe_families"]),
+      "design brief reference_requirement");
+    requireValue(brief.reference_requirement.mode === "required",
+      "design brief reference_requirement.mode must be required");
+    uniqueStrings(brief.reference_requirement.required_recipe_families,
+      "design brief reference_requirement.required_recipe_families", { empty: true });
+    for (const family of brief.reference_requirement.required_recipe_families) {
+      safeId(family, "required component recipe family");
+    }
+    requireValue(brief.reference_pack,
+      "reference-required design is blocked: bind a completed reference_pack and its producer state before creator execution; source names or aesthetic_sources are not reference evidence", 5);
+  }
   if (brief.reference_pack !== undefined) {
     exact(brief.reference_pack, new Set([
       "path", "digest", "producer_state", "reviewer_source_access"
@@ -1267,9 +1289,9 @@ function validateDesignContractEvidence(state, result, stage) {
   requireValue(containsAll(document.contract_roles, required),
     `${result.kind} ${result.candidate_id} design contract omits required roles: ${required
       .filter((role) => !document.contract_roles.includes(role)).join(", ")}`, 4);
-  validateComponentSpecs(document.component_specs,
-    selectedComponentRecipes(referenceProjection(state.reference_pack.normalized).transferable_grammar),
-    state.brief.evidence);
+  const recipes = selectedComponentRecipes(referenceProjection(state.reference_pack.normalized).transferable_grammar);
+  validateComponentSpecs(document.component_specs, recipes, state.brief.evidence,
+    state.brief.reference_requirement?.required_recipe_families || []);
 }
 
 function readEvidenceJson(item, label) {
@@ -2189,6 +2211,8 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
   const state = readPinnedDesignJson(absolute, "design exploration run").input;
   requireValue(state.design_exploration_run_version === 1,
     "design_exploration_run_version must be 1");
+  requireValue(!Object.hasOwn(state, "reference_delivery"),
+    "reference_delivery is a derived report and cannot be persisted as design state authority", 4);
   requireValue(fs.realpathSync(state.state_path) === fs.realpathSync(absolute),
     "design state path does not match the resume target", 4);
   requireValue(fs.realpathSync(state.state_directory) ===
@@ -2214,6 +2238,8 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
   ));
   requireValue(canonicalDigest(sourceBrief) === canonicalDigest(state.brief),
     "design brief state binding mismatch", 4);
+  requireValue(Boolean(state.reference_pack) === Boolean(state.brief.reference_pack),
+    "design reference pack binding is missing or unexpected", 4);
   verifyBoundSnapshot(state.baseline, "design baseline");
   if (state.reference_pack) {
     verifyBoundSnapshot(state.reference_pack.source, "reference intelligence pack");
@@ -4188,8 +4214,10 @@ function continueDesignExplorationWithLease(state, lease, {
   shortlistPath = null,
   approvalPath = null,
   retry = null,
+  requireReference = false,
   faultInjector = null
 } = {}) {
+  assertDesignReferenceRequirement(state.brief, requireReference);
   verifyJourneyIdentity(state.journey_identity, {
     runId: state.run_id,
     label: "active design journey_identity"
@@ -4412,6 +4440,7 @@ export function startDesignExploration({
   routerId = "kill-slop-router",
   routerVersion = "1.0.0",
   invocation = "explicit",
+  requireReference = false,
   root = process.cwd(),
   faultInjector = null
 }) {
@@ -4426,6 +4455,7 @@ export function startDesignExploration({
     validateStateLocation(absoluteState, absoluteBaseline);
     const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
     const brief = validateDesignBrief(pinnedBrief.input);
+    assertDesignReferenceRequirement(brief, requireReference);
     const referencePack = resolveReferencePack(brief, root);
     assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
     validateComponentBrowserPreflight(referencePack, brief, hostManifest);
@@ -4474,6 +4504,7 @@ export function resumeDesignExploration(statePath, options = {}) {
   const absolute = path.resolve(statePath);
   return withDesignLease(absolute, "design-resume", options.faultInjector || null, (lease) => {
     const state = readDesignState(absolute);
+    assertDesignReferenceRequirement(state.brief, options.requireReference);
     return continueDesignExplorationWithLease(state, lease, options);
   });
 }
@@ -4700,12 +4731,14 @@ export function dryRunDesignExploration({
   routerId = "kill-slop-router",
   routerVersion = "1.0.0",
   invocation = "explicit",
+  requireReference = false,
   root = process.cwd()
 }) {
   const absoluteBrief = path.resolve(briefPath);
   const absoluteBaseline = path.resolve(baselinePath);
   const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
   const brief = validateDesignBrief(pinnedBrief.input);
+  assertDesignReferenceRequirement(brief, requireReference);
   const referencePack = resolveReferencePack(brief, root);
   assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
   validateComponentBrowserPreflight(referencePack, brief, hostManifest);
@@ -4744,6 +4777,7 @@ export function dryRunDesignExploration({
     surface: brief.surface,
     baseline: publicSnapshot(state.baseline),
     brief: publicSnapshot(state.brief_source),
+    reference_delivery: designReferenceDelivery(state),
     ...(state.reference_pack ? {
       reference_intelligence: {
         pack_digest: state.reference_pack.pack_digest,
@@ -4833,4 +4867,40 @@ export function designExitCode(state) {
   if (["complete", "ready"].includes(state.status)) return 0;
   if (state.status === "manual_pending") return 6;
   return 5;
+}
+
+// An assertion never upgrades or rewrites a historical brief/selection. Once
+// requested, the brief and its original file digest carry the requirement on
+// every resume, even if the caller omits the CLI assertion later.
+export function assertDesignReferenceRequirement(brief, required = false) {
+  requireValue(!required || brief.reference_requirement?.mode === "required",
+    "--require-reference requires reference_requirement.mode=required in the digest-bound design brief; do not retrofit an existing run, start a successor from verified reference evidence", 5);
+}
+
+// Read-only provenance, not a signed state field or an aesthetic approval.
+// Call with a verified readDesignState result (or validated dry-run context).
+export function designReferenceDelivery(state) {
+  const pack = state.reference_pack;
+  const creators = (state.packets || []).filter((packet) =>
+    ["direction-candidate", "color-candidate"].includes(packet.design_task.kind));
+  return {
+    reference_delivery_version: 1,
+    status: pack ? "bound" : "not_bound",
+    required: state.brief.reference_requirement?.mode === "required",
+    pack_digest: pack?.pack_digest || null,
+    required_recipe_families: [...(state.brief.reference_requirement?.required_recipe_families || [])],
+    selected_recipe_families: [...new Set((pack?.normalized.verified_grammar || [])
+      .filter((item) => item.component_recipe).map((item) => item.component_recipe.family))].sort(),
+    creator_packets: creators.length,
+    reference_bound_creator_packets: creators.filter((packet) =>
+      pack && packet.design_task.reference_intelligence?.pack_digest === pack.pack_digest).length,
+    source_providers: [...new Set((pack?.normalized.references || [])
+      .map((reference) => reference.source.provider))].sort(),
+    state_digest: state.state_digest || null,
+    visual_approval_granted: false,
+    human_authorship_certified: false,
+    note: pack
+      ? "Reference provenance is bound; it does not prove rendered craft, browser success, or Owner visual approval."
+      : "No reference pack is bound. This is not a UI Bowl/reference-derived design result; browser/scanner success cannot change that."
+  };
 }

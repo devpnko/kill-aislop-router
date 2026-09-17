@@ -9,7 +9,42 @@ Use the plugin's bundled `bin/killsloprouter.mjs` CLI as the deterministic route
 authority. Resolve the plugin root two directories above this skill directory.
 Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
+For an explicit UI Bowl or reference-derived design request, first read
+`<plugin-root>/docs/reference-delivery.md`. Check this exact bundled CLI with
+`capabilities --json`; a missing command/feature is a delivery blocker, not
+permission to fall back to a generic design while claiming reference use.
+Declare `reference_requirement.mode: required` in a new design brief, request
+the applicable component recipe families, bind the verified reference pack,
+and use `design run --require-reference --dry-run`. Preserve the normal
+reference/Owner stops. Do not equate "bright/clean/human-like" wording with
+source evidence, or a pushed branch with installed capability. Report
+`design provenance --run ... --json` separately from browser/review success.
+For a new reference-derived request, legacy no-reference runs stay historical;
+never retrofit their selections. For every visual exploration, state the actual
+reference binding before dispatch. If no project reference is bound, explain
+that the bundled research is not automatically applied and offer the
+reference-first route; never silently present ordinary generation as learned
+reference use. A bounded keyboard/bug fix with an approved visual contract does
+not require unrelated reference research or new design directions.
+
+For a request to sync KSR plugin versions across Codex accounts or toggle that
+setting, use `<plugin-root>/docs/account-plugin-sync.md` before project bootstrap.
+The bundled `plugin sync` command owns the preference and per-account checks.
+No saved preference means shared versions; preserve an explicit OFF choice.
+Use the user's named accounts, or preview discovery for an all-account request;
+apply only the authorized enrollment. Report preference saved separately from
+verified synchronization. This is plugin maintenance and does not complete any
+project audit gate.
+
 ## Parent identity invariant
+
+At the start of a new journey, briefly tell the user that KillSlopRouter is
+inspecting the project and which gate is next. After each pass, lead with the
+current stage/status, distinguish providers that actually ran from
+`manual_pending`, give the exact next action or Owner choice, and report state
+and receipt hashes when available. Keep the CLI ledger authoritative; this
+plain-language handoff is not a substitute for receipts. For first-use wording
+and supported commands, consult `<plugin-root>/docs/getting-started.md`.
 
 An explicit KillSlopRouter request binds the namespaced
 `$killsloprouter:kill-slop-router` entrypoint as the sole orchestrator for the

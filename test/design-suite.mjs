@@ -7,6 +7,7 @@ import nodeTest from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   contrastRatio,
+  designReferenceDelivery,
   dryRunDesignExploration,
   inspectDesignStateLease,
   readDesignState,
@@ -1597,14 +1598,27 @@ test("component craft specifications survive direction/color browser review, Own
     brief.evidence.required_viewports = ["mobile", "tablet", "desktop"];
     fs.writeFileSync(space.briefPath, JSON.stringify(brief));
     attachReferencePack(space, null, { componentRecipes: true });
+    const boundBrief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+    boundBrief.reference_requirement = { mode: "required", required_recipe_families: ["unselected-family"] };
+    fs.writeFileSync(space.briefPath, JSON.stringify(boundBrief));
+    assert.throws(() => startDesignExploration({ ...space, baselinePath: space.baseline,
+      requireReference: true, root: space.directory }), /missing selected component recipes/);
+    assert.equal(fs.existsSync(space.statePath), false);
+    boundBrief.reference_requirement.required_recipe_families = ["comparison-table"];
+    fs.writeFileSync(space.briefPath, JSON.stringify(boundBrief));
+    assertPublishedSchema("design-brief", boundBrief);
     const manifest = host(space.directory);
     const state = startDesignExploration({ statePath: space.statePath,
       briefPath: space.briefPath, baselinePath: space.baseline, hostManifest: manifest,
-      root: space.directory });
+      requireReference: true, root: space.directory });
     assert.equal(state.status, "manual_pending", JSON.stringify(state.blockers));
     assert.equal(state.phase, "direction-selection");
     const creator = state.packets.find((item) => item.design_task.kind === "direction-candidate");
     const contract = creator.design_task.reference_intelligence.component_recipe_contract;
+    assert.deepEqual(creator.design_task.reference_intelligence.reference_requirement,
+      boundBrief.reference_requirement);
+    assert.equal(designReferenceDelivery(state).reference_bound_creator_packets, 9);
+    assert.deepEqual(designReferenceDelivery(state).selected_recipe_families, ["comparison-table"]);
     assert.ok(contract.recipes.length > 0);
     assert.equal(contract.human_authorship_certified, false);
     assert.equal(contract.schema_digest, canonicalDigest(contract.schema));
@@ -1661,6 +1675,10 @@ test("component craft specifications survive direction/color browser review, Own
     document.component_specs[0].visual_values.elevation = "flattened after review";
     fs.writeFileSync(specimen.path, JSON.stringify(document));
     assert.throws(() => readDesignState(space.statePath), /design result evidence state binding mismatch/);
+    const weakenedBrief = structuredClone(boundBrief);
+    delete weakenedBrief.reference_requirement;
+    fs.writeFileSync(space.briefPath, JSON.stringify(weakenedBrief));
+    assert.throws(() => resumeDesignExploration(space.statePath, { hostManifest: manifest }), /design brief changed/);
   } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
 });
 

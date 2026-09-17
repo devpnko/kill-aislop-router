@@ -162,8 +162,9 @@ export function validateComponentRangeMapping(specs, viewports) {
 // Candidate-specific values live here, not in extracted source grammar. The
 // containing design-contract evidence is hashed, independently reviewed and
 // retained with the candidate; this is not an approval or a style preset.
-export function validateComponentSpecs(specs, recipes, evidence) {
+export function validateComponentSpecs(specs, recipes, evidence, requiredFamilies = []) {
   if (!recipes.length) {
+    need(requiredFamilies.length === 0, "required component recipes are missing");
     need(specs === undefined, "unbound component_specs are forbidden");
     return;
   }
@@ -214,4 +215,9 @@ export function validateComponentSpecs(specs, recipes, evidence) {
   }
   need(specs.some((spec) => spec.disposition === "applied"),
     "all recipes were discarded; select a fitting reference direction instead of claiming craft coverage");
+  const appliedFamilies = recipes.filter((recipe) => specs.some((spec) =>
+    spec.grammar_id === recipe.grammar_id && spec.disposition === "applied"))
+    .map((recipe) => recipe.recipe.family);
+  const missing = requiredFamilies.filter((family) => !appliedFamilies.includes(family));
+  need(missing.length === 0, `required component recipes were not applied: ${missing.join(", ")}`);
 }

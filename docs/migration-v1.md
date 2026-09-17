@@ -2,6 +2,18 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Reference-required design and unified delivery
+
+New briefs may declare `reference_requirement` and assert it with
+`design run --require-reference`. Missing verified reference packs or requested
+component recipes block creation. The immutable brief preserves the requirement
+on resume. Existing no-reference briefs remain valid and retain their exact-three
+flow, but status explicitly reports `not_bound`; they are not reference-derived.
+`design provenance` is a separate derived report, not a mutation of signed state
+JSON. `capabilities` inspects the executing package, not global/account loading.
+See [reference delivery](reference-delivery.md). Keep old runs and selections as
+history; start a successor rather than adding references retrospectively.
+
 ## Optional component craft recipes
 
 The additive [component recipe contract](component-recipes.md) is opt-in for
@@ -29,6 +41,24 @@ brief/baseline/reference inputs. New Owner decisions must bind that new run.
 Missing scenario coverage stops before browser child spawn as `manual_pending`;
 failed executed checks stop result ingest. No automatic install, baseline
 promotion, owner approval, or product edit is part of this migration.
+
+## Explicit project-root discovery and setup guidance
+
+`doctor`, `plan`, `run`, `host configure-codex` and `browser configure` now
+resolve an implicit profile only inside an explicit `--root`. Previously they
+could silently read the invoking project's profile instead. No upward search
+is performed across that explicit boundary. Invocations without `--root`
+retain upward discovery; explicit `--profile` still takes precedence. Scripts
+that intentionally shared a profile while using another root must now pass
+that profile explicitly. A missing or non-directory explicit root is an error.
+
+Doctor JSON adds `project_root` and `next_actions`; existing fields, readiness
+semantics and exit codes remain. A missing profile's `next_required_command`
+now points to bootstrap. Human-readable run output adds attempt counts and
+continuation hints using the currently executing Node/bundled CLI paths, not
+PATH lookup. Automation state and signed receipt JSON are unchanged.
+The hints cannot authorize a missing adapter, original resume authority,
+browser proof or Owner approval. See [setup and continuation](project-setup.md).
 
 ## Parent identity and catalog migration
 
