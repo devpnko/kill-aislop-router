@@ -164,6 +164,22 @@ inert ancestors are excluded. The walker continues through browser-internal
 date/time focus stops until every declared sequential target is reached or the
 configured safety cap is exhausted.
 
+For open Shadow DOM, the same composed-tree inspection is used for the target
+inventory and the deepest active control. Evidence keys include the host chain
+(for example, `#panel >>> #save`) so identical local IDs in different roots do
+not count as the same control. Anonymous siblings, nested roots and slotted
+controls retain distinct identities; display-hidden/inert hosts are excluded.
+Effective control visibility is checked separately because `visibility:visible`
+can restore a descendant of a `visibility:hidden` host. Traversal
+still uses real Tab presses: a keyboard trap or exhausted cap remains a blocker.
+This is not coverage of closed shadow roots, iframe interiors or real assistive
+technology. Existing report fields and light-DOM keys are unchanged.
+
+Earlier adapters could report an accessible shadow control as unreached because
+they recorded its host instead. Historical findings are not automatically
+cleared by this fix. Rebind the approved host adapter and make a new observation
+with actual browser evidence; do not rewrite or re-sign an old run.
+
 Every required scenario needs at least one explicit state assertion. The
 generated root scenario starts with a minimal visible-body assertion; that is a
 bootstrap aid, not evidence that account tabs, dialogs, permission states, or
