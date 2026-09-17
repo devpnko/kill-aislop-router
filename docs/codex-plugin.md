@@ -208,6 +208,57 @@ and `status` tools while retaining the same host manifest and digest checks.
 
 ## Update
 
+### Keep the terminal package and plugin on the same reviewed build
+
+The Codex plugin and a global npm command are separate installations. Updating
+one does not replace the other. Avoid a global `npm link` to an in-progress
+checkout: it makes terminal behavior follow uncommitted changes rather than the
+reviewed installed plugin. An intentional project-development link remains a
+development tool, not proof of a synchronized installation.
+
+From the exact reviewed checkout, inspect command resolution and the real Node
+runtime before replacing an existing global package:
+
+```bash
+type -a node npm killsloprouter killslop
+node --version
+npm pack --ignore-scripts --pack-destination /absolute/private/staging
+npm install --global --ignore-scripts --no-audit --no-fund \
+  /absolute/private/staging/killsloprouter-1.0.0.tgz
+```
+
+Preserve the old target or package before replacement and use its existing npm
+prefix; do not silently modify PATH or choose another global installation.
+Global replacement and local plugin refresh both require their own explicit
+scope. Do not install a moving remote branch while reporting a pinned commit.
+
+The npm package now explicitly lists all four scripts already included by the
+plugin installer, without publishing arbitrary future files in that directory.
+Previously the tarball contained only the installer;
+a source-installed plugin could therefore fail `doctor` from the same-commit
+npm CLI with a payload identity conflict. `pack:check` compares every payload
+entry and both source-to-npm and npm-to-source doctor paths, including migrated
+legacy-shim verification and tamper rejection. Adding another bundled script
+requires an explicit package allowlist change. The integrity contract is
+unchanged; excluded files are not ignored.
+
+For an affected installation, replace the terminal package and explicitly
+refresh the canonical plugin from the same fixed build. If a verified legacy
+shim also needs rebinding, use the documented backup-only migration:
+
+```bash
+killsloprouter plugin install --force --migrate-legacy-entry --json
+killsloprouter capabilities --json
+killsloprouter doctor --profile /absolute/project/.killsloprouter/profile.json --json
+```
+
+Compare `capabilities` with the exact bundled plugin CLI too. Matching feature
+digests alone do not prove catalog readiness: `doctor` must also verify the full
+canonical payload, runtime, and legacy shim. Never re-sign old project states or
+approval receipts to make an updated installation appear compatible. A missing
+system Node library is a host-runtime fault; repair the matching runtime build,
+not a fake library-ABI symlink or a disabled integrity check.
+
 Multiple Codex accounts use [shared versions by default](account-plugin-sync.md)
 when no preference is saved. The first activating installation saves the discovered
 target list; existing explicit OFF choices stay OFF. `plugin sync --mode shared` turns it ON;

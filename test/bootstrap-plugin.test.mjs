@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { canonicalDigest, hashArtifact } from "../src/integrity.mjs";
+import { PLUGIN_BUNDLE_ENTRIES } from "../src/skill-catalog.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -27,6 +28,19 @@ function runNode(script, args, cwd) {
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
+
+test("npm allowlist includes every complete integrity-bound plugin entry", () => {
+  const { files } = readJson(path.join(root, "package.json"));
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
+    // npm always includes package.json. Explicit script files avoid publishing
+    // future scratch files; every current directory member must still be bound.
+    if (entry === "package.json" || files.includes(entry)) continue;
+    assert.ok(fs.lstatSync(path.join(root, entry)).isDirectory(), `npm payload omits ${entry}`);
+    for (const member of fs.readdirSync(path.join(root, entry))) {
+      assert.ok(files.includes(`${entry}/${member}`), `npm payload omits ${entry}/${member}`);
+    }
+  }
+});
 
 function approveVisualIntent(profilePath, artifactPath) {
   const profile = readJson(profilePath);

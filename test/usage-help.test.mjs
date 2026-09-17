@@ -240,7 +240,19 @@ test("separate CLI invocations resume a manual stop using the caller-retained au
   assert.match(resumed.stdout, /adapter attempts: 0 ran; 0 manual_recorded;/);
   assert.match(resumed.stdout, /next: Supply the pending authorized adapters/);
   assert.match(resumed.stdout, /resume after resolving the stop:/);
-  assert.ok(resumed.stdout.includes(`resume after resolving the stop: ${process.execPath} ${cli} run `));
+  const displayed = resumed.stdout.split("\n")
+    .find((line) => line.startsWith("resume after resolving the stop: "))
+    .slice("resume after resolving the stop: ".length);
+  // Homebrew's node@22 path is correctly quoted. Compare the literal argv,
+  // not an unquoted substring; print this controlled fixture, do not execute it.
+  const decoded = spawnSync("/bin/sh", ["-c", `printf '%s\\n' ${displayed}`], {
+    encoding: "utf8", timeout: 5_000
+  });
+  assert.equal(decoded.status, 0, decoded.stderr);
+  assert.deepEqual(decoded.stdout.trimEnd().split("\n"), [
+    process.execPath, cli, "run", "--resume", statePath,
+    "--authority-digest", original.resume_authority_digest
+  ]);
   assert.match(resumed.stdout, /Never reconstruct it from the state being verified/);
   assert.ok(resumed.stdout.includes(original.resume_authority_digest));
   const retained = JSON.parse(fs.readFileSync(statePath, "utf8"));
@@ -290,17 +302,22 @@ test("displayed POSIX resume arguments preserve spaces and shell metacharacters 
     resume_authority_digest: `sha256:${"a".repeat(64)}`
   };
   const host = "/fixture/host with 'quotes' $literal.json";
-  const line = automationGuidance(state, { hostConfig: host })
-    .find((item) => item.startsWith("resume after resolving the stop:"));
-  // Feed the displayed arguments to a shell function, not a Router/model run.
-  // Any expansion changes argv and fails the comparison; no file is executed.
-  const command = line.slice("resume after resolving the stop: ".length);
-  const result = spawnSync("/bin/sh", ["-c", `killsloprouter() { printf '%s\\n' "$@"; }\n${command}`], {
-    encoding: "utf8", timeout: 5_000
-  });
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(result.stdout.trimEnd().split("\n"), [
-    "run", "--resume", state.state_path, "--authority-digest", state.resume_authority_digest,
-    "--host-config", host
-  ]);
+  for (const commandPrefix of [
+    ["killsloprouter"],
+    ["/opt/homebrew/opt/node@22/bin/node", "/fixture/KSR with 'quotes'/bin/killsloprouter.mjs"]
+  ]) {
+    const line = automationGuidance(state, { hostConfig: host, commandPrefix })
+      .find((item) => item.startsWith("resume after resolving the stop:"));
+    // Print all displayed arguments, including executable paths. Any expansion
+    // changes argv and fails the comparison; no Router/model file is executed.
+    const command = line.slice("resume after resolving the stop: ".length);
+    const result = spawnSync("/bin/sh", ["-c", `printf '%s\\n' ${command}`], {
+      encoding: "utf8", timeout: 5_000
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.stdout.trimEnd().split("\n"), [
+      ...commandPrefix, "run", "--resume", state.state_path,
+      "--authority-digest", state.resume_authority_digest, "--host-config", host
+    ]);
+  }
 });

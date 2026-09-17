@@ -3,8 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { hashArtifact } from "../src/integrity.mjs";
+import { PLUGIN_BUNDLE_ENTRIES } from "../src/skill-catalog.mjs";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-pack-"));
 
 function run(command, args, options = {}) {
@@ -183,6 +187,15 @@ try {
 
   const installedRoot = path.join(consumer, "node_modules", "killsloprouter");
   const installedCli = path.join(installedRoot, "bin", "killsloprouter.mjs");
+  // Feature/version equality alone cannot prove installer identity: doctor
+  // binds the complete payload, including scripts, across delivery channels.
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
+    assert.equal(
+      hashArtifact(path.join(installedRoot, entry), { ignores: [] }),
+      hashArtifact(path.join(sourceRoot, entry), { ignores: [] }),
+      `npm/source plugin payload mismatch: ${entry}`
+    );
+  }
   const capabilities = run(process.execPath, [installedCli, "capabilities", "--json"], { cwd: consumer });
   assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
   const distribution = JSON.parse(capabilities.stdout);
@@ -373,6 +386,44 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
   assert.equal(JSON.parse(doctor.stdout).status, "automation-ready");
 
+  // Verify both real cross-channel paths, not just npm -> npm-installed plugin.
+  const sourceCli = path.join(sourceRoot, "bin", "killsloprouter.mjs");
+  const sourceHome = path.join(temporary, "source-installed-codex-home");
+  const legacy = path.join(sourceHome, ".codex", "skills", "kill-slop-router");
+  fs.mkdirSync(path.join(legacy, "agents"), { recursive: true });
+  fs.writeFileSync(path.join(legacy, "SKILL.md"), "# legacy full router fixture\n");
+  fs.writeFileSync(path.join(legacy, "agents", "openai.yaml"), "policy:\n  allow_implicit_invocation: true\n");
+  const legacyDigest = hashArtifact(legacy);
+  const sourceInstall = run(process.execPath, [sourceCli,
+    "plugin", "install", "--home", sourceHome, "--migrate-legacy-entry", "--no-activate"], { cwd: sourceRoot });
+  assert.equal(sourceInstall.status, 0, sourceInstall.stderr || sourceInstall.stdout);
+  const sourceReceipt = JSON.parse(sourceInstall.stdout);
+  assert.equal(sourceReceipt.legacy_migration.status, "migrated");
+  assert.equal(sourceReceipt.legacy_migration.backup.digest, legacyDigest);
+  assert.equal(hashArtifact(sourceReceipt.legacy_migration.backup.path), legacyDigest);
+  assert.equal(sourceReceipt.skill_catalog.canonical.marker_digest,
+    pluginReceipt.skill_catalog.canonical.marker_digest,
+    "source and npm installations must issue the same complete marker");
+  for (const [checkingCli, home] of [[installedCli, sourceHome], [sourceCli, isolatedHome]]) {
+    const crossDoctor = run(process.execPath, [checkingCli, "doctor",
+      "--profile", installedProfile, "--home", home, "--json"], { cwd: consumer });
+    assert.equal(crossDoctor.status, 0, crossDoctor.stderr || crossDoctor.stdout);
+    const checked = JSON.parse(crossDoctor.stdout);
+    assert.equal(checked.skill_catalog.status, "ready");
+    assert.equal(checked.skill_catalog.identity_conflict, false);
+    assert.equal(checked.skill_catalog.legacy.status,
+      home === sourceHome ? "verified-explicit-shim" : "absent");
+    assert.equal(checked.skill_catalog.canonical.marker_digest,
+      pluginReceipt.skill_catalog.canonical.marker_digest);
+  }
+  const scriptToTamper = path.join(sourceReceipt.plugin_target, "scripts", "static-check.mjs");
+  fs.appendFileSync(scriptToTamper, "\n// package verification tamper fixture\n");
+  const tamperedDoctor = run(process.execPath, [installedCli, "doctor",
+    "--profile", installedProfile, "--home", sourceHome, "--json"], { cwd: consumer });
+  assert.equal(tamperedDoctor.status, 5, tamperedDoctor.stderr || tamperedDoctor.stdout);
+  assert.equal(JSON.parse(tamperedDoctor.stdout).skill_catalog.identity_conflict, true,
+    "cross-channel parity must not weaken complete script integrity");
+
   const installedReferenceBrief = path.join(
     installedRoot,
     "examples",
@@ -427,6 +478,7 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
+  process.stdout.write("source/npm: complete payload parity, both cross-channel doctors, marker equality, migrated legacy backup/shim and script tamper rejection passed\n");
   process.stdout.write("installed consumer: help/module-graph digest, Codex/state-lease/reference exports, reference contract validation and dry-run, integrity-bound plugin install, doctor, manual runtime dry-run passed\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });

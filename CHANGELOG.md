@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed source/npm/plugin delivery parity: the npm tarball now includes the
+  complete integrity-bound `scripts/` tree. Packaging tests compare all payload
+  entries, verify both cross-channel doctor paths and identical install markers,
+  and reject script tamper. Added a global-command versus plugin recovery guide;
+  no catalog integrity, project receipt or approval rule is relaxed.
+
 - Added opt-in `popularity_prior.unavailable_policy: fit-only`. Export, child
   result and pack contracts preserve subject-bound unavailable signals with
   evidence, reason and check time but no invented value, score or as-of date.
