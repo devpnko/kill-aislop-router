@@ -17,8 +17,16 @@ Declare `reference_requirement.mode: required` in a new design brief, request
 the applicable component recipe families, bind the verified reference pack,
 and use `design run --require-reference --dry-run`. Preserve the normal
 reference/Owner stops. Do not equate "bright/clean/human-like" wording with
-source evidence, or a pushed branch with installed capability. Report
-`design provenance --run ... --json` separately from browser/review success.
+source evidence, or a pushed branch with installed capability.
+Before asking the Owner to settle a new visual direction, present actual UI Bowl
+source links with task fit, transferable hierarchy/component craft and limits,
+not just IDs or a style name. Use `reference choices --run ... --json` after
+independent review; unverified intake is not a selectable reference. Explain
+the leading fit-ranked option as advice, never as the Owner's choice. Follow
+the Owner handoff in `docs/reference-delivery.md`; no selection means no
+reference-derived creator dispatch. Show the selected sources and intended
+transfers again at direction/color and final-artifact review using
+`design provenance --run ... --json`, separately from rendered-quality proof.
 For a new reference-derived request, legacy no-reference runs stay historical;
 never retrofit their selections. For every visual exploration, state the actual
 reference binding before dispatch. If no project reference is bound, explain

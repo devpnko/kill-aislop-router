@@ -1619,6 +1619,15 @@ test("component craft specifications survive direction/color browser review, Own
       boundBrief.reference_requirement);
     assert.equal(designReferenceDelivery(state).reference_bound_creator_packets, 9);
     assert.deepEqual(designReferenceDelivery(state).selected_recipe_families, ["comparison-table"]);
+    const sources = designReferenceDelivery(state).selected_references;
+    assert.deepEqual(sources.map((item) => item.reference_id),
+      state.reference_pack.normalized.references.map((item) => item.reference_id));
+    assert.equal(sources[0].role, "anchor");
+    assert.ok(sources.slice(1).every((item) => item.role === "support"));
+    assert.ok(sources.every((item) => item.source_uri.startsWith("https://uibowl.io/") && item.fit_rationale));
+    assert.ok(sources.flatMap((item) => item.transfers).some((item) => item.recipe_family === "comparison-table"));
+    assert.doesNotMatch(JSON.stringify(creator), /flowdesk|marketline|proofgrid|uibowl\.io|source_uri/,
+      "Owner provenance must never be injected into creator packets");
     assert.ok(contract.recipes.length > 0);
     assert.equal(contract.human_authorship_certified, false);
     assert.equal(contract.schema_digest, canonicalDigest(contract.schema));
@@ -1651,6 +1660,12 @@ test("component craft specifications survive direction/color browser review, Own
     });
     assert.equal(finalState.status, "manual_pending", JSON.stringify(finalState.blockers));
     assert.equal(finalState.phase, "owner-approval");
+    const beforeOwnerView = hashArtifact(space.statePath);
+    const ownerView = spawnSync(process.execPath, [cli, "design", "provenance", "--run", space.statePath], { encoding: "utf8" });
+    assert.equal(ownerView.status, 0, ownerView.stderr);
+    for (const source of sources) assert.ok(ownerView.stdout.includes(source.source_uri));
+    assert.deepEqual(designReferenceDelivery(readDesignState(space.statePath)).selected_references, sources);
+    assert.equal(hashArtifact(space.statePath), beforeOwnerView, "the final design reference handoff cannot approve or mutate");
     const colorReview = finalState.results.find((item) => item.normalized.kind === "color-review");
     assert.equal(colorReview.normalized.reference_checks.length, 9);
     assertPublishedSchema("design-packet", finalState.packets.find((item) => item.packet_id === colorReview.packet_id));
@@ -1672,6 +1687,7 @@ test("component craft specifications survive direction/color browser review, Own
     const replay = resumeDesignExploration(space.statePath, { hostManifest: manifest });
     assert.equal(replay.state_digest, finalState.state_digest);
     assert.equal(replay.attempts.length, finalState.attempts.length);
+    assert.deepEqual(designReferenceDelivery(replay).selected_references, sources);
     document.component_specs[0].visual_values.elevation = "flattened after review";
     fs.writeFileSync(specimen.path, JSON.stringify(document));
     assert.throws(() => readDesignState(space.statePath), /design result evidence state binding mismatch/);

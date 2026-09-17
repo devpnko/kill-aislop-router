@@ -257,6 +257,12 @@ Copy it outside the child-writable state tree, inspect the evidence, select
 exactly one anchor and one to four supports, choose only critic-verified
 grammar IDs, then resume:
 
+Before asking for that decision, present `reference choices --run
+.killsloprouter/reference-run.json --json` as the Owner-facing source/fit/transfer
+comparison described in [reference delivery](reference-delivery.md). The report
+is read-only, not a selection receipt or a creator input. Normal text run/status
+also shows these choices; normal JSON still returns the original state.
+
 ```bash
 killsloprouter reference run \
   --resume .killsloprouter/reference-run.json \

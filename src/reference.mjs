@@ -5323,3 +5323,125 @@ export function referenceExitCode(state) {
   if (state.status === "manual_pending") return 6;
   return 5;
 }
+
+// Owner-facing projection, not a receipt, creator input or new authority.
+// Always revalidate the canonical state/results/evidence before presenting a
+// selectable reference. Discovery alone (or a cached summary) is insufficient.
+export function readReferenceChoices(statePath, { expectedStateDigest = null } = {}) {
+  const state = readReferenceState(statePath);
+  requireValue(expectedStateDigest === null || expectedStateDigest === state.state_digest,
+    "reference state changed while preparing Owner choices; read the current state again", 4);
+  const discovery = resultFor(state, "reference-discovery");
+  const grammar = resultFor(state, "reference-grammar");
+  const review = resultFor(state, "reference-review");
+  const selection = state.selection?.normalized;
+  const canSelect = state.status === "manual_pending" &&
+    state.phase === "owner-reference-selection" && !selection &&
+    Boolean(state.selection_scope_digest);
+  const candidates = state.ranking.map((rank, index) => {
+    const reference = discovery.normalized.references.find((item) =>
+      item.reference_id === rank.reference_id);
+    const analysis = grammar.normalized.references.find((item) =>
+      item.reference_id === rank.reference_id);
+    const disposition = review.normalized.dispositions.find((item) =>
+      item.reference_id === rank.reference_id);
+    const observations = reference.observed.filter((item) =>
+      disposition.verified_observation_ids.includes(item.observation_id))
+      .map((item) => ({ ...item, reference_id: reference.reference_id }));
+    const evidenceIds = new Set(observations.flatMap((item) => item.evidence_ids));
+    const capture = reviewerSourceCaptureReadiness({
+      references: [reference],
+      verified_observations: observations,
+      evidence_manifest: discovery.evidence.filter((item) =>
+        evidenceIds.has(item.evidence_id) &&
+        disposition.verified_evidence_ids.includes(item.evidence_id))
+        .map((item) => ({ ...item, kind: item.evidence_kind }))
+    });
+    const transfers = analysis.grammar.filter((item) =>
+      disposition.verified_grammar_ids.includes(item.grammar_id));
+    return {
+      rank: index + 1,
+      reference_id: reference.reference_id,
+      app_name: reference.app_name,
+      source: structuredClone(reference.source),
+      product_category: reference.product_category,
+      ecosystem_id: reference.sampling.ecosystem_id,
+      screen_family: reference.screen_family,
+      frame_ids: reference.family.frames.map((frame) => frame.frame_id),
+      role: selection?.anchor_reference_id === reference.reference_id ? "anchor"
+        : selection?.supporting_reference_ids.includes(reference.reference_id) ? "support" : null,
+      product_fit: structuredClone(analysis.product_fit),
+      component_families: [...disposition.verified_component_families],
+      patterns: [...disposition.verified_patterns],
+      hierarchy_reasoning: structuredClone(analysis.hierarchy_reasoning.filter((item) =>
+        disposition.verified_hierarchy_reasoning_ids.includes(item.reasoning_id))),
+      transfers: structuredClone(transfers),
+      locale_risks: [...analysis.locale_analysis.risks],
+      popularity: {
+        status: rank.popularity_status,
+        verified: rank.popularity_verified,
+        score: rank.popularity_score,
+        used_for_ranking: !fitOnlyPopularity(state.brief.popularity_prior) && rank.popularity_verified
+      },
+      rights: structuredClone(reference.rights),
+      capture_readiness: {
+        status: capture.status === "ready_at_compilation" ? "covered" : "manual_pending",
+        uncovered_observation_ids: capture.uncovered_observation_ids,
+        revalidate_on_design_start: true
+      }
+    };
+  });
+  const producerComplete = state.status === "complete" && Boolean(state.outputs.reference_pack);
+  const selectedCaptureReady = selection?.status === "selected" &&
+    candidates.filter((item) => item.role !== null).every((item) =>
+      item.capture_readiness.status === "covered");
+  const nextStep = canSelect ? "choose_references"
+    : selection?.status === "selected"
+      ? !producerComplete ? "complete_reference_run"
+        : selectedCaptureReady ? "bind_reference_pack" : "successor_capture_research"
+      : selection?.status === "rejected" ? "successor_research" : "resolve_reference_gate";
+  const nextActions = {
+    choose_references: "Review the source links and transfers; the real Owner chooses one anchor, 1-4 cross-product/category/ecosystem supports and verified grammar IDs. Copy the selection template outside the child-writable state tree, record the actual decision, then reference run --resume with --selection. Ranking is not selection.",
+    complete_reference_run: "The Owner choice is recorded but the producer has not completed. Resolve any lease/recovery stop and resume the canonical reference run until complete with a verified pack. Do not choose again or dispatch a creator from this checkpoint.",
+    bind_reference_pack: "Keep the recorded choice. Bind the completed pack and exact producer state to a new reference-required design brief; revalidate capture readiness. Direction, color, browser/critic and exact-artifact Owner gates remain separate.",
+    successor_capture_research: "Research is complete but selected source captures are missing. Keep this pack unchanged. A newly authorized successor needs complete capture evidence, independent review and its own Owner selection before design creation.",
+    successor_research: "The Owner rejected these references. Keep this run unchanged; a newly authorized research scope needs a successor run, not automatic selection.",
+    resolve_reference_gate: "Resolve the reported pending work/blockers through the canonical reference run. No selectable references are presented before independent review and coverage pass."
+  };
+  return {
+    reference_choices_version: 1,
+    audience: "owner",
+    orchestrator: "KillSlopRouter",
+    authority_scope: "discovery-evidence-only",
+    run_id: state.run_id,
+    run_status: state.status,
+    phase: state.phase,
+    state_digest: state.state_digest,
+    selection_scope_digest: state.selection_scope_digest,
+    independent_review_digest: review?.result_digest || null,
+    status: selection?.status || (canSelect ? "awaiting_owner_selection" : "not_ready"),
+    can_select: canSelect,
+    ranking_policy: fitOnlyPopularity(state.brief.popularity_prior)
+      ? "product-fit-band-then-fit-score" : "product-fit-band-then-verified-popularity",
+    selection_requirements: {
+      anchor_count: 1,
+      minimum_supports: 1,
+      maximum_supports: 4,
+      support_diversity_from_anchor: ["product_record_id", "product_category", "ecosystem_id"],
+      required_grammar_dimensions: [...state.brief.coverage.required_grammar_dimensions],
+      required_recipe_families: [...(state.brief.coverage.required_recipe_families || [])]
+    },
+    candidates,
+    selected_grammar_ids: [...(selection?.selected_grammar_ids || [])],
+    selection_digest: state.selection?.selection_digest || null,
+    blockers: [...state.blockers],
+    pending: [...state.pending],
+    source_pixels_included: false,
+    creator_input: false,
+    visual_approval_granted: false,
+    producer_complete: producerComplete,
+    reference_pack_file_digest: state.outputs.reference_pack?.digest || null,
+    next_step: nextStep,
+    next_action: nextActions[nextStep]
+  };
+}

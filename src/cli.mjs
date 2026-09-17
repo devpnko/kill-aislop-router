@@ -53,6 +53,7 @@ import {
 import {
   dispatchReferencePackets,
   dryRunReferenceIntelligence,
+  readReferenceChoices,
   readReferenceState,
   recoverReferenceStateLease,
   referenceExitCode,
@@ -64,7 +65,9 @@ import { inspectSkillCatalog } from "./skill-catalog.mjs";
 import { pluginAccountSync } from "./plugin-sync.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
-import { automationGuidance, doctorNextActions } from "./usage-guidance.mjs";
+import {
+  automationGuidance, designReferenceGuidance, doctorNextActions, referenceChoicesGuidance
+} from "./usage-guidance.mjs";
 import { inspectDistribution } from "./distribution.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -158,6 +161,7 @@ Start here:
 The plugin is the parent workflow; reviewers such as anti-slop are internal children.
 Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
 Account plugin versions default to shared; an explicit per-account OFF preference is preserved.
+For a new visual direction, review UI Bowl choices before creation; a ranked reference is not Owner approval.
 Guide (bundled): ${path.join(packageRoot, "docs", "getting-started.md")}
 Project setup (bundled): ${path.join(packageRoot, "docs", "project-setup.md")}
 
@@ -179,6 +183,7 @@ Usage:
   killsloprouter reference run --brief FILE --out FILE [--host-config FILE]
   killsloprouter reference run --resume FILE [--host-config FILE] [--selection FILE]
   killsloprouter reference status --run FILE [--json]
+  killsloprouter reference choices --run FILE [--json]
   killsloprouter reference dispatch --run FILE --out-dir DIR
   killsloprouter reference recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
@@ -815,6 +820,7 @@ function formatDesignState(state) {
     lines.push(`reference delivery: ${reference.status}`);
     lines.push(reference.note);
     if (reference.pack_digest) lines.push(`reference pack: ${reference.pack_digest}`);
+    lines.push(...designReferenceGuidance(reference));
   }
   if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
   if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
@@ -886,7 +892,8 @@ function designCommand(args) {
     assertDesignReferenceRequirement(state.brief, args["require-reference"]);
     if (command === "provenance") {
       output(designReferenceDelivery(state), args, (value) =>
-        `KillSlopRouter reference delivery: ${value.status}\n${value.note}\n`);
+        [`KillSlopRouter reference delivery: ${value.status}`, value.note,
+          ...designReferenceGuidance(value)].join("\n") + "\n");
       return;
     }
     if (command === "status") {
@@ -957,11 +964,14 @@ function formatReferenceState(state) {
   }
   if (state.phase) lines.push(`phase: ${state.phase}`);
   if (state.selection_scope_digest) lines.push(`selection scope: ${state.selection_scope_digest}`);
-  for (const item of state.ranking || []) {
-    lines.push(`rank: ${item.reference_id} (${item.product_fit_band}, popularity ${item.popularity_score})`);
+  if (state.reference_intelligence_run_version === 1) {
+    lines.push(...referenceChoicesGuidance(readReferenceChoices(state.state_path, {
+      expectedStateDigest: state.state_digest
+    })));
+  } else {
+    for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+    for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
   }
-  for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
-  for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
   if (state.state_path) lines.push(`state: ${state.state_path}`);
   if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
   if (state.outputs?.reference_pack) {
@@ -978,8 +988,14 @@ function referenceOutput(value, args) {
 
 function referenceCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "dispatch", "recover"].includes(command)) {
-    throw new RouterError("reference requires run, status, dispatch, or recover", 2);
+  if (!command || !["run", "status", "choices", "dispatch", "recover"].includes(command)) {
+    throw new RouterError("reference requires run, status, choices, dispatch, or recover", 2);
+  }
+  if (command === "choices") {
+    if (!args.run) throw new RouterError("reference choices requires --run", 2);
+    output(readReferenceChoices(args.run), args, (value) =>
+      ["KillSlopRouter", ...referenceChoicesGuidance(value)].join("\n") + "\n");
+    return;
   }
   if (command === "recover") {
     if (!args.state) throw new RouterError("reference recover requires --state", 2);

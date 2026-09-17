@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added a read-only Owner reference handoff: `reference choices --run` revalidates
+  the canonical research state and shows actual source links, fit, verified
+  component/grammar transfers, capture gaps and recorded anchor/support roles.
+  Normal reference text output presents the choices; design status/provenance
+  retains selected sources and intended transfers at subsequent Owner stops.
+  Existing state/receipt JSON, source-pixel isolation, exact-three flow and
+  approval gates are unchanged. The additive provenance fields need no ledger
+  migration. Bundled skill guidance presents references before design decisions;
+  report success is not selection, creation or rendered-quality approval.
+
 - Fixed official Playwright keyboard evidence for open Shadow DOM: inventory and
   focus now share deep-control identity, qualify keys by shadow host, distinguish
   anonymous siblings, and honor composed display-hidden/inert ancestors without

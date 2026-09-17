@@ -93,3 +93,47 @@ export function automationGuidance(state, {
   }
   return lines;
 }
+
+// These views are for the Owner, never a source-identity-bearing creator brief.
+export function referenceChoicesGuidance(report) {
+  const lines = [
+    `UI Bowl reference choices: ${report.status} (Owner view; not visual approval)`,
+    `ranking: ${report.ranking_policy}; ranking is not Owner selection`,
+    `selection: one anchor and 1-4 supports; supports must cover a different product, category and ecosystem from the anchor`,
+    `required grammar dimensions: ${report.selection_requirements.required_grammar_dimensions.join(", ")}`,
+    `required component recipes: ${report.selection_requirements.required_recipe_families.join(", ") || "none"}`
+  ];
+  for (const item of report.candidates) {
+    lines.push(`${item.rank}. ${item.app_name} [${item.reference_id}]${item.role ? ` — selected ${item.role}` : ""}`,
+      `   source: ${item.source.uri}`,
+      `   identity: ${item.source.product_record_id}; category: ${item.product_category}; ecosystem: ${item.ecosystem_id}`,
+      `   fit: ${item.product_fit.band} (${item.product_fit.score}) — ${item.product_fit.rationale}`,
+      `   use: ${item.component_families.join(", ")}; ${item.patterns.join(", ")}`,
+      `   verified grammar choices: ${item.transfers.map((transfer) => transfer.grammar_id).join(", ")}`);
+    const reasoning = item.hierarchy_reasoning[0];
+    if (reasoning) lines.push(`   hierarchy (${reasoning.confidence} inference): ${reasoning.user_decision} — ${reasoning.consequence_if_flattened}`);
+    for (const transfer of item.transfers.filter((entry) => entry.component_recipe)) {
+      lines.push(`   craft (${transfer.component_recipe.family}): ${transfer.application}`,
+        `   treatment: ${transfer.component_recipe.visual_treatment.surface} ${transfer.component_recipe.visual_treatment.typography}`,
+        `   responsive: ${transfer.component_recipe.responsive_variants.map((variant) => `${variant.range}=${variant.basis}`).join(", ")}`);
+    }
+    lines.push(`   limits: ${item.locale_risks.join("; ")}`,
+      `   popularity: ${item.popularity.status}; ${item.popularity.used_for_ranking ? `verified score ${item.popularity.score}` : "not used for ranking"}`,
+      `   capture coverage: ${item.capture_readiness.status}; rights: ${item.rights.status}; no source redistribution or creator pixels`);
+  }
+  for (const blocker of report.blockers) lines.push(`blocker: ${blocker}`);
+  for (const pending of report.pending) lines.push(`pending: ${pending}`);
+  if (report.selected_grammar_ids.length) lines.push(`Owner-selected grammar: ${report.selected_grammar_ids.join(", ")}`);
+  lines.push(`producer complete: ${report.producer_complete}; next step: ${report.next_step}`,
+    `next: ${report.next_action}`,
+    "detail: reference choices --run FILE --json includes verified hierarchy reasoning, application conditions and tradeoffs. Source links are for Owner review, not creator input.");
+  return lines;
+}
+
+export function designReferenceGuidance(report) {
+  return (report.selected_references || []).flatMap((item) => [
+    `selected reference (${item.role}): ${item.app_name} — ${item.source_uri}`,
+    `  fit: ${item.fit_rationale}`,
+    ...item.transfers.map((transfer) => `  intended transfer (${transfer.recipe_family || transfer.dimension}): ${transfer.application}`)
+  ]);
+}

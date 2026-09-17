@@ -4896,6 +4896,22 @@ export function designReferenceDelivery(state) {
       pack && packet.design_task.reference_intelligence?.pack_digest === pack.pack_digest).length,
     source_providers: [...new Set((pack?.normalized.references || [])
       .map((reference) => reference.source.provider))].sort(),
+    // Owner provenance only; never feed source identities to creator packets.
+    selected_references: (pack?.normalized.references || []).map((reference) => ({
+      reference_id: reference.reference_id,
+      app_name: reference.app_name,
+      role: reference.role,
+      source_uri: reference.source.uri,
+      fit_rationale: reference.product_fit.rationale,
+      transfers: pack.normalized.verified_grammar
+        .filter((item) => item.reference_id === reference.reference_id)
+        .map((item) => ({
+          grammar_id: item.grammar_id,
+          dimension: item.dimension,
+          application: item.application,
+          recipe_family: item.component_recipe?.family || null
+        }))
+    })),
     state_digest: state.state_digest || null,
     visual_approval_granted: false,
     human_authorship_certified: false,

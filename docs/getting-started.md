@@ -39,6 +39,11 @@ For UI Bowl or reference-derived design, use the
 CLI must expose reference/component capabilities, and the project must bind a
 verified pack. Ask for `design provenance` alongside candidate previews.
 `not_bound` means no reference was delivered, even if browser tests pass.
+Before a new visual direction is chosen, the plugin presents actual UI Bowl
+links, fit and component/hierarchy transfers through `reference choices`.
+The Owner chooses the anchor/supports; `design provenance` carries that choice
+to later direction, color and final-artifact review. No synthetic example,
+rank, source name or screenshot-only pass substitutes for this choice.
 
 Ask KSR to report four things after each pass: **current stage and status**, **what actually ran versus `manual_pending`**, **the exact next action or Owner choice**, and **state/receipt hashes**. Typical stops are:
 

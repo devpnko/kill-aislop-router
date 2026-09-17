@@ -14,6 +14,7 @@ import {
   dispatchReferencePackets,
   dryRunReferenceIntelligence,
   inspectReferenceStateLease,
+  readReferenceChoices,
   readReferenceState,
   referenceSourceRecipientExecutionLineage,
   recoverReferenceStateLease,
@@ -537,6 +538,173 @@ function writeSelection(space, state, mutate = null) {
   writeJson(target, selection);
   return target;
 }
+
+test("Owner choices do not promote manual discovery or incomplete coverage", () => {
+  for (const variant of ["manual", "coverage"]) {
+    const space = workspace();
+    try {
+      const configured = variant === "coverage" ? host(space, { critic: { low_coverage: true } }) : null;
+      const state = startReferenceIntelligence({ statePath: space.statePath,
+        briefPath: space.briefPath, root: space.directory, hostManifest: configured?.manifest });
+      const before = hashArtifact(space.directory, { ignores: [] });
+      const report = readReferenceChoices(space.statePath);
+      assert.equal(report.status, "not_ready");
+      assert.equal(report.can_select, false);
+      assert.deepEqual(report.candidates, []);
+      assert.equal(report.selection_scope_digest, null);
+      assert.equal(report.run_status, state.status);
+      assert.equal(hashArtifact(space.directory, { ignores: [] }), before);
+      if (variant === "manual") assert.ok(state.attempts.every((item) =>
+        item.execution_status === "manual_pending" && !Number.isInteger(item.child_pid)));
+    } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+  }
+});
+
+test("real CLI presents reviewed UI Bowl choices without choosing or spawning again", () => {
+  const space = workspace();
+  try {
+    const configured = host(space, { grammar: { component_recipes: true } });
+    const started = spawnSync(process.execPath, [cli, "reference", "run",
+      "--brief", space.briefPath, "--out", space.statePath, "--root", space.directory,
+      "--host-config", configured.path], { encoding: "utf8", timeout: 30_000 });
+    assert.equal(started.status, 6, started.stderr);
+    const state = readReferenceState(space.statePath);
+    assert.equal(state.selection, null);
+    assert.equal(state.attempts.filter((a) => a.execution_status === "ran" && a.child_pid > 0).length, 3);
+    const before = hashArtifact(space.directory, { ignores: [] });
+    const report = readReferenceChoices(space.statePath);
+    assert.throws(() => readReferenceChoices(space.statePath, {
+      expectedStateDigest: `sha256:${"0".repeat(64)}`
+    }), /state changed while preparing/);
+    assert.equal(report.status, "awaiting_owner_selection");
+    assert.equal(report.can_select, true);
+    assert.equal(report.state_digest, state.state_digest);
+    assert.equal(report.selection_scope_digest, state.selection_scope_digest);
+    assert.equal(report.independent_review_digest, state.results.at(-1).result_digest);
+    assert.equal(report.visual_approval_granted, false);
+    assert.equal(report.creator_input, false);
+    assert.equal(report.source_pixels_included, false);
+    assert.equal(report.next_step, "choose_references");
+    assert.equal(report.producer_complete, false);
+    assert.deepEqual(report.selection_requirements.required_grammar_dimensions, space.brief.coverage.required_grammar_dimensions);
+    assert.deepEqual(report.selection_requirements.required_recipe_families, []);
+    assert.deepEqual(report.candidates.map((item) => item.reference_id), state.ranking.map((item) => item.reference_id));
+    assert.ok(report.candidates.every((item) => item.role === null && item.capture_readiness.status === "covered"));
+    assert.ok(report.candidates[0].transfers.some((item) => item.component_recipe?.family === "comparison-table"));
+    for (const item of report.candidates) {
+      assert.ok(item.hierarchy_reasoning.length > 0);
+      assert.ok(item.transfers.every((transfer) => transfer.application && transfer.tradeoff && transfer.harmful_when.length));
+      assert.match(started.stdout, new RegExp(item.reference_id));
+      assert.ok(started.stdout.includes(item.source.uri));
+      assert.equal(item.rights.creator_pixel_access, false);
+      assert.ok(item.source.product_record_id && item.product_category && item.ecosystem_id);
+    }
+    assert.doesNotMatch(JSON.stringify(report), /\.png|"(?:path|resolved_path|evidence_path)"|data:image|base64|blob:/i);
+    const json = spawnSync(process.execPath, [cli, "reference", "choices", "--run", space.statePath, "--json"], { encoding: "utf8" });
+    assert.equal(json.status, 0, json.stderr);
+    assert.deepEqual(JSON.parse(json.stdout), report);
+    const status = spawnSync(process.execPath, [cli, "reference", "status", "--run", space.statePath, "--json"], { encoding: "utf8" });
+    assert.equal(status.status, 0, status.stderr);
+    assert.deepEqual(JSON.parse(status.stdout), state, "status JSON remains the original ledger");
+    assert.equal(hashArtifact(space.directory, { ignores: [] }), before, "views must not acquire leases or write packets/decisions");
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("Owner view preserves fit-only unknown popularity, capture gaps and genuine selection roles", () => {
+  const space = workspace();
+  try {
+    space.brief.popularity_prior.unavailable_policy = "fit-only";
+    const configured = host(space, { discovery: { unavailable_popularity: "all", metadata_only: true } });
+    let state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, root: space.directory, hostManifest: configured.manifest });
+    let report = readReferenceChoices(space.statePath);
+    assert.equal(report.can_select, true, "research choice is not capture-ready design");
+    assert.equal(report.ranking_policy, "product-fit-band-then-fit-score");
+    assert.ok(report.candidates.every((item) => item.popularity.score === null &&
+      !item.popularity.verified && !item.popularity.used_for_ranking &&
+      item.capture_readiness.status === "manual_pending" && item.capture_readiness.uncovered_observation_ids.length));
+    state = resumeReferenceIntelligence(space.statePath, {
+      hostManifest: configured.manifest, selectionPath: writeSelection(space, state, (selection) => {
+        selection.anchor_reference_id = state.ranking[1].reference_id;
+        selection.supporting_reference_ids = [state.ranking[0].reference_id, state.ranking[2].reference_id];
+      })
+    });
+    report = readReferenceChoices(space.statePath);
+    assert.equal(report.status, "selected");
+    assert.equal(report.next_step, "successor_capture_research");
+    assert.equal(report.producer_complete, true);
+    assert.equal(report.can_select, false);
+    assert.equal(report.candidates[1].role, "anchor", "rank one is not automatically the Owner's anchor");
+    assert.equal(report.candidates[0].role, "support");
+    assert.equal(report.candidates[3].role, null);
+    assert.deepEqual(report.selected_grammar_ids, state.selection.normalized.selected_grammar_ids);
+    assert.equal(report.selection_digest, state.selection.selection_digest);
+    assert.equal(report.visual_approval_granted, false);
+    assert.ok(report.candidates.every((item) => item.capture_readiness.status === "manual_pending"));
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("Owner rejection is not presented as a new selectable ranking", () => {
+  const space = workspace();
+  try {
+    const configured = host(space);
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, root: space.directory, hostManifest: configured.manifest });
+    resumeReferenceIntelligence(space.statePath, { hostManifest: configured.manifest,
+      selectionPath: writeSelection(space, state, (selection) => Object.assign(selection, {
+        status: "rejected", anchor_reference_id: null, supporting_reference_ids: [], selected_grammar_ids: []
+      })) });
+    const report = readReferenceChoices(space.statePath);
+    assert.equal(report.status, "rejected");
+    assert.equal(report.next_step, "successor_research");
+    assert.equal(report.can_select, false);
+    assert.ok(report.candidates.every((item) => item.role === null));
+    assert.equal(report.run_status, "blocked");
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("choices fail closed on tampered reference evidence, before emitting source recommendations", () => {
+  const space = workspace();
+  try {
+    const configured = host(space);
+    startReferenceIntelligence({ statePath: space.statePath, briefPath: space.briefPath,
+      root: space.directory, hostManifest: configured.manifest });
+    fs.appendFileSync(space.rightsPath, "changed rights");
+    assert.throws(() => readReferenceChoices(space.statePath), /changed|digest|identity/);
+    for (const command of ["choices", "status"]) {
+      const result = spawnSync(process.execPath, [cli, "reference", command, "--run", space.statePath], { encoding: "utf8" });
+      assert.notEqual(result.status, 0);
+      assert.equal(result.stdout, "");
+    }
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("a recorded Owner choice in a crashed checkpoint cannot advertise a completed reference pack", () => {
+  const space = workspace();
+  try {
+    const configured = host(space);
+    const state = startReferenceIntelligence({ statePath: space.statePath, briefPath: space.briefPath,
+      root: space.directory, hostManifest: configured.manifest });
+    assert.throws(() => resumeReferenceIntelligence(space.statePath, {
+      hostManifest: configured.manifest, selectionPath: writeSelection(space, state),
+      faultInjector(point) {
+        if (point === "after-state-write-before-lease-commit" &&
+          JSON.parse(fs.readFileSync(space.statePath)).selection) throw new Error("fixture Owner checkpoint crash");
+      }
+    }), /fixture Owner checkpoint crash/);
+    const before = hashArtifact(space.directory, { ignores: [] });
+    const report = readReferenceChoices(space.statePath);
+    assert.equal(report.status, "selected");
+    assert.equal(report.run_status, "running");
+    assert.equal(report.can_select, false);
+    assert.equal(report.producer_complete, false);
+    assert.equal(report.reference_pack_file_digest, null);
+    assert.equal(report.next_step, "complete_reference_run");
+    assert.ok(report.candidates.every((item) => item.capture_readiness.status === "covered"));
+    assert.equal(hashArtifact(space.directory, { ignores: [] }), before);
+    assert.equal(inspectReferenceStateLease(space.statePath).status, "locked", "Owner report cannot release an unresolved write lease");
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
 
 for (const mode of ["all", "first", "none"]) test(
   `fit-only popularity ${mode}: real children, Owner stop, pack and idempotent resume`, () => {

@@ -15,6 +15,7 @@ const FEATURES = {
   ],
   "component-craft": ["src/component-recipes.mjs", "schemas/component-recipe.schema.json", "schemas/component-specs.schema.json"],
   "reference-requirement": ["src/design.mjs", "schemas/design-brief.schema.json", "docs/reference-delivery.md"],
+  "reference-selection-handoff": ["src/reference.mjs", "src/usage-guidance.mjs", "docs/reference-delivery.md"],
   "executed-design-browser-proof": ["src/design-browser-proof.mjs", "src/adapters/playwright-browser.mjs"],
   "project-onboarding": ["src/usage-guidance.mjs", "docs/project-setup.md"],
   "account-plugin-sync": ["src/plugin-sync.mjs", "schemas/plugin-sync-policy.schema.json"]

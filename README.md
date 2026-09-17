@@ -3,7 +3,11 @@
 For UI Bowl/reference-derived design, verify the exact installed bundle and
 bind the reference before creation. A Git push or browser pass does not prove
 reference delivery. See [reference delivery and recovery](docs/reference-delivery.md)
-for `capabilities`, `design run --require-reference`, and `design provenance`.
+for `capabilities`, `reference choices`, `design run --require-reference`, and
+`design provenance`. Before settling a new visual direction, the plugin presents
+real UI Bowl source links, project fit and transferable component/hierarchy
+features for the Owner's choice. Selected sources remain visible at later design
+reviews; source pixels are not redistributed or passed to creators.
 
 KillSlopRouter selects independent anti-slop reviewers, executes explicitly
 authorized host adapters, and records the evidence needed to approve an exact
