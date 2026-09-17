@@ -1322,6 +1322,98 @@ test("served artifact attestation mismatch fails closed across the child boundar
   }
 });
 
+test("official Playwright keyboard proof traverses shadow focus without aliasing controls or hiding traps", {
+  timeout: 90_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-shadow-keyboard-"));
+  let server = null;
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    fs.writeFileSync(artifact, "<!doctype html><p>synthetic shadow keyboard artifact</p>\n");
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startServer(artifactDigests);
+    const visibilityScenarios = ["body", "host"].flatMap((ancestor) => [false, true].map((trap) => ({
+      id: `visible-${ancestor}-${trap ? "trap" : "reachable"}`,
+      path: `/keyboard-visible-${ancestor}${trap ? "-trap" : ""}`,
+      actions: [], assertions: [{ type: "visible", locator: "#first" }, { type: "visible", locator: "#second" }]
+    })));
+    const paths = bootstrapProject(directory, ["shadow-reachable", "shadow-trap", ...visibilityScenarios.map((entry) => entry.id)]);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        { id: "shadow-reachable", path: "/keyboard-shadow" },
+        { id: "shadow-trap", path: "/keyboard-shadow-trap" }
+      ].map((scenario) => ({ ...scenario, actions: [{ type: "click", locator: "#nested #deep-action" }], assertions: [
+        { type: "visible", locator: "#component-b #shared-action" },
+        { type: "text", locator: "#nested #deep-action", value: "Nested selected" },
+        { type: "visible", locator: "#slotted-action" }
+      ] })).concat(visibilityScenarios)
+    });
+    configurePlaywright({
+      profilePath: paths.profile, hostManifestPath: paths.host, baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios, baselineDirectory: paths.baselines
+    });
+    const profile = readJson(paths.profile);
+    const manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    const output = path.join(directory, "evidence");
+    const executed = executeAuditPacket({
+      run: makeRun(directory, artifact, packet), packet, manifest, attempt: 1, outputDirectory: output
+    });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    assert.notEqual(executed.child_pid, process.pid);
+    const report = readJson(path.join(output, "browser-report.json"));
+    const reachable = report.executions.filter((entry) => entry.scenario === "shadow-reachable");
+    const trapped = report.executions.filter((entry) => entry.scenario === "shadow-trap");
+    assert.equal(reachable.length, 3);
+    assert.equal(trapped.length, 3);
+    for (const entry of reachable) {
+      assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+      assert.equal(entry.keyboard.focusable_count, 7, "light, two hosts, nested, two anonymous and slotted controls");
+      const keys = new Set(entry.keyboard.visited.map((item) => item.key));
+      for (const key of ["#shared-action", "#component-a >>> #shared-action", "#component-b >>> #shared-action",
+        "#nested >>> #inner-host >>> #deep-action", "#anonymous >>> button:nth-of-type(1)",
+        "#anonymous >>> button:nth-of-type(2)", "#slotted-action"]) assert.ok(keys.has(key), key);
+      assert.ok(entry.actions.every((action) => action.status === "passed"));
+      assert.ok(![...keys].some((key) => key.includes("#inert-host") || key.includes("#closed-host")));
+      assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"));
+    }
+    for (const entry of trapped) {
+      assert.ok(entry.keyboard.visited.some((item) => item.key === "#component-a >>> #shared-action"));
+      assert.ok(entry.keyboard.unreached.some((item) => item.key === "#component-b >>> #shared-action"),
+        "a same-ID visited control in a different root cannot hide a real keyboard trap");
+    }
+    for (const scenario of visibilityScenarios) {
+      const executions = report.executions.filter((entry) => entry.scenario === scenario.id);
+      assert.equal(executions.length, 3);
+      for (const entry of executions) {
+        const inHost = scenario.id.includes("-host-");
+        const prefix = inHost ? "#visibility-host >>> " : "";
+        assert.equal(entry.keyboard.focusable_count, inHost ? 3 : 2,
+          `${entry.id}: visibility:visible restores descendants of a visibility:hidden ancestor`);
+        assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"));
+        assert.ok(!entry.keyboard.visited.some((item) => item.key.includes("inherited-hidden")));
+        if (scenario.id.endsWith("-trap")) {
+          assert.ok(entry.keyboard.visited.some((item) => item.key === `${prefix}#first`));
+          assert.ok(entry.keyboard.unreached.some((item) => item.key === `${prefix}#second`),
+            "a visible pre-host control must not turn a trapped shadow subtree into a pass");
+        } else assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+      }
+    }
+    const keyboardFindings = executed.result.findings.filter((finding) => finding.category === "keyboard");
+    assert.equal(keyboardFindings.length, 9);
+    assert.ok(keyboardFindings.every((finding) => finding.claim.includes("trap")));
+    assert.equal(executed.result.verdict, "block");
+    assert.ok(executed.result.findings.some((finding) => finding.category === "visual-regression"),
+      "keyboard correctness must not waive unapproved pixel baselines");
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
   timeout: 150_000
 }, async () => {

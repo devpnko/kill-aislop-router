@@ -573,28 +573,12 @@ async function inspectOverflow(page) {
   });
 }
 
-async function inspectKeyboard(page, maxTabs) {
-  const selector = [
-    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
-    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
-    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
-  ].join(",");
-  const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
-    if (element.closest("[inert]")) return [];
-    const closedDetails = element.closest("details:not([open])");
-    if (closedDetails) {
-      const summary = closedDetails.querySelector(":scope > summary");
-      if (!summary || (element !== summary && !summary.contains(element))) return [];
-    }
-    let ancestor = element.parentElement;
-    while (ancestor && ancestor !== document.body) {
-      const ancestorStyle = getComputedStyle(ancestor);
-      if (ancestorStyle.display === "none" || ancestorStyle.visibility === "hidden") return [];
-      ancestor = ancestor.parentElement;
-    }
+// Serialized into both evaluateAll (target inventory) and evaluate (focus).
+// Keep the identity algorithm shared: locator CSS pierces open shadow roots,
+// whereas document.activeElement alone stops at their host. No DOM is changed.
+function keyboardDomProbe(input) {
+  const composedParent = (element) => element.assignedSlot || element.parentElement || element.getRootNode()?.host || null;
+  const keyFor = (element) => {
     const segments = [];
     let current = element;
     while (current && current !== document.body) {
@@ -602,17 +586,60 @@ async function inspectKeyboard(page, maxTabs) {
         segments.unshift(`#${current.id}`);
         break;
       }
-      const siblings = current.parentElement
-        ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
+      const siblings = current.parentNode?.children
+        ? [...current.parentNode.children].filter((candidate) => candidate.tagName === current.tagName)
         : [];
       segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
       current = current.parentElement;
     }
-    return [{ key: segments.join(" > ") }];
-  }));
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const localKey = segments.join(" > ");
+    const root = element.getRootNode();
+    return root instanceof ShadowRoot ? `${keyFor(root.host)} >>> ${localKey}` : localKey;
+  };
+  if (Array.isArray(input)) return input.flatMap((element) => {
+    const rect = element.getBoundingClientRect();
+    // visibility is inherited but descendants may explicitly restore it. Only
+    // the candidate's effective visibility decides this part of eligibility.
+    if (rect.width <= 0 || rect.height <= 0 || getComputedStyle(element).visibility === "hidden") return [];
+    let branch = element;
+    for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
+      const style = getComputedStyle(ancestor);
+      if (style.display === "none" || ancestor.hasAttribute("inert")) return [];
+      if (ancestor.matches("details:not([open])")) {
+        const summary = ancestor.querySelector(":scope > summary");
+        if (!summary || (branch !== summary && !summary.contains(branch))) return [];
+      }
+      branch = ancestor;
+    }
+    return [{ key: keyFor(element) }];
   });
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  if (input === "blur") {
+    if (element instanceof HTMLElement) element.blur();
+    return null;
+  }
+  if (!element || element === document.body) return null;
+  const style = getComputedStyle(element);
+  return {
+    key: keyFor(element),
+    tag: element.tagName.toLowerCase(),
+    id: element.id || null,
+    role: element.getAttribute("role"),
+    name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
+    outline: `${style.outlineStyle} ${style.outlineWidth}`,
+    box_shadow: style.boxShadow
+  };
+}
+
+async function inspectKeyboard(page, maxTabs) {
+  const selector = [
+    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
+    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
+    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  const focusable = await page.locator(selector).evaluateAll(keyboardDomProbe);
+  await page.evaluate(keyboardDomProbe, "blur");
   const visited = [];
   const requiredKeys = new Set(focusable.map((entry) => entry.key));
   const visitedKeys = new Set();
@@ -620,33 +647,7 @@ async function inspectKeyboard(page, maxTabs) {
   const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (!element || element === document.body) return null;
-      const style = getComputedStyle(element);
-      const segments = [];
-      let current = element;
-      while (current && current !== document.body) {
-        if (current.id) {
-          segments.unshift(`#${current.id}`);
-          break;
-        }
-        const siblings = current.parentElement
-          ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
-          : [];
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
-        current = current.parentElement;
-      }
-      return {
-        key: segments.join(" > "),
-        tag: element.tagName.toLowerCase(),
-        id: element.id || null,
-        role: element.getAttribute("role"),
-        name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
-        outline: `${style.outlineStyle} ${style.outlineWidth}`,
-        box_shadow: style.boxShadow
-      };
-    });
+    const active = await page.evaluate(keyboardDomProbe, "active");
     if (active) {
       visited.push(active);
       const previousSize = visitedKeys.size;

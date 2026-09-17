@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed official Playwright keyboard evidence for open Shadow DOM: inventory and
+  focus now share deep-control identity, qualify keys by shadow host, distinguish
+  anonymous siblings, and honor composed display-hidden/inert ancestors without
+  dropping descendants that restore `visibility:visible`. Real child regressions
+  cover nested/slotted controls, duplicate local IDs and genuine Tab traps.
+  No schema or approval change; old reports remain immutable and need
+  a fresh observation after adapter rebinding, not automatic finding removal.
+
 - Fixed source/npm/plugin delivery parity: the npm tarball now includes the
   complete integrity-bound `scripts/` tree. Packaging tests compare all payload
   entries, verify both cross-channel doctor paths and identical install markers,
