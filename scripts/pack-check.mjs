@@ -200,7 +200,8 @@ try {
   assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
   const distribution = JSON.parse(capabilities.stdout);
   assert.equal(distribution.status, "available");
-  assert.equal(distribution.features.length, 6);
+  assert.equal(distribution.features.length, 7);
+  assert.equal(distribution.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.ok(distribution.features.every((item) => item.status === "available"));
   assert.equal(distribution.project_reference_bound, false);
   assert.equal(distribution.live_skill_loading_verified, false);
@@ -217,6 +218,10 @@ try {
   assert.match(help.stdout, /--module-graph/);
   assert.match(help.stdout, /reference run --brief FILE/);
   assert.match(help.stdout, /reference dispatch --run FILE/);
+  assert.match(help.stdout, /reference choices --run FILE/);
+  const missingChoices = run(process.execPath, [installedCli, "reference", "choices"], { cwd: consumer });
+  assert.equal(missingChoices.status, 2);
+  assert.match(missingChoices.stderr, /reference choices requires --run/);
   assert.match(help.stdout, /reference recover --state FILE/);
   const referenceHelp = run(process.execPath, [
     installedCli,

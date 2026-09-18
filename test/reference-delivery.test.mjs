@@ -91,6 +91,7 @@ test("ordinary exact-three flow remains manual and honestly reports no reference
   const report = JSON.parse(provenance.stdout);
   assert.equal(report.status, "not_bound");
   assert.equal(report.reference_bound_creator_packets, 0);
+  assert.deepEqual(report.selected_references, []);
   assert.equal(report.human_authorship_certified, false);
   assert.equal(report.state_digest, state.state_digest);
   assert.equal(hashArtifact(space.statePath), before);
@@ -191,7 +192,8 @@ test("require-reference flag is never ignored by an unrelated command", () => {
 test("unified package exposes reference craft, onboarding and account-sync together", () => {
   const report = inspectDistribution();
   assert.equal(report.status, "available");
-  assert.equal(report.features.length, 6);
+  assert.equal(report.features.length, 7);
+  assert.equal(report.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.equal(report.project_reference_bound, false);
   assert.equal(report.live_skill_loading_verified, false);
   const { distribution_digest: digest, ...body } = report;
