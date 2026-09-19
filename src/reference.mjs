@@ -5395,16 +5395,22 @@ export function readReferenceChoices(statePath, { expectedStateDigest = null } =
   const selectedCaptureReady = selection?.status === "selected" &&
     candidates.filter((item) => item.role !== null).every((item) =>
       item.capture_readiness.status === "covered");
+  const coverageBlocked = state.status === "blocked" && state.phase === "reference-coverage" &&
+    Boolean(discovery && grammar && review) && !selection;
+  const bundledRegistry = loadHumanDesignReasoningRegistry();
+  const registryMatches = state.reasoning_registry.registry_digest === bundledRegistry.digest;
   const nextStep = canSelect ? "choose_references"
     : selection?.status === "selected"
       ? !producerComplete ? "complete_reference_run"
         : selectedCaptureReady ? "bind_reference_pack" : "successor_capture_research"
-      : selection?.status === "rejected" ? "successor_research" : "resolve_reference_gate";
+      : selection?.status === "rejected" ? "successor_research"
+        : coverageBlocked ? "successor_coverage_research" : "resolve_reference_gate";
   const nextActions = {
     choose_references: "Review the source links and transfers; the real Owner chooses one anchor, 1-4 cross-product/category/ecosystem supports and verified grammar IDs. Copy the selection template outside the child-writable state tree, record the actual decision, then reference run --resume with --selection. Ranking is not selection.",
     complete_reference_run: "The Owner choice is recorded but the producer has not completed. Resolve any lease/recovery stop and resume the canonical reference run until complete with a verified pack. Do not choose again or dispatch a creator from this checkpoint.",
     bind_reference_pack: "Keep the recorded choice. Bind the completed pack and exact producer state to a new reference-required design brief; revalidate capture readiness. Direction, color, browser/critic and exact-artifact Owner gates remain separate.",
-    successor_capture_research: "Research is complete but selected source captures are missing. Keep this pack unchanged. A newly authorized successor needs complete capture evidence, independent review and its own Owner selection before design creation.",
+    successor_capture_research: "Research is complete but selected source captures are missing. Keep this pack unchanged. Prepare a successor with complete capture evidence within still-valid research/rights authority; request new authority if it is missing, no longer valid, or scope/access expands. It needs independent review and its own Owner selection before design creation.",
+    successor_coverage_research: "All three results are accepted but verified coverage is incomplete. Do not retry or replace accepted results, edit bound evidence, or lower coverage requirements. Preserve this run; supplement the reported gaps in a separate successor brief/export/run. Reuse existing research/rights authority only if it still covers the activity; request new authority if missing, no longer valid, or scope/access expands, not merely because a successor is needed. Preflight: reference run --brief NEW_BRIEF --host-config HOST --root PROJECT --dry-run --json; then start with a new --out, regenerate the packets/results, obtain independent review and real Owner selection. No reference-derived creator may start before a capture-ready pack is bound.",
     successor_research: "The Owner rejected these references. Keep this run unchanged; a newly authorized research scope needs a successor run, not automatic selection.",
     resolve_reference_gate: "Resolve the reported pending work/blockers through the canonical reference run. No selectable references are presented before independent review and coverage pass."
   };
@@ -5419,6 +5425,19 @@ export function readReferenceChoices(statePath, { expectedStateDigest = null } =
     state_digest: state.state_digest,
     selection_scope_digest: state.selection_scope_digest,
     independent_review_digest: review?.result_digest || null,
+    registry_comparison: {
+      status: registryMatches ? "matching" : "different",
+      bound_registry_digest: state.reasoning_registry.registry_digest,
+      bundled_registry_digest: bundledRegistry.digest,
+      bound_file_digest: state.reasoning_registry.source.digest,
+      bundled_file_digest: bundledRegistry.source_digest,
+      file_bytes_match: state.reasoning_registry.source.digest === bundledRegistry.source_digest,
+      successor_required_before_current_pack: !registryMatches,
+      resume_authorized: false,
+      note: registryMatches
+        ? "Canonical registry contents match. File-byte differences alone do not require migration. This comparison does not authorize resume, release a lease, or prove coverage."
+        : "Canonical registry contents differ. Unfinished runs verify their bound snapshot; this report does not authorize child execution. Compilation/design consumption requires the bundled registry: use a successor before compiling a current pack, never rewrite the bound snapshot."
+    },
     status: selection?.status || (canSelect ? "awaiting_owner_selection" : "not_ready"),
     can_select: canSelect,
     ranking_policy: fitOnlyPopularity(state.brief.popularity_prior)
@@ -5428,6 +5447,8 @@ export function readReferenceChoices(statePath, { expectedStateDigest = null } =
       minimum_supports: 1,
       maximum_supports: 4,
       support_diversity_from_anchor: ["product_record_id", "product_category", "ecosystem_id"],
+      required_component_families: [...state.brief.coverage.required_component_families],
+      required_patterns: [...state.brief.coverage.required_patterns],
       required_grammar_dimensions: [...state.brief.coverage.required_grammar_dimensions],
       required_recipe_families: [...(state.brief.coverage.required_recipe_families || [])]
     },
@@ -5441,6 +5462,16 @@ export function readReferenceChoices(statePath, { expectedStateDigest = null } =
     visual_approval_granted: false,
     producer_complete: producerComplete,
     reference_pack_file_digest: state.outputs.reference_pack?.digest || null,
+    recovery: {
+      scope: "current-reference-gate",
+      accepted_packet_ids: state.results.map((item) => item.packet_id),
+      unresolved_packet_ids: state.packets.filter((packet) => !resultFor(state, packet.packet_id))
+        .map((packet) => packet.packet_id),
+      same_run_result_replacement_allowed: false,
+      successor_required: ["successor_coverage_research", "successor_capture_research", "successor_research"]
+        .includes(nextStep),
+      coverage_blockers: coverageBlocked ? [...state.blockers] : []
+    },
     next_step: nextStep,
     next_action: nextActions[nextStep]
   };

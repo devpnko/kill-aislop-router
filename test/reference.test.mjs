@@ -14,6 +14,7 @@ import {
   dispatchReferencePackets,
   dryRunReferenceIntelligence,
   inspectReferenceStateLease,
+  loadHumanDesignReasoningRegistry,
   readReferenceChoices,
   readReferenceState,
   referenceSourceRecipientExecutionLineage,
@@ -558,6 +559,126 @@ test("Owner choices do not promote manual discovery or incomplete coverage", () 
         item.execution_status === "manual_pending" && !Number.isInteger(item.child_pid)));
     } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
   }
+});
+
+test("coverage recovery requires a successor instead of retrying immutable accepted results", () => {
+  const space = workspace();
+  try {
+    space.brief.coverage.required_component_families.push("result-card");
+    space.brief.coverage.required_recipe_families = ["result-card"];
+    writeJson(space.briefPath, space.brief);
+    const configured = host(space, { critic: {
+      unverified_component_families: ["evidence-panel"],
+      unverified_grammar_dimensions: ["responsive"]
+    } });
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, root: space.directory, hostManifest: configured.manifest });
+    assert.equal(state.phase, "reference-coverage");
+    assert.equal(state.results.length, 3);
+    assert.deepEqual(state.blockers, [
+      "missing verified component family: evidence-panel",
+      "missing verified component family: result-card",
+      "missing verified grammar dimension: responsive",
+      "missing verified component recipe: result-card"
+    ]);
+    const before = hashArtifact(space.directory, { ignores: [] });
+    const report = readReferenceChoices(space.statePath);
+    assert.equal(report.next_step, "successor_coverage_research");
+    assert.equal(report.recovery.successor_required, true);
+    assert.deepEqual(report.recovery.accepted_packet_ids, state.results.map((item) => item.packet_id));
+    assert.deepEqual(report.recovery.unresolved_packet_ids, []);
+    assert.equal(report.recovery.same_run_result_replacement_allowed, false);
+    assert.deepEqual(report.recovery.coverage_blockers, state.blockers);
+    assert.match(report.next_action, /Do not retry or replace accepted results/);
+    assert.match(report.next_action, /existing.*authority.*still covers/);
+    assert.match(report.next_action, /independent review.*Owner selection/);
+    assert.deepEqual(report.selection_requirements.required_component_families,
+      space.brief.coverage.required_component_families);
+    assert.deepEqual(report.selection_requirements.required_patterns, space.brief.coverage.required_patterns);
+    assert.equal(report.can_select, false);
+    assert.deepEqual(report.candidates, []);
+    assert.equal(report.visual_approval_granted, false);
+    assert.equal(report.creator_input, false);
+    for (const command of ["choices", "status"]) {
+      const output = spawnSync(process.execPath, [cli, "reference", command,
+        "--run", space.statePath], { encoding: "utf8" });
+      assert.equal(output.status, 0, output.stderr);
+      assert.match(output.stdout, /successor_coverage_research/);
+      assert.match(output.stdout, /Do not retry or replace accepted results/);
+      assert.match(output.stdout, /reference run --brief NEW_BRIEF .*--dry-run/);
+    }
+    assert.equal(hashArtifact(space.directory, { ignores: [] }), before,
+      "recovery guidance must not write, acquire a lease or start a child");
+    const resumed = resumeReferenceIntelligence(space.statePath, {
+      hostManifest: configured.manifest, retry: "all"
+    });
+    assert.equal(resumed.phase, "reference-coverage");
+    assert.deepEqual(resumed.results, state.results);
+    assert.deepEqual(resumed.attempts, state.attempts, "retry cannot repair accepted coverage");
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("registry diagnostics distinguish equivalent JSON from file-byte identity without authorizing resume", () => {
+  const space = workspace();
+  try {
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, root: space.directory });
+    const before = hashArtifact(space.directory, { ignores: [] });
+    const bundled = loadHumanDesignReasoningRegistry();
+    const report = readReferenceChoices(space.statePath);
+    assert.equal(report.registry_comparison.status, "matching");
+    assert.equal(report.registry_comparison.bound_registry_digest, state.reasoning_registry.registry_digest);
+    assert.equal(report.registry_comparison.bundled_registry_digest, bundled.digest);
+    assert.equal(report.registry_comparison.bound_file_digest, state.reasoning_registry.source.digest);
+    assert.equal(report.registry_comparison.bundled_file_digest, bundled.source_digest);
+    assert.notEqual(report.registry_comparison.bound_file_digest, report.registry_comparison.bundled_file_digest,
+      "fixture keeps bundled formatting different from the normalized snapshot");
+    assert.equal(report.registry_comparison.file_bytes_match, false);
+    assert.equal(report.registry_comparison.resume_authorized, false);
+    assert.equal(report.recovery.successor_required, false);
+    assert.deepEqual(report.recovery.accepted_packet_ids, []);
+    assert.deepEqual(report.recovery.unresolved_packet_ids, ["reference-discovery"]);
+    assert.equal(report.next_step, "resolve_reference_gate");
+    assert.match(report.registry_comparison.note, /File-byte differences alone do not require migration/);
+    const output = spawnSync(process.execPath, [cli, "reference", "choices",
+      "--run", space.statePath], { encoding: "utf8" });
+    assert.equal(output.status, 0, output.stderr);
+    assert.match(output.stdout, /registry: matching .*file bytes: different/);
+    assert.equal(hashArtifact(space.directory, { ignores: [] }), before);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
+test("a genuine bundled registry change is reported without rewriting or migrating an unfinished run", () => {
+  const space = workspace();
+  try {
+    const state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, root: space.directory });
+    const bundle = path.join(space.directory, "successor-package");
+    fs.mkdirSync(bundle);
+    for (const directory of ["bin", "src", "router", "schemas", "registry"]) {
+      fs.cpSync(path.join(root, directory), path.join(bundle, directory), { recursive: true });
+    }
+    const registryPath = path.join(bundle, "registry/human-design-reasoning.json");
+    const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+    registry.research_basis.caveats.push("Synthetic successor registry fixture; not new visual authority.");
+    writeJson(registryPath, registry);
+    const before = hashArtifact(space.directory, { ignores: [] });
+    const output = spawnSync(process.execPath, [path.join(bundle, "bin/killsloprouter.mjs"),
+      "reference", "choices", "--run", space.statePath, "--json"], { encoding: "utf8" });
+    assert.equal(output.status, 0, output.stderr);
+    const report = JSON.parse(output.stdout);
+    assert.equal(report.registry_comparison.status, "different");
+    assert.equal(report.registry_comparison.bound_registry_digest, state.reasoning_registry.registry_digest);
+    assert.equal(report.registry_comparison.bundled_registry_digest, canonicalDigest(registry));
+    assert.equal(report.registry_comparison.successor_required_before_current_pack, true);
+    assert.equal(report.registry_comparison.resume_authorized, false);
+    assert.equal(report.next_step, "resolve_reference_gate", "pending manual results are not missing historical authority");
+    assert.equal(report.recovery.successor_required, false, "current pending gate and future pack requirement are separate");
+    assert.match(report.registry_comparison.note, /Unfinished runs verify their bound snapshot/);
+    assert.equal(report.can_select, false);
+    assert.equal(hashArtifact(space.directory, { ignores: [] }), before);
+    assert.deepEqual(readReferenceState(space.statePath), state);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
 });
 
 test("real CLI presents reviewed UI Bowl choices without choosing or spawning again", () => {

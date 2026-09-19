@@ -103,6 +103,16 @@ export function referenceChoicesGuidance(report) {
     `required grammar dimensions: ${report.selection_requirements.required_grammar_dimensions.join(", ")}`,
     `required component recipes: ${report.selection_requirements.required_recipe_families.join(", ") || "none"}`
   ];
+  if (report.registry_comparison) {
+    const registry = report.registry_comparison;
+    lines.push(`registry: ${registry.status} (canonical JSON); file bytes: ${registry.file_bytes_match ? "same" : "different"}`,
+      `   bound: ${registry.bound_registry_digest}; bundled: ${registry.bundled_registry_digest}`,
+      `   ${registry.note}`);
+  }
+  if (report.recovery) {
+    lines.push(`accepted packets (immutable): ${report.recovery.accepted_packet_ids.join(", ") || "none"}`,
+      `unresolved packets: ${report.recovery.unresolved_packet_ids.join(", ") || "none"}`);
+  }
   for (const item of report.candidates) {
     lines.push(`${item.rank}. ${item.app_name} [${item.reference_id}]${item.role ? ` — selected ${item.role}` : ""}`,
       `   source: ${item.source.uri}`,

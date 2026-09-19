@@ -551,10 +551,11 @@ function reviewResult() {
       const blocked = settings.low_coverage && index >= 2;
       const weakEvidence = reference.screen_role === "promotional" ||
         reference.evidence_strength === "weak";
-      const verifiedGrammar = weakEvidence && !settings.promotional_operational_overclaim
+      const verifiedGrammar = (weakEvidence && !settings.promotional_operational_overclaim
         ? grammarEntry.grammar.filter((item) =>
             ["typography", "color-roles", "density"].includes(item.dimension))
-        : grammarEntry.grammar;
+        : grammarEntry.grammar).filter((item) =>
+          !(settings.unverified_grammar_dimensions || []).includes(item.dimension));
       return {
         reference_id: reference.reference_id,
         status: blocked ? "blocked" : "eligible",
@@ -571,7 +572,8 @@ function reviewResult() {
           ? reference.component_families.slice(0, 1)
           : settings.overclaim_component && index === 0
           ? [...reference.component_families, "invented-component"]
-          : reference.component_families,
+          : reference.component_families.filter((family) =>
+            !(settings.unverified_component_families || []).includes(family)),
         verified_patterns: blocked ? []
           : settings.partial_verified_labels && index === 0
             ? reference.patterns.slice(0, 1) : reference.patterns,

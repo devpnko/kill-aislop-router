@@ -222,6 +222,23 @@ try {
   const missingChoices = run(process.execPath, [installedCli, "reference", "choices"], { cwd: consumer });
   assert.equal(missingChoices.status, 2);
   assert.match(missingChoices.stderr, /reference choices requires --run/);
+  const referenceState = path.join(consumer, ".killsloprouter", "package-reference-run.json");
+  const manualReference = run(process.execPath, [installedCli, "reference", "run",
+    "--brief", path.join(installedRoot, "examples/reference-brief.example.json"),
+    "--root", installedRoot, "--out", referenceState, "--json"], { cwd: consumer });
+  assert.equal(manualReference.status, 6, manualReference.stderr || manualReference.stdout);
+  const referenceStateDigest = hashArtifact(referenceState);
+  const pendingChoices = run(process.execPath, [installedCli, "reference", "choices",
+    "--run", referenceState, "--json"], { cwd: consumer });
+  assert.equal(pendingChoices.status, 0, pendingChoices.stderr);
+  const pendingReport = JSON.parse(pendingChoices.stdout);
+  assert.equal(pendingReport.registry_comparison.status, "matching");
+  assert.equal(pendingReport.registry_comparison.resume_authorized, false);
+  assert.equal(pendingReport.recovery.same_run_result_replacement_allowed, false);
+  assert.deepEqual(pendingReport.recovery.accepted_packet_ids, []);
+  assert.deepEqual(pendingReport.recovery.unresolved_packet_ids, ["reference-discovery"]);
+  assert.equal(pendingReport.can_select, false);
+  assert.equal(hashArtifact(referenceState), referenceStateDigest);
   assert.match(help.stdout, /reference recover --state FILE/);
   const referenceHelp = run(process.execPath, [
     installedCli,

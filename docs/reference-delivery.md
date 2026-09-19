@@ -106,6 +106,38 @@ a recorded choice from a completed pack: a crash checkpoint must resume/recover
 without selecting again, while a metadata-only completed pack needs a successor
 with the missing capture evidence. Neither can start a creator.
 
+### Recover a coverage stop without retrying accepted work
+
+When all three research results are accepted but coverage fails, `choices` and
+text `status` report `next_step: successor_coverage_research`. The additive
+`recovery` projection lists accepted/unresolved packets and the exact coverage
+blockers. Accepted results cannot be replaced, and `--retry all` does not rerun
+them. Preserve the original run/export/evidence; supplement the missing evidence
+in a separate successor brief/export, preflight it with `reference run --brief
+NEW_BRIEF --host-config HOST --root PROJECT --dry-run --json`, then start with a
+new `--out`. Regenerate packets/results and obtain independent review before
+presenting the new real Owner reference selection. Do not lower coverage,
+invent mobile observations, or substitute another style for an explicit UI Bowl
+request. An ordinary no-reference alternative requires an actual Owner change
+of scope, not just a disclaimer.
+
+Reuse still-valid external planning, research and rights authority when it
+actually covers the follow-up. A successor is not itself a reason to demand a
+new work authorization or restart unrelated planning. Missing/no-longer-valid
+authority or expanded source access/scope does require its own authority. New source selection remains a real Owner
+gate; prior selections and approvals are not transplanted.
+
+The additive `registry_comparison` distinguishes canonical JSON content digests
+from source-file byte digests. A pretty-printed run snapshot may have different
+file bytes from the bundled registry while its canonical contents match; that
+alone requires no migration. A genuine content change is reported separately:
+unfinished runs still verify their pinned snapshot, while pack compilation and
+design consumption require the current bundled registry. Never rewrite a bound
+snapshot to make it match. This comparison does not authorize resume or bypass
+an active lease. Both projections are read-only diagnostics, not signed state,
+new grants or creator inputs; existing receipt/state JSON is unchanged. An
+exit-zero `choices` read still does not mean the run or coverage passed.
+
 Ask the real Owner for **one anchor, one to four supports, and the transferable
 grammar**. Keep the cross-product/category/ecosystem rule and existing
 [selection template / resume procedure](reference-intelligence.md). Do not
