@@ -31,6 +31,7 @@
     },
     "scope_id": {"type": "string", "minLength": 1},
     "phase": {"enum": ["phase_1", "phase_2"]},
+    "baseline_lineage": {"$ref": "baseline-lineage-declaration.schema.json"},
     "gates": {
       "type": "object",
       "propertyNames": {"pattern": "^G(?:[0-9]+[A-Z]?|6T)$"},

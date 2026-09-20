@@ -5,6 +5,19 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { canonicalDigest, hashArtifact, readFilePinned, sha256, snapshotArtifact } from "../integrity.mjs";
+import {
+  validateDesignScenario,
+  selectDesignScenarios,
+  designBrowserCases,
+  designBrowserExecutionId
+} from "../design-browser-proof.mjs";
+import {
+  identitiesMatch,
+  verifyJourneyIdentity,
+  verifyPacketJourney,
+  verifyParticipant
+} from "../identity.mjs";
 
 const CONTRACT = "killsloprouter-playwright-v1";
 const ACTION_TYPES = new Set(["click", "fill", "press", "check", "uncheck", "select", "hover", "wait-for"]);
@@ -12,7 +25,7 @@ const ASSERTION_TYPES = new Set([
   "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
   "computed-style"
 ]);
-const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
+const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions", "design"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
 const ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -21,6 +34,53 @@ const VISUAL_COMPARISON = Object.freeze({
   threshold: 0.2,
   maxDiffPixels: 0
 });
+const CHILD_AUTHORITY_KEYS = new Set([
+  "playwright_child_authority_version",
+  "runtime_digest",
+  "runtime_source_physical_identity_digest",
+  "runtime_seal_physical_identity_digest",
+  "scenario",
+  "baselines",
+  "authority_digest"
+]);
+const RUNTIME_PACKAGES = Object.freeze({
+  "axe-core": "4.13.0",
+  "playwright-core": "1.62.1"
+});
+
+function runtimePackagePath(runtimeRoot, packageName) {
+  return path.join(runtimeRoot, "node_modules", ...packageName.split("/"));
+}
+
+function runtimeDigest(runtimeRoot) {
+  const packages = {};
+  for (const [packageName, expectedVersion] of Object.entries(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    const metadata = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+    requireValue(metadata.version === expectedVersion,
+      `sealed runtime package ${packageName} version mismatch`);
+    packages[packageName] = {
+      version: metadata.version,
+      digest: hashArtifact(directory, { ignores: [] })
+    };
+  }
+  return canonicalDigest({ playwright_runtime_version: 1, packages });
+}
+
+function runtimePhysicalIdentityDigest(runtimeRoot) {
+  const packages = {};
+  for (const packageName of Object.keys(RUNTIME_PACKAGES)) {
+    const directory = runtimePackagePath(runtimeRoot, packageName);
+    packages[packageName] = snapshotArtifact(directory, {
+      root: path.dirname(directory),
+      ignores: []
+    }).physical_identity_digest;
+  }
+  return canonicalDigest({
+    playwright_runtime_physical_identity_version: 1,
+    packages
+  });
+}
 
 function requireValue(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,14 +88,6 @@ function requireValue(condition, message) {
 
 function safeId(value) {
   return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "item";
-}
-
-function readJson(file, label) {
-  try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (error) {
-    throw new Error(`cannot read ${label} at ${file}: ${error.message}`);
-  }
 }
 
 function validateScenarioDocument(value) {
@@ -100,8 +152,98 @@ function validateScenarioDocument(value) {
           "Playwright count assertion requires a non-negative integer value");
       }
     }
+    validateDesignScenario(scenario);
   }
   return value.scenarios;
+}
+
+function exactKeys(value, expected) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)) &&
+    Object.keys(value).length === expected.size &&
+    Object.keys(value).every((key) => expected.has(key));
+}
+
+function readPlaywrightChildAuthority(request, settings) {
+  const authority = request.playwright_authority;
+  requireValue(exactKeys(authority, CHILD_AUTHORITY_KEYS),
+    "Playwright child authority has an invalid shape");
+  const body = Object.fromEntries(
+    Object.entries(authority).filter(([key]) => key !== "authority_digest")
+  );
+  requireValue(authority.playwright_child_authority_version === 1,
+    "Playwright child authority version must be 1");
+  requireValue(authority.authority_digest === canonicalDigest(body),
+    "Playwright child authority digest mismatch");
+  requireValue(authority.runtime_digest === settings.runtime_digest,
+    "Playwright child runtime authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_source_physical_identity_digest || "") &&
+    authority.runtime_source_physical_identity_digest ===
+      settings.runtime_physical_identity_digest,
+  "Playwright child runtime source physical authority conflicts with settings");
+  requireValue(DIGEST_PATTERN.test(authority.runtime_seal_physical_identity_digest || ""),
+    "Playwright child runtime seal physical authority is invalid");
+  requireValue(runtimeDigest(settings.runtime_root) === authority.runtime_digest,
+    "sealed Playwright child runtime digest mismatch");
+  requireValue(runtimePhysicalIdentityDigest(settings.runtime_root) ===
+    authority.runtime_seal_physical_identity_digest,
+  "sealed Playwright child runtime physical identity mismatch");
+  const runtime = loadRuntime(settings.runtime_root);
+  requireValue(exactKeys(authority.scenario, new Set([
+    "digest", "bytes", "physical_identity_digest", "source_base64"
+  ])),
+    "Playwright child scenario authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.scenario.physical_identity_digest || ""),
+    "Playwright child scenario physical identity is invalid");
+  const scenarioSource = Buffer.from(authority.scenario.source_base64, "base64");
+  requireValue(scenarioSource.length === authority.scenario.bytes,
+    "Playwright child scenario authority byte count mismatch");
+  requireValue(sha256(scenarioSource) === authority.scenario.digest &&
+    authority.scenario.digest === settings.scenario_digest,
+  "Playwright child scenario authority digest mismatch");
+  let scenarioDocument;
+  try {
+    scenarioDocument = JSON.parse(scenarioSource.toString("utf8"));
+  } catch (error) {
+    throw new Error(`cannot parse Playwright child scenario authority: ${error.message}`);
+  }
+
+  requireValue(exactKeys(authority.baselines,
+    new Set(["directory_digest", "physical_identity_digest", "total_bytes", "files"])),
+  "Playwright child baseline authority has an invalid shape");
+  requireValue(DIGEST_PATTERN.test(authority.baselines.physical_identity_digest || ""),
+    "Playwright child baseline physical identity is invalid");
+  requireValue(Array.isArray(authority.baselines.files),
+    "Playwright child baseline files must be an array");
+  const baselineFiles = new Map();
+  let totalBytes = 0;
+  const manifest = [];
+  for (const file of authority.baselines.files) {
+    requireValue(exactKeys(file, new Set([
+      "name", "bytes", "digest", "physical_identity_digest", "source_base64"
+    ])),
+      "Playwright child baseline file has an invalid shape");
+    requireValue(DIGEST_PATTERN.test(file.physical_identity_digest || ""),
+      `Playwright child baseline physical identity is invalid: ${file.name}`);
+    requireValue(/^[A-Za-z0-9._-]+\.png$/.test(file.name) && !baselineFiles.has(file.name),
+      `Playwright child baseline filename is invalid or duplicated: ${file.name}`);
+    const source = Buffer.from(file.source_base64, "base64");
+    requireValue(source.length === file.bytes && sha256(source) === file.digest,
+      `Playwright child baseline digest mismatch: ${file.name}`);
+    totalBytes += source.length;
+    baselineFiles.set(file.name, source);
+    manifest.push({ type: "file", path: file.name, bytes: file.bytes, digest: file.digest });
+  }
+  requireValue(totalBytes === authority.baselines.total_bytes,
+    "Playwright child baseline total byte count mismatch");
+  const directoryDigest = canonicalDigest({ type: "directory", entries: manifest });
+  requireValue(directoryDigest === authority.baselines.directory_digest &&
+    directoryDigest === settings.baseline_digest,
+  "Playwright child baseline directory digest mismatch");
+  return {
+    scenarios: validateScenarioDocument(scenarioDocument),
+    baselineFiles,
+    runtime
+  };
 }
 
 function findingFactory() {
@@ -431,15 +573,12 @@ async function inspectOverflow(page) {
   });
 }
 
-async function inspectKeyboard(page, maxTabs) {
-  const selector = [
-    "a[href]", "button:not([disabled])", "input:not([disabled])", "select:not([disabled])",
-    "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])"
-  ].join(",");
-  const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
+// Serialized into both evaluateAll (target inventory) and evaluate (focus).
+// Keep the identity algorithm shared: locator CSS pierces open shadow roots,
+// whereas document.activeElement alone stops at their host. No DOM is changed.
+function keyboardDomProbe(input) {
+  const composedParent = (element) => element.assignedSlot || element.parentElement || element.getRootNode()?.host || null;
+  const keyFor = (element) => {
     const segments = [];
     let current = element;
     while (current && current !== document.body) {
@@ -447,51 +586,77 @@ async function inspectKeyboard(page, maxTabs) {
         segments.unshift(`#${current.id}`);
         break;
       }
-      const siblings = current.parentElement
-        ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
+      const siblings = current.parentNode?.children
+        ? [...current.parentNode.children].filter((candidate) => candidate.tagName === current.tagName)
         : [];
       segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
       current = current.parentElement;
     }
-    return [{ key: segments.join(" > ") }];
-  }));
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const localKey = segments.join(" > ");
+    const root = element.getRootNode();
+    return root instanceof ShadowRoot ? `${keyFor(root.host)} >>> ${localKey}` : localKey;
+  };
+  if (Array.isArray(input)) return input.flatMap((element) => {
+    const rect = element.getBoundingClientRect();
+    // visibility is inherited but descendants may explicitly restore it. Only
+    // the candidate's effective visibility decides this part of eligibility.
+    if (rect.width <= 0 || rect.height <= 0 || getComputedStyle(element).visibility === "hidden") return [];
+    let branch = element;
+    for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
+      const style = getComputedStyle(ancestor);
+      if (style.display === "none" || ancestor.hasAttribute("inert")) return [];
+      if (ancestor.matches("details:not([open])")) {
+        const summary = ancestor.querySelector(":scope > summary");
+        if (!summary || (branch !== summary && !summary.contains(branch))) return [];
+      }
+      branch = ancestor;
+    }
+    return [{ key: keyFor(element) }];
   });
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  if (input === "blur") {
+    if (element instanceof HTMLElement) element.blur();
+    return null;
+  }
+  if (!element || element === document.body) return null;
+  const style = getComputedStyle(element);
+  return {
+    key: keyFor(element),
+    tag: element.tagName.toLowerCase(),
+    id: element.id || null,
+    role: element.getAttribute("role"),
+    name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
+    outline: `${style.outlineStyle} ${style.outlineWidth}`,
+    box_shadow: style.boxShadow
+  };
+}
+
+async function inspectKeyboard(page, maxTabs) {
+  const selector = [
+    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
+    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
+    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  const focusable = await page.locator(selector).evaluateAll(keyboardDomProbe);
+  await page.evaluate(keyboardDomProbe, "blur");
   const visited = [];
-  const limit = Math.min(maxTabs, Math.max(1, focusable.length + 2));
+  const requiredKeys = new Set(focusable.map((entry) => entry.key));
+  const visitedKeys = new Set();
+  let stagnantSteps = 0;
+  const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (!element || element === document.body) return null;
-      const style = getComputedStyle(element);
-      const segments = [];
-      let current = element;
-      while (current && current !== document.body) {
-        if (current.id) {
-          segments.unshift(`#${current.id}`);
-          break;
-        }
-        const siblings = current.parentElement
-          ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
-          : [];
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
-        current = current.parentElement;
-      }
-      return {
-        key: segments.join(" > "),
-        tag: element.tagName.toLowerCase(),
-        id: element.id || null,
-        role: element.getAttribute("role"),
-        name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
-        outline: `${style.outlineStyle} ${style.outlineWidth}`,
-        box_shadow: style.boxShadow
-      };
-    });
-    if (active) visited.push(active);
+    const active = await page.evaluate(keyboardDomProbe, "active");
+    if (active) {
+      visited.push(active);
+      const previousSize = visitedKeys.size;
+      visitedKeys.add(active.key);
+      stagnantSteps = visitedKeys.size === previousSize ? stagnantSteps + 1 : 0;
+      if ([...requiredKeys].every((key) => visitedKeys.has(key))) break;
+      if (stagnantSteps > Math.max(12, focusable.length + 4)) break;
+    }
   }
-  const visitedKeys = new Set(visited.map((entry) => entry.key));
   return {
     focusable_count: focusable.length,
     visited,
@@ -511,6 +676,9 @@ async function stabilizeVisualCapture(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    for (const activeTab of document.querySelectorAll('[role="tab"][aria-selected="true"]')) {
+      activeTab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     window.scrollTo(0, 0);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
@@ -554,21 +722,29 @@ function hashFile(file) {
   return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
 }
 
-async function designMarkers(page, locales, states) {
-  return page.evaluate(({ requiredLocales, requiredStates }) => {
-    const localeFound = Object.fromEntries(requiredLocales.map((locale) => [locale,
-      document.documentElement.lang === locale || [...document.querySelectorAll("[data-killsloprouter-locale]")]
-        .some((element) => element.getAttribute("data-killsloprouter-locale") === locale)
-    ]));
-    const stateFound = Object.fromEntries(requiredStates.map((state) => [state,
-      [...document.querySelectorAll("[data-killsloprouter-state]")]
-        .some((element) => element.getAttribute("data-killsloprouter-state") === state)
-    ]));
-    return { localeFound, stateFound };
-  }, { requiredLocales: locales, requiredStates: states });
+async function inspectDesignState(page, state, locale) {
+  return page.evaluate(({ requiredState, requiredLocale }) => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 &&
+        element.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
+        !element.closest('[hidden], [inert], [aria-hidden="true"]');
+    };
+    const matches = [...document.querySelectorAll("[data-killsloprouter-state]")]
+      .filter((element) => element.getAttribute("data-killsloprouter-state") === requiredState &&
+        visible(element));
+    const stateVisible = matches.length === 1;
+    const localeRoot = stateVisible
+      ? matches[0].closest("[data-killsloprouter-locale], [lang]") : null;
+    const observedLocale = localeRoot?.getAttribute("data-killsloprouter-locale") ||
+      localeRoot?.getAttribute("lang") || null;
+    return { state_visible: stateVisible,
+      locale_visible: stateVisible && observedLocale === requiredLocale,
+      observed_locale: observedLocale, navigator_locale: navigator.language };
+  }, { requiredState: state, requiredLocale: locale });
 }
 
-async function runDesignBrowser(request) {
+async function runDesignBrowser(request, runtime, sealedScenarios) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   const task = packet.design_task;
   requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
@@ -586,7 +762,8 @@ async function runDesignBrowser(request) {
     "design prototype must be a regular non-symlink file");
   requireValue(path.extname(prototypePath).toLowerCase() === ".html",
     "official design Playwright accepts a static HTML prototype");
-  requireValue(hashFile(prototypePath) === prototype.digest, "design prototype digest mismatch");
+  const pinnedPrototype = readFilePinned(prototypePath, { label: "design prototype" });
+  requireValue(pinnedPrototype.digest === prototype.digest, "design prototype digest mismatch");
   const target = pathToFileURL(fs.realpathSync(prototypePath)).toString();
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
@@ -596,9 +773,11 @@ async function runDesignBrowser(request) {
   for (const viewport of requiredViewports) {
     requireValue(settings.viewports?.[viewport], `missing configured viewport: ${viewport}`);
   }
+  const scenarios = selectDesignScenarios(sealedScenarios, task);
+  const cases = designBrowserCases(scenarios, requiredViewports, settings.color_schemes);
   fs.mkdirSync(outputDirectory, { recursive: true });
 
-  const { playwright, axeSource } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource } = runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const evidence = [];
@@ -615,26 +794,41 @@ async function runDesignBrowser(request) {
     console: true,
     network: true
   };
-  const localesFound = new Set();
-  const statesFound = new Set();
   try {
-    for (const viewportName of requiredViewports) {
+    for (const binding of cases) {
+      const viewportName = binding.viewport;
+      const scenario = scenarios.find((item) => item.id === binding.scenario);
       const viewport = settings.viewports[viewportName];
       const context = await browser.newContext({
         viewport,
-        colorScheme: settings.color_schemes?.[0] || "light",
-        locale: requiredLocales[0] || settings.locale,
+        colorScheme: binding.color_scheme,
+        locale: binding.locale,
         reducedMotion: "reduce",
         serviceWorkers: "block"
       });
       const execution = {
-        viewport: viewportName,
+        ...binding,
+        execution_id: designBrowserExecutionId(binding),
+        viewport_size: viewport,
+        actions: [],
+        assertions: [],
+        state_before: null,
+        state_after: false,
+        locale_after: false,
+        outcome: "failed",
         console_errors: [],
         page_errors: [],
         request_failures: [],
+        failed_responses: [],
         blocked_requests: []
       };
+      const checks = { ...aggregate };
+      // Each row starts independently; aggregate failure must not poison a
+      // later diagnostic row or disguise which exact cases passed.
+      for (const key of Object.keys(checks)) checks[key] =
+        !["visual-regression", "screen-reader"].includes(key);
       executions.push(execution);
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
       const page = await context.newPage();
       page.setDefaultTimeout(settings.navigation_timeout_ms);
       page.on("console", (message) => {
@@ -644,27 +838,72 @@ async function runDesignBrowser(request) {
       page.on("requestfailed", (failed) => execution.request_failures.push({
         url: failed.url(), error: failed.failure()?.errorText || "unknown"
       }));
+      page.on("response", (response) => {
+        if (response.status() >= 400) execution.failed_responses.push({
+          url: response.url(), status: response.status()
+        });
+      });
       await context.route("**/*", async (route) => {
         const url = route.request().url();
-        if (url === target) return route.continue();
+        if (url === target && route.request().method() === "GET") {
+          // Render the exact descriptor-pinned bytes for every case, never
+          // reopen a mutable prototype between locale/state captures.
+          return route.fulfill({ status: 200, contentType: "text/html; charset=utf-8",
+            body: pinnedPrototype.source });
+        }
         if (requestProtocolAllowed(url)) return route.continue();
         execution.blocked_requests.push({ url, origin: normalizedNetworkOrigin(url) });
         return route.abort("blockedbyclient");
       });
+      await context.routeWebSocket("**/*", async (socket) => {
+        execution.blocked_requests.push({ url: socket.url(), method: "WEBSOCKET" });
+        await socket.close({ code: 1008, reason: "KillSlopRouter static prototype has no network authority" });
+      });
       try {
         await page.goto(target, { waitUntil: "domcontentloaded", timeout: settings.navigation_timeout_ms });
-        const markers = await designMarkers(page, requiredLocales, requiredStates);
-        for (const [locale, found] of Object.entries(markers.localeFound)) if (found) localesFound.add(locale);
-        for (const [state, found] of Object.entries(markers.stateFound)) if (found) statesFound.add(state);
-        aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
+        execution.state_before = (await inspectDesignState(page, binding.state, binding.locale)).state_visible;
+        let failedAction = false;
+        for (const action of scenario.actions) {
+          if (failedAction) {
+            execution.actions.push({ step: action, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAction(page, action, settings.navigation_timeout_ms);
+            execution.actions.push({ step: action, status: "passed" });
+          } catch (error) {
+            failedAction = true;
+            execution.actions.push({ step: action, status: "failed", error: error.message });
+          }
+        }
+        for (const assertion of scenario.assertions) {
+          if (failedAction) {
+            execution.assertions.push({ step: assertion, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAssertion(page, assertion, settings.navigation_timeout_ms);
+            execution.assertions.push({ step: assertion, status: "passed" });
+          } catch (error) {
+            execution.assertions.push({ step: assertion, status: "failed", error: error.message });
+          }
+        }
+        const observed = await inspectDesignState(page, binding.state, binding.locale);
+        execution.state_after = observed.state_visible;
+        execution.locale_after = observed.locale_visible;
+        execution.observed_locale = observed.observed_locale;
+        execution.navigator_locale = observed.navigator_locale;
+        checks.state = !failedAction && execution.assertions.every((item) => item.status === "passed") &&
+          execution.state_after && execution.locale_after &&
+          (binding.state === "default" || execution.state_before === false);
 
         execution.overflow = await inspectOverflow(page);
-        aggregate.overflow &&= !execution.overflow.document_overflow &&
+        checks.overflow = !execution.overflow.document_overflow &&
           execution.overflow.offenders.length === 0 &&
           execution.overflow.overlaps.length === 0 &&
           execution.overflow.clipped_text.length === 0;
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
-        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+        checks.keyboard = execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
 
         const originalViewport = page.viewportSize();
         await page.setViewportSize({
@@ -672,22 +911,22 @@ async function runDesignBrowser(request) {
           height: originalViewport.height
         });
         execution.zoom_200 = await inspectOverflow(page);
-        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+        checks["zoom-200"] = !execution.zoom_200.document_overflow &&
           execution.zoom_200.offenders.length === 0 &&
           execution.zoom_200.overlaps.length === 0 &&
           execution.zoom_200.clipped_text.length === 0;
         await page.setViewportSize(originalViewport);
 
         execution.axe = await runAxe(page, axeSource);
-        aggregate.contrast &&= !execution.axe.violations.some((item) => item.id === "color-contrast");
-        aggregate["aria-semantics"] &&= !execution.axe.violations.some((item) => item.id !== "color-contrast");
+        checks.contrast = !execution.axe.violations.some((item) => item.id === "color-contrast");
+        checks["aria-semantics"] = !execution.axe.violations.some((item) => item.id !== "color-contrast");
         const ariaSnapshot = await page.locator("body").ariaSnapshot();
-        aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
-        aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
-        aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
+        checks["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
 
-        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        const screenshotName = `${execution.execution_id}.png`;
         await stabilizeVisualCapture(page);
+        const captureState = await inspectDesignState(page, binding.state, binding.locale);
+        checks.state &&= captureState.state_visible && captureState.locale_visible;
         await page.screenshot({
           path: path.join(outputDirectory, screenshotName),
           fullPage: true,
@@ -695,29 +934,45 @@ async function runDesignBrowser(request) {
           caret: "hide",
           scale: "css"
         });
-        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+        execution.screenshot = screenshotName;
+        execution.screenshot_digest = hashFile(path.join(outputDirectory, screenshotName));
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName, state: binding.state });
+      } catch (error) {
+        checks.state = false;
+        execution.error = error.message;
       } finally {
+        const traceName = `${execution.execution_id}.zip`;
+        await context.tracing.stop({ path: path.join(outputDirectory, traceName) });
+        execution.trace = traceName;
+        execution.trace_digest = hashFile(path.join(outputDirectory, traceName));
+        evidence.push({ kind: "trace", path: traceName, viewport: viewportName, state: binding.state });
+        checks.console = execution.console_errors.length === 0 && execution.page_errors.length === 0;
+        checks.network = execution.request_failures.length === 0 &&
+          execution.failed_responses.length === 0 && execution.blocked_requests.length === 0;
+        checks.state &&= Boolean(execution.screenshot);
+        execution.checks = Object.fromEntries(requiredChecks.map((check) => [check, checks[check] === true]));
+        execution.outcome = Object.values(execution.checks).every(Boolean) ? "passed" : "failed";
+        for (const check of requiredChecks) aggregate[check] &&= execution.checks[check];
         await context.close();
       }
     }
   } finally {
     await browser.close();
   }
-  aggregate.state &&= requiredLocales.every((locale) => localesFound.has(locale)) &&
-    requiredStates.every((state) => statesFound.has(state));
   const checks = Object.fromEntries(requiredChecks.map((check) => [check, aggregate[check] === true]));
   const reportName = `${safeId(task.subject_id)}--playwright-report.json`;
   const report = {
-    design_playwright_report_version: 1,
+    design_playwright_report_version: 2,
     run_id: request.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
+    scenario_digest: settings.scenario_digest,
     subject_id: task.subject_id,
     subject_result_digest: task.subject_result_digest,
     prototype: { path: prototypePath, digest: prototype.digest },
     browser: { engine: "playwright", implementation: "chromium", version: browserVersion },
     checks,
-    locales_found: [...localesFound],
-    states_found: [...statesFound],
+    coverage_semantics: "native-scenario-visible-state-locale-matrix",
     executions
   };
   fs.writeFileSync(path.join(outputDirectory, reportName), `${JSON.stringify(report, null, 2)}\n`);
@@ -739,20 +994,42 @@ async function runDesignBrowser(request) {
       browser_engine: "playwright",
       browser_engine_version: browserVersion,
       checks,
-      locales_tested: [...localesFound],
-      states_tested: [...statesFound],
+      locales_tested: requiredLocales.filter((locale) => executions
+        .filter((item) => item.locale === locale).every((item) => item.checks.state)),
+      states_tested: requiredStates.filter((state) => executions
+        .filter((item) => item.state === state).every((item) => item.checks.state)),
       evidence
     },
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-design-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }
 
 async function run(request) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
+  requireValue(request?.host_adapter_request_version === 1,
+    "host_adapter_request_version must be 1");
+  verifyJourneyIdentity(request.journey_identity, {
+    runId: request.run_id,
+    label: "Playwright host request journey_identity"
+  });
+  verifyPacketJourney(packet, request.journey_identity,
+    `packet ${packet?.packet_id || "unknown"}`);
+  requireValue(identitiesMatch(packet.journey_identity, request.journey_identity),
+    "Playwright request and packet journey identities conflict");
+  verifyParticipant(request.participant, {
+    providerId: packet?.provider?.id,
+    stageId: packet?.stage_id,
+    designTaskKind: packet?.design_task?.kind || null,
+    label: "Playwright host request participant"
+  });
+  requireValue(JSON.stringify(request.participant) === JSON.stringify(packet.participant),
+    "Playwright host request participant conflicts with the packet");
   requireValue(packet?.stage_id === "browser-evidence", "official Playwright adapter accepts browser-evidence only");
   requireValue(settings.contract === CONTRACT, `settings.contract must be ${CONTRACT}`);
   requireValue(request.permission_scopes?.includes("artifact:read"), "artifact:read permission is required");
@@ -762,13 +1039,23 @@ async function run(request) {
     "output_directory is required");
   fs.mkdirSync(outputDirectory, { recursive: true });
 
+  const childAuthority = readPlaywrightChildAuthority(request, settings);
+
   if (packet.design_task?.kind === "browser-evidence") {
-    return runDesignBrowser(request);
+    return runDesignBrowser(request, childAuthority.runtime, childAuthority.scenarios);
   }
 
-  const scenarios = validateScenarioDocument(readJson(settings.scenario_file, "Playwright scenarios"));
+  const scenarios = childAuthority.scenarios;
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
+  const requiredScenarios = packet.evidence_contract?.required_scenarios || [];
+  const scenariosById = new Map(scenarios.map((scenario) => [scenario.id, scenario]));
+  for (const scenarioId of requiredScenarios) {
+    const scenario = scenariosById.get(scenarioId);
+    requireValue(scenario, `required Playwright scenario is missing: ${scenarioId}`);
+    requireValue((scenario.assertions || []).length > 0,
+      `required Playwright scenario has no state assertion: ${scenarioId}`);
+  }
   if (requiredChecks.includes("state")) {
     requireValue(scenarios.some((scenario) => (scenario.assertions || []).length > 0),
       "Playwright state evidence requires at least one scenario assertion");
@@ -800,7 +1087,7 @@ async function run(request) {
   requireValue(sameDigestMap(attestation.artifact_digests, packet.artifact_digests),
     "served artifact attestation does not match the audit packet digests");
 
-  const { playwright, axeSource, comparePng } = loadRuntime(settings.runtime_root);
+  const { playwright, axeSource, comparePng } = childAuthority.runtime;
   const browser = await playwright.chromium.launch(browserLaunchOptions(settings.browser_channel));
   const browserVersion = browser.version();
   const { findings, add } = findingFactory();
@@ -816,6 +1103,7 @@ async function run(request) {
     allowed_origins: settings.allowed_origins,
     required_viewports: requiredViewports,
     required_checks: requiredChecks,
+    required_scenarios: requiredScenarios,
     visual_comparison: {
       comparator: "playwright-pixelmatch",
       threshold: VISUAL_COMPARISON.threshold,
@@ -1039,7 +1327,8 @@ async function run(request) {
               kind: "aria-snapshot",
               covers: ["keyboard-evidence", "state-evidence"],
               viewports: [viewportName],
-              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check))
+              checks: requiredChecks.filter((check) => ["screen-reader", "aria-semantics"].includes(check)),
+              scenarios: [scenario.id]
             });
 
             const screenshotPath = path.join(outputDirectory, screenshotName);
@@ -1056,10 +1345,12 @@ async function run(request) {
               kind: "screenshot",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             const baselinePath = path.join(settings.baseline_directory, screenshotName);
-            if (!fs.existsSync(baselinePath)) {
+            const baseline = childAuthority.baselineFiles.get(screenshotName);
+            if (!baseline) {
               execution.visual_regression = { status: "baseline-missing", baseline: baselinePath };
               add({
                 category: "visual-regression",
@@ -1068,7 +1359,6 @@ async function run(request) {
                 suggestedFix: "Review this candidate screenshot, place the approved file in the baseline directory, and reconfigure to lock its digest."
               });
             } else {
-              const baseline = fs.readFileSync(baselinePath);
               const actual = fs.readFileSync(screenshotPath);
               const exact = baseline.equals(actual);
               const comparison = exact ? null : comparePng(actual, baseline, VISUAL_COMPARISON);
@@ -1090,7 +1380,8 @@ async function run(request) {
                     kind: "visual-diff",
                     covers: packet.assigned_capabilities,
                     viewports: [viewportName],
-                    checks: ["visual-regression"]
+                    checks: ["visual-regression"],
+                    scenarios: [scenario.id]
                   });
                 }
                 add({
@@ -1143,7 +1434,8 @@ async function run(request) {
               kind: "trace",
               covers: packet.assigned_capabilities,
               viewports: [viewportName],
-              checks: []
+              checks: [],
+              scenarios: [scenario.id]
             });
             await context.close();
           }
@@ -1172,15 +1464,23 @@ async function run(request) {
     kind: "test-report",
     covers: packet.assigned_capabilities,
     viewports: requiredViewports,
-    checks: requiredChecks
+    checks: requiredChecks,
+    scenarios: scenarios.map((scenario) => scenario.id)
   });
 
   return {
     host_adapter_response_version: 1,
     result: {
       audit_result_version: 1,
+      run_id: request.run_id,
       packet_id: packet.packet_id,
+      packet_digest: packet.packet_digest,
+      journey_identity: request.journey_identity,
       provider_id: packet.provider.id,
+      participant: request.participant,
+      ...(request.baseline_lineage
+        ? { baseline_lineage_digest: request.baseline_lineage.lineage_digest }
+        : {}),
       reviewer: { actor_id: `playwright:official-v1:${process.pid}`, kind: "browser" },
       verdict: report.status === "blocked" ? "block" : findings.length ? "pass_with_findings" : "pass",
       capabilities_checked: packet.assigned_capabilities,
@@ -1194,7 +1494,9 @@ async function run(request) {
     metadata: {
       child_pid: process.pid,
       transport: "official-playwright-json-v1",
-      browser_version: browserVersion
+      browser_version: browserVersion,
+      observed_journey_identity_digest: request.journey_identity.identity_digest,
+      observed_participant: request.participant
     }
   };
 }

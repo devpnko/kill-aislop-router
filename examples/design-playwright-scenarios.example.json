@@ -1,0 +1,65 @@
+{
+  "playwright_scenario_version": 1,
+  "scenarios": [
+    {
+      "id": "default.ko-KR", "path": "/", "design": {"state": "default", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"default\"]"}]
+    },
+    {
+      "id": "selected.ko-KR", "path": "/", "design": {"state": "selected", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}, {"type": "click", "locator": "[data-test-state=\"selected\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"selected\"]"}]
+    },
+    {
+      "id": "loading.ko-KR", "path": "/", "design": {"state": "loading", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}, {"type": "click", "locator": "[data-test-state=\"loading\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"loading\"]"}]
+    },
+    {
+      "id": "empty.ko-KR", "path": "/", "design": {"state": "empty", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}, {"type": "click", "locator": "[data-test-state=\"empty\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"empty\"]"}]
+    },
+    {
+      "id": "error.ko-KR", "path": "/", "design": {"state": "error", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}, {"type": "click", "locator": "[data-test-state=\"error\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"error\"]"}]
+    },
+    {
+      "id": "permission-denied.ko-KR", "path": "/", "design": {"state": "permission-denied", "locale": "ko-KR"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"ko-KR\"]"}, {"type": "click", "locator": "[data-test-state=\"permission-denied\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"permission-denied\"]"}]
+    },
+    {
+      "id": "default.en-US", "path": "/", "design": {"state": "default", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"default\"]"}]
+    },
+    {
+      "id": "selected.en-US", "path": "/", "design": {"state": "selected", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}, {"type": "click", "locator": "[data-test-state=\"selected\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"selected\"]"}]
+    },
+    {
+      "id": "loading.en-US", "path": "/", "design": {"state": "loading", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}, {"type": "click", "locator": "[data-test-state=\"loading\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"loading\"]"}]
+    },
+    {
+      "id": "empty.en-US", "path": "/", "design": {"state": "empty", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}, {"type": "click", "locator": "[data-test-state=\"empty\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"empty\"]"}]
+    },
+    {
+      "id": "error.en-US", "path": "/", "design": {"state": "error", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}, {"type": "click", "locator": "[data-test-state=\"error\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"error\"]"}]
+    },
+    {
+      "id": "permission-denied.en-US", "path": "/", "design": {"state": "permission-denied", "locale": "en-US"},
+      "actions": [{"type": "click", "locator": "[data-test-locale=\"en-US\"]"}, {"type": "click", "locator": "[data-test-state=\"permission-denied\"]"}],
+      "assertions": [{"type": "visible", "locator": "[data-killsloprouter-state=\"permission-denied\"]"}]
+    }
+  ]
+}

@@ -1,4 +1,7 @@
 interface:
   display_name: "KillSlopRouter"
   short_description: "Bind exact visual signatures and route fail-closed reviews"
-  default_prompt: "Use $kill-slop-router to bind this artifact to its semantic surface, verified visual intent, and exact visual signature, then continue the fail-closed audit."
+  default_prompt: "Use $killsloprouter:kill-slop-router as the only top-level workflow, bind this artifact to its semantic surface and verified visual contracts, and route antislop only as the digest-locked internal anti-slop critic before continuing the fail-closed audit."
+
+policy:
+  allow_implicit_invocation: true

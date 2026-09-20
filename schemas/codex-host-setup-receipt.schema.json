@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/codex-host-setup-receipt.schema.json",
+  "title": "KillSlopRouter Codex Host Setup Receipt",
+  "type": "object",
+  "required": [
+    "codex_host_setup_receipt_version",
+    "status",
+    "generated_at",
+    "profile",
+    "host_manifest",
+    "adapter",
+    "runtime",
+    "providers",
+    "privacy",
+    "pending_reason",
+    "receipt_path",
+    "receipt_digest"
+  ],
+  "properties": {
+    "codex_host_setup_receipt_version": {"const": 1},
+    "status": {"enum": ["configured", "manual_pending"]},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "profile": {"$ref": "#/$defs/file"},
+    "host_manifest": {"$ref": "#/$defs/file_with_backup"},
+    "adapter": {
+      "type": "object",
+      "required": [
+        "contract",
+        "entrypoint",
+        "entrypoint_digest",
+        "entrypoint_graph_digest",
+        "output_schema",
+        "output_schema_digest"
+      ],
+      "properties": {
+        "contract": {"const": "killsloprouter-codex-review-v1"},
+        "entrypoint": {"$ref": "#/$defs/path"},
+        "entrypoint_digest": {"$ref": "#/$defs/digest"},
+        "entrypoint_graph_digest": {"$ref": "#/$defs/digest"},
+        "output_schema": {"$ref": "#/$defs/path"},
+        "output_schema_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "path",
+        "digest",
+        "physical_identity_digest",
+        "root",
+        "root_digest",
+        "root_physical_identity_digest",
+        "version",
+        "model",
+        "sandbox",
+        "ephemeral"
+      ],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"},
+        "root": {"$ref": "#/$defs/path"},
+        "root_digest": {"$ref": "#/$defs/digest"},
+        "root_physical_identity_digest": {"$ref": "#/$defs/digest"},
+        "version": {
+          "type": "string",
+          "pattern": "^codex-cli [0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "sandbox": {"const": "read-only"},
+        "ephemeral": {"const": true}
+      },
+      "additionalProperties": false
+    },
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/provider"}
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "external_network_explicitly_granted",
+        "credentials_stored",
+        "project_profile_commands_executed",
+        "browser_or_owner_gate_substitution"
+      ],
+      "properties": {
+        "external_network_explicitly_granted": {"const": true},
+        "credentials_stored": {"const": false},
+        "project_profile_commands_executed": {"const": false},
+        "browser_or_owner_gate_substitution": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "pending_reason": {"type": ["string", "null"], "minLength": 1},
+    "receipt_path": {"$ref": "#/$defs/path"},
+    "previous_receipt_backup": {"$ref": "#/$defs/path"},
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "configured"}}},
+      "then": {"properties": {"pending_reason": {"type": "null"}}},
+      "else": {"properties": {"pending_reason": {"type": "string", "minLength": 1}}}
+    }
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "path": {"type": "string", "minLength": 1},
+    "file": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "file_with_backup": {
+      "type": "object",
+      "required": ["path", "digest", "backup"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "digest": {"$ref": "#/$defs/digest"},
+        "backup": {"$ref": "#/$defs/path"}
+      },
+      "additionalProperties": false
+    },
+    "readiness": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {"enum": ["ready", "manual_pending"]},
+        "reason": {"type": ["string", "null"], "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "ready"}}},
+          "then": {"properties": {"reason": {"type": "null"}}},
+          "else": {"properties": {"reason": {"type": "string", "minLength": 1}}}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "adapter",
+        "strength",
+        "capabilities",
+        "independent_from_creator",
+        "skill_digest",
+        "readiness"
+      ],
+      "properties": {
+        "provider_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "adapter": {"enum": ["agent-json-v1", "skill-json-v1"]},
+        "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "independent_from_creator": {"type": "boolean"},
+        "skill_digest": {
+          "oneOf": [
+            {"$ref": "#/$defs/digest"},
+            {"type": "null"}
+          ]
+        },
+        "readiness": {"$ref": "#/$defs/readiness"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"adapter": {"const": "skill-json-v1"}}},
+          "then": {"properties": {"skill_digest": {"$ref": "#/$defs/digest"}}},
+          "else": {"properties": {"skill_digest": {"type": "null"}}}
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

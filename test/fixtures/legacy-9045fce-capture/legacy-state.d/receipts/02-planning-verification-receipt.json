@@ -1,0 +1,15 @@
+{
+  "automation_step_receipt_version": 1,
+  "run_id": "54c13809-4db5-4f50-951d-36e2e074854a",
+  "step_id": "planning-verification",
+  "status": "completed",
+  "attempt": 1,
+  "generated_at": "2026-08-29T09:25:32.763Z",
+  "payload": {
+    "status": "observed_with_findings",
+    "planning_receipt_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/service-planning-gate.example.json",
+    "planning_receipt_digest": null,
+    "requirements": []
+  },
+  "receipt_digest": "sha256:ee1319096fc711e2367c94c2e981e0283ef070b6642898fbffa9700b53c99ebb"
+}

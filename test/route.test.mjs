@@ -145,6 +145,61 @@ function plan(input, selectedProfile) {
   });
 }
 
+function planWithAuthorityMutation(suffix, {
+  intent = null,
+  signature = null
+} = {}) {
+  const fixtureIndex = routedProfileIndex += 1;
+  const routedProfile = materializeProfileReferences(
+    bindProfileSurface(profile, "operator-product-ui"),
+    fixtureIndex
+  );
+  const mutateReceipt = (kind, mutate) => {
+    if (!mutate) return;
+    const contracts = kind === "intent"
+      ? routedProfile.visual_intents
+      : routedProfile.visual_signatures;
+    const contract = contracts["operator-product-ui"];
+    const receiptPath = contract.authority_receipt;
+    const receipt = readJson(receiptPath, `${kind} authority receipt`);
+    const replaceOwner = (ownerMutator) => {
+      const evidence = receipt.evidence.find((item) => item.kind === "owner-approval");
+      assert.ok(evidence, `${kind} requires owner-approval evidence`);
+      const owner = readJson(evidence.path, `${kind} owner approval`);
+      ownerMutator(owner);
+      const ownerPath = path.join(
+        routedProfileDirectory,
+        `${fixtureIndex}.${suffix}.${kind}.owner.json`
+      );
+      fs.writeFileSync(ownerPath, `${JSON.stringify(owner, null, 2)}\n`);
+      evidence.path = ownerPath;
+      evidence.digest = hashArtifact(ownerPath);
+    };
+    mutate(receipt, replaceOwner);
+    fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+    contract.authority_digest = hashArtifact(receiptPath);
+  };
+  mutateReceipt("intent", intent);
+  mutateReceipt("signature", signature);
+  const routedProfilePath = path.join(
+    routedProfileDirectory,
+    `${fixtureIndex}.${suffix}.profile.json`
+  );
+  fs.writeFileSync(routedProfilePath, `${JSON.stringify(routedProfile, null, 2)}\n`);
+  return planRoute({
+    router,
+    profile: routedProfile,
+    input: {
+      surface: "operator-product-ui",
+      task: "redesign",
+      direction: "approved",
+      changes: ["style"]
+    },
+    routerPath,
+    profilePath: routedProfilePath
+  });
+}
+
 const operator = plan({
   surface: "operator-product-ui",
   task: "redesign",
@@ -405,6 +460,52 @@ const tamperedSignature = planRoute({
 });
 assert.equal(tamperedSignature.status, "blocked");
 assert.match(tamperedSignature.unresolved.join("\n"), /visual signature authority receipt digest changed/);
+
+const reservedIntentAuthority = planWithAuthorityMutation("reserved-intent-authority", {
+  intent(receipt) {
+    receipt.authority.authority_id = "KillSlopRouter";
+  }
+});
+assert.equal(reservedIntentAuthority.status, "blocked");
+assert.match(reservedIntentAuthority.unresolved.join("\n"),
+  /visual intent authority_id cannot use the KillSlopRouter parent identity/);
+
+const reservedSignatureAuthority = planWithAuthorityMutation("reserved-signature-authority", {
+  signature(receipt) {
+    receipt.authority.authority_id = "킬슬롭라우터";
+  }
+});
+assert.equal(reservedSignatureAuthority.status, "blocked");
+assert.match(reservedSignatureAuthority.unresolved.join("\n"),
+  /visual signature authority_id cannot use the KillSlopRouter parent identity/);
+
+const reservedIntentOwner = planWithAuthorityMutation("reserved-intent-owner", {
+  intent(_receipt, replaceOwner) {
+    replaceOwner((owner) => { owner.owner_id = "killsloprouter:kill-slop-router"; });
+  }
+});
+assert.equal(reservedIntentOwner.status, "blocked");
+assert.match(reservedIntentOwner.unresolved.join("\n"),
+  /owner_id cannot use the KillSlopRouter parent identity/);
+
+for (const [kind, mutators] of [
+  ["intent", {
+    intent(_receipt, replaceOwner) {
+      replaceOwner((owner) => { owner.owner_id = "different-real-owner"; });
+    }
+  }],
+  ["signature", {
+    signature(_receipt, replaceOwner) {
+      replaceOwner((owner) => { owner.owner_id = "different-real-owner"; });
+    }
+  }]
+]) {
+  const mismatchedOwner = planWithAuthorityMutation(`mismatched-${kind}-owner`, mutators);
+  assert.equal(mismatchedOwner.status, "blocked", kind);
+  assert.match(mismatchedOwner.unresolved.join("\n"),
+    new RegExp(`visual ${kind} owner-direction authority_id must exactly match every verified owner_id`),
+    kind);
+}
 
 const incompleteCoverageIndex = routedProfileIndex += 1;
 const incompleteCoverageProfile = materializeProfileReferences(
@@ -815,12 +916,46 @@ assert.throws(() => planRoute({
   input: { task: "audit", direction: "none", changes: [] }
 }), /profile object does not match profile_path/);
 
+const authoritySymlinkFixture = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-route-authority-"));
+try {
+  const realAuthority = path.join(authoritySymlinkFixture, "real-authority");
+  const aliasAuthority = path.join(authoritySymlinkFixture, "authority-alias");
+  fs.mkdirSync(realAuthority);
+  const copiedRouterPath = path.join(realAuthority, "router.json");
+  const copiedProfilePath = path.join(realAuthority, "profile.json");
+  fs.copyFileSync(routerPath, copiedRouterPath);
+  fs.copyFileSync(profilePath, copiedProfilePath);
+  fs.symlinkSync(realAuthority, aliasAuthority, "dir");
+
+  assert.throws(() => planRoute({
+    router,
+    profile: null,
+    routerPath: path.join(aliasAuthority, "router.json"),
+    input: {
+      surface: "operator-product-ui",
+      task: "audit",
+      direction: "none",
+      changes: ["source"]
+    }
+  }), /router source contains a symlink ancestor/);
+
+  assert.throws(() => planRoute({
+    router,
+    profile,
+    routerPath,
+    profilePath: path.join(aliasAuthority, "profile.json"),
+    input: { task: "audit", direction: "none", changes: [] }
+  }), /profile source contains a symlink ancestor/);
+} finally {
+  fs.rmSync(authoritySymlinkFixture, { recursive: true, force: true });
+}
+
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-adapter-test-"));
 try {
   const scannerDir = path.join(temp, "adapter", "skill", "scripts");
   fs.mkdirSync(scannerDir, { recursive: true });
-  fs.writeFileSync(path.join(scannerDir, "scan.mjs"), `
-    console.log(JSON.stringify({
+  fs.writeFileSync(path.join(scannerDir, "result.mjs"), `
+    export default {
       filesScanned: 1,
       groups: 1,
       hits: 1,
@@ -831,7 +966,11 @@ try {
         fix: "tight elevation",
         hits: [{ file: "fixture.html", line: 1, text: "box-shadow: 0 30px 80px" }]
       }]
-    }))
+    };
+  `);
+  fs.writeFileSync(path.join(scannerDir, "scan.mjs"), `
+    import result from "./result.mjs";
+    console.log(JSON.stringify(result));
   `);
   const target = path.join(temp, "fixture.html");
   fs.writeFileSync(target, "<style>.x{box-shadow:0 30px 80px}</style>");

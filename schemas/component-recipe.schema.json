@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/component-recipe.schema.json",
+  "title": "Source-bound transferable component craft recipe (not visual authority)",
+  "type": "object",
+  "required": ["component_recipe_version", "family", "anatomy", "visual_treatment", "preserve_character", "coherence_rules", "responsive_variants", "interaction_states", "content_stress", "intermediate_width_behavior"],
+  "properties": {
+    "component_recipe_version": {"const": 1},
+    "family": {"$ref": "#/$defs/text"},
+    "anatomy": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "required": ["part_id", "role", "priority", "treatment"],
+        "properties": {
+          "part_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "role": {"$ref": "#/$defs/text"},
+          "priority": {"enum": ["primary", "secondary", "supporting"]},
+          "treatment": {"$ref": "#/$defs/text"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "visual_treatment": {"$ref": "#/$defs/visual_aspects"},
+    "preserve_character": {"$ref": "#/$defs/strings"},
+    "coherence_rules": {"$ref": "#/$defs/strings"},
+    "content_stress": {"$ref": "#/$defs/strings"},
+    "intermediate_width_behavior": {"$ref": "#/$defs/text"},
+    "interaction_states": {"$ref": "#/$defs/interactions"},
+    "responsive_variants": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["range", "basis", "observed_ids", "composition", "preserved_parts", "deferred_parts", "access_path", "overflow_strategy"],
+        "properties": {
+          "range": {"enum": ["compact", "medium", "wide"]},
+          "basis": {"enum": ["observed", "target-proposal"]},
+          "observed_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+          "composition": {"$ref": "#/$defs/text"},
+          "preserved_parts": {"$ref": "#/$defs/strings"},
+          "deferred_parts": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+          "access_path": {"$ref": "#/$defs/text"},
+          "overflow_strategy": {"enum": ["reflow", "contained-scroll", "none"]}
+        },
+        "allOf": [{
+          "if": {"properties": {"basis": {"const": "observed"}}},
+          "then": {"properties": {"observed_ids": {"minItems": 1}}},
+          "else": {"properties": {"observed_ids": {"maxItems": 0}}}
+        }],
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1},
+    "strings": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+    "visual_aspects": {
+      "type": "object",
+      "required": ["surface", "edges", "elevation", "typography", "spacing", "color", "imagery", "motion"],
+      "properties": {
+        "surface": {"$ref": "#/$defs/text"}, "edges": {"$ref": "#/$defs/text"},
+        "elevation": {"$ref": "#/$defs/text"}, "typography": {"$ref": "#/$defs/text"},
+        "spacing": {"$ref": "#/$defs/text"}, "color": {"$ref": "#/$defs/text"},
+        "imagery": {"$ref": "#/$defs/text"}, "motion": {"$ref": "#/$defs/text"}
+      },
+      "additionalProperties": false
+    },
+    "interactions": {
+      "type": "object", "required": ["rest", "hover", "focus-visible", "active", "disabled"],
+      "properties": {
+        "rest": {"$ref": "#/$defs/text"}, "hover": {"$ref": "#/$defs/text"},
+        "focus-visible": {"$ref": "#/$defs/text"}, "active": {"$ref": "#/$defs/text"},
+        "disabled": {"$ref": "#/$defs/text"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

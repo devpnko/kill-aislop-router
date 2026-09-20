@@ -5,8 +5,12 @@
   "type": "object",
   "required": [
     "audit_result_version",
+    "run_id",
     "packet_id",
+    "packet_digest",
+    "journey_identity",
     "provider_id",
+    "participant",
     "reviewer",
     "verdict",
     "capabilities_checked",
@@ -18,8 +22,13 @@
   ],
   "properties": {
     "audit_result_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
     "packet_id": {"type": "string", "minLength": 1},
+    "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "baseline_lineage_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "provider_id": {"type": "string", "minLength": 1},
+    "participant": {"$ref": "participant.schema.json"},
     "reviewer": {
       "type": "object",
       "required": ["actor_id", "kind"],
@@ -87,7 +96,12 @@
         "kind": {"type": "string", "minLength": 1},
         "covers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
         "viewports": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        "checks": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "scenarios": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+          "uniqueItems": true
+        }
       },
       "additionalProperties": false
     },

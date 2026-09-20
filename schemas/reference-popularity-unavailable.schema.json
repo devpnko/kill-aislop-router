@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/reference-popularity-unavailable.schema.json",
+  "title": "Explicitly unavailable popularity evidence; never a numeric zero or verified score",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/signal"
+    },
+    {
+      "$ref": "#/$defs/export_record"
+    }
+  ],
+  "$defs": {
+    "normalization": {
+      "type": "object",
+      "required": [
+        "formula",
+        "lower_bound",
+        "upper_bound",
+        "direction"
+      ],
+      "properties": {
+        "formula": {
+          "const": "linear-bounds-v1"
+        },
+        "lower_bound": {
+          "type": "number"
+        },
+        "upper_bound": {
+          "type": "number"
+        },
+        "direction": {
+          "enum": [
+            "higher-is-better",
+            "lower-is-better"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "signal": {
+      "type": "object",
+      "required": [
+        "availability",
+        "id",
+        "metric",
+        "subject_kind",
+        "subject_record_id",
+        "scope",
+        "category",
+        "normalization",
+        "checked_at",
+        "reason",
+        "evidence_ids"
+      ],
+      "properties": {
+        "availability": {
+          "const": "unavailable"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "metric": {
+          "enum": [
+            "mau",
+            "bookmark-count",
+            "popular-rank",
+            "curation-popularity"
+          ]
+        },
+        "subject_kind": {
+          "enum": [
+            "product",
+            "screen"
+          ]
+        },
+        "subject_record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalization": {
+          "$ref": "#/$defs/normalization"
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "metric": {
+                "const": "mau"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_kind": {
+                "const": "product"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "metric": {
+                "const": "popular-rank"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalization": {
+                "properties": {
+                  "direction": {
+                    "const": "lower-is-better"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "normalization": {
+                "properties": {
+                  "direction": {
+                    "const": "higher-is-better"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "export_record": {
+      "type": "object",
+      "required": [
+        "record_kind",
+        "signal_id",
+        "metric",
+        "subject_kind",
+        "subject_record_id",
+        "scope",
+        "category",
+        "normalization",
+        "checked_at",
+        "reason",
+        "evidence_ids"
+      ],
+      "properties": {
+        "record_kind": {
+          "const": "unavailable"
+        },
+        "signal_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "metric": {
+          "enum": [
+            "mau",
+            "bookmark-count",
+            "popular-rank",
+            "curation-popularity"
+          ]
+        },
+        "subject_kind": {
+          "enum": [
+            "product",
+            "screen"
+          ]
+        },
+        "subject_record_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "normalization": {
+          "$ref": "#/$defs/normalization"
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "metric": {
+                "const": "mau"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_kind": {
+                "const": "product"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "metric": {
+                "const": "popular-rank"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "normalization": {
+                "properties": {
+                  "direction": {
+                    "const": "lower-is-better"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "normalization": {
+                "properties": {
+                  "direction": {
+                    "const": "higher-is-better"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

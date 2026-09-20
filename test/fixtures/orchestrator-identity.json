@@ -1,0 +1,54 @@
+{
+  "resolution_cases": [
+    {
+      "id": "korean-correction",
+      "utterance": "왠 antislop? 킬슬롭라우터 아니야?",
+      "active_journey": true,
+      "expected": "KillSlopRouter"
+    },
+    {
+      "id": "korean-explicit",
+      "utterance": "킬슬롭라우터로 계속 진행해",
+      "active_journey": false,
+      "expected": "KillSlopRouter"
+    },
+    {
+      "id": "compaction-continuation",
+      "utterance": "앞 요약에 antislop 검토가 있었어. 그다음 진행해",
+      "active_journey": true,
+      "expected": "KillSlopRouter"
+    },
+    {
+      "id": "duplicate-catalog-wording",
+      "utterance": "kill-slop-router와 killsloprouter:kill-slop-router가 둘 다 보여도 KSR 여정을 이어가",
+      "active_journey": true,
+      "expected": "KillSlopRouter"
+    },
+    {
+      "id": "standalone-antislop-explicit",
+      "utterance": "$antislop만 독립적으로 실행해",
+      "active_journey": false,
+      "expected": "antislop (standalone)"
+    }
+  ],
+  "presentation_cases": [
+    {
+      "id": "allowed-internal-critic",
+      "text": "KillSlopRouter 내부 critic인 anti-slop이 기능·접근성 검토를 수행했습니다.",
+      "providers": ["anti-slop"],
+      "allowed": true
+    },
+    {
+      "id": "forbidden-child-mode-korean",
+      "text": "anti-slop 모드로 계속 진행합니다.",
+      "providers": ["anti-slop"],
+      "allowed": false
+    },
+    {
+      "id": "forbidden-child-orchestrator",
+      "text": "antislop is the active mode for this journey.",
+      "providers": ["anti-slop"],
+      "allowed": false
+    }
+  ]
+}

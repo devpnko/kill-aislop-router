@@ -1,0 +1,18 @@
+{
+  "automation_step_receipt_version": 1,
+  "run_id": "54c13809-4db5-4f50-951d-36e2e074854a",
+  "step_id": "audit-init",
+  "status": "completed",
+  "attempt": 1,
+  "generated_at": "2026-08-29T09:25:32.764Z",
+  "payload": {
+    "audit_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/audit-run.json",
+    "audit_digest": "sha256:403cd7a976d6634e90fe3f836a58d236458f1066a883a885922671dc51183884",
+    "audit_manifest_digest": "sha256:8ae455c7c19a309184c6d9527eda2b5a72ebf550c98bda84fa331c3e79971b78",
+    "approval_scope_digest": "sha256:993c3d411726f50ab5114abd537027a1df81673e2f0138fa55e15c825ee99d14",
+    "artifact_digests": {
+      "artifact.txt": "sha256:c5e5fba8a27de0c453d623a3f8b4d8b862bb941f18a6d6273f0203cb0702d822"
+    }
+  },
+  "receipt_digest": "sha256:78b1d5bc84823f53e50353f881021b2c4a5d928d6eabc9a66865a2d197efb004"
+}

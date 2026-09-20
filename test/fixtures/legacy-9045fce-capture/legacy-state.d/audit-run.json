@@ -1,0 +1,244 @@
+{
+  "audit_run_version": 1,
+  "run_id": "54c13809-4db5-4f50-951d-36e2e074854a",
+  "status": "collecting",
+  "created_at": "2026-08-29T09:25:32.764Z",
+  "updated_at": "2026-08-29T09:25:32.764Z",
+  "root": "/private/tmp/killsloprouter-legacy-capture.t5piGa",
+  "scope": {
+    "kind": "source",
+    "claim": "source-only-no-rendered-parity-claim"
+  },
+  "route": {
+    "router_id": "kill-slop-router",
+    "router_version": "1.0.0",
+    "route_id": "pr-hygiene",
+    "project_id": "example-product",
+    "plan_digest": "sha256:f387d5f9b5f8d91aa7556fdf7062bf5f16c6d8a0797176e7128db6844b8e11e2",
+    "plan_source": {
+      "path": "legacy-state.d/plan.json",
+      "resolved_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/plan.json",
+      "kind": "file",
+      "bytes": 6463,
+      "digest": "sha256:f495faf96cd0e93a43d08ab9800c12612b56d0988cb3986c0a8ca2c62f452667"
+    },
+    "profile_source": {
+      "path": "profile.json",
+      "resolved_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/profile.json",
+      "kind": "file",
+      "bytes": 3014,
+      "digest": "sha256:a05009b4f94e7c8588b8ed450ed7bb21bf66778e61d90c8f5b07f00af87bea6e"
+    },
+    "surface_resolution": {
+      "status": "locked",
+      "requested_surface": "operator-product-ui",
+      "resolved_surface": "operator-product-ui",
+      "primary_surface": "operator-product-ui",
+      "allowed_surfaces": [
+        "operator-product-ui"
+      ],
+      "contract_digest": "sha256:912c74e6978004ad57952e130e6884677543bb992e1138ae343ece31e838f80b",
+      "artifact_bindings": [
+        {
+          "path": "artifact.txt",
+          "binding_root": ".",
+          "surface": "operator-product-ui"
+        }
+      ]
+    },
+    "input": {
+      "surface": "operator-product-ui",
+      "task": "pr-hygiene",
+      "direction": "approved",
+      "changes": [
+        "source"
+      ],
+      "risk": "standard",
+      "scope": "source"
+    }
+  },
+  "planning_gate": {
+    "enabled": true,
+    "policy_required": false,
+    "enforced": false,
+    "status": "observed_with_findings",
+    "protocol": null,
+    "phase": null,
+    "scope_id": null,
+    "receipt_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/service-planning-gate.example.json",
+    "receipt_digest": null,
+    "gate_statuses": {},
+    "requirements": [],
+    "unresolved": [],
+    "warnings": [
+      "planning receipt not found: /private/tmp/killsloprouter-legacy-capture.t5piGa/service-planning-gate.example.json"
+    ]
+  },
+  "visual_intent": {
+    "visual_intent_version": 1,
+    "surface": "operator-product-ui",
+    "status": "missing",
+    "contract_digest": null,
+    "authority_status": "missing",
+    "issues": [
+      "visual intent contract is missing for operator-product-ui"
+    ],
+    "sources": []
+  },
+  "visual_intent_sources": [],
+  "visual_signature": {
+    "visual_signature_version": 1,
+    "surface": "operator-product-ui",
+    "status": "missing",
+    "contract_digest": null,
+    "authority_status": "missing",
+    "issues": [
+      "visual signature contract is missing for operator-product-ui"
+    ],
+    "sources": []
+  },
+  "visual_signature_sources": [],
+  "creator": {
+    "provider_id": null,
+    "actor_id": null
+  },
+  "artifacts": [
+    {
+      "path": "artifact.txt",
+      "resolved_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/artifact.txt",
+      "kind": "file",
+      "bytes": 54,
+      "digest": "sha256:c5e5fba8a27de0c453d623a3f8b4d8b862bb941f18a6d6273f0203cb0702d822"
+    }
+  ],
+  "evidence_contract": {
+    "browser": "playwright",
+    "required_viewports": [
+      "mobile",
+      "desktop"
+    ],
+    "required_checks": [
+      "keyboard",
+      "state",
+      "overflow",
+      "contrast",
+      "zoom-200",
+      "visual-regression",
+      "screen-reader"
+    ],
+    "required_scenarios": [
+      "root"
+    ]
+  },
+  "baseline_observation": null,
+  "hard_blockers": [
+    "fabricated-data-or-claim",
+    "dead-or-misleading-control",
+    "authority-or-privacy-leak",
+    "missing-required-state",
+    "keyboard-failure",
+    "contrast-failure",
+    "overflow-overlap-or-clipping",
+    "visual-intent-contract-violation",
+    "visual-signature-contract-violation",
+    "brand-token-substitution",
+    "unapproved-style-normalization",
+    "unapproved-editorial-treatment",
+    "fake-runtime-claim"
+  ],
+  "invariants": {
+    "one_creator_per_artifact": true,
+    "creator_cannot_self_approve": true,
+    "overlapping_tools_run_as_separate_passes": true,
+    "scanner_hit_is_not_a_failure": true,
+    "external_result_is_not_local_authority": true,
+    "browser_evidence_required_for_visual_approval": true,
+    "project_contract_overrides_style_advice": true,
+    "planning_authority_stays_external": true,
+    "design_system_release_requires_exact_owner_approval": true,
+    "profile_commands_are_never_executed": true,
+    "routable_is_not_execution_evidence": true,
+    "surface_is_not_a_visual_style_preset": true,
+    "anti_slop_critique_is_not_creator_direction": true,
+    "editorial_treatment_requires_verified_visual_intent": true,
+    "scanner_zero_hits_is_not_design_approval": true,
+    "visual_intent_authority_is_digest_bound": true,
+    "visual_signature_authority_is_digest_bound": true,
+    "palette_frequency_is_not_style_authority": true,
+    "critic_preferences_cannot_override_visual_signature": true,
+    "missing_direction_requires_design_exploration": true,
+    "design_candidates_require_playwright_evidence": true,
+    "design_shortlist_and_palette_require_owner_selection": true,
+    "locale_domain_privacy_browser_and_owner_gates_remain_hard": true
+  },
+  "owner_approval_required": false,
+  "stages": [
+    {
+      "id": "pr-hygiene",
+      "question": "Does the contribution meet separately approved PR-quality rules?",
+      "optional": false,
+      "required_capabilities": [
+        "pr-contribution-hygiene"
+      ],
+      "evidence_required": false,
+      "required_evidence_kinds": []
+    }
+  ],
+  "packets": [
+    {
+      "dispatch_packet_version": 1,
+      "packet_id": "pr-hygiene--peakoss-anti-slop--1",
+      "stage_id": "pr-hygiene",
+      "stage_question": "Does the contribution meet separately approved PR-quality rules?",
+      "required": true,
+      "provider": {
+        "id": "peakoss-anti-slop",
+        "kind": "external",
+        "version": "review-contract:pr6-v1",
+        "executor": null,
+        "fallback_for": null,
+        "resolved_to": null
+      },
+      "assigned_capabilities": [
+        "pr-contribution-hygiene"
+      ],
+      "minimum_strength": 3,
+      "reviewer_independence_required": true,
+      "evidence_required": false,
+      "required_evidence_kinds": [],
+      "evidence_contract": null,
+      "visual_intent_contract": {
+        "visual_intent_version": 1,
+        "surface": "operator-product-ui",
+        "status": "missing",
+        "contract_digest": null,
+        "authority_status": "missing",
+        "issues": [
+          "visual intent contract is missing for operator-product-ui"
+        ],
+        "authority": null,
+        "sources": []
+      },
+      "visual_signature_contract": {
+        "visual_signature_version": 1,
+        "surface": "operator-product-ui",
+        "status": "missing",
+        "contract_digest": null,
+        "authority_status": "missing",
+        "issues": [
+          "visual signature contract is missing for operator-product-ui"
+        ],
+        "authority": null,
+        "sources": []
+      },
+      "artifact_digests": {
+        "artifact.txt": "sha256:c5e5fba8a27de0c453d623a3f8b4d8b862bb941f18a6d6273f0203cb0702d822"
+      },
+      "packet_digest": "sha256:ef74e23f91135efdcb05ab1fddb8e48bf875b33b6ccb24e87350e68339b4f234"
+    }
+  ],
+  "results": [],
+  "triage": [],
+  "approval_scope_digest": "sha256:993c3d411726f50ab5114abd537027a1df81673e2f0138fa55e15c825ee99d14",
+  "manifest_digest": "sha256:8ae455c7c19a309184c6d9527eda2b5a72ebf550c98bda84fa331c3e79971b78"
+}

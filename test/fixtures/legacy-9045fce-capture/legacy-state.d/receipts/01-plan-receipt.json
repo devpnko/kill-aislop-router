@@ -1,0 +1,49 @@
+{
+  "automation_step_receipt_version": 1,
+  "run_id": "54c13809-4db5-4f50-951d-36e2e074854a",
+  "step_id": "plan",
+  "status": "completed",
+  "attempt": 1,
+  "generated_at": "2026-08-29T09:25:32.762Z",
+  "payload": {
+    "status": "planned",
+    "route_id": "pr-hygiene",
+    "creator": null,
+    "visual_intent": {
+      "status": "missing",
+      "mode": null,
+      "editorial_treatment": null,
+      "authority_status": "missing",
+      "contract_digest": null
+    },
+    "visual_signature": {
+      "status": "missing",
+      "authority_status": "missing",
+      "primary": null,
+      "typography_family": null,
+      "density": null,
+      "elevation": null,
+      "imagery": null,
+      "motion": null,
+      "contract_digest": null
+    },
+    "unresolved": [],
+    "warnings": [
+      "planning receipt not found: /private/tmp/killsloprouter-legacy-capture.t5piGa/service-planning-gate.example.json"
+    ],
+    "baseline_observation": null,
+    "plan_path": "/private/tmp/killsloprouter-legacy-capture.t5piGa/legacy-state.d/plan.json",
+    "plan_digest": "sha256:f387d5f9b5f8d91aa7556fdf7062bf5f16c6d8a0797176e7128db6844b8e11e2",
+    "routing": [
+      {
+        "stage_id": "pr-hygiene",
+        "status": "ready_primary",
+        "selected_providers": [
+          "peakoss-anti-slop"
+        ],
+        "missing_capabilities": []
+      }
+    ]
+  },
+  "receipt_digest": "sha256:0a1b37151ccdfc5bb402d953eb22d18ccdf542f87fbd21775abc6041e3b21ecc"
+}

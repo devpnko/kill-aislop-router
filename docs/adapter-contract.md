@@ -86,9 +86,13 @@ packets remain independent.
 For audit ingestion, non-scanner providers use
 `../schemas/audit-result.schema.json`. `audit init` writes a provider-specific
 template with the packet ID, exact artifact digest map, assigned capabilities,
-and evidence requirements. `audit record` rejects a different provider,
-creator self-review, incomplete capability coverage, stale artifact hashes, or
-missing browser proof.
+and evidence requirements. Results must preserve the exact run ID, packet
+digest, journey identity, internal participant metadata, and optional lineage
+digest from that packet. `audit record` rejects cross-run or cross-parent
+replay, a different provider, creator self-review, incomplete capability
+coverage, stale artifact hashes, or missing browser proof. Public dispatch,
+record, status, and finalization calls also require the caller-retained
+`audit_authority_digest` emitted by `audit init`.
 
 Visual routes include `packet.visual_intent_contract` and
 `packet.visual_signature_contract`. The strength-4 `visual-intent-review`
@@ -98,6 +102,14 @@ the verified contracts rather than infer a house style or main color from
 anti-slop rules, frequency, or the semantic surface name.
 
 Scanner receipts may be ingested directly when the audit has one root artifact.
+The standalone `scan --adapter kill-ai-slop` receipt intentionally has no
+parent journey yet. `audit record` accepts that exact legacy-compatible scanner
+shape only when its real artifact path and digest match the audit's sole root,
+then records it as `standalone-compatibility-bound-at-ingest` under the current
+KillSlopRouter journey and participant. If any packet-binding field is present,
+the full run ID, packet digest, journey identity, participant, and applicable
+baseline-lineage digest are mandatory; a partial binding never falls back to
+standalone compatibility.
 For several independent artifacts, aggregate their scans into one standard
 audit result or initialize one run per root. Every scanner candidate must then
 be resolved through `../schemas/triage.schema.json`.
@@ -123,6 +135,10 @@ record the reason when dismissing or accepting it.
 - Redact PII and secrets before sending artifacts to external services.
 - Never claim an adapter ran when only its instructions were read.
 - Never execute `command`, `args`, `shell`, or entrypoint fields from a project profile.
-- Require an explicit host allowlist and an exact entrypoint digest before starting a child.
+- Require an explicit host allowlist plus exact entrypoint and, when local
+  modules are imported, module-graph digests before starting a child.
+- Pin every local module's bytes and physical identity, revalidate the complete
+  graph at the final child boundary, and execute it through the descriptor-fed
+  sealed loader rather than reopening imports from mutable paths.
 - Keep returned evidence inside the per-attempt output directory.
 - Use `manual_pending` when a planned provider has no compatible host adapter.

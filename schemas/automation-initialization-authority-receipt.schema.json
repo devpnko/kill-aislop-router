@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/automation-initialization-authority-receipt.schema.json",
+  "title": "KillSlopRouter Automation Initialization Authority Receipt",
+  "type": "object",
+  "required": [
+    "automation_initialization_authority_receipt_version",
+    "run_id",
+    "journey_identity",
+    "state_path",
+    "issued_at",
+    "resume_authority_digest",
+    "initialization_graph",
+    "initialization_graph_digest",
+    "receipt_digest"
+  ],
+  "properties": {
+    "automation_initialization_authority_receipt_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "state_path": {"type": "string", "minLength": 1},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "resume_authority_digest": {"$ref": "#/$defs/digest"},
+    "initialization_graph": {
+      "type": "object",
+      "required": ["initialization_graph_version", "paths", "steps"],
+      "properties": {
+        "initialization_graph_version": {"const": 1},
+        "paths": {
+          "type": "object",
+          "required": ["plan", "audit", "packets"],
+          "properties": {
+            "plan": {"$ref": "#/$defs/path_snapshot"},
+            "audit": {"$ref": "#/$defs/path_reference"},
+            "packets": {"$ref": "#/$defs/path_snapshot"}
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "object",
+          "required": ["plan", "planning-verification", "audit-init", "dispatch"],
+          "properties": {
+            "plan": {"$ref": "#/$defs/step_snapshot"},
+            "planning-verification": {"$ref": "#/$defs/step_snapshot"},
+            "audit-init": {"$ref": "#/$defs/step_snapshot"},
+            "dispatch": {"$ref": "#/$defs/step_snapshot"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "initialization_graph_digest": {"$ref": "#/$defs/digest"},
+    "receipt_digest": {"$ref": "#/$defs/digest"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "path_snapshot": {
+      "type": "object",
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "path_reference": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "step_snapshot": {
+      "type": "object",
+      "required": [
+        "status", "attempt", "receipt_path", "receipt_digest", "file_digest"
+      ],
+      "properties": {
+        "status": {"const": "completed"},
+        "attempt": {"type": "integer", "minimum": 1},
+        "receipt_path": {"type": "string", "minLength": 1},
+        "receipt_digest": {"$ref": "#/$defs/digest"},
+        "file_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

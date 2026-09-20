@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { canonicalDigest, hashArtifact } from "./integrity.mjs";
+import { canonicalDigest, hashArtifact, readJsonPinned } from "./integrity.mjs";
+import { secureExistingDirectory, secureExistingRegularFile } from "./path-security.mjs";
+import {
+  identitiesCanonicallyEqual,
+  isReservedParentIdentityAlias
+} from "./parent-identity.mjs";
 import { resolvePlanningGate } from "./planning.mjs";
 
 export const VALID_SURFACES = new Set([
@@ -101,6 +106,7 @@ const REQUIRED_VISUAL_INTENT_KEYS = [
 ];
 const VISUAL_INTENT_RECEIPT_KEYS = new Set([
   "visual_intent_receipt_version",
+  "journey_identity",
   "project_id",
   "surface",
   "status",
@@ -154,6 +160,7 @@ const REQUIRED_VISUAL_SIGNATURE_KEYS = [
 ];
 const VISUAL_SIGNATURE_RECEIPT_KEYS = new Set([
   "visual_signature_receipt_version",
+  "journey_identity",
   "project_id",
   "surface",
   "status",
@@ -736,9 +743,28 @@ export function validateProfile(profile) {
     if (typeof profile.evidence !== "object" || Array.isArray(profile.evidence)) {
       throw new RouterError("profile evidence must be an object", 2);
     }
-    for (const key of ["required_viewports", "required_checks"]) {
+    for (const key of ["required_viewports", "required_checks", "required_scenarios"]) {
       if (profile.evidence[key] && !Array.isArray(profile.evidence[key])) {
         throw new RouterError(`profile evidence.${key} must be an array`, 2);
+      }
+    }
+    if (profile.evidence.required_scenarios) {
+      requireUniqueStrings(profile.evidence.required_scenarios, "profile evidence.required_scenarios", {
+        allowEmpty: true
+      });
+      for (const scenario of profile.evidence.required_scenarios) {
+        if (!/^[A-Za-z0-9._-]+$/.test(scenario)) {
+          throw new RouterError(
+            `profile evidence.required_scenarios contains an unsafe scenario id: ${scenario}`,
+            2
+          );
+        }
+      }
+    }
+    for (const key of ["scenario_digest", "browser_contract_digest"]) {
+      if (profile.evidence[key] !== undefined &&
+        !/^sha256:[a-f0-9]{64}$/.test(profile.evidence[key])) {
+        throw new RouterError(`profile evidence.${key} must be a sha256 digest`, 2);
       }
     }
   }
@@ -769,26 +795,60 @@ export function validateProfile(profile) {
   }
 }
 
+function bindRouterSource(router, routerPath) {
+  if (!routerPath) return { path: null, digest: null };
+  if (!router || typeof router !== "object" || Array.isArray(router)) {
+    throw new RouterError("router_path must contain a router object", 2);
+  }
+  const absolute = path.resolve(routerPath);
+  let pinned;
+  try {
+    // Router policy is declarative, schema-validated, and digest-bound into the
+    // plan. Unlike project/profile authority it may be a root-owned or
+    // content-addressed package asset, so do not require caller ownership or a
+    // single filesystem link. Symlinks and path replacement remain forbidden.
+    pinned = readJsonPinned(routerPath, {
+      label: "router source",
+      requireCallerOwned: false,
+      requireSingleLink: false
+    });
+  } catch (error) {
+    throw new RouterError(`cannot bind routed router source: ${error.message}`, 4);
+  }
+  if (canonicalDigest(pinned.input) !== canonicalDigest(router)) {
+    throw new RouterError("router object does not match router_path", 4);
+  }
+  return { path: absolute, digest: pinned.digest };
+}
+
 function bindProfileSource(profile, profilePath) {
   if (!profilePath) return { path: null, digest: null };
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
     throw new RouterError("profile_path must contain a project profile object", 2);
   }
   const absolute = path.resolve(profilePath);
-  let sourceProfile;
+  let pinned;
   try {
-    const stat = fs.lstatSync(absolute);
-    if (stat.isSymbolicLink() || !stat.isFile()) {
-      throw new Error("profile source must be a regular non-symlink file");
-    }
-    sourceProfile = JSON.parse(fs.readFileSync(absolute, "utf8"));
+    pinned = readJsonPinned(profilePath, { label: "profile source" });
   } catch (error) {
     throw new RouterError(`cannot bind routed project profile: ${error.message}`, 4);
   }
-  if (canonicalDigest(sourceProfile) !== canonicalDigest(profile)) {
+  if (canonicalDigest(pinned.input) !== canonicalDigest(profile)) {
     throw new RouterError("profile object does not match profile_path", 4);
   }
-  return { path: absolute, digest: hashArtifact(absolute) };
+  return { path: absolute, digest: pinned.digest };
+}
+
+export function verifyRoutingAuthoritySources({
+  router,
+  profile = null,
+  routerPath = null,
+  profilePath = null
+}) {
+  return {
+    router: bindRouterSource(router, routerPath),
+    profile: bindProfileSource(profile, profilePath)
+  };
 }
 
 function pathInside(candidate, parent) {
@@ -816,13 +876,11 @@ function assertNoSymlinkComponents(projectRoot, target, label, exitCode) {
 
 function realProjectRoot(root) {
   const absolute = path.resolve(root || process.cwd());
-  if (!fs.existsSync(absolute) || !fs.lstatSync(absolute).isDirectory()) {
-    throw new RouterError(`surface contract project root is not a directory: ${absolute}`, 2);
+  try {
+    return secureExistingDirectory(absolute, "surface contract project root");
+  } catch (error) {
+    throw new RouterError(error.message, 2);
   }
-  if (fs.lstatSync(absolute).isSymbolicLink()) {
-    throw new RouterError("surface contract project root must not be a symlink", 2);
-  }
-  return fs.realpathSync(absolute);
 }
 
 function resolveBindingRoots(contract, projectRoot) {
@@ -1055,6 +1113,27 @@ function exactObjectKeys(value, allowed, label) {
   }
 }
 
+function verifyOptionalJourneyIdentity(identity, label) {
+  if (identity === undefined) return;
+  exactObjectKeys(identity, new Set([
+    "journey_identity_version", "orchestrator_id", "orchestrator_version", "display_name",
+    "canonical_entrypoint", "invocation", "run_id", "presentation", "identity_digest"
+  ]), label);
+  if (identity.journey_identity_version !== 1 ||
+    identity.orchestrator_id !== "kill-slop-router" ||
+    identity.display_name !== "KillSlopRouter" ||
+    identity.canonical_entrypoint !== "killsloprouter:kill-slop-router" ||
+    !["explicit", "implicit", "resume", "legacy-migrated"].includes(identity.invocation) ||
+    typeof identity.orchestrator_version !== "string" || !identity.orchestrator_version ||
+    typeof identity.run_id !== "string" || !identity.run_id ||
+    identity.presentation?.active_workflow !== "KillSlopRouter" ||
+    identity.presentation?.participant_rule !== "internal-role-only") {
+    throw new Error(`${label} violates the KillSlopRouter parent identity contract`);
+  }
+  const { identity_digest: digest, ...body } = identity;
+  if (canonicalDigest(body) !== digest) throw new Error(`${label} digest mismatch`);
+}
+
 function verifiedAuthoritySource(filePath, expectedDigest, kind, label) {
   if (!fs.existsSync(filePath)) throw new Error(`${label} is missing: ${filePath}`);
   const stat = fs.lstatSync(filePath);
@@ -1064,6 +1143,15 @@ function verifiedAuthoritySource(filePath, expectedDigest, kind, label) {
   const digest = hashArtifact(filePath);
   if (digest !== expectedDigest) throw new Error(`${label} digest changed: ${filePath}`);
   return { kind, path: filePath, digest };
+}
+
+function verifiedJsonAuthoritySource(filePath, expectedDigest, kind, label) {
+  const pinned = readJsonPinned(filePath, { label });
+  if (pinned.digest !== expectedDigest) throw new Error(`${label} digest changed: ${filePath}`);
+  return {
+    source: { kind, path: filePath, digest: pinned.digest },
+    input: pinned.input
+  };
 }
 
 function visualIntentResolutionBase(contract, surface) {
@@ -1109,14 +1197,17 @@ export function resolveVisualIntent(profile, profilePath, surface) {
     const receiptPath = path.isAbsolute(contract.authority_receipt)
       ? contract.authority_receipt
       : path.resolve(profileBase, contract.authority_receipt);
-    const receiptSource = verifiedAuthoritySource(
+    const pinnedReceipt = verifiedJsonAuthoritySource(
       receiptPath,
       contract.authority_digest,
       "authority-receipt",
       "visual intent authority receipt"
     );
-    const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+    const receiptSource = pinnedReceipt.source;
+    const receipt = pinnedReceipt.input;
     exactObjectKeys(receipt, VISUAL_INTENT_RECEIPT_KEYS, "visual intent authority receipt");
+    verifyOptionalJourneyIdentity(receipt.journey_identity,
+      "visual intent authority receipt.journey_identity");
     if (receipt.visual_intent_receipt_version !== 1) {
       throw new Error("visual intent authority receipt version must be 1");
     }
@@ -1141,11 +1232,15 @@ export function resolveVisualIntent(profile, profilePath, surface) {
       !receipt.authority.decided_at || Number.isNaN(Date.parse(receipt.authority.decided_at))) {
       throw new Error("visual intent authority requires kind, authority_id, basis, and decided_at");
     }
+    if (isReservedParentIdentityAlias(receipt.authority.authority_id)) {
+      throw new Error("visual intent authority_id cannot use the KillSlopRouter parent identity");
+    }
     if (!Array.isArray(receipt.evidence) || receipt.evidence.length === 0) {
       throw new Error("visual intent authority receipt requires evidence");
     }
     const sources = [receiptSource];
     const evidence = [];
+    const verifiedOwnerIds = [];
     const seenEvidence = new Set();
     for (const [index, item] of receipt.evidence.entries()) {
       const label = `visual intent authority receipt.evidence[${index}]`;
@@ -1168,11 +1263,29 @@ export function resolveVisualIntent(profile, profilePath, surface) {
       sources.push(source);
       evidence.push({ kind: item.kind, path: evidencePath, digest: source.digest });
       if (item.kind === "owner-approval") {
-        const approval = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+        const approval = verifiedJsonAuthoritySource(
+          evidencePath,
+          item.digest,
+          `authority-evidence:${item.kind}`,
+          `${label} (${item.kind})`
+        ).input;
         const ownerId = approval.owner_id || approval.owner_approval?.owner_id;
         if (approval.status !== "approved" || !ownerId) {
           throw new Error(`${label} is not an explicit approved owner decision`);
         }
+        if (isReservedParentIdentityAlias(ownerId)) {
+          throw new Error(`${label}.owner_id cannot use the KillSlopRouter parent identity`);
+        }
+        verifiedOwnerIds.push(ownerId);
+      }
+    }
+    if (receipt.authority.kind === "owner-direction") {
+      if (verifiedOwnerIds.length === 0) {
+        throw new Error("visual intent owner-direction authority requires verified owner-approval evidence");
+      }
+      if (verifiedOwnerIds.some((ownerId) =>
+        !identitiesCanonicallyEqual(ownerId, receipt.authority.authority_id))) {
+        throw new Error("visual intent owner-direction authority_id must exactly match every verified owner_id");
       }
     }
     const evidenceKinds = new Set(evidence.map((item) => item.kind));
@@ -1258,14 +1371,17 @@ export function resolveVisualSignature(profile, profilePath, surface) {
     const receiptPath = path.isAbsolute(contract.authority_receipt)
       ? contract.authority_receipt
       : path.resolve(profileBase, contract.authority_receipt);
-    const receiptSource = verifiedAuthoritySource(
+    const pinnedReceipt = verifiedJsonAuthoritySource(
       receiptPath,
       contract.authority_digest,
       "signature-authority-receipt",
       "visual signature authority receipt"
     );
-    const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+    const receiptSource = pinnedReceipt.source;
+    const receipt = pinnedReceipt.input;
     exactObjectKeys(receipt, VISUAL_SIGNATURE_RECEIPT_KEYS, "visual signature authority receipt");
+    verifyOptionalJourneyIdentity(receipt.journey_identity,
+      "visual signature authority receipt.journey_identity");
     if (receipt.visual_signature_receipt_version !== 1) {
       throw new Error("visual signature authority receipt version must be 1");
     }
@@ -1290,11 +1406,15 @@ export function resolveVisualSignature(profile, profilePath, surface) {
       !receipt.authority.decided_at || Number.isNaN(Date.parse(receipt.authority.decided_at))) {
       throw new Error("visual signature authority requires kind, authority_id, basis, and decided_at");
     }
+    if (isReservedParentIdentityAlias(receipt.authority.authority_id)) {
+      throw new Error("visual signature authority_id cannot use the KillSlopRouter parent identity");
+    }
     if (!Array.isArray(receipt.evidence) || receipt.evidence.length === 0) {
       throw new Error("visual signature authority receipt requires evidence");
     }
     const sources = [receiptSource];
     const evidence = [];
+    const verifiedOwnerIds = [];
     const evidenceByReceiptPath = new Map();
     const seenEvidence = new Set();
     for (const [index, item] of receipt.evidence.entries()) {
@@ -1321,11 +1441,29 @@ export function resolveVisualSignature(profile, profilePath, surface) {
       evidence.push(resolved);
       evidenceByReceiptPath.set(item.path, resolved);
       if (item.kind === "owner-approval") {
-        const approval = JSON.parse(fs.readFileSync(evidencePath, "utf8"));
+        const approval = verifiedJsonAuthoritySource(
+          evidencePath,
+          item.digest,
+          `signature-authority-evidence:${item.kind}`,
+          `${label} (${item.kind})`
+        ).input;
         const ownerId = approval.owner_id || approval.owner_approval?.owner_id;
         if (approval.status !== "approved" || !ownerId) {
           throw new Error(`${label} is not an explicit approved owner decision`);
         }
+        if (isReservedParentIdentityAlias(ownerId)) {
+          throw new Error(`${label}.owner_id cannot use the KillSlopRouter parent identity`);
+        }
+        verifiedOwnerIds.push(ownerId);
+      }
+    }
+    if (receipt.authority.kind === "owner-direction") {
+      if (verifiedOwnerIds.length === 0) {
+        throw new Error("visual signature owner-direction authority requires verified owner-approval evidence");
+      }
+      if (verifiedOwnerIds.some((ownerId) =>
+        !identitiesCanonicallyEqual(ownerId, receipt.authority.authority_id))) {
+        throw new Error("visual signature owner-direction authority_id must exactly match every verified owner_id");
       }
     }
     const evidenceKinds = new Set(evidence.map((item) => item.kind));
@@ -1496,6 +1634,12 @@ function verifiedAvailability(declaration, fallbackStatus) {
 }
 
 function resolveActor(actor, profile, router) {
+  if (isReservedParentIdentityAlias(actor.id, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `provider ${actor.id} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const contract = providerContract(router, actor.id);
   if (actor.kind === "local") {
     const configured = profile?.local_adapters?.[actor.id];
@@ -1527,6 +1671,12 @@ function resolveActor(actor, profile, router) {
 }
 
 function resolveFallback(fallback, missingActorId, router) {
+  if (isReservedParentIdentityAlias(fallback.id, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `fallback provider ${fallback.id} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const contract = providerContract(router, fallback.id);
   return {
     id: fallback.id,
@@ -1583,7 +1733,7 @@ function coverStage(stage, primaryActors, creator, profile, router) {
   const eligibleFallbacks = fallbackCandidates
     .filter((candidate) => AVAILABLE_STATUSES.has(candidate.availability))
     .filter((candidate) => candidate.strength >= contract.minimumStrength)
-    .filter((candidate) => candidate.id !== creator)
+    .filter((candidate) => !identitiesCanonicallyEqual(candidate.id, creator))
     .filter((candidate) => !contract.requiresIndependentCritic || candidate.independent_from_creator)
     .sort((a, b) => {
       const aCoverage = a.capabilities.filter((item) => contract.required.includes(item)).length;
@@ -1598,7 +1748,8 @@ function coverStage(stage, primaryActors, creator, profile, router) {
     const suppliesIndependentCritic =
       contract.requiresIndependentCritic &&
       candidate.independent_from_creator &&
-      !requiredSelected().some((actor) => actor.independent_from_creator && actor.id !== creator);
+      !requiredSelected().some((actor) => actor.independent_from_creator &&
+        !identitiesCanonicallyEqual(actor.id, creator));
     if (!addsCoverage && !suppliesIndependentCritic) continue;
     if (!selectedIds.has(candidate.id)) {
       selected.push(candidate);
@@ -1616,7 +1767,8 @@ function coverStage(stage, primaryActors, creator, profile, router) {
   const missingCapabilities = contract.required.filter((capability) => !covered.has(capability));
   const hasIndependentCritic =
     !contract.requiresIndependentCritic ||
-    requiredSelected().some((actor) => actor.independent_from_creator && actor.id !== creator);
+    requiredSelected().some((actor) => actor.independent_from_creator &&
+      !identitiesCanonicallyEqual(actor.id, creator));
   const blockedForNoActor = primaryActors.some((actor) => !actor.optional) && requiredSelected().length === 0;
   const blocked = missingCapabilities.length > 0 || !hasIndependentCritic || blockedForNoActor;
 
@@ -1651,7 +1803,7 @@ function resolveStages(route, creator, profile, override, input, router) {
     if (stage.when_creator && !stage.when_creator.includes(creator)) continue;
     const actors = stage.actors
       .filter((actor) => !excluded.has(actor.id))
-      .filter((actor) => !(actor.skip_if_creator && actor.id === creator))
+      .filter((actor) => !(actor.skip_if_creator && identitiesCanonicallyEqual(actor.id, creator)))
       .map((actor) => resolveActor(actor, profile, router));
     if (actors.length) stages.push(coverStage(stage, actors, creator, profile, router));
   }
@@ -1705,7 +1857,14 @@ export function planRoute({
   root = process.cwd()
 }) {
   validateProfile(profile);
-  const profileSource = bindProfileSource(profile, profilePath);
+  const authoritySources = verifyRoutingAuthoritySources({
+    router,
+    profile,
+    routerPath,
+    profilePath
+  });
+  const routerSource = authoritySources.router;
+  const profileSource = authoritySources.profile;
   const surfaceResolution = resolveSurfaceContract({
     profile,
     requestedSurface: input.surface || null,
@@ -1732,8 +1891,20 @@ export function planRoute({
     unresolved.push(...visualContractCompatibilityIssues(visualIntent, visualSignature));
   }
   const creator = resolveCreator(route, normalized, profile, override, unresolved);
+  if (creator && isReservedParentIdentityAlias(creator, { orchestratorId: router.router_id })) {
+    throw new RouterError(
+      `creator ${creator} cannot use the KillSlopRouter parent identity as an internal participant`,
+      3
+    );
+  }
   const stages = resolveStages(route, creator, profile, override, normalized, router);
   const required = requiredStages(router, normalized, profile);
+  if (normalized.scope && required.includes("browser-evidence") &&
+    !(profile?.evidence?.required_scenarios || []).length) {
+    unresolved.push(
+      "browser-evidence requires a non-empty profile evidence.required_scenarios inventory for this scoped UI run"
+    );
+  }
   const represented = new Set(stages.flatMap((stage) => [stage.id, ...stage.actors.map((actor) => actor.id)]));
   const missingRequired = required
     .filter((id) => !represented.has(id))
@@ -1760,10 +1931,15 @@ export function planRoute({
   const planningGate = resolvePlanningGate({
     profile,
     profilePath: profileSource.path,
-    input: normalized
+    input: normalized,
+    artifacts,
+    root
   });
   unresolved.push(...planningGate.unresolved);
   warnings.push(...planningGate.warnings);
+  if (planningGate.baseline_lineage && !routerSource.path) {
+    unresolved.push("baseline_lineage requires a digest-bound router source");
+  }
 
   for (const stage of stages) {
     if (stage.routing_status !== "blocked" || stage.optional) continue;
@@ -1772,7 +1948,8 @@ export function planRoute({
       details.push(`missing capabilities: ${stage.missing_capabilities.join(", ")}`);
     }
     if (stage.requires_independent_critic && !stage.selected_actors.some(
-      (actor) => !actor.optional && actor.independent_from_creator && actor.id !== creator
+      (actor) => !actor.optional && actor.independent_from_creator &&
+        !identitiesCanonicallyEqual(actor.id, creator)
     )) {
       details.push("independent critic unavailable");
     }
@@ -1780,11 +1957,14 @@ export function planRoute({
     unresolved.push(`${stage.id} blocked (${details.join("; ")})`);
   }
 
-  return {
+  const receipt = {
     receipt_version: 1,
+    execution_status: "not_started",
+    completion_eligible: false,
+    next_required_command: "killsloprouter run --dry-run",
     router_id: router.router_id,
     router_version: router.router_version,
-    router_path: routerPath,
+    router_path: routerSource.path,
     profile_path: profileSource.path,
     profile_digest: profileSource.digest,
     project_id: profile?.project_id || null,
@@ -1805,12 +1985,18 @@ export function planRoute({
     adjudication: router.adjudication,
     invariants: router.invariants
   };
+  if (routerSource.digest) receipt.router_digest = routerSource.digest;
+  if (planningGate.baseline_lineage) {
+    receipt.baseline_lineage = planningGate.baseline_lineage;
+  }
+  return receipt;
 }
 
 export function formatReceipt(receipt) {
   const lines = [
     `KillSlopRouter ${receipt.router_version}`,
     `status: ${receipt.status}`,
+    `execution: ${receipt.execution_status || "not_started"} (completion eligible: ${Boolean(receipt.completion_eligible)})`,
     `route: ${receipt.route_id}`,
     `project: ${receipt.project_id || "unprofiled"}`,
     `creator: ${receipt.creator || "none"}`,
@@ -1825,7 +2011,13 @@ export function formatReceipt(receipt) {
       `elevation ${receipt.visual_signature?.elevation?.strategy || "unresolved"})`,
     `direction/risk: ${receipt.input.direction} / ${receipt.input.risk}`,
     `scope: ${receipt.input.scope || "deferred"}`,
+    `next: ${receipt.next_required_command || "killsloprouter run --dry-run"}`,
     `planning gate: ${receipt.planning_gate?.status || "not-configured"}`,
+    ...(receipt.baseline_lineage ? [
+      `baseline lineage: ${receipt.baseline_lineage.parent_baseline.id}@${receipt.baseline_lineage.parent_baseline.version} -> ` +
+        `${receipt.baseline_lineage.candidate.slice_id}@${receipt.baseline_lineage.candidate.version} ` +
+        `(${receipt.baseline_lineage.relationship}; ${receipt.baseline_lineage.lineage_digest})`
+    ] : []),
     "stages:"
   ];
   for (const stage of receipt.stages) {

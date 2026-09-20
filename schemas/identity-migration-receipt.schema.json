@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/identity-migration-receipt.schema.json",
+  "title": "KillSlopRouter Legacy Automation Identity Migration Receipt",
+  "type": "object",
+  "required": [
+    "identity_migration_receipt_version",
+    "run_id",
+    "status",
+    "migrated_at",
+    "journey_identity",
+    "previous_state_digest",
+    "legacy_backup",
+    "migration_authority",
+    "resume_authority_digest",
+    "verified",
+    "legacy_step_receipts",
+    "receipt_digest"
+  ],
+  "properties": {
+    "identity_migration_receipt_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "status": {"const": "migrated"},
+    "migrated_at": {"type": "string", "format": "date-time"},
+    "journey_identity": {"$ref": "journey-identity.schema.json"},
+    "previous_state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "legacy_backup": {
+      "type": "object",
+      "required": [
+        "path", "digest", "physical_identity_digest", "state_digest", "source_commit", "router_digest"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "physical_identity_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "state_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "source_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "router_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "migration_authority": {"$ref": "#/$defs/migration_authority"},
+    "resume_authority_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "verified": {
+      "type": "object",
+      "required": [
+        "source_commit", "router_path", "router_digest", "router_id", "router_version",
+        "previous_plan_digest", "plan_digest",
+        "previous_audit_digest", "previous_packets_digest", "prior_attempt_count",
+        "prior_result_count", "prior_approval_present"
+      ],
+      "properties": {
+        "source_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "router_path": {"type": "string", "minLength": 1},
+        "router_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "router_id": {"const": "kill-slop-router"},
+        "router_version": {"type": "string", "minLength": 1},
+        "previous_plan_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "plan_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "previous_audit_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+        "previous_packets_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+        "prior_attempt_count": {"const": 0},
+        "prior_result_count": {"const": 0},
+        "prior_approval_present": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "legacy_step_receipts": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+    },
+    "legacy_lease_recoveries": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+      "uniqueItems": true
+    },
+    "receipt_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "snapshot": {
+      "type": "object",
+      "required": ["path", "digest", "physical_identity_digest"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/digest"},
+        "physical_identity_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "capture_fingerprints": {
+      "type": "object",
+      "required": ["state", "plan", "audit"],
+      "properties": {
+        "state": {"$ref": "#/$defs/digest"},
+        "plan": {"$ref": "#/$defs/digest"},
+        "audit": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "migration_authority": {
+      "type": "object",
+      "required": [
+        "identity_migration_authority_version", "transaction_directory", "legacy_backup",
+        "historical_source", "previous", "legacy_sources", "legacy_step_receipts",
+        "legacy_lease_recoveries", "authority_digest"
+      ],
+      "properties": {
+        "identity_migration_authority_version": {"const": 1},
+        "transaction_directory": {"type": "string", "minLength": 1},
+        "legacy_backup": {
+          "type": "object",
+          "required": [
+            "path", "digest", "physical_identity_digest", "state_digest", "source_commit", "router_digest"
+          ],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "digest": {"$ref": "#/$defs/digest"},
+            "physical_identity_digest": {"$ref": "#/$defs/digest"},
+            "state_digest": {"$ref": "#/$defs/digest"},
+            "source_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "router_digest": {"$ref": "#/$defs/digest"}
+          },
+          "additionalProperties": false
+        },
+        "historical_source": {
+          "type": "object",
+          "required": ["source_commit", "router_digest", "capture_fingerprints"],
+          "properties": {
+            "source_commit": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+            "router_digest": {"$ref": "#/$defs/digest"},
+            "capture_fingerprints": {"$ref": "#/$defs/capture_fingerprints"}
+          },
+          "additionalProperties": false
+        },
+        "previous": {
+          "type": "object",
+          "required": ["state_digest", "plan_digest", "audit_digest", "packets_digest"],
+          "properties": {
+            "state_digest": {"$ref": "#/$defs/digest"},
+            "plan_digest": {"$ref": "#/$defs/digest"},
+            "audit_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
+            "packets_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"}
+          },
+          "additionalProperties": false
+        },
+        "legacy_sources": {
+          "type": "object",
+          "required": ["plan", "audit", "packets"],
+          "properties": {
+            "plan": {"$ref": "#/$defs/snapshot"},
+            "audit": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]},
+            "packets": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/snapshot"}]}
+          },
+          "additionalProperties": false
+        },
+        "legacy_step_receipts": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/digest"}
+        },
+        "legacy_lease_recoveries": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/digest"},
+          "uniqueItems": true
+        },
+        "authority_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

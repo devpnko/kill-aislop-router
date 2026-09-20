@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Fail-closed design exploration, visual-contract routing, and resumable evidence automation",
   "type": "module",
+  "packageManager": "npm@11.19.0",
   "license": "MIT",
   "bin": {
     "killsloprouter": "./bin/killsloprouter.mjs",
@@ -13,11 +14,17 @@
     "./audit": "./src/audit.mjs",
     "./automation": "./src/automation.mjs",
     "./bootstrap": "./src/bootstrap.mjs",
+    "./codex": "./src/codex.mjs",
     "./design": "./src/design.mjs",
     "./execution": "./src/execution.mjs",
     "./integrity": "./src/integrity.mjs",
+    "./identity": "./src/identity.mjs",
+    "./state-lease": "./src/state-lease-public.mjs",
+    "./skill-catalog": "./src/skill-catalog.mjs",
+    "./plugin-sync": "./src/plugin-sync.mjs",
     "./playwright": "./src/playwright.mjs",
-    "./planning": "./src/planning.mjs"
+    "./planning": "./src/planning.mjs",
+    "./reference": "./src/reference.mjs"
   },
   "files": [
     ".codex-plugin",
@@ -30,6 +37,9 @@
     "examples",
     "skills",
     "scripts/install-codex-plugin.mjs",
+    "scripts/check-example-doctor.mjs",
+    "scripts/static-check.mjs",
+    "scripts/pack-check.mjs",
     "LICENSE",
     "README.md",
     "SECURITY.md",
@@ -37,10 +47,10 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "test": "node --test test/*.test.mjs",
-    "test:e2e": "node --test test/e2e.test.mjs test/playwright.test.mjs test/design.test.mjs test/dogfood.test.mjs",
+    "test": "node --test test/audit.test.mjs test/bootstrap-plugin.test.mjs test/component-recipes.test.mjs test/design-browser-proof.test.mjs test/design-sharding.test.mjs test/orchestrator-identity.test.mjs test/path-security.test.mjs test/planning-lineage.test.mjs test/reference.test.mjs test/reference-delivery.test.mjs test/route.test.mjs test/schema-contract.test.mjs test/sealed-entrypoint.test.mjs test/source-composition.test.mjs test/state-lease.test.mjs test/usage-help.test.mjs test/plugin-sync.test.mjs",
+    "test:e2e": "node --test --test-concurrency=2 test/e2e-shard-*.test.mjs test/playwright.test.mjs test/component-recipes.test.mjs test/design-browser-proof.test.mjs test/design-shard-*.test.mjs test/design-sharding.test.mjs test/reference.test.mjs test/reference-delivery.test.mjs test/dogfood.test.mjs test/codex.test.mjs test/orchestrator-identity.test.mjs test/source-composition.test.mjs test/state-lease.test.mjs test/path-security.test.mjs",
     "test:playwright": "node --test test/playwright.test.mjs",
-    "check": "npm test && node scripts/static-check.mjs && node bin/killsloprouter.mjs doctor --profile examples/project-profile.example.json",
+    "check": "npm test && node scripts/static-check.mjs && node scripts/check-example-doctor.mjs",
     "pack:check": "node scripts/pack-check.mjs"
   },
   "engines": {
@@ -49,6 +59,9 @@
   "dependencies": {
     "axe-core": "4.13.0",
     "playwright-core": "1.62.1"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0"
   },
   "keywords": [
     "ai-slop",
