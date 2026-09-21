@@ -1414,6 +1414,86 @@ test("official Playwright keyboard proof traverses shadow focus without aliasing
   }
 });
 
+test("official Playwright sequential focus scopes native modals and radio groups without hiding traps", {
+  timeout: 180_000
+}, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-tab-scope-"));
+  let server = null;
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    fs.writeFileSync(artifact, "<!doctype html><p>Synthetic sequential focus scope artifact</p>\n");
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startServer(artifactDigests);
+    const modes = ["modal", "modal-trap", "modal-shadow", "modal-stack", "modal-inert-ancestor",
+      "modeless", "aria-modal", "radio-checked", "radio-unchecked", "radio-unchecked-trap", "radio-trap", "radio-groups"];
+    const paths = bootstrapProject(directory, modes);
+    writeJson(paths.scenarios, { playwright_scenario_version: 1, scenarios: modes.map((id) => ({
+      id, path: `/keyboard-tab-scope/${id}`,
+      actions: [{ type: "click", locator: "#last" }],
+      assertions: [{ type: "visible", locator: "#last" }, { type: "visible", locator: "h1" }]
+    })) });
+    configurePlaywright({ profilePath: paths.profile, hostManifestPath: paths.host, baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome", scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines });
+    const packet = makePacket(readJson(paths.profile), artifactDigests);
+    const output = path.join(directory, "evidence");
+    const executed = executeAuditPacket({ run: makeRun(directory, artifact, packet), packet,
+      manifest: loadHostManifest(paths.host), outputDirectory: output });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    assert.notEqual(executed.child_pid, process.pid);
+    const report = readJson(path.join(output, "browser-report.json"));
+    assert.equal(report.executions.length, modes.length * 3);
+    for (const mode of modes) await t.test(mode, () => {
+      const executions = report.executions.filter((entry) => entry.scenario === mode);
+      assert.equal(executions.length, 3);
+      for (const entry of executions) {
+        assert.ok(entry.actions.every((action) => action.status === "passed"), entry.id);
+        assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"), entry.id);
+        const visited = new Set(entry.keyboard.visited.map((item) => item.key));
+        if (mode.startsWith("radio-unchecked")) {
+          assert.deepEqual(entry.keyboard.sequential_targets.find((item) => item.key === "#choice-a"), {
+            key: "#choice-a", alternative_keys: ["#choice-b", "#choice-c"]
+          }, entry.id);
+        }
+        if (mode.endsWith("-trap")) {
+          const requiredRadio = mode === "radio-unchecked-trap" ? "#choice-a" : "#choice-b";
+          assert.ok(entry.keyboard.unreached.some((item) => item.key === requiredRadio), entry.id);
+          continue;
+        }
+        assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+        if (mode.startsWith("modal")) {
+          assert.equal(entry.keyboard.focusable_count, 3, entry.id);
+          assert.ok(!visited.has("#outside") && !visited.has("#lower-action"), entry.id);
+          const prefix = mode === "modal-shadow" ? "#holder >>> " : "";
+          for (const id of ["first", "choice-b", "last"]) assert.ok(visited.has(`${prefix}#${id}`), entry.id);
+        } else if (mode === "modeless" || mode === "aria-modal") {
+          assert.equal(entry.keyboard.focusable_count, 4, entry.id);
+          assert.ok(visited.has("#outside"), "open/ARIA-only dialogs cannot hide outside targets");
+        } else if (mode === "radio-groups") {
+          const expected = ["#outside", "#before", "#last", "#form-a-b", "#form-b-b", "#upper-b", "#lower-b",
+            "#unnamed-a", "#unnamed-b", "#root-a >>> #shadow-b", "#root-b >>> #shadow-b",
+            "#legend-action", "#custom-a", "#custom-b"];
+          assert.equal(entry.keyboard.focusable_count, expected.length, entry.id);
+          for (const key of expected) assert.ok(visited.has(key), `${entry.id}: ${key}`);
+        } else {
+          assert.equal(entry.keyboard.focusable_count, 4, entry.id);
+          assert.ok(["#choice-a", "#choice-b", "#choice-c"].some((key) => visited.has(key)), entry.id);
+        }
+      }
+    });
+    const keyboardFindings = executed.result.findings.filter((finding) => finding.category === "keyboard");
+    assert.equal(keyboardFindings.length, 9, "only three actual trap scenarios across three widths");
+    assert.ok(keyboardFindings.every((finding) => finding.claim.includes("trap")));
+    assert.equal(executed.result.verdict, "block");
+    assert.ok(executed.result.findings.some((finding) => finding.category === "visual-regression"),
+      "correct sequential inventory does not approve missing screenshot baselines");
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("official Playwright adapter crosses a real child boundary, blocks layout defects, and passes after digest-locked retry", {
   timeout: 150_000
 }, async () => {

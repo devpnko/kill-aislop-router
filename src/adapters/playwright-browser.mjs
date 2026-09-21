@@ -596,23 +596,67 @@ function keyboardDomProbe(input) {
     const root = element.getRootNode();
     return root instanceof ShadowRoot ? `${keyFor(root.host)} >>> ${localKey}` : localKey;
   };
-  if (Array.isArray(input)) return input.flatMap((element) => {
-    const rect = element.getBoundingClientRect();
-    // visibility is inherited but descendants may explicitly restore it. Only
-    // the candidate's effective visibility decides this part of eligibility.
-    if (rect.width <= 0 || rect.height <= 0 || getComputedStyle(element).visibility === "hidden") return [];
-    let branch = element;
-    for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
-      const style = getComputedStyle(ancestor);
-      if (style.display === "none" || ancestor.hasAttribute("inert")) return [];
-      if (ancestor.matches("details:not([open])")) {
-        const summary = ancestor.querySelector(":scope > summary");
-        if (!summary || (branch !== summary && !summary.contains(branch))) return [];
+  if (Array.isArray(input)) {
+    const within = (element, ancestor) => {
+      for (let current = element; current; current = composedParent(current)) {
+        if (current === ancestor) return true;
       }
-      branch = ancestor;
-    }
-    return [{ key: keyFor(element) }];
-  });
+      return false;
+    };
+    const modals = [];
+    const collectModals = (root) => {
+      modals.push(...root.querySelectorAll("dialog:modal"));
+      for (const element of root.querySelectorAll("*")) {
+        if (element.shadowRoot) collectModals(element.shadowRoot);
+      }
+    };
+    collectModals(document);
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    const focusedModals = modals.filter((dialog) => within(active, dialog));
+    // :modal reflects native showModal(), not author-provided open/aria-modal.
+    // DOM order is not top-layer order. Do not guess an ambiguous modal stack.
+    const modal = modals.length === 1 ? modals[0] : focusedModals.length === 1 ? focusedModals[0] : null;
+    if (modals.length > 1 && !modal) throw new Error("Keyboard modal scope is ambiguous; active modal evidence required");
+    const eligible = input.filter((element) => {
+      if (element.tabIndex < 0 || element.matches(":disabled") || (modal && !within(element, modal))) return false;
+      const rect = element.getBoundingClientRect();
+      // Effective visibility may be restored below a visibility:hidden host.
+      if (rect.width <= 0 || rect.height <= 0 || getComputedStyle(element).visibility === "hidden") return false;
+      let branch = element;
+      let escapesInert = false;
+      for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
+        const style = getComputedStyle(ancestor);
+        if (style.display === "none" || (!escapesInert && ancestor.hasAttribute("inert"))) return false;
+        // A native modal escapes ancestor inertness, but not its own inert flag.
+        if (ancestor === modal) escapesInert = true;
+        if (ancestor.matches("details:not([open])")) {
+          const summary = ancestor.querySelector(":scope > summary");
+          if (!summary || (branch !== summary && !summary.contains(branch))) return false;
+        }
+        branch = ancestor;
+      }
+      return true;
+    });
+    const groups = [];
+    return eligible.flatMap((element) => {
+      if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name) {
+        return [{ key: keyFor(element) }];
+      }
+      // Native groups use exact name, form owner and DOM tree, NOT closest form
+      // or name alone. Unnamed/custom ARIA radios remain independent targets.
+      const root = element.getRootNode();
+      if (groups.some((group) => group.root === root && group.form === element.form && group.name === element.name)) return [];
+      groups.push({ root, form: element.form, name: element.name });
+      const members = eligible.filter((other) => other instanceof HTMLInputElement && other.type === "radio" &&
+        other.name === element.name && other.form === element.form && other.getRootNode() === root);
+      const checked = members.find((other) => other.checked);
+      if (checked) return [{ key: keyFor(checked) }];
+      // An unchecked group's entry member depends on the current focus origin.
+      // Require an actual Tab visit to the group; never simply drop it.
+      return [{ key: keyFor(members[0]), alternative_keys: members.slice(1).map(keyFor) }];
+    });
+  }
   let element = document.activeElement;
   while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
   if (input === "blur") {
@@ -641,8 +685,9 @@ async function inspectKeyboard(page, maxTabs) {
   const focusable = await page.locator(selector).evaluateAll(keyboardDomProbe);
   await page.evaluate(keyboardDomProbe, "blur");
   const visited = [];
-  const requiredKeys = new Set(focusable.map((entry) => entry.key));
   const visitedKeys = new Set();
+  const reached = (entry) => visitedKeys.has(entry.key) ||
+    (entry.alternative_keys || []).some((key) => visitedKeys.has(key));
   let stagnantSteps = 0;
   const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
@@ -653,14 +698,15 @@ async function inspectKeyboard(page, maxTabs) {
       const previousSize = visitedKeys.size;
       visitedKeys.add(active.key);
       stagnantSteps = visitedKeys.size === previousSize ? stagnantSteps + 1 : 0;
-      if ([...requiredKeys].every((key) => visitedKeys.has(key))) break;
+      if (focusable.every(reached)) break;
       if (stagnantSteps > Math.max(12, focusable.length + 4)) break;
     }
   }
   return {
     focusable_count: focusable.length,
+    sequential_targets: focusable,
     visited,
-    unreached: focusable.filter((entry) => !visitedKeys.has(entry.key))
+    unreached: focusable.filter((entry) => !reached(entry)).map(({ key }) => ({ key }))
   };
 }
 

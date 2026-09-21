@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Fixed official Playwright sequential keyboard inventory for native modal
+  background inertness and named radio-group Tab stops. Grouping preserves exact
+  form ownership, DOM-tree and case-sensitive name boundaries; disabled controls
+  and all negative tabindex values are excluded without dropping legend controls.
+  Real child-process regressions retain genuine trap detection and unapproved
+  baseline blockers. An additive `keyboard.sequential_targets` field explains
+  unchecked-group alternatives; existing receipt schemas and control keys are
+  unchanged. Radio arrow navigation, native/AT approval and historical findings
+  are not automatically cleared. Rebind the adapter and run fresh evidence.
+
 - Added a read-only Owner reference handoff: `reference choices --run` revalidates
   the canonical research state and shows actual source links, fit, verified
   component/grammar transfers, capture gaps and recorded anchor/support roles.
