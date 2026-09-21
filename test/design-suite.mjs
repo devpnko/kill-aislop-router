@@ -1314,7 +1314,12 @@ test("design resume rejects coherent brief, baseline, and state-directory author
     fs.writeFileSync(alternateBriefPath, `${JSON.stringify(alternateBrief, null, 2)}\n`);
     assertRejectedBeforeChild((state) => {
       state.brief = alternateBrief;
-      state.brief_source = snapshotArtifact(alternateBriefPath, { root: space.directory });
+      // Model a coherent pinned brief replacement, including the canonical
+      // physical path used by readJsonPinned. A macOS /var display alias here
+      // would trip the opt-out binding first and leave the packet gate untested.
+      state.brief_source = snapshotArtifact(fs.realpathSync(alternateBriefPath), {
+        root: fs.realpathSync(space.directory)
+      });
     }, /design packet brief authority conflicts with state/);
     assert.equal(hashArtifact(space.briefPath), originalBriefDigest);
   } finally {
