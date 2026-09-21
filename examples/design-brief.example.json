@@ -4,6 +4,10 @@
   "surface": "operator-product-ui",
   "screen_id": "exception-review",
   "locales": ["ko-KR", "en-US"],
+  "reference_opt_out": {
+    "path": "design-reference-opt-out.example.json",
+    "digest": "sha256:95621513f552c4c7bace4b2c6e774d949432962ab8227bd783d35dbff215a4ee"
+  },
   "product": {
     "primary_user": "operations analyst",
     "user_job": "resolve high-risk order exceptions without losing context",

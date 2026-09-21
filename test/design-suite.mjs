@@ -92,6 +92,8 @@ function workspace() {
   fs.mkdirSync(baseline, { recursive: true });
   fs.writeFileSync(path.join(baseline, "app.html"), "<!doctype html><main>existing operator UI</main>\n");
   const briefPath = path.join(directory, "design-brief.json");
+  fs.copyFileSync(path.join(root, "examples/design-reference-opt-out.example.json"),
+    path.join(directory, "design-reference-opt-out.example.json"));
   fs.writeFileSync(briefPath, `${JSON.stringify(fixtureBrief, null, 2)}\n`);
   const statePath = path.join(baseline, ".killsloprouter", "design-run.json");
   return { directory, baseline, briefPath, statePath };
@@ -342,6 +344,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
   const packPath = path.join(space.directory, "reference-pack.json");
   fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`);
   const brief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+  delete brief.reference_opt_out;
   brief.reference_pack = { path: packPath, digest: hashArtifact(packPath) };
   fs.writeFileSync(space.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
   return { pack, packPath };
@@ -643,6 +646,7 @@ function attachReferencePack(space, mutate = null, {
     fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`);
   }
   const designBrief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+  delete designBrief.reference_opt_out;
   designBrief.reference_pack = {
     path: packPath,
     digest: hashArtifact(packPath),
@@ -1003,7 +1007,7 @@ test("dry run exposes a 9-direction and 9-color matrix without mistaking routing
     });
     assert.ok(state.packets.every((packet) =>
       Object.hasOwn(packet, "forbidden_permissions") === false),
-    "no-pack packets must retain their legacy byte/API shape");
+    "opted-out packets must not acquire source-recipient permissions");
   } finally {
     fs.rmSync(space.directory, { recursive: true, force: true });
   }

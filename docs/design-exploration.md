@@ -46,6 +46,12 @@ and validate it against
 The runtime validator is stricter than the descriptive schema in several
 places.
 
+Before creation, resolve [reference intent](reference-delivery.md): propose
+reference-first, then bind a ready `reference_pack` or a genuine scoped Owner
+`reference_opt_out`. The bundled example uses a synthetic opt-out solely for
+tests/demo; never copy that file as a real project's authority. Historical
+unbound runs remain inspectable but need a successor before further creation.
+
 The brief must contain:
 
 - the user, job, main object, core task, trust risk, density, real states, and
@@ -116,9 +122,9 @@ resolve to `review-evidence/source-composition-analysis` and validate against
 The approved decision retains pack, producer, target, trace,
 independent-review digests, `review_source_capture_set_digest`, and the
 direction/color `*_source_composition_analysis_digest` values as
-non-authoritative provenance. Omitting
-`reference_pack` preserves the original packet and receipt shape exactly;
-providing it does not change the three theses, three depths, three color
+non-authoritative provenance. Historical packets without `reference_pack` stay
+readable. New explicitly opted-out packets add the decision-bound `not_bound`
+delivery metadata. Neither choice changes the three theses, three depths, three color
 strategies, Playwright checks, or Owner gates.
 An earlier preview brief or pack that lacks the complete
 `reviewer_source_access`, router-recomputed capture-readiness, or

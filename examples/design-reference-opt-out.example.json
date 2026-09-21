@@ -1,0 +1,10 @@
+{
+  "design_reference_opt_out_version": 1,
+  "project_id": "acme-operations-console",
+  "surface": "operator-product-ui",
+  "screen_id": "exception-review",
+  "owner_id": "synthetic-example-owner",
+  "decision": "no-reference",
+  "rationale": "Synthetic package/test fixture only: exercise the non-reference 3x3 route. This is not an Owner decision for any real project; never copy it as project authority.",
+  "decided_at": "2026-09-22T00:00:00.000Z"
+}

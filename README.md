@@ -257,6 +257,13 @@ fixtures in `examples/planning-evidence/`.
 When those contracts are genuinely undecided, use design exploration instead
 of selecting a generic creator or guessing a style:
 
+New visual exploration is reference-first: show the actual source binding
+before creation. A ready pack or a genuine scoped Owner `no-reference` decision
+is required; absence is not an opt-out. Explicit UI Bowl requests remain
+reference-required. Historical runs stay inspectable but unresolved unfinished
+creation needs a successor. See [the exact contract and recovery](docs/reference-delivery.md).
+Approved-style bounded bug fixes do not need unrelated reference research.
+
 If service planning is already authoritative but the team needs better design
 inputs first, run the optional reference-intelligence stage. It studies
 popular released-product patterns without turning popularity into visual
@@ -354,6 +361,9 @@ See [Reference intelligence](docs/reference-intelligence.md).
 ```bash
 cp examples/design-brief.example.json .killsloprouter/design-brief.json
 
+# Edit the product/theses and resolve source intent before running:
+# replace the synthetic opt-out with a ready reference_pack, or bind a real
+# scoped Owner no-reference decision. Do not copy the example as approval.
 killsloprouter design run \
   --brief .killsloprouter/design-brief.json \
   --baseline . \
@@ -369,8 +379,10 @@ killsloprouter design run \
   --json
 ```
 
-Edit the example first: its product evidence and theses are illustrative, not a
-style preset. The workflow compares three project-specific theses at `refine`,
+Edit the example first: its product evidence, theses and synthetic opt-out are
+illustrative, not a style preset or Owner authority. Its decision path is relative
+to the brief; copying only the brief does not make it executable. The workflow
+compares three project-specific theses at `refine`,
 `evolve`, and `reimagine` depth, requires separate Playwright evidence for all
 nine candidates, stops for an owner shortlist of three, then evaluates three
 declared color strategies for each shortlisted direction. It never treats
@@ -880,8 +892,9 @@ contract. The derived reviewer authority also retains a digest-bound,
 canonically ordered execution lineage for every executable source-recipient
 attempt: provider, adapter, declaration, authority, and entrypoint content,
 physical identity, and graph digests. An entirely manual producer has an empty
-lineage rather than fabricated executable authority. Design briefs without
-`reference_pack` remain compatible with the unchanged exact-three route.
+lineage rather than fabricated executable authority. Historical design briefs
+without `reference_pack` remain readable. New creation requires a ready pack or
+scoped Owner opt-out; do not retrofit old runs. The matrices stay exact-three.
 Automated reference and design attempts now retain the exact host manifest,
 provider declaration, and adapter entrypoint/module graph that authorized the
 child. Reference attempts bind an immutable execution-authority sidecar as

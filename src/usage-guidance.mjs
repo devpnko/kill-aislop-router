@@ -141,9 +141,12 @@ export function referenceChoicesGuidance(report) {
 }
 
 export function designReferenceGuidance(report) {
-  return (report.selected_references || []).flatMap((item) => [
-    `selected reference (${item.role}): ${item.app_name} — ${item.source_uri}`,
-    `  fit: ${item.fit_rationale}`,
-    ...item.transfers.map((transfer) => `  intended transfer (${transfer.recipe_family || transfer.dimension}): ${transfer.application}`)
-  ]);
+  return [
+    ...(report.intent_status ? [`reference intent: ${report.intent_status}`, `next: ${report.next_action}`] : []),
+    ...(report.selected_references || []).flatMap((item) => [
+      `selected reference (${item.role}): ${item.app_name} — ${item.source_uri}`,
+      `  fit: ${item.fit_rationale}`,
+      ...item.transfers.map((transfer) => `  intended transfer (${transfer.recipe_family || transfer.dimension}): ${transfer.application}`)
+    ])
+  ];
 }

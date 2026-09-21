@@ -69,6 +69,7 @@ try {
     "schemas/codex-host-setup-receipt.schema.json",
     "schemas/codex-review-output.schema.json",
     "schemas/design-brief.schema.json",
+    "schemas/design-reference-opt-out.schema.json",
     "schemas/design-font-report.schema.json",
     "schemas/design-packet.schema.json",
     "schemas/design-playwright-report.schema.json",
@@ -135,6 +136,7 @@ try {
     "examples/planning-evidence/policy-slice.html",
     "examples/planning-evidence/policy-slice-owner-approval.json",
     "examples/design-brief.example.json",
+    "examples/design-reference-opt-out.example.json",
     "examples/design-playwright-scenarios.example.json",
     "examples/reference-brief.example.json",
     "examples/reference-brief.fit-only.example.json",
@@ -205,6 +207,19 @@ try {
   assert.ok(distribution.features.every((item) => item.status === "available"));
   assert.equal(distribution.project_reference_bound, false);
   assert.equal(distribution.live_skill_loading_verified, false);
+  const designExample = path.join(installedRoot, "examples/design-brief.example.json");
+  const optedOut = run(process.execPath, [installedCli, "design", "run", "--brief", designExample,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(optedOut.status, 6, optedOut.stderr || optedOut.stdout);
+  assert.equal(JSON.parse(optedOut.stdout).reference_delivery.intent_status, "owner-opt-out");
+  const unresolvedBrief = JSON.parse(fs.readFileSync(designExample, "utf8"));
+  delete unresolvedBrief.reference_opt_out;
+  const unresolvedPath = path.join(consumer, "unresolved-design.json");
+  fs.writeFileSync(unresolvedPath, JSON.stringify(unresolvedBrief));
+  const unresolved = run(process.execPath, [installedCli, "design", "run", "--brief", unresolvedPath,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(unresolved.status, 5, unresolved.stderr || unresolved.stdout);
+  assert.match(unresolved.stderr, /reference intent is unresolved/);
   const unboundReference = run(process.execPath, [installedCli, "design", "run",
     "--brief", path.join(installedRoot, "examples/design-brief.example.json"),
     "--baseline", path.join(installedRoot, "examples/planning-evidence"),

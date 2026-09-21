@@ -9,15 +9,18 @@ Use the plugin's bundled `bin/killsloprouter.mjs` CLI as the deterministic route
 authority. Resolve the plugin root two directories above this skill directory.
 Do not substitute an ad-hoc prompt workflow for the CLI ledger.
 
-For an explicit UI Bowl or reference-derived design request, first read
+Before new visual exploration or continuing unfinished design creation, read
 `<plugin-root>/docs/reference-delivery.md`. Check this exact bundled CLI with
 `capabilities --json`; a missing command/feature is a delivery blocker, not
 permission to fall back to a generic design while claiming reference use.
-Declare `reference_requirement.mode: required` in a new design brief, request
+For explicit UI Bowl/reference-derived intent, declare
+`reference_requirement.mode: required` in a new design brief, request
 the applicable component recipe families, bind the verified reference pack,
 and use `design run --require-reference --dry-run`. Preserve the normal
 reference/Owner stops. Do not equate "bright/clean/human-like" wording with
-source evidence, or a pushed branch with installed capability.
+source evidence, or a pushed branch with installed capability. For appearance
+work, request the target's component recipe families: hierarchy-only evidence
+cannot prove transferred color/material/type/spacing or component treatment.
 Before asking the Owner to settle a new visual direction, present actual UI Bowl
 source links with task fit, transferable hierarchy/component craft and limits,
 not just IDs or a style name. Use `reference choices --run ... --json` after
@@ -27,12 +30,17 @@ the Owner handoff in `docs/reference-delivery.md`; no selection means no
 reference-derived creator dispatch. Show the selected sources and intended
 transfers again at direction/color and final-artifact review using
 `design provenance --run ... --json`, separately from rendered-quality proof.
-For a new reference-derived request, legacy no-reference runs stay historical;
-never retrofit their selections. For every visual exploration, state the actual
-reference binding before dispatch. If no project reference is bound, explain
-that the bundled research is not automatically applied and offer the
-reference-first route; never silently present ordinary generation as learned
-reference use. A bounded keyboard/bug fix with an approved visual contract does
+For every visual exploration, state the actual reference binding before dispatch
+and propose reference-first before visual choice. With no bound pack, stop until
+there is a ready pack or a genuine, scoped Owner `no-reference` decision bound
+through `reference_opt_out`. Do not author that decision on the Owner's behalf;
+the synthetic example is not project authority. “진행해”, a resumed/compacted
+conversation, “최신 KSR”, and browser success do not waive reference intent.
+Explicit UI Bowl intent cannot be weakened in the same brief/run; an actual
+Owner scope change requires a successor. Legacy no-reference ledgers remain
+readable but cannot dispatch or advance: preserve them, never retrofit choices.
+Report an opted-out journey as `not_bound`, never as learned/applied source craft.
+A bounded keyboard/bug fix with an approved visual contract does
 not require unrelated reference research or new design directions.
 
 For a request to sync KSR plugin versions across Codex accounts or toggle that
@@ -211,8 +219,8 @@ override the verified visual intent and signature.
     then restart any design exploration that had bound the preview pack so its
     reviewer source-access, capture readiness, capture-set authority, and
     source-recipient separation plus its digest-bound execution lineage are
-    newly generated. A
-    design brief with no `reference_pack` keeps the existing exact-three flow.
+    newly generated. New no-reference design work requires the scoped Owner
+    opt-out described above; its exact-three matrices and review gates are unchanged.
     Likewise, never backfill a design or reference automated attempt that lacks
     its immutable execution-authority snapshot (and, for reference attempts,
     the pinned authority-source sidecar) from a current host manifest. Start a

@@ -7,8 +7,16 @@ V1 keeps the existing route and audit contracts and adds an execution layer.
 New briefs may declare `reference_requirement` and assert it with
 `design run --require-reference`. Missing verified reference packs or requested
 component recipes block creation. The immutable brief preserves the requirement
-on resume. Existing no-reference briefs remain valid and retain their exact-three
-flow, but status explicitly reports `not_bound`; they are not reference-derived.
+on resume. Valid historical no-reference briefs remain inspectable as `not_bound`;
+they are not reference-derived. New starts and unfinished resume/dispatch now
+require a ready pack or a genuine scoped Owner `reference_opt_out` decision.
+This is an intentional creation/continuation behavior change, not a rewrite of
+old receipts. Preserve unfinished old runs and start a successor; do not add a
+pack or opt-out to an active ledger. Completed-run resume remains a verified
+no-op. The exact-three matrices and downstream Owner/browser/critic gates stay
+unchanged. The packaged opt-out example is synthetic, never project authority.
+Keep all original executable/evidence pins available for historical verification;
+compatibility does not waive a missing old adapter file or physical identity.
 `design provenance` is a separate derived report, not a mutation of signed state
 JSON. `capabilities` inspects the executing package, not global/account loading.
 See [reference delivery](reference-delivery.md). Keep old runs and selections as

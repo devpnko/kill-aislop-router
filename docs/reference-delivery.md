@@ -20,6 +20,61 @@ in a fresh model session, approved or granted network access. An older CLI that
 does not recognize this command is not a verified reference-delivery build.
 Do not fall back to an ordinary design run while claiming reference delivery.
 
+## Resolve source intent before creation
+
+For new visual exploration, propose reference-first from the actual product
+brief before asking for a style, direction or palette. A missing `reference_pack`
+is **unresolved**, not permission to generate without references. New `design
+run`, its dry-run, unfinished resume and packet dispatch stop with exit 5 until
+there is either a verified ready pack or an explicit scoped Owner opt-out.
+No creator is spawned and no historical design state is rewritten at this stop.
+Otherwise-valid historical status/provenance remain read-only and distinguish `reference-bound`,
+`owner-opt-out` and `unresolved-historical` intent.
+
+This is not a universal UI Bowl dependency: a scoped Owner opt-out is a distinct
+supported path. The current reference-pack provider is UI Bowl; arbitrary URLs
+or another provider do not bypass that contract. Approved-style bounded bug fixes continue through
+the integrated audit/redesign route without unrelated research or new matrices.
+An explicit UI Bowl request must use the required-reference contract below; do
+not treat a generic “진행해”, continuation after compaction, “latest KSR”, a
+browser pass, or an old no-reference run as a change of that request.
+
+If the actual Owner chooses **no reference-derived design** for this scope,
+record that real decision outside the child-writable `.design/` directory using
+[`design-reference-opt-out.schema.json`](../schemas/design-reference-opt-out.schema.json):
+version 1, matching `project_id`, `surface`, `screen_id`, `owner_id`,
+`decision: "no-reference"`, the actual rationale and `decided_at` timestamp.
+Do not invent this evidence to unblock the CLI. KSR checks scope, bytes,
+physical file identity and independence from the parent and every declared
+provider/known result actor, not the human's identity or authenticity of conversation.
+Keep the source decision available for later resume.
+
+Digest that file using the same CLI:
+
+```bash
+node <plugin-root>/bin/killsloprouter.mjs digest --target <real-owner-decision.json> --json
+```
+
+Bind it in a new brief (partial fragment; substitute its actual SHA-256):
+
+```json
+{
+  "reference_opt_out": {
+    "path": "../authority/no-reference.json",
+    "digest": "sha256:<digest-of-the-real-decision-file>"
+  }
+}
+```
+
+The decision path is relative to the **brief's directory**, not `--root`.
+`reference_opt_out` cannot coexist with `reference_requirement` or
+`reference_pack`; a real Owner scope change needs a successor, not a retrofitted
+active brief. New opted-out packets bind the decision digest and explicitly state
+`source_derived_craft: false`. They keep the exact-three matrices, independent
+critics, browser proof, Owner shortlist, palette and final approval gates.
+The packaged example decision is synthetic teaching/test material, not a
+decision for any real project; copying it does not create Owner authority.
+
 ## Make an explicit reference request durable
 
 When the Owner requests UI Bowl / released-product reference-derived design,
@@ -171,7 +226,12 @@ throughout the design journey, including its final-artifact stop.
 
 If a historical run used no reference, retain its artifacts and Owner selections
 as history. Do not insert a pack, relabel its candidates, transplant its approvals
-or silently rerun an active color stage. A successor can consider the Owner's
+or silently rerun an active color stage. Historical status/provenance inspection
+is compatible, but unfinished creation/resume/dispatch now requires a successor
+with a ready pack or genuine scoped opt-out. Completed receipts are not revoked;
+resuming a completed run remains a verified no-op. Explicit lease crash recovery
+can still reconcile its old checkpoint; it does not grant new design dispatch.
+A successor can consider the Owner's
 earlier preferences, but needs its own reference selection, candidate review and
 exact-artifact decisions. No product edit or old-run migration is automatic.
 

@@ -293,6 +293,15 @@ function packetBody(packet) {
   return body;
 }
 
+function optOutDelivery(state) {
+  return {
+    status: "not_bound",
+    intent_status: "owner-opt-out",
+    owner_decision_digest: state.reference_opt_out_source.digest,
+    source_derived_craft: false
+  };
+}
+
 function makePacket(state, {
   packetId,
   stageId,
@@ -333,7 +342,12 @@ function makePacket(state, {
       required_viewports: [...viewports],
       required_checks: [...checks]
     },
-    design_task: task
+    design_task: {
+      ...task,
+      ...(state.reference_opt_out_source ? {
+        reference_delivery: optOutDelivery(state)
+      } : {})
+    }
   };
   packet.packet_digest = canonicalDigest(packet);
   return packet;
@@ -870,6 +884,47 @@ function resolveReferencePack(brief, root) {
   return validatePinnedReferencePack(brief, pinned, root);
 }
 
+// Absence is not an Owner decision. Historical ledgers remain readable, but
+// new creation/continuation needs a bound pack or a separately recorded opt-out.
+function assertResolvedReferenceIntent(brief) {
+  requireValue(brief.reference_pack || brief.reference_opt_out,
+    "design reference intent is unresolved: propose reference-first before visual choice; bind a verified reference_pack or an actual Owner no-reference decision in a new brief. Preserve historical runs and start a successor; a continuation, latest KSR, or browser pass is not an opt-out", 5);
+}
+
+function resolveReferenceOptOut(brief, briefPath) {
+  if (!brief.reference_opt_out) return null;
+  const target = path.resolve(path.dirname(briefPath), brief.reference_opt_out.path);
+  const pinned = readPinnedDesignJson(target, "design reference opt-out Owner decision");
+  requireValue(pinned.digest === brief.reference_opt_out.digest,
+    "design reference opt-out Owner decision digest mismatch", 4);
+  const decision = pinned.input;
+  exact(decision, new Set([
+    "design_reference_opt_out_version", "project_id", "surface", "screen_id",
+    "owner_id", "decision", "rationale", "decided_at"
+  ]), "design reference opt-out Owner decision");
+  requireValue(decision.design_reference_opt_out_version === 1 && decision.decision === "no-reference",
+    "design reference opt-out requires an explicit no-reference Owner decision", 5);
+  for (const key of ["project_id", "surface", "screen_id"]) {
+    requireValue(decision[key] === brief[key], `design reference opt-out ${key} scope mismatch`, 4);
+  }
+  string(decision.owner_id, "design reference opt-out owner_id");
+  string(decision.rationale, "design reference opt-out rationale");
+  requireValue(typeof decision.decided_at === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(decision.decided_at) &&
+    !Number.isNaN(Date.parse(decision.decided_at)), "design reference opt-out decided_at is invalid");
+  return pinnedDesignSnapshot(pinned, path.dirname(briefPath));
+}
+
+function requireIndependentReferenceOptOut(state, newActorId = null) {
+  if (!state.reference_opt_out_source) return;
+  const decision = readBoundDesignJson(state.reference_opt_out_source,
+    "design reference opt-out Owner decision", path.dirname(state.brief_source.resolved_path));
+  requireIndependentDesignOwner({ ...state, packets: state.packets || [], results: state.results || [] },
+    decision.owner_id, "design reference opt-out Owner");
+  requireValue(!newActorId || canonicalIdentityKey(newActorId) !== canonicalIdentityKey(decision.owner_id),
+    "design result actor cannot be the reference opt-out Owner", 4);
+}
+
 function validateComponentBrowserPreflight(referencePack, brief, hostManifest) {
   if (!referencePack?.normalized.verified_grammar.some((item) => item.component_recipe)) return;
   const browser = hostManifest?.providers?.[brief.providers.browser_evidence];
@@ -1022,7 +1077,7 @@ export function validateDesignBrief(brief) {
   exact(brief, new Set([
     "design_brief_version", "project_id", "surface", "screen_id", "locales", "product",
     "baseline_policy", "editorial_boundary", "directions", "color_strategies", "providers",
-    "evidence", "reference_pack", "reference_requirement"
+    "evidence", "reference_pack", "reference_requirement", "reference_opt_out"
   ]), "design brief");
   requireValue(brief.design_brief_version === 1, "design_brief_version must be 1");
   string(brief.project_id, "design brief project_id");
@@ -1077,6 +1132,15 @@ export function validateDesignBrief(brief) {
     requireValue(access.redistribution === false && access.creator_access === false &&
       access.browser_provider_access === false && access.external_network === false,
     "reviewer source access must forbid redistribution, creator/browser access, and external network");
+  }
+
+  if (brief.reference_opt_out !== undefined) {
+    requireValue(!brief.reference_pack && !brief.reference_requirement,
+      "design reference opt-out cannot coexist with a reference pack or required reference intent; start a successor for an actual Owner scope change", 5);
+    exact(brief.reference_opt_out, new Set(["path", "digest"]), "design brief reference_opt_out");
+    string(brief.reference_opt_out.path, "design brief reference_opt_out.path");
+    requireValue(SHA256_PATTERN.test(brief.reference_opt_out.digest || ""),
+      "design brief reference_opt_out.digest must be a sha256 digest");
   }
 
   exact(brief.baseline_policy, new Set(["preserve", "may_change", "forbid"]), "design brief baseline_policy");
@@ -1411,6 +1475,7 @@ function baseResult(state, packet, input, sourcePath) {
   requireValue(input.packet_digest === packet.packet_digest, "design result packet digest mismatch", 4);
   requireValue(input.status === "completed", "design result must be completed", 4);
   actor(input.actor, state.journey_identity);
+  requireIndependentReferenceOptOut(state, input.actor.actor_id);
   if (state.reference_pack && [
     "direction-candidate", "color-candidate", "browser-evidence"
   ].includes(input.kind)) {
@@ -2240,6 +2305,16 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
     "design brief state binding mismatch", 4);
   requireValue(Boolean(state.reference_pack) === Boolean(state.brief.reference_pack),
     "design reference pack binding is missing or unexpected", 4);
+  requireValue(Boolean(state.reference_opt_out_source) === Boolean(state.brief.reference_opt_out),
+    "design reference opt-out source binding is missing or unexpected", 4);
+  if (state.reference_opt_out_source) {
+    verifyBoundSnapshot(state.reference_opt_out_source, "design reference opt-out Owner decision");
+    const current = resolveReferenceOptOut(state.brief, state.brief_source.resolved_path);
+    requireValue(canonicalDigest(current) === canonicalDigest(state.reference_opt_out_source),
+      "design reference opt-out Owner decision binding changed", 4);
+    requireExternalOwnerSource(state, current.resolved_path, "design reference opt-out Owner decision");
+    requireIndependentReferenceOptOut(state);
+  }
   verifyBoundSnapshot(state.baseline, "design baseline");
   if (state.reference_pack) {
     verifyBoundSnapshot(state.reference_pack.source, "reference intelligence pack");
@@ -2287,6 +2362,10 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
   }
   for (const packet of state.packets || []) {
     verifyPacketJourney(packet, state.journey_identity, `design packet ${packet.packet_id}`);
+    requireValue(state.reference_opt_out_source
+      ? canonicalDigest(packet.design_task?.reference_delivery || null) === canonicalDigest(optOutDelivery(state))
+      : !Object.hasOwn(packet.design_task || {}, "reference_delivery"),
+    `design packet reference opt-out delivery conflicts with state: ${packet.packet_id}`, 4);
     requireValue(canonicalDigest(packetBody(packet)) === packet.packet_digest,
       `design packet digest mismatch: ${packet.packet_id}`, 4);
     requireValue(state.packet_files?.[packet.packet_id],
@@ -4229,6 +4308,7 @@ function continueDesignExplorationWithLease(state, lease, {
     validateDesignLifecycleState(state);
     return state;
   }
+  assertResolvedReferenceIntent(state.brief);
   assertReferenceSourceExecutableIsolation(
     state.reference_pack,
     state.brief,
@@ -4456,6 +4536,10 @@ export function startDesignExploration({
     const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
     const brief = validateDesignBrief(pinnedBrief.input);
     assertDesignReferenceRequirement(brief, requireReference);
+    assertResolvedReferenceIntent(brief);
+    const referenceOptOut = resolveReferenceOptOut(brief, pinnedBrief.path);
+    requireValue(!referenceOptOut || !inside(referenceOptOut.resolved_path, stateDirectory(absoluteState)),
+      "design reference opt-out Owner decision must remain outside the child-writable design state directory", 4);
     const referencePack = resolveReferencePack(brief, root);
     assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
     validateComponentBrowserPreflight(referencePack, brief, hostManifest);
@@ -4473,6 +4557,7 @@ export function startDesignExploration({
       brief,
       brief_source: pinnedDesignSnapshot(pinnedBrief, root),
       reference_pack: referencePack,
+      ...(referenceOptOut ? { reference_opt_out_source: referenceOptOut } : {}),
       baseline: snapshotArtifact(absoluteBaseline, { root }),
       packets: [],
       packet_files: {},
@@ -4491,6 +4576,7 @@ export function startDesignExploration({
       pending: [],
       state_digest: null
     });
+    requireIndependentReferenceOptOut(state);
     fs.mkdirSync(state.state_directory, { recursive: true });
     writeState(state, lease, { faultInjector });
     addPackets(state, lease, directionPackets(state), faultInjector);
@@ -4739,6 +4825,8 @@ export function dryRunDesignExploration({
   const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
   const brief = validateDesignBrief(pinnedBrief.input);
   assertDesignReferenceRequirement(brief, requireReference);
+  assertResolvedReferenceIntent(brief);
+  const referenceOptOut = resolveReferenceOptOut(brief, pinnedBrief.path);
   const referencePack = resolveReferencePack(brief, root);
   assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
   validateComponentBrowserPreflight(referencePack, brief, hostManifest);
@@ -4750,8 +4838,10 @@ export function dryRunDesignExploration({
     brief,
     brief_source: pinnedDesignSnapshot(pinnedBrief, root),
     reference_pack: referencePack,
+    ...(referenceOptOut ? { reference_opt_out_source: referenceOptOut } : {}),
     baseline: snapshotArtifact(absoluteBaseline, { root })
   };
+  requireIndependentReferenceOptOut(state);
   const packets = [
     ...directionPackets(state),
     dryPacket(state, "browser-evidence", brief.providers.browser_evidence,
@@ -4818,6 +4908,7 @@ export function dryRunDesignExploration({
 }
 
 export function dispatchDesignPackets(state, outputDirectory) {
+  assertResolvedReferenceIntent(state.brief);
   const directory = path.resolve(outputDirectory);
   fs.mkdirSync(directory, { recursive: true });
   for (const packet of state.packets) writeJsonAtomic(path.join(directory, `${packet.packet_id}.json`), packet);
@@ -4887,6 +4978,13 @@ export function designReferenceDelivery(state) {
     reference_delivery_version: 1,
     status: pack ? "bound" : "not_bound",
     required: state.brief.reference_requirement?.mode === "required",
+    intent_status: pack ? "reference-bound" : state.reference_opt_out_source ? "owner-opt-out" : "unresolved-historical",
+    opt_out_decision_digest: state.reference_opt_out_source?.digest || null,
+    next_action: pack
+      ? "Show the selected source links and intended concrete component transfers; independently verify the rendered specimen before Owner choice."
+      : state.reference_opt_out_source
+        ? "Proceed only within the recorded no-reference scope. Do not claim source-derived craft or waive independent review/browser/Owner stops."
+        : "Preserve this historical ledger. Propose reference-first; start a successor with a ready pack or a genuine scoped Owner no-reference decision before any further dispatch.",
     pack_digest: pack?.pack_digest || null,
     required_recipe_families: [...(state.brief.reference_requirement?.required_recipe_families || [])],
     selected_recipe_families: [...new Set((pack?.normalized.verified_grammar || [])

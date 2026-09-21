@@ -511,8 +511,11 @@ manual provenance but do not make the old run resumable. Run a
 fresh dry-run, regenerate all three stage packets and results, obtain a new
 Owner selection, and compile a new pack. If a design state already bound the
 preview pack, start that design exploration again with the regenerated pack;
-do not transplant its shortlist or approval. Existing design briefs that omit
-the optional `reference_pack` remain valid and keep the prior exact-three flow.
+do not transplant its shortlist or approval. Historical design briefs without
+`reference_pack` remain readable. New no-reference creation requires a real
+scoped Owner opt-out; an unresolved unfinished run needs a successor. See
+[reference intent and recovery](reference-delivery.md). The exact-three flow
+itself is unchanged.
 An existing reference-backed review adapter that lacks the exact
 `reference-evidence:read` grant or typed source-composition report stays
 `manual_pending`; do not remove the checks to make it routable.

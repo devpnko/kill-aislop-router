@@ -158,9 +158,12 @@ route, not through research or specimen generation alone.
 
 ## Compatibility and rollout
 
+- Source intent is a separate entry gate: new visual exploration needs a ready
+  pack or a genuine scoped Owner opt-out; see [reference delivery](reference-delivery.md).
 - Recipe and required-family fields are additive and opt-in. No-recipe briefs
-  retain the prior exact-three 3×3 route, check sets, packet shape and viewport
-  minimum. Old Router versions may reject the new optional fields.
+  retain the prior exact-three 3×3 route, check sets and viewport minimum.
+  New opted-out packets additionally carry explicit reference-delivery metadata.
+  Old Router versions may reject the new optional fields.
 - Once selected, recipe bytes are covered by existing grammar, pack, projection,
   packet, evidence and final review-result hashes. Missing specifications or
   mismatched recipe digests fail closed. Incapable adapters remain pending or

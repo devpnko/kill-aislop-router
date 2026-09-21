@@ -19,6 +19,7 @@
     "state_directory": {"type": "string", "minLength": 1},
     "brief": {"type": "object"},
     "brief_source": {"$ref": "#/$defs/snapshot"},
+    "reference_opt_out_source": {"$ref": "#/$defs/snapshot"},
     "reference_pack": {
       "oneOf": [
         {"type": "null"},
