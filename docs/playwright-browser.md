@@ -158,11 +158,39 @@ at every required viewport and configured color scheme. Hidden markers alone do
 not count as tested states or languages. Ordinary served-application scenarios
 without this binding keep their existing behavior.
 
-Keyboard evidence follows sequential focus semantics: controls with
-`tabindex="-1"`, descendants of closed `details`, and descendants of hidden or
-inert ancestors are excluded. The walker continues through browser-internal
+Keyboard evidence follows sequential focus semantics: controls with negative
+`tabindex`, disabled native controls (including disabled fieldset descendants),
+descendants of closed `details`, and descendants of hidden or inert ancestors
+are excluded. The enabled first-legend exception remains a target. The walker continues through browser-internal
 date/time focus stops until every declared sequential target is reached or the
 configured safety cap is exhausted.
+
+Native `showModal()` dialogs also make their background implicitly inert,
+without adding an `inert` attribute. The inventory follows the actual `:modal`
+scope, including open-shadow/slotted descendants. A modal escapes an ancestor's
+`inert`, but not its own explicit `inert`. An `open` modeless dialog or
+`aria-modal="true"` alone never excludes background controls. For multiple native
+modals, the active control must identify exactly one containing modal; ambiguous
+stacks fail closed instead of guessing from DOM order.
+
+Native named radios are one sequential Tab target per exact name, actual form
+owner and DOM tree. The eligible checked radio must be visited; an unchecked
+group requires an actual visit to one eligible member. Separate forms, different
+shadow roots, case-distinct names, unnamed radios and custom ARIA controls are
+not merged. The additive `keyboard.sequential_targets` report field records the
+inventory; unchecked groups include `alternative_keys`. Existing `visited` and
+`unreached` control keys are unchanged. `focusable_count` counts these sequential
+targets, not every radio option. This does **not** test radio arrow-key selection,
+keyboard scrolling or assistive technology: define explicit `press` and state
+assertions for those project interactions. A wholly unreachable group or a Tab
+trap that leaves required targets unreached still blocks. The walker stops once
+all targets are reached; it does not prove escape from a trap on the final
+visited target. Test dialog dismissal and other exit paths explicitly.
+
+These rules follow the HTML [modal inertness](https://html.spec.whatwg.org/multipage/interaction.html#inert)
+and [native radio grouping](https://html.spec.whatwg.org/multipage/input.html#radio-button-group)
+boundaries; actual reachability is still proved by browser key presses, not by
+calling `focus()` on each candidate or changing the DOM to make a check pass.
 
 For open Shadow DOM, the same composed-tree inspection is used for the target
 inventory and the deepest active control. Evidence keys include the host chain
@@ -176,8 +204,9 @@ This is not coverage of closed shadow roots, iframe interiors or real assistive
 technology. Existing report fields and light-DOM keys are unchanged.
 
 Earlier adapters could report an accessible shadow control as unreached because
-they recorded its host instead. Historical findings are not automatically
-cleared by this fix. Rebind the approved host adapter and make a new observation
+they recorded its host instead, or count native modal backgrounds and radio
+alternatives as missing Tab stops. Historical findings are not automatically
+cleared by these fixes. Rebind the approved host adapter and make a new observation
 with actual browser evidence; do not rewrite or re-sign an old run.
 
 Every required scenario needs at least one explicit state assertion. The

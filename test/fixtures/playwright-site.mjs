@@ -1,4 +1,5 @@
 import http from "node:http";
+import { keyboardTabScopeHtml } from "./keyboard-tab-scope.mjs";
 
 const html = `<!doctype html>
 <html lang="en">
@@ -123,6 +124,12 @@ if (/* TRAP */ false) container.querySelector('#first').addEventListener('keydow
 </script></body></html>`;
 
 const server = http.createServer((request, response) => {
+  const tabScopeMode = request.url?.match(/^\/keyboard-tab-scope\/(modal|modal-trap|modal-shadow|modal-stack|modal-inert-ancestor|modeless|aria-modal|radio-checked|radio-unchecked|radio-unchecked-trap|radio-trap|radio-groups)$/)?.[1];
+  if (tabScopeMode) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(keyboardTabScopeHtml(tabScopeMode));
+    return;
+  }
   if (request.url === "/.well-known/killsloprouter-artifact.json") {
     const artifactDigests = JSON.parse(process.env.KSR_TEST_ARTIFACT_DIGESTS || "{}");
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
