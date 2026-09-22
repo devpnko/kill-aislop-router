@@ -66,6 +66,15 @@ recipe is source-neutral. Source pixels, capture paths and account values are
 not distributed. Static appearance does not prove source clicks, hover/focus,
 mobile reflow, accessibility, current popularity or human authorship.
 
+The additive [second-pass component choice matrix](research/ui-bowl-component-choice-matrix-2026-09-23.md)
+compares when the existing observed patterns may or may not transfer. It is a
+text-only derivative of the sealed study, not a new image batch, ranking or
+creator-safe packet. It does not change the lookup index or its bound study.
+The separate [dated access observation](research/ui-bowl-second-pass-access-2026-09-23.md)
+records why additional full-image acquisition is waiting for direct Owner login
+and actual account-scope verification. A public membership table, existing
+capture bytes or their matching hashes are not evidence of source-use rights.
+
 ## From lookup to a real specimen
 
 1. Match the actual project job, locale, states and risk; use its external
