@@ -69,6 +69,7 @@ try {
     "schemas/codex-host-setup-receipt.schema.json",
     "schemas/codex-review-output.schema.json",
     "schemas/design-brief.schema.json",
+    "schemas/design-reference-opt-out.schema.json",
     "schemas/design-font-report.schema.json",
     "schemas/design-packet.schema.json",
     "schemas/design-playwright-report.schema.json",
@@ -153,6 +154,8 @@ try {
   ];
 
   for (const expected of required) assert.ok(files.has(expected), `package is missing ${expected}`);
+  assert.equal(files.has("examples/design-reference-opt-out.example.json"), false,
+    "a synthetic Owner waiver must not ship as public starter authority");
   for (const file of files) {
     assert.equal(file.startsWith("test/"), false, `test fixture leaked into package: ${file}`);
     assert.equal(file.startsWith(".git/"), false, `Git metadata leaked into package: ${file}`);
@@ -205,12 +208,46 @@ try {
   assert.ok(distribution.features.every((item) => item.status === "available"));
   assert.equal(distribution.project_reference_bound, false);
   assert.equal(distribution.live_skill_loading_verified, false);
+  const designExample = path.join(installedRoot, "examples/design-brief.example.json");
+  const requiredStarter = JSON.parse(fs.readFileSync(designExample, "utf8"));
+  assert.equal(requiredStarter.reference_requirement.mode, "required");
+  assert.equal(Object.hasOwn(requiredStarter, "reference_opt_out"), false);
+  assert.equal(Object.hasOwn(requiredStarter, "reference_pack"), false);
+  const requiredByDefault = run(process.execPath, [installedCli, "design", "run", "--brief", designExample,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(requiredByDefault.status, 5, requiredByDefault.stderr || requiredByDefault.stdout);
+  assert.match(requiredByDefault.stderr, /reference-required design is blocked/);
+  const unresolvedBrief = JSON.parse(fs.readFileSync(designExample, "utf8"));
+  delete unresolvedBrief.reference_requirement;
+  const unresolvedPath = path.join(consumer, "unresolved-design.json");
+  fs.writeFileSync(unresolvedPath, JSON.stringify(unresolvedBrief));
+  const unresolved = run(process.execPath, [installedCli, "design", "run", "--brief", unresolvedPath,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(unresolved.status, 5, unresolved.stderr || unresolved.stdout);
+  assert.match(unresolved.stderr, /reference intent is unresolved/);
   const unboundReference = run(process.execPath, [installedCli, "design", "run",
     "--brief", path.join(installedRoot, "examples/design-brief.example.json"),
     "--baseline", path.join(installedRoot, "examples/planning-evidence"),
     "--require-reference", "--dry-run", "--json"], { cwd: consumer });
   assert.equal(unboundReference.status, 5, unboundReference.stderr || unboundReference.stdout);
-  assert.match(unboundReference.stderr, /reference_requirement.mode=required/);
+  assert.match(unboundReference.stderr, /reference-required design is blocked/);
+  // Only an isolated test creates this synthetic exception, never the package.
+  const optOutDecisionPath = path.join(consumer, "synthetic-owner-decision.json");
+  fs.writeFileSync(optOutDecisionPath, JSON.stringify({
+    design_reference_opt_out_version: 1, project_id: requiredStarter.project_id,
+    surface: requiredStarter.surface, screen_id: requiredStarter.screen_id,
+    owner_id: "synthetic-isolated-package-test-owner", decision: "no-reference",
+    rationale: "Isolated package test only; not authority for any real product.",
+    decided_at: "2026-09-22T00:00:00.000Z"
+  }));
+  const optOutBriefPath = path.join(consumer, "synthetic-opt-out-brief.json");
+  fs.writeFileSync(optOutBriefPath, JSON.stringify({ ...unresolvedBrief,
+    reference_opt_out: { path: optOutDecisionPath, digest: hashArtifact(optOutDecisionPath) }
+  }));
+  const optedOut = run(process.execPath, [installedCli, "design", "run", "--brief", optOutBriefPath,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(optedOut.status, 6, optedOut.stderr || optedOut.stdout);
+  assert.equal(JSON.parse(optedOut.stdout).reference_delivery.intent_status, "owner-opt-out");
   const help = run(process.execPath, [installedCli, "--help"], { cwd: consumer });
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /host configure-codex/);

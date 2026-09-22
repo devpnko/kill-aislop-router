@@ -1096,6 +1096,9 @@ function writeDesignBriefFromReferenceState(space, state) {
   const designBrief = JSON.parse(fs.readFileSync(
     path.join(root, "examples", "design-brief.example.json"), "utf8"
   ));
+  delete designBrief.reference_opt_out;
+  // This source-authority fixture tests hierarchy, not component recipes.
+  designBrief.reference_requirement.required_recipe_families = [];
   designBrief.project_id = space.brief.project_id;
   designBrief.surface = space.brief.surface;
   designBrief.screen_id = space.brief.planning.target_id;
@@ -1443,6 +1446,8 @@ test("reference child processes rank popularity only inside product-fit bands an
     const designBrief = JSON.parse(fs.readFileSync(
       path.join(root, "examples", "design-brief.example.json"), "utf8"
     ));
+    delete designBrief.reference_opt_out;
+    designBrief.reference_requirement.required_recipe_families = [];
     designBrief.project_id = space.brief.project_id;
     designBrief.surface = space.brief.surface;
     designBrief.screen_id = space.brief.planning.target_id;

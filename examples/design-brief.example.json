@@ -4,6 +4,10 @@
   "surface": "operator-product-ui",
   "screen_id": "exception-review",
   "locales": ["ko-KR", "en-US"],
+  "reference_requirement": {
+    "mode": "required",
+    "required_recipe_families": ["comparison-table"]
+  },
   "product": {
     "primary_user": "operations analyst",
     "user_job": "resolve high-risk order exceptions without losing context",

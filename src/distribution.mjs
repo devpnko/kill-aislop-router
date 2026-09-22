@@ -14,7 +14,8 @@ const FEATURES = {
     "docs/reference-intelligence.md"
   ],
   "component-craft": ["src/component-recipes.mjs", "schemas/component-recipe.schema.json", "schemas/component-specs.schema.json"],
-  "reference-requirement": ["src/design.mjs", "schemas/design-brief.schema.json", "docs/reference-delivery.md"],
+  "reference-requirement": ["src/design.mjs", "schemas/design-brief.schema.json",
+    "schemas/design-reference-opt-out.schema.json", "docs/reference-delivery.md"],
   "reference-selection-handoff": ["src/reference.mjs", "src/usage-guidance.mjs", "docs/reference-delivery.md"],
   "executed-design-browser-proof": ["src/design-browser-proof.mjs", "src/adapters/playwright-browser.mjs"],
   "project-onboarding": ["src/usage-guidance.mjs", "docs/project-setup.md"],

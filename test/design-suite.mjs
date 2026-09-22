@@ -36,6 +36,7 @@ import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { designScenarios } from "./fixtures/design-browser-contract.mjs";
 import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
+import { fixtureOptOutPath, noReferenceFixtureBrief } from "./fixtures/design-no-reference.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -46,7 +47,7 @@ const fixture = path.join(root, "test", "fixtures", "design-host-adapter.mjs");
 const referenceFixture = path.join(root, "test", "fixtures", "reference-host-adapter.mjs");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
 const CHECKPOINT_CHILD_TIMEOUT_MS = 500;
-const exampleBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "design-brief.example.json"), "utf8"));
+const exampleBrief = noReferenceFixtureBrief();
 // These tests exercise provenance/authority and the exact-three lifecycle, not
 // a repeated six-state browser benchmark for every independent tamper variant.
 // The dedicated Playwright E2E covers the complete six-state/two-locale matrix.
@@ -92,6 +93,8 @@ function workspace() {
   fs.mkdirSync(baseline, { recursive: true });
   fs.writeFileSync(path.join(baseline, "app.html"), "<!doctype html><main>existing operator UI</main>\n");
   const briefPath = path.join(directory, "design-brief.json");
+  fs.copyFileSync(fixtureOptOutPath,
+    path.join(directory, "design-reference-opt-out.example.json"));
   fs.writeFileSync(briefPath, `${JSON.stringify(fixtureBrief, null, 2)}\n`);
   const statePath = path.join(baseline, ".killsloprouter", "design-run.json");
   return { directory, baseline, briefPath, statePath };
@@ -342,6 +345,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
   const packPath = path.join(space.directory, "reference-pack.json");
   fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`);
   const brief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+  delete brief.reference_opt_out;
   brief.reference_pack = { path: packPath, digest: hashArtifact(packPath) };
   fs.writeFileSync(space.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
   return { pack, packPath };
@@ -643,6 +647,7 @@ function attachReferencePack(space, mutate = null, {
     fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`);
   }
   const designBrief = JSON.parse(fs.readFileSync(space.briefPath, "utf8"));
+  delete designBrief.reference_opt_out;
   designBrief.reference_pack = {
     path: packPath,
     digest: hashArtifact(packPath),
@@ -1003,7 +1008,7 @@ test("dry run exposes a 9-direction and 9-color matrix without mistaking routing
     });
     assert.ok(state.packets.every((packet) =>
       Object.hasOwn(packet, "forbidden_permissions") === false),
-    "no-pack packets must retain their legacy byte/API shape");
+    "opted-out packets must not acquire source-recipient permissions");
   } finally {
     fs.rmSync(space.directory, { recursive: true, force: true });
   }
@@ -1310,7 +1315,12 @@ test("design resume rejects coherent brief, baseline, and state-directory author
     fs.writeFileSync(alternateBriefPath, `${JSON.stringify(alternateBrief, null, 2)}\n`);
     assertRejectedBeforeChild((state) => {
       state.brief = alternateBrief;
-      state.brief_source = snapshotArtifact(alternateBriefPath, { root: space.directory });
+      // Model a coherent pinned brief replacement, including the canonical
+      // physical path used by readJsonPinned. A macOS /var display alias here
+      // would trip the opt-out binding first and leave the packet gate untested.
+      state.brief_source = snapshotArtifact(fs.realpathSync(alternateBriefPath), {
+        root: fs.realpathSync(space.directory)
+      });
     }, /design packet brief authority conflicts with state/);
     assert.equal(hashArtifact(space.briefPath), originalBriefDigest);
   } finally {

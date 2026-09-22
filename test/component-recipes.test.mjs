@@ -37,6 +37,21 @@ test("component craft carries eight visual aspects, three sizes and interaction 
   assert.match(COMPONENT_CRAFT_CHECK.pass_condition, /does not certify aesthetic quality or human authorship/);
 });
 
+for (const aspect of COMPONENT_VISUAL_ASPECTS) {
+  test(`component craft cannot replace concrete ${aspect} treatment with hierarchy alone`, () => {
+    for (const value of [undefined, ""]) {
+      const recipe = componentRecipe();
+      recipe.visual_treatment[aspect] = value;
+      assert.throws(() => validateComponentRecipe(recipe), new RegExp(aspect));
+      assert.throws(() => assertPublishedSchema("component-recipe", recipe));
+      const { recipes, specs } = setup();
+      specs[0].visual_values[aspect] = value;
+      assert.throws(() => validateComponentSpecs(specs, recipes, evidence), new RegExp(aspect));
+      assert.throws(() => assertPublishedSchema("component-specs", specs));
+    }
+  });
+}
+
 for (const [name, mutate, error] of [
   ["missing surface craft", (r) => delete r.visual_treatment.elevation, /elevation/],
   ["missing tablet", (r) => r.responsive_variants.splice(1, 1), /compact, medium and wide/],

@@ -50,6 +50,17 @@
       "required": ["kind"],
       "properties": {
         "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
+        "reference_delivery": {
+          "type": "object",
+          "required": ["status", "intent_status", "owner_decision_digest", "source_derived_craft"],
+          "properties": {
+            "status": {"const": "not_bound"},
+            "intent_status": {"const": "owner-opt-out"},
+            "owner_decision_digest": {"$ref": "#/$defs/digest"},
+            "source_derived_craft": {"const": false}
+          },
+          "additionalProperties": false
+        },
         "reference_intelligence": {
           "type": "object",
           "required": [

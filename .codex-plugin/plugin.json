@@ -1,6 +1,6 @@
 {
   "name": "killsloprouter",
-  "version": "1.0.0+codex.20260921072648",
+  "version": "1.0.0+codex.20260921235943",
   "description": "Fail-closed design exploration and anti-slop routing with visual contracts, Playwright proof, independent review, and owner approval.",
   "author": {
     "name": "devpnko",

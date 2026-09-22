@@ -46,6 +46,13 @@ and validate it against
 The runtime validator is stricter than the descriptive schema in several
 places.
 
+Before creation, resolve [reference intent](reference-delivery.md): UI Bowl is
+required by default. The public starter declares this requirement but has no
+pack, so schema validation and preflight deliberately block until a genuine,
+completed project `reference_pack` is bound. It contains no synthetic Owner
+waiver. Separate exception fixtures are test-only, not packaged authority. Historical
+unbound runs remain inspectable but need a successor before further creation.
+
 The brief must contain:
 
 - the user, job, main object, core task, trust risk, density, real states, and
@@ -63,9 +70,9 @@ The brief must contain:
 - at least two viewports, every real state, all project locales, and the
   mandatory Playwright checks.
 
-It may also contain one digest-bound `reference_pack`, the exact completed
+The default reference-required brief must bind one digest-bound `reference_pack`, the exact completed
 producer-state path/digest, and a required `reviewer_source_access` contract
-from the optional
+from the
 [reference-intelligence stage](reference-intelligence.md). KSR verifies that
 the pack belongs to the same project, surface, screen ID, product frame, and
 current bundled reasoning registry and producer output lineage, remains
@@ -116,9 +123,9 @@ resolve to `review-evidence/source-composition-analysis` and validate against
 The approved decision retains pack, producer, target, trace,
 independent-review digests, `review_source_capture_set_digest`, and the
 direction/color `*_source_composition_analysis_digest` values as
-non-authoritative provenance. Omitting
-`reference_pack` preserves the original packet and receipt shape exactly;
-providing it does not change the three theses, three depths, three color
+non-authoritative provenance. Historical packets without `reference_pack` stay
+readable. New explicitly opted-out packets add the decision-bound `not_bound`
+delivery metadata. Neither choice changes the three theses, three depths, three color
 strategies, Playwright checks, or Owner gates.
 An earlier preview brief or pack that lacks the complete
 `reviewer_source_access`, router-recomputed capture-readiness, or

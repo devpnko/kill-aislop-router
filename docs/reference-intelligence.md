@@ -2,7 +2,8 @@
 
 `killsloprouter reference` turns an approved service-planning frame and
 curated released-product references into a small, reviewable design-grammar
-pack. It is an optional stage before design exploration. It does not generate
+pack. A ready UI Bowl pack is required by default before new visual exploration;
+run this stage when the project does not already have one. It does not generate
 UI, choose visual authority, or replace the exact-three 3×3 workflow.
 
 The intended roles are:
@@ -311,7 +312,7 @@ and lists `capture_evidence_ids`, `uncovered_reference_ids`, and
 requires `revalidate_on_design_start: true`; editing the status cannot create
 readiness. To bind a ready pack to design exploration, add its path/file digest,
 the exact completed producer-state path/file digest, and the explicit
-internal-critic source-access contract as the optional `reference_pack` in the
+internal-critic source-access contract as `reference_pack` in the
 design brief:
 
 ```json
@@ -511,8 +512,11 @@ manual provenance but do not make the old run resumable. Run a
 fresh dry-run, regenerate all three stage packets and results, obtain a new
 Owner selection, and compile a new pack. If a design state already bound the
 preview pack, start that design exploration again with the regenerated pack;
-do not transplant its shortlist or approval. Existing design briefs that omit
-the optional `reference_pack` remain valid and keep the prior exact-three flow.
+do not transplant its shortlist or approval. Historical design briefs without
+`reference_pack` remain readable. New no-reference creation requires a real
+scoped Owner opt-out; an unresolved unfinished run needs a successor. See
+[reference intent and recovery](reference-delivery.md). The exact-three flow
+itself is unchanged.
 An existing reference-backed review adapter that lacks the exact
 `reference-evidence:read` grant or typed source-composition report stays
 `manual_pending`; do not remove the checks to make it routable.
