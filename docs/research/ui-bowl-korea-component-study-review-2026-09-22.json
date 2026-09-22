@@ -1,0 +1,125 @@
+{
+  "independent_component_study_review_version": 1,
+  "id": "korea-component-study-independent-review-20260922",
+  "date": "2026-09-22",
+  "review_kind": "manual-independent-peer-review",
+  "orchestrator": "KillSlopRouter",
+  "participant_role": "internal-independent-critic",
+  "participant_actor": "/root/korea_component_critic",
+  "participant_actor_namespace": "agent-task-identifier-not-filesystem-path",
+  "verdict": "accepted-as-bounded-static-research-with-nonblocking-notes",
+  "verdict_scope": "정적 캡처의 관찰·가설·타깃 제안 분리가 충분한 연구 기록으로 수용한다. 제품 구현, Creator 입력, 시각 권한 또는 Owner 승인 판정이 아니다.",
+  "reviewed_artifacts": [
+    {
+      "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+      "digest": "sha256:8500cbe81a478e42e139378351371a655d210e5273cf917b9fbcf09c36f2a7b9"
+    },
+    {
+      "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.md",
+      "digest": "sha256:63acbd1a942a2ae3888b57d44817c9f5c877871938b28e0b487aa9549302e06e"
+    }
+  ],
+  "prior_private_review_digests": [
+    "sha256:af66ea28718f5664bf37f2fad135555ae106b00f593c5b82c4159e9b1d3add96",
+    "sha256:b81ce604ccbc38ce722fa07b3d78b7042f2896413ee5e5ea591e374c625a869b"
+  ],
+  "inspection": {
+    "original_capture_files_individually_viewed": 30,
+    "researcher_a_original_captures_viewed": 15,
+    "researcher_b_original_captures_viewed": 15,
+    "original_capture_hashes_recomputed": 30,
+    "original_capture_hashes_matching_intake_and_public_manifest": 30,
+    "product_surface_groups": 10,
+    "component_entries_reviewed": 14,
+    "observed_anatomy_parts": 89,
+    "target_responsive_variants": 42,
+    "application_test_proposals": 65,
+    "application_test_proposals_executed_by_this_review": 0,
+    "component_recipe_structure_checks_passed": 14,
+    "component_recipe_structure_checks_attempted": 14,
+    "narrative_strings_cross_checked_between_json_and_markdown": 684,
+    "path_free_capture_manifest_digest": "sha256:3cd096d38a36e8ccdcc304fce151778fe204b9b45b4d86191b7ccd8f922d7bf3",
+    "capture_manifest_digest_method": "For the 30 inspected intake captures, serialize objects with keys product_id, frame_id, digest in that order; sort by frame_id ascending codepoint; SHA-256 the UTF-8 JSON.stringify(array) bytes without a trailing newline.",
+    "method": [
+      "독립 비평자가 보존된 원본 30개를 각각 직접 보고 연구 A·B의 관찰 및 제안을 대조했다.",
+      "합본 변경 사항과 서술 대응을 확인하고, 소스 프레임·URL·다이제스트 바인딩 30개를 원래 인테이크와 대조했다.",
+      "로컬 component-recipe 검증 함수를 읽기 전용으로 실행한 구조 검사다. 브라우저 실행, 렌더링 품질, 접근성 또는 행동 테스트가 아니다."
+    ]
+  },
+  "must_fix_resolved_count": 5,
+  "must_fix_resolved": [
+    {
+      "id": "A-M01",
+      "entry_id": "toss-securities-search-palette",
+      "resolution": "ESC에 표시된 동작을 닫기에서 지우기로 바로잡았다. 표시된 단축키와 실제 실행을 분리한다."
+    },
+    {
+      "id": "A-M02",
+      "entry_id": "all",
+      "resolution": "관찰 anatomy의 priority 89개를 제거했다. 소스의 시각적 강조와 타깃에서 보존할 의미적 중요도를 별도로 정의했다."
+    },
+    {
+      "id": "A-M03",
+      "entry_id": "toss-securities-dense-modules",
+      "resolution": "홈의 흰 캔버스·옅은 카드와 상세의 옅은 캔버스·흰 모듈 관계를 캡처별로 분리했다."
+    },
+    {
+      "id": "A-M04",
+      "entry_id": "kakaopay-watchlist-sheet",
+      "resolution": "단일 항목 상세로 단정하지 않고 목록 범위·그룹 설명 시트로 좁혔다. 진입 트리거는 미검증이며 타깃 포커스 복귀는 제안이다."
+    },
+    {
+      "id": "A-M05",
+      "entry_id": "kakaotalk-summary-transcript",
+      "resolution": "회색 메타데이터를 낮은 명도로 단정한 표현을 옅은 회색·낮은 시각적 강조로 수정했다. 명도·대비 측정 결과를 주장하지 않는다."
+    }
+  ],
+  "must_fix_remaining": [],
+  "nonblocking_notes": [
+    {
+      "id": "B-O02-remaining",
+      "entry_ids": [
+        "naver-travel-hierarchical-search",
+        "naver-map-web-help-disclosure"
+      ],
+      "note": "빈 검색어 상태의 설명은 정확하지만 기계 판독용 part_scope는 아직 없다. 상태를 추후 평탄화하거나 요약할 때 검색 결과 없음으로 바꾸지 말고 검색 입력 범위를 보존한다.",
+      "blocks_bounded_research": false
+    },
+    {
+      "id": "F-O02",
+      "entry_ids": [
+        "papago-web-dual-pane-handwriting",
+        "toss-business-local-assistance"
+      ],
+      "note": "일부 짧은 소스 역할명은 후보 반영·로딩이라는 과정형 표현을 유지한다. 본문은 실행 미검증을 명시하므로 현재 연구를 막지 않지만, 역할명만 분리해 인식·번역·AI 응답 완료 또는 상태 전이의 증거로 재사용하면 안 된다.",
+      "blocks_bounded_research": false
+    }
+  ],
+  "boundaries": {
+    "formal_reference_cli_review": false,
+    "formal_cli_ran_receipt": false,
+    "owner_approval": false,
+    "ready_reference_pack": false,
+    "creator_input_approved": false,
+    "visual_authority_granted": false,
+    "design_creation_authorized": false,
+    "source_behavior_executed": false,
+    "browser_interaction_verified": false,
+    "motion_hover_focus_verified": false,
+    "same_product_responsive_behavior_verified": false,
+    "accessibility_or_contrast_conformance_verified": false,
+    "current_popularity_verified": false,
+    "human_authorship_verified": false,
+    "source_acquisition_method_authenticated": false,
+    "source_reuse_rights_verified": false,
+    "source_pixels_included": false,
+    "private_capture_paths_or_filenames_included": false,
+    "account_values_included": false
+  },
+  "limitations": [
+    "보존된 바이트와 인용 바인딩의 일치는 원래 수집 방식의 진위, 사용 허가 또는 현재 서비스의 실제 동작을 증명하지 않는다.",
+    "도움말 화면은 지도 조작의 증거가 아니며, 좁은 WEB 패널은 모바일 반응형 증거가 아니다. 보이는 후보·문구·카드·마스킹은 응답 실행·결제 성공·보안성을 증명하지 않는다.",
+    "42개 반응형 변형과 65개 적용 검사는 타깃 제안이다. 실제 적용에는 별도의 권리·개인정보·도메인 검토, 프로젝트 범위 승인, 구현과 실행 증거가 필요하다.",
+    "검토 수용은 위 두 합본 다이제스트에만 해당한다. 파일 내용이 바뀌면 변경 범위를 다시 검토해야 한다."
+  ]
+}

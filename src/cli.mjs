@@ -69,6 +69,7 @@ import {
   automationGuidance, designReferenceGuidance, doctorNextActions, referenceChoicesGuidance
 } from "./usage-guidance.mjs";
 import { inspectDistribution } from "./distribution.mjs";
+import { loadReferenceLibrary, referenceLibraryReport, formatReferenceLibrary } from "./reference-library.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -110,8 +111,17 @@ function parseArgs(argv) {
     args.subcommand = argv[index];
     index += 1;
   }
+  const libraryLookup = args.command === "reference" && args.subcommand === "library";
+  const libraryOptions = new Set(["component", "source", "query", "details", "json", "format", "help"]);
+  const librarySeen = new Set();
   for (; index < argv.length; index += 1) {
     const token = argv[index];
+    if (libraryLookup) {
+      const key = token === "-h" ? "help" : token.startsWith("--") ? token.slice(2) : null;
+      if (!libraryOptions.has(key) || librarySeen.has(key)) throw new RouterError(`unknown or repeated reference library option: ${token}`, 2);
+      librarySeen.add(key);
+      if (key === "details") { args.details = true; continue; }
+    }
     if (token === "--help" || token === "-h") {
       args.help = true;
       continue;
@@ -145,6 +155,10 @@ function parseArgs(argv) {
     } else {
       args[key] = value;
     }
+  }
+  if (libraryLookup && (!["text", "json"].includes(args.format) ||
+      (librarySeen.has("format") && args.json && args.format !== "json"))) {
+    throw new RouterError("reference library format must be text or json and agree with --json", 2);
   }
   return args;
 }
@@ -184,6 +198,7 @@ Usage:
   killsloprouter reference run --resume FILE [--host-config FILE] [--selection FILE]
   killsloprouter reference status --run FILE [--json]
   killsloprouter reference choices --run FILE [--json]
+  killsloprouter reference library [--component ID] [--source ID] [--query TEXT] [--details] [--json]
   killsloprouter reference dispatch --run FILE --out-dir DIR
   killsloprouter reference recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
@@ -988,8 +1003,14 @@ function referenceOutput(value, args) {
 
 function referenceCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "choices", "dispatch", "recover"].includes(command)) {
-    throw new RouterError("reference requires run, status, choices, dispatch, or recover", 2);
+  if (!command || !["run", "status", "choices", "library", "dispatch", "recover"].includes(command)) {
+    throw new RouterError("reference requires run, status, choices, library, dispatch, or recover", 2);
+  }
+  if (command === "library") {
+    const filters = Object.fromEntries(["component", "source", "query", "details"]
+      .filter(key => args[key] !== undefined).map(key => [key, args[key]]));
+    output(referenceLibraryReport(loadReferenceLibrary(), filters), args, formatReferenceLibrary);
+    return;
   }
   if (command === "choices") {
     if (!args.run) throw new RouterError("reference choices requires --run", 2);

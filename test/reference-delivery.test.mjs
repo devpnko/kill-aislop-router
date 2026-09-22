@@ -506,7 +506,8 @@ test("require-reference flag is never ignored by an unrelated command", () => {
 test("unified package exposes reference craft, onboarding and account-sync together", () => {
   const report = inspectDistribution();
   assert.equal(report.status, "available");
-  assert.equal(report.features.length, 7);
+  assert.equal(report.features.length, 8);
+  assert.equal(report.features.find((item) => item.id === "reference-research-library").status, "available");
   assert.equal(report.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.equal(report.project_reference_bound, false);
   assert.equal(report.live_skill_loading_verified, false);

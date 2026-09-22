@@ -14,6 +14,12 @@ const FEATURES = {
     "docs/reference-intelligence.md"
   ],
   "component-craft": ["src/component-recipes.mjs", "schemas/component-recipe.schema.json", "schemas/component-specs.schema.json"],
+  "reference-research-library": ["src/reference-library.mjs", "registry/reference-library.json",
+    "schemas/reference-library.schema.json", "docs/reference-library.md",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.md",
+    "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+    "docs/research/ui-bowl-korea-familiar-30-2026-09-22.json"],
   "reference-requirement": ["src/design.mjs", "schemas/design-brief.schema.json",
     "schemas/design-reference-opt-out.schema.json", "docs/reference-delivery.md"],
   "reference-selection-handoff": ["src/reference.mjs", "src/usage-guidance.mjs", "docs/reference-delivery.md"],
