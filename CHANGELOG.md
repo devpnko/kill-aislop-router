@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added offline `reference library` lookup for 14 component analyses across 30
+  Korean-service frames. It pins the study, intake and independent manual review;
+  Korean/English task queries return source scope, limitations and optional
+  concrete craft/test proposals. Missing coverage stays empty, tampered evidence
+  fails closed, and writes/profile/selection flags are rejected. The separate
+  historical candidate and part catalogs remain non-authoritative research.
+  No project receipt migration, source-pixel delivery, creator approval or change
+  to the default reference/3×3/Owner gates is introduced. Isolated npm/plugin
+  parity is tested; actual Mac rollout and real specimen approval are separate.
+
 - Fixed official Playwright sequential keyboard inventory for native modal
   background inertness and named radio-group Tab stops. Grouping preserves exact
   form ownership, DOM-tree and case-sensitive name boundaries; disabled controls

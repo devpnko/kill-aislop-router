@@ -53,6 +53,7 @@ try {
     "src/execution.mjs",
     "src/playwright.mjs",
     "src/reference.mjs",
+    "src/reference-library.mjs",
     "src/source-composition.mjs",
     "src/adapters/playwright-browser.mjs",
     "src/adapters/codex-review.mjs",
@@ -116,6 +117,25 @@ try {
     "docs/reference-fit-first.md",
     "docs/component-recipes.md",
     "docs/reference-delivery.md",
+    "docs/reference-catalog.md",
+    "docs/reference-library.md",
+    "docs/research/component-specimen-verification-proposal.md",
+    "registry/reference-library.json",
+    "schemas/reference-library.schema.json",
+    "registry/reference-candidates.json",
+    "schemas/reference-candidate-catalog.schema.json",
+    "scripts/reference-catalog.mjs",
+    "scripts/reference-application-map.mjs",
+    "registry/reference-application-map.json",
+    "schemas/reference-application-map.schema.json",
+    "docs/reference-application-map.md",
+    "docs/research/ui-bowl-task-design-study-2026-09-10.md",
+    "docs/research/ui-bowl-task-design-samples-2026-09-10.json",
+    "docs/research/ui-bowl-korea-familiar-30-2026-09-22.json",
+    "docs/research/ui-bowl-korea-familiar-30-2026-09-22.md",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.md",
+    "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
     "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
     "docs/reviews/fable-5.1-reference-intelligence.md",
     "docs/codex-plugin.md",
@@ -157,6 +177,7 @@ try {
   assert.equal(files.has("examples/design-reference-opt-out.example.json"), false,
     "a synthetic Owner waiver must not ship as public starter authority");
   for (const file of files) {
+    assert.equal(file.startsWith(".killsloprouter/"), false, `private reference study leaked into package: ${file}`);
     assert.equal(file.startsWith("test/"), false, `test fixture leaked into package: ${file}`);
     assert.equal(file.startsWith(".git/"), false, `Git metadata leaked into package: ${file}`);
   }
@@ -190,6 +211,52 @@ try {
 
   const installedRoot = path.join(consumer, "node_modules", "killsloprouter");
   const installedCli = path.join(installedRoot, "bin", "killsloprouter.mjs");
+  const catalogLookup = run(process.execPath, [
+    path.join(installedRoot, "scripts/reference-catalog.mjs"), "--family", "news-reading", "--json"
+  ], { cwd: consumer });
+  assert.equal(catalogLookup.status, 0, catalogLookup.stderr);
+  const catalogReport = JSON.parse(catalogLookup.stdout);
+  assert.equal(catalogReport.status, "discovery-only");
+  assert.equal(catalogReport.summary.candidate_count, 0);
+  assert.equal(catalogReport.selection_allowed, false);
+  assert.equal(catalogReport.design_ready, false);
+  assert.ok(catalogReport.discovery_routes.length > 0);
+  const partLookup = run(process.execPath, [
+    path.join(installedRoot, "scripts/reference-application-map.mjs"), "--part", "source-reader", "--json"
+  ], { cwd: consumer });
+  assert.equal(partLookup.status, 0, partLookup.stderr);
+  const partReport = JSON.parse(partLookup.stdout);
+  assert.equal(partReport.status, "research-only");
+  assert.equal(partReport.summary.visually_inspected_frames, 3);
+  assert.equal(partReport.summary.source_products, 2);
+  assert.equal(partReport.summary.source_mobile_frames, 0);
+  assert.equal(partReport.selection_allowed, false);
+  assert.equal(partReport.creator_input_approved, false);
+  assert.equal(partReport.design_ready, false);
+  const libraryReports = [];
+  for (const filters of [[], ["--query", "브리핑"], ["--component", "mixed-search-palette", "--details"], ["--component", "comparison-table"]]) {
+    const args = ["reference", "library", ...filters, "--json"];
+    const source = run(process.execPath, [path.join(sourceRoot, "bin/killsloprouter.mjs"), ...args], { cwd: consumer });
+    const installed = run(process.execPath, [installedCli, ...args], { cwd: consumer });
+    assert.equal(source.status, 0, source.stderr);
+    assert.equal(installed.status, 0, installed.stderr);
+    const result = JSON.parse(installed.stdout);
+    assert.deepEqual(result, JSON.parse(source.stdout), "source/npm library bytes and boundaries differ");
+    assert.equal(result.status, "research-only");
+    assert.equal(result.selection_allowed, false);
+    assert.equal(result.creator_input_approved, false);
+    assert.equal(result.design_ready, false);
+    libraryReports.push({ args, result });
+  }
+  assert.equal(libraryReports[0].result.summary.matching_components, 14);
+  assert.equal(libraryReports[0].result.summary.unique_source_frames, 30);
+  assert.equal(libraryReports[1].result.summary.matching_components, 1);
+  assert.equal(libraryReports[2].result.entries[0].analysis.component_recipe.family, "mixed-search-palette");
+  assert.equal(libraryReports[3].result.summary.matching_components, 0);
+  const forbiddenOutput = path.join(consumer, "library-must-not-write.json");
+  const forbiddenLookup = run(process.execPath, [installedCli, "reference", "library", "--out", forbiddenOutput], { cwd: consumer });
+  assert.equal(forbiddenLookup.status, 2);
+  assert.equal(fs.existsSync(forbiddenOutput), false);
   // Feature/version equality alone cannot prove installer identity: doctor
   // binds the complete payload, including scripts, across delivery channels.
   for (const entry of PLUGIN_BUNDLE_ENTRIES) {
@@ -203,7 +270,8 @@ try {
   assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
   const distribution = JSON.parse(capabilities.stdout);
   assert.equal(distribution.status, "available");
-  assert.equal(distribution.features.length, 7);
+  assert.equal(distribution.features.length, 8);
+  assert.equal(distribution.features.find((item) => item.id === "reference-research-library").status, "available");
   assert.equal(distribution.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.ok(distribution.features.every((item) => item.status === "available"));
   assert.equal(distribution.project_reference_bound, false);
@@ -256,6 +324,7 @@ try {
   assert.match(help.stdout, /reference run --brief FILE/);
   assert.match(help.stdout, /reference dispatch --run FILE/);
   assert.match(help.stdout, /reference choices --run FILE/);
+  assert.match(help.stdout, /reference library/);
   const missingChoices = run(process.execPath, [installedCli, "reference", "choices"], { cwd: consumer });
   assert.equal(missingChoices.status, 2);
   assert.match(missingChoices.stderr, /reference choices requires --run/);
@@ -417,6 +486,23 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   ], { cwd: consumer });
   assert.equal(pluginInstall.status, 0, pluginInstall.stderr || pluginInstall.stdout);
   const pluginReceipt = JSON.parse(pluginInstall.stdout);
+  const pluginCatalog = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "scripts/reference-catalog.mjs"), "--family", "news-reading", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginCatalog.status, 0, pluginCatalog.stderr);
+  assert.deepEqual(JSON.parse(pluginCatalog.stdout), catalogReport,
+    "catalog discovery and evidence levels must agree across package and isolated plugin");
+  const pluginParts = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "scripts/reference-application-map.mjs"), "--part", "source-reader", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginParts.status, 0, pluginParts.stderr);
+  assert.deepEqual(JSON.parse(pluginParts.stdout), partReport,
+    "part evidence, proposal boundaries and digests must agree across package and isolated plugin");
+  for (const { args, result } of libraryReports) {
+    const lookup = run(process.execPath, [path.join(pluginReceipt.plugin_target, "bin/killsloprouter.mjs"), ...args], { cwd: consumer });
+    assert.equal(lookup.status, 0, lookup.stderr);
+    assert.deepEqual(JSON.parse(lookup.stdout), result, "isolated plugin library differs from source/npm");
+  }
   const pluginCapabilities = run(process.execPath, [
     path.join(pluginReceipt.plugin_target, "bin/killsloprouter.mjs"), "capabilities", "--json"
   ], { cwd: consumer });
@@ -537,6 +623,7 @@ for (const field of ["review_source_capture_set_digest", "direction_source_compo
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
+  process.stdout.write("reference library: source/npm/isolated-plugin lookup, details, empty coverage, digest parity and no-write option rejection passed\n");
   process.stdout.write("source/npm: complete payload parity, both cross-channel doctors, marker equality, migrated legacy backup/shim and script tamper rejection passed\n");
   process.stdout.write("installed consumer: help/module-graph digest, Codex/state-lease/reference exports, reference contract validation and dry-run, integrity-bound plugin install, doctor, manual runtime dry-run passed\n");
 } finally {

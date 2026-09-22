@@ -22,6 +22,29 @@ Do not fall back to an ordinary design run while claiming reference delivery.
 
 ## Resolve source intent before creation
 
+For component-level discovery, use the read-only
+[research library](reference-library.md):
+`killsloprouter reference library --query '검색/탭' --json`.
+The 30-frame Korean-service study exposes concrete observations and draft recipes,
+not fit rankings or a `reference_pack`. Its full source-named report is not
+creator-safe. Zero matches remain a research gap. This additive lookup does not
+modify existing project runs, receipts, reference requirements or Owner gates.
+
+Before collecting new sources, consult the optional
+[representative candidate catalog](reference-catalog.md) by the target's task
+and component families. It indexes dated research leads and explicit gaps,
+not ready references, approved styles, verified popularity or project authority.
+Revalidate fitting sources and research missing coverage through the existing
+reference flow; never bind the catalog as a `reference_pack` or send it to a
+creator. The offline lookup does not scrape, select or replace Owner gates.
+
+Use the [part application map](reference-application-map.md) to connect target
+components to frame-bound observations, concrete craft adaptations and excluded
+transfers. Keep a whole-screen anchor separate from supporting parts and
+harmonize them through the authorized project signature. Mobile/state gaps
+require evidence or explicit target proposals, not invented source behavior.
+This map is research material, never a replacement `reference_pack`.
+
 For new visual exploration, **UI Bowl references are required by default**.
 Propose actual task-fit references from the product brief before asking for a
 style, direction or palette. The public starter declares required intent and

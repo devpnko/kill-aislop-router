@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/reference-library.schema.json",
+  "title": "Pinned, non-authoritative component research lookup index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reference_library_version", "status", "audience", "study", "study_document", "review", "source_index", "keyword_basis", "entries"],
+  "properties": {
+    "reference_library_version": {"const": 1},
+    "status": {"const": "research-only"},
+    "audience": {"const": ["internal-researcher", "independent-critic", "owner"]},
+    "study": {"$ref": "#/$defs/artifact"},
+    "study_document": {"$ref": "#/$defs/artifact"},
+    "review": {"$ref": "#/$defs/artifact"},
+    "source_index": {"$ref": "#/$defs/artifact"},
+    "keyword_basis": {"const": "curator-search-facets-not-verified-fit-rank-or-owner-selection"},
+    "entries": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["entry_id", "keywords"],
+        "properties": {
+          "entry_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+          "keywords": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^docs/research/[a-z0-9_-]+\\.(json|md)$"},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    }
+  }
+}

@@ -1,0 +1,492 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/reference-application-map.schema.json",
+  "title": "Research-only part application map, not a project reference pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reference_application_map_version",
+    "id",
+    "status",
+    "audience",
+    "orchestrator",
+    "source_pixels_included",
+    "creator_input_approved",
+    "visual_authority_granted",
+    "design_ready",
+    "rights",
+    "limits",
+    "sources",
+    "search_record",
+    "shared_rules",
+    "parts"
+  ],
+  "properties": {
+    "reference_application_map_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "status": {
+      "const": "research-only"
+    },
+    "audience": {
+      "const": [
+        "internal-researcher",
+        "independent-critic",
+        "owner"
+      ]
+    },
+    "orchestrator": {
+      "const": "KillSlopRouter"
+    },
+    "source_pixels_included": {
+      "const": false
+    },
+    "creator_input_approved": {
+      "const": false
+    },
+    "visual_authority_granted": {
+      "const": false
+    },
+    "design_ready": {
+      "const": false
+    },
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "access",
+        "redistribution",
+        "creator_pixel_access",
+        "cross_project_approval_reuse",
+        "license_grant"
+      ],
+      "properties": {
+        "access": {
+          "const": "ordinary-public-ui"
+        },
+        "redistribution": {
+          "const": false
+        },
+        "creator_pixel_access": {
+          "const": false
+        },
+        "cross_project_approval_reuse": {
+          "const": false
+        },
+        "license_grant": {
+          "const": false
+        }
+      }
+    },
+    "limits": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "frames"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "frames": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "url",
+                "observed_state",
+                "capture_digest",
+                "evidence_kind",
+                "observed_on",
+                "interaction",
+                "responsive",
+                "capture_bundled"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://uibowl\\.io/website(?:[/?][^\\s]*)?$"
+                },
+                "observed_state": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "capture_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "evidence_kind": {
+                  "const": "archived-ui-image-visually-inspected"
+                },
+                "observed_on": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "interaction": {
+                  "const": "not-executed"
+                },
+                "responsive": {
+                  "const": "not-observed"
+                },
+                "capture_bundled": {
+                  "const": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "search_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "comparisons",
+        "excluded_leads",
+        "stop_reason",
+        "remaining_gaps"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "comparisons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "excluded_leads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url",
+              "reason"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "pattern": "^https://uibowl\\.io/website(?:[/?][^\\s]*)?$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "stop_reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "remaining_gaps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "shared_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "parts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "job",
+          "coverage",
+          "observations",
+          "rationale_hypothesis",
+          "target_craft",
+          "exclude",
+          "target_states",
+          "responsive_proposal",
+          "validation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "job": {
+            "type": "string",
+            "minLength": 1
+          },
+          "coverage": {
+            "enum": [
+              "bounded-study",
+              "gap"
+            ]
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "frame_id",
+                "facts"
+              ],
+              "properties": {
+                "frame_id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                },
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              }
+            }
+          },
+          "rationale_hypothesis": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_craft": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "anatomy",
+                  "material",
+                  "edge",
+                  "depth",
+                  "type",
+                  "spacing",
+                  "color",
+                  "imagery",
+                  "motion"
+                ],
+                "properties": {
+                  "anatomy": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "material": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "edge": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "depth": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "spacing": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "color": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "imagery": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "motion": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "target_states": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "responsive_proposal": {
+            "type": "string",
+            "minLength": 1
+          },
+          "validation": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "coverage": {
+                  "const": "gap"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "observations": {
+                  "maxItems": 0
+                },
+                "target_craft": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "coverage": {
+                  "const": "bounded-study"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "observations": {
+                  "minItems": 1
+                },
+                "target_craft": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "anatomy",
+                    "material",
+                    "edge",
+                    "depth",
+                    "type",
+                    "spacing",
+                    "color",
+                    "imagery",
+                    "motion"
+                  ],
+                  "properties": {
+                    "anatomy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "material": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "edge": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "depth": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "type": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spacing": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "color": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "imagery": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "motion": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

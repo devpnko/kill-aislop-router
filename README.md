@@ -9,6 +9,26 @@ real UI Bowl source links, project fit and transferable component/hierarchy
 features for the Owner's choice. Selected sources remain visible at later design
 reviews; source pixels are not redistributed or passed to creators.
 
+Start source discovery from the [representative candidate catalog](docs/reference-catalog.md):
+30 historical product leads, 14 task families, source links, transfer limits and
+explicit coverage gaps. It is an offline research aid, not a ready project pack,
+an approved theme, or evidence that source craft reached a creator.
+
+For specific UI parts, search the [component research library](docs/reference-library.md):
+14 component analyses across 30 Korean-service frames, with source links,
+anatomy, visual craft, application limits and proposed target checks.
+
+```bash
+node bin/killsloprouter.mjs reference library --query '검색/탭'
+node bin/killsloprouter.mjs reference library --component briefing-card --details
+```
+
+The older [part-by-part application map](docs/reference-application-map.md) remains
+a separate eight-frame study. Neither is a ready project pack or Owner choice;
+source behavior and responsive reflow still need target validation. A Git push
+does not update the Mac plugin. Check the actual CLI's `capabilities --json` for
+`reference-research-library` before using the new command.
+
 KillSlopRouter selects independent anti-slop reviewers, executes explicitly
 authorized host adapters, and records the evidence needed to approve an exact
 artifact version. It keeps route planning, tool execution, scanner triage,

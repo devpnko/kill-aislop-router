@@ -13,6 +13,14 @@ Before new visual exploration or continuing unfinished design creation, read
 `<plugin-root>/docs/reference-delivery.md`. Check this exact bundled CLI with
 `capabilities --json`; a missing command/feature is a delivery blocker, not
 permission to fall back to a generic design while claiming reference use.
+For component reference discovery, first inspect reusable research with
+`node <plugin-root>/bin/killsloprouter.mjs reference library --query <task> --json`
+when `reference-research-library` is bundled. See `docs/reference-library.md`
+for component IDs and `--details`. This is a read-only research aid, not
+`reference choices`: search order is not project fit, and its full source-named
+report must never reach a creator. A missing match remains a coverage gap;
+research missing sources instead of selecting a familiar theme. Continue the
+normal project planning/rights, independent reference review and Owner gate.
 UI Bowl references are required by default for new visual exploration. Declare
 `reference_requirement.mode: required` in a new design brief, request
 the applicable component recipe families, bind the verified reference pack,

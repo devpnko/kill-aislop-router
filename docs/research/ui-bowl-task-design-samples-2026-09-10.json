@@ -1,0 +1,124 @@
+{
+  "study_id": "uibowl-task-design-2026-09-10",
+  "record_kind": "observational-study-not-a-reference-receipt",
+  "observed_on": "2026-09-10",
+  "timezone": "Asia/Seoul",
+  "orchestrator": "KillSlopRouter",
+  "method": "Manual visual inspection of UI Bowl's rendered enlarged frames through the browser; no live source-product interactions.",
+  "audience": "internal-research-review-and-owner",
+  "independent_review": "not-performed",
+  "authority_scope": "none",
+  "visual_authority_granted": false,
+  "creator_input_approved": false,
+  "source_capture_bytes_preserved": false,
+  "source_capture_digests_available": false,
+  "source_pixels_redistributed": false,
+  "formal_reference_run_executed": false,
+  "model_training_performed": false,
+  "runtime_changes": false,
+  "sampling": {
+    "strategy": "Bounded task-based comparison using visible current-popularity links, dashboard/comparison filters, and one contrasting mobile product.",
+    "popularity_is_discovery_only": true,
+    "complete_ranking_verified": false,
+    "unique_products_with_included_frames": 6,
+    "included_frame_count": 19,
+    "mobile_frame_count": 3,
+    "web_frame_count": 16,
+    "claim": "Distinct observed frame IDs, not independent design directions, full pages, or a complete product flow."
+  },
+  "products": [
+    {
+      "id": "museby-web",
+      "name": "Museby",
+      "platform": "web",
+      "source_month_label": "2026-09",
+      "frames": [
+        {"id": "cmttba5ql000ikz04cmgzxnd2", "url": "https://uibowl.io/website?imgId=cmttba5ql000ikz04cmgzxnd2", "state_observed": "Campaign home, expanded navigation, one campaign and onboarding banner", "role": "operational-with-onboarding"},
+        {"id": "cmttba5r8000kkz045ejrnu24", "url": "https://uibowl.io/website?imgId=cmttba5r8000kkz045ejrnu24", "state_observed": "Campaign home, icon navigation, two campaign cards with different status labels", "role": "operational-with-onboarding"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false
+    },
+    {
+      "id": "clarity-web",
+      "name": "Microsoft Clarity",
+      "platform": "web",
+      "source_month_label": "2026-08",
+      "frames": [
+        {"id": "cmt17w3iw001fjy04fiwqu9a6", "url": "https://uibowl.io/website?imgId=cmt17w3iw001fjy04fiwqu9a6", "state_observed": "Dashboard with metrics, user-friction signals, session counts and empty watchlist", "role": "operational"},
+        {"id": "cmt17vmck00qhl504uxthpwi4", "url": "https://uibowl.io/website?imgId=cmt17vmck00qhl504uxthpwi4", "state_observed": "Dashboard with active filters and a trend popover", "role": "operational"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false
+    },
+    {
+      "id": "daangn-business-web",
+      "name": "당근 비즈니스",
+      "platform": "web",
+      "source_month_label": "2026-08",
+      "frames": [
+        {"id": "cmso68mja000el704vilcy6lq", "url": "https://uibowl.io/website?imgId=cmso68mja000el704vilcy6lq", "state_observed": "Admin home upper viewport, setup progress, next task, zero metrics", "role": "operational-empty"},
+        {"id": "cmso68mk2000gl704j44a8xph", "url": "https://uibowl.io/website?imgId=cmso68mk2000gl704j44a8xph", "state_observed": "Same home lower viewport, zero chart, empty posts and reviews", "role": "operational-empty"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false,
+      "caution": "Two viewport positions, not proof of two distinct user states."
+    },
+    {
+      "id": "npay-property-web",
+      "name": "Npay 부동산",
+      "platform": "web",
+      "source_month_label": "2026-07",
+      "frames": [
+        {"id": "cmrvqfnmp0009kz04n4z1m62g", "url": "https://uibowl.io/website?imgId=cmrvqfnmp0009kz04n4z1m62g", "state_observed": "Service entry with loan-type tabs and alternative starting paths, not yet a condition-input form", "role": "entry"},
+        {"id": "cmrvqfnnn000bkz04x8vuiquh", "url": "https://uibowl.io/website?imgId=cmrvqfnnn000bkz04x8vuiquh", "state_observed": "Consent screen with expandable terms and a primary action", "role": "consent"},
+        {"id": "cmrvqfnoe000dkz04l8elzhlk", "url": "https://uibowl.io/website?imgId=cmrvqfnoe000dkz04l8elzhlk", "state_observed": "Purpose question with four choices and a qualifying explanation", "role": "decision-input"},
+        {"id": "cmrvqh889000al704eue8whlx", "url": "https://uibowl.io/website?imgId=cmrvqh889000al704eue8whlx", "state_observed": "Result summary, property context, sorted offer list and qualification caveat", "role": "comparison-result"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false,
+      "caution": "Historical financial UI only; no financial recommendation, consent, or application was performed."
+    },
+    {
+      "id": "cardgorilla-web",
+      "name": "카드고릴라",
+      "platform": "web",
+      "source_month_label": "2026-07",
+      "frames": [
+        {"id": "cmr360eyd000qjt04zk847cz7", "url": "https://uibowl.io/website?imgId=cmr360eyd000qjt04zk847cz7", "state_observed": "Three empty comparison slots", "role": "comparison-empty"},
+        {"id": "cmr360ez2000sjt04zqbm7ex4", "url": "https://uibowl.io/website?imgId=cmr360ez2000sjt04zqbm7ex4", "state_observed": "Credit-card candidate selector with issuer filters and search", "role": "selection"},
+        {"id": "cmr360ezt000ujt04sar13zkz", "url": "https://uibowl.io/website?imgId=cmr360ezt000ujt04sar13zkz", "state_observed": "Debit-card tab and candidate list", "role": "selection"},
+        {"id": "cmr360f0j000wjt04lct4bypt", "url": "https://uibowl.io/website?imgId=cmr360f0j000wjt04lct4bypt", "state_observed": "Candidate search results for an issuer keyword", "role": "selection"},
+        {"id": "cmr360f18000yjt041hanfpkv", "url": "https://uibowl.io/website?imgId=cmr360f18000yjt041hanfpkv", "state_observed": "One populated candidate column and two unfilled slots", "role": "comparison-partial"},
+        {"id": "cmr360f1y0010jt047oqepqjd", "url": "https://uibowl.io/website?imgId=cmr360f1y0010jt047oqepqjd", "state_observed": "Three populated columns with aligned cost, condition and benefit rows", "role": "comparison-filled"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false
+    },
+    {
+      "id": "moodee-mobile",
+      "name": "Moodee",
+      "platform": "mobile",
+      "source_month_label": "2026-08",
+      "frames": [
+        {"id": "cmsda5sc90003ju041xdyg7ek", "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sc90003ju041xdyg7ek", "state_observed": "Usage sheet over dimmed conversation", "role": "usage-and-upsell"},
+        {"id": "cmsda5sd00005ju045ndpr4nj", "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sd00005ju045ndpr4nj", "state_observed": "Another usage-sheet value and tier label", "role": "usage-and-upsell"},
+        {"id": "cmsda5sdk0007ju04xhffnqpm", "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sdk0007ju04xhffnqpm", "state_observed": "Conversation with emotion tags, character, ambient backdrop and reply control", "role": "operational"}
+      ],
+      "inference_confidence": "medium",
+      "interaction_verified": false,
+      "caution": "Different usage values do not prove one session's chronology or ethical adequacy of upselling."
+    }
+  ],
+  "exclusions": [
+    {"name": "토스", "id": "cmrttn4t30003l7048h6jcxtg", "url": "https://uibowl.io/name/%ED%86%A0%EC%8A%A4?imgId=cmrttn4t30003l7048h6jcxtg", "source_month_label": "2026-07", "visual_inspected": true, "included_in_operational_sample": false, "reason": "Promotional iPhone screenshot, not evidence of the complete operational screen."},
+    {"name": "29CM main", "url": "https://uibowl.io/website/29cm", "visual_inspected": false, "included_in_operational_sample": false, "reason": "Main pattern was inaccessible under the current membership boundary. Visible gated search previews were not counted as studied frames."}
+  ],
+  "limits": [
+    "No complete popularity ranking or attribution of individual human authorship was verified.",
+    "No pixel/color/font/contrast measurements or source product runtime tests were performed.",
+    "Original source captures were viewed in the browser but are not preserved or digest-bound by this record.",
+    "This file is not compatible authority for reference-run ingestion and must not be re-labeled as a completed pack.",
+    "No automatic cross-session learning, registry loading, new gate enforcement or model-weight training is asserted."
+  ]
+}
