@@ -46,10 +46,11 @@ and validate it against
 The runtime validator is stricter than the descriptive schema in several
 places.
 
-Before creation, resolve [reference intent](reference-delivery.md): propose
-reference-first, then bind a ready `reference_pack` or a genuine scoped Owner
-`reference_opt_out`. The bundled example uses a synthetic opt-out solely for
-tests/demo; never copy that file as a real project's authority. Historical
+Before creation, resolve [reference intent](reference-delivery.md): UI Bowl is
+required by default. The public starter declares this requirement but has no
+pack, so schema validation and preflight deliberately block until a genuine,
+completed project `reference_pack` is bound. It contains no synthetic Owner
+waiver. Separate exception fixtures are test-only, not packaged authority. Historical
 unbound runs remain inspectable but need a successor before further creation.
 
 The brief must contain:
@@ -69,9 +70,9 @@ The brief must contain:
 - at least two viewports, every real state, all project locales, and the
   mandatory Playwright checks.
 
-It may also contain one digest-bound `reference_pack`, the exact completed
+The default reference-required brief must bind one digest-bound `reference_pack`, the exact completed
 producer-state path/digest, and a required `reviewer_source_access` contract
-from the optional
+from the
 [reference-intelligence stage](reference-intelligence.md). KSR verifies that
 the pack belongs to the same project, surface, screen ID, product frame, and
 current bundled reasoning registry and producer output lineage, remains

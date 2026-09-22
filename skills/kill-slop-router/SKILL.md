@@ -13,7 +13,7 @@ Before new visual exploration or continuing unfinished design creation, read
 `<plugin-root>/docs/reference-delivery.md`. Check this exact bundled CLI with
 `capabilities --json`; a missing command/feature is a delivery blocker, not
 permission to fall back to a generic design while claiming reference use.
-For explicit UI Bowl/reference-derived intent, declare
+UI Bowl references are required by default for new visual exploration. Declare
 `reference_requirement.mode: required` in a new design brief, request
 the applicable component recipe families, bind the verified reference pack,
 and use `design run --require-reference --dry-run`. Preserve the normal
@@ -31,13 +31,20 @@ reference-derived creator dispatch. Show the selected sources and intended
 transfers again at direction/color and final-artifact review using
 `design provenance --run ... --json`, separately from rendered-quality proof.
 For every visual exploration, state the actual reference binding before dispatch
-and propose reference-first before visual choice. With no bound pack, stop until
-there is a ready pack or a genuine, scoped Owner `no-reference` decision bound
-through `reference_opt_out`. Do not author that decision on the Owner's behalf;
-the synthetic example is not project authority. “진행해”, a resumed/compacted
-conversation, “최신 KSR”, and browser success do not waive reference intent.
+and propose actual UI Bowl references before visual choice. With no ready pack,
+stop and report the exact missing access/evidence/selection. Do not offer generic
+design or `reference_opt_out` as a workaround for missing references. The public
+starter is deliberately reference-required and not executable until a real pack
+is bound. Synthetic no-reference decisions live only in test fixtures.
+Treat corrections such as “UI Bowl 레퍼런스를 필수로 두라고 안했어?” as a
+required-reference continuation, never as an invitation to choose an exception.
+“진행해”, a resumed/compacted conversation, “최신 KSR”, and browser success do
+not waive reference intent.
 Explicit UI Bowl intent cannot be weakened in the same brief/run; an actual
-Owner scope change requires a successor. Legacy no-reference ledgers remain
+separate Owner request to abandon reference-derived work requires a successor
+and a genuine scoped `reference_opt_out` decision, never one authored by this
+session. No such exception is inferred from a request to fix KSR or continue a
+product. Legacy no-reference ledgers remain
 readable but cannot dispatch or advance: preserve them, never retrofit choices.
 Report an opted-out journey as `not_bound`, never as learned/applied source craft.
 A bounded keyboard/bug fix with an approved visual contract does
@@ -114,9 +121,10 @@ override the verified visual intent and signature.
 5. Resolve the generated `visual_intents` entry from project, brand, approved-reference, or explicit owner evidence. Surface is semantic, not aesthetic: `marketing-editorial` does not authorize a paper/editorial look, and `operator-product-ui` does not prescribe a gray dashboard. Never use scanner output or anti-slop rules as visual direction.
 6. Keep visual intent unresolved when evidence is ambiguous. When direction already has exact project authority, create the receipt described in `<plugin-root>/docs/visual-intent-contract.md`, bind every evidence digest, and copy the exact mode, editorial boundary, energy, depth, `preserve`, and `avoid` values into the profile. Use editorial mode only when the evidence explicitly requires it; use `bounded` only with named scopes.
 7. If direction is genuinely undecided and the task needs visual creation, use `<plugin-root>/docs/design-exploration.md`. Build a brief from product and repository evidence with exactly three distinct project-specific theses, not three renamed style presets. Run the 3×3 direction matrix through authorized creators and separate Playwright packets using self-contained digest-bound prototypes, stop for the real owner to shortlist three, run the 3×3 color matrix, and stop again for exact owner approval. Missing adapters remain `manual_pending`; never author the owner files yourself.
-   When service planning is locked but the design inputs are still generic, the
-   owner may explicitly authorize the optional
-   `<plugin-root>/docs/reference-intelligence.md` stage first. Use UI Bowl or
+   When service planning is locked and a ready project reference pack is absent,
+   follow `<plugin-root>/docs/reference-intelligence.md` before visual creation.
+   Missing rights/access/research authority blocks acquisition; it does not
+   make reference-derived design optional. Use UI Bowl or
    another future approved source only as provenance-bound reference evidence.
    In manual mode require a schema-valid, digest-bound export manifest and exact
    membership for products, screens, frames, URLs, popularity, and the actual

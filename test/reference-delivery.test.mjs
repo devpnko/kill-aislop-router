@@ -15,10 +15,12 @@ import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
 import { loadHostManifest } from "../src/execution.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { PLUGIN_BUNDLE_ENTRIES } from "../src/skill-catalog.mjs";
+import { fixtureOptOutPath, noReferenceFixtureBrief } from "./fixtures/design-no-reference.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const cli = path.join(root, "bin/killsloprouter.mjs");
-const example = JSON.parse(fs.readFileSync(path.join(root, "examples/design-brief.example.json")));
+const publicStarter = JSON.parse(fs.readFileSync(path.join(root, "examples/design-brief.example.json")));
+const example = noReferenceFixtureBrief();
 const requirement = { mode: "required", required_recipe_families: ["comparison-table"] };
 
 function workspace(t, mutate = () => {}) {
@@ -29,7 +31,7 @@ function workspace(t, mutate = () => {}) {
   fs.writeFileSync(path.join(baseline, "index.html"), "<!doctype html><main>existing product</main>");
   const brief = structuredClone(example);
   mutate(brief);
-  fs.copyFileSync(path.join(root, "examples/design-reference-opt-out.example.json"),
+  fs.copyFileSync(fixtureOptOutPath,
     path.join(directory, "design-reference-opt-out.example.json"));
   const briefPath = path.join(directory, "brief.json");
   fs.writeFileSync(briefPath, JSON.stringify(brief));
@@ -106,6 +108,51 @@ function run(args, cwd = root) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: "utf8", timeout: 30_000 });
 }
 
+test("public new-dashboard starter requires UI Bowl without a CLI flag or synthetic Owner waiver", (t) => {
+  assert.equal(publicStarter.reference_requirement.mode, "required");
+  assert.equal(Object.hasOwn(publicStarter, "reference_opt_out"), false);
+  assert.equal(Object.hasOwn(publicStarter, "reference_pack"), false);
+  assert.equal(fs.existsSync(path.join(root, "examples/design-reference-opt-out.example.json")), false);
+  const space = workspace(t, (brief) => {
+    delete brief.reference_opt_out;
+    Object.assign(brief, structuredClone(publicStarter));
+  });
+  const host = fixtureHost(space);
+  const baselineDigest = hashArtifact(space.baselinePath);
+  assert.throws(() => assertPublishedSchema("design-brief", publicStarter),
+    "the unbound starter is deliberately not an executable project brief");
+  for (const invoke of [dryRunDesignExploration, startDesignExploration]) {
+    assert.throws(() => invoke({ ...space, hostManifest: host.hostManifest, requireReference: false }),
+      /reference-required design is blocked/);
+  }
+  for (const extra of [["--dry-run"], ["--out", space.statePath]]) {
+    const result = run(["design", "run", "--brief", space.briefPath,
+      "--baseline", space.baselinePath, "--host-config", host.hostPath, ...extra, "--json"]);
+    assert.equal(result.status, 5, result.stderr);
+    assert.match(result.stderr, /reference-required design is blocked/);
+    assert.equal(result.stdout, "");
+  }
+  assert.equal(fs.existsSync(space.statePath), false);
+  assert.equal(fs.existsSync(host.marker), false);
+  assert.equal(hashArtifact(space.baselinePath), baselineDigest);
+});
+
+test("Owner Korean required-reference correction cannot be replaced by a synthetic no-reference file", (t) => {
+  const space = workspace(t, (brief) => {
+    brief.reference_requirement = structuredClone(publicStarter.reference_requirement);
+    brief.directions[0].aesthetic_sources = ["지금 ksr이 ui bowl 레퍼런스를 필수로 두라고 안했어?"];
+  });
+  const host = fixtureHost(space);
+  const before = hashArtifact(space.briefPath);
+  for (const invoke of [dryRunDesignExploration, startDesignExploration]) {
+    assert.throws(() => invoke({ ...space, hostManifest: host.hostManifest, requireReference: false }),
+      /reference-required design is blocked/);
+  }
+  assert.equal(fs.existsSync(host.marker), false);
+  assert.equal(fs.existsSync(space.statePath), false);
+  assert.equal(hashArtifact(space.briefPath), before);
+});
+
 test("new visual exploration stops before dispatch when reference intent is unresolved", (t) => {
   const space = workspace(t, (brief) => { delete brief.reference_opt_out; });
   const host = fixtureHost(space);
@@ -151,7 +198,8 @@ test("historical status/provenance remain readable but resume, manual ingest and
   assert.deepEqual(state.packets.map((packet) => hashArtifact(state.packet_files[packet.packet_id].resolved_path)), beforePackets);
 });
 
-for (const wording of ["진행해", "이어서 진행해", "최신 KSR로 해", "UI Bowl 아니야?", "Playwright 통과했으니까 디자인해"]) {
+for (const wording of ["진행해", "이어서 진행해", "최신 KSR로 해", "UI Bowl 아니야?",
+  "UI Bowl 레퍼런스를 필수로 두라고 안했어?", "Playwright 통과했으니까 디자인해"]) {
   test(`conversation wording is not a no-reference Owner decision: ${wording}`, (t) => {
     const space = workspace(t, (brief) => {
       delete brief.reference_opt_out;

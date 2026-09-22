@@ -257,15 +257,16 @@ fixtures in `examples/planning-evidence/`.
 When those contracts are genuinely undecided, use design exploration instead
 of selecting a generic creator or guessing a style:
 
-New visual exploration is reference-first: show the actual source binding
-before creation. A ready pack or a genuine scoped Owner `no-reference` decision
-is required; absence is not an opt-out. Explicit UI Bowl requests remain
-reference-required. Historical runs stay inspectable but unresolved unfinished
+New visual exploration requires UI Bowl references by default: show the actual
+source binding before creation. Missing access, evidence or source selection is
+a stop, not permission to generate a generic candidate. A separate genuine
+Owner scope change is the only no-reference exception; continuation is not one.
+Historical runs stay inspectable but unresolved unfinished
 creation needs a successor. See [the exact contract and recovery](docs/reference-delivery.md).
 Approved-style bounded bug fixes do not need unrelated reference research.
 
 If service planning is already authoritative but the team needs better design
-inputs first, run the optional reference-intelligence stage. It studies
+inputs first, run the reference-intelligence stage. It studies
 popular released-product patterns without turning popularity into visual
 authority:
 
@@ -324,7 +325,7 @@ uncovered selected references and verified observations, and mandatory
 design-start revalidation. Research may complete with
 `status: manual_pending`, but only `ready_at_compilation` with full
 reference/frame coverage may enter design exploration. Attach that ready pack
-to a design brief through its optional `reference_pack` field together with
+to a reference-required design brief through its `reference_pack` field together with
 the exact producing state. A reference-backed brief must also explicitly bind
 `reference_pack.reviewer_source_access` version 1 in
 `digest-bound-internal-critic` mode. Its purposes are limited to
@@ -361,13 +362,14 @@ See [Reference intelligence](docs/reference-intelligence.md).
 ```bash
 cp examples/design-brief.example.json .killsloprouter/design-brief.json
 
-# Edit the product/theses and resolve source intent before running:
-# replace the synthetic opt-out with a ready reference_pack, or bind a real
-# scoped Owner no-reference decision. Do not copy the example as approval.
+# Edit the product/theses and bind a genuine completed UI Bowl reference_pack.
+# This required-reference starter deliberately blocks until that pack is ready;
+# it contains no Owner waiver, source selection or project approval.
 killsloprouter design run \
   --brief .killsloprouter/design-brief.json \
   --baseline . \
   --host-config .killsloprouter/host-adapters.json \
+  --require-reference \
   --dry-run \
   --json
 
@@ -375,6 +377,7 @@ killsloprouter design run \
   --brief .killsloprouter/design-brief.json \
   --baseline . \
   --host-config .killsloprouter/host-adapters.json \
+  --require-reference \
   --out .killsloprouter/design-direction.json \
   --json
 ```
@@ -879,7 +882,7 @@ version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
 The additive design workflow uses design exploration run version 1, design
 result version 1, shortlist version 1, and owner decision version 1.
-The optional reference workflow adds reference brief, packet, result, run,
+The reference workflow adds reference brief, packet, result, run,
 owner-selection, and pack version 1. Its pack is discovery evidence only and
 does not alter existing route, design, audit, or receipt versions.
 States or packets produced by an earlier reference-intelligence preview must

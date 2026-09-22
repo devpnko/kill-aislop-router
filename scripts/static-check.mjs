@@ -79,7 +79,19 @@ const exampleLineageOwnerApproval = JSON.parse(fs.readFileSync(
   exampleLineageOwnerApprovalPath,
   "utf8"
 ));
-validateDesignBrief(exampleDesignBrief);
+assert.equal(exampleDesignBrief.reference_requirement?.mode, "required",
+  "the public design starter must require UI Bowl references by default");
+assert.equal(Object.hasOwn(exampleDesignBrief, "reference_opt_out"), false,
+  "the public starter must not manufacture an Owner waiver");
+assert.equal(Object.hasOwn(exampleDesignBrief, "reference_pack"), false,
+  "the public starter must not fabricate a ready project reference pack");
+assert.throws(() => validateDesignBrief(exampleDesignBrief), (error) =>
+  error.exitCode === 5 && /reference-required design is blocked/.test(error.message),
+"the public starter must fail closed until actual reference evidence is bound");
+// Shape-only validation of the remaining fields; never execute this unbound
+// projection or use it to bypass the shared creation/continuation guard.
+const { reference_requirement: _starterRequirement, ...starterShape } = exampleDesignBrief;
+validateDesignBrief(starterShape);
 validateReferenceBrief(exampleReferenceBrief, { root });
 validateHumanDesignReasoningRegistry(humanDesignReasoning);
 assert.ok(exampleReferenceExport.records.flatMap((record) => record.evidence_records)

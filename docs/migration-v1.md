@@ -4,7 +4,7 @@ V1 keeps the existing route and audit contracts and adds an execution layer.
 
 ## Reference-required design and unified delivery
 
-New briefs may declare `reference_requirement` and assert it with
+New visual exploration declares `reference_requirement` by default and asserts it with
 `design run --require-reference`. Missing verified reference packs or requested
 component recipes block creation. The immutable brief preserves the requirement
 on resume. Valid historical no-reference briefs remain inspectable as `not_bound`;
@@ -14,7 +14,11 @@ This is an intentional creation/continuation behavior change, not a rewrite of
 old receipts. Preserve unfinished old runs and start a successor; do not add a
 pack or opt-out to an active ledger. Completed-run resume remains a verified
 no-op. The exact-three matrices and downstream Owner/browser/critic gates stay
-unchanged. The packaged opt-out example is synthetic, never project authority.
+unchanged. The public starter now declares required intent without a fabricated
+pack: it deliberately fails schema/preflight until real project evidence is bound.
+Synthetic opt-out decisions were moved to test-only fixtures and are not shipped.
+An opt-out is only a separately requested Owner scope change, never a workaround
+for missing UI Bowl access, a continuation or this repair authorization.
 Keep all original executable/evidence pins available for historical verification;
 compatibility does not waive a missing old adapter file or physical identity.
 `design provenance` is a separate derived report, not a mutation of signed state

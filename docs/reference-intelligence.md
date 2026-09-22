@@ -2,7 +2,8 @@
 
 `killsloprouter reference` turns an approved service-planning frame and
 curated released-product references into a small, reviewable design-grammar
-pack. It is an optional stage before design exploration. It does not generate
+pack. A ready UI Bowl pack is required by default before new visual exploration;
+run this stage when the project does not already have one. It does not generate
 UI, choose visual authority, or replace the exact-three 3×3 workflow.
 
 The intended roles are:
@@ -311,7 +312,7 @@ and lists `capture_evidence_ids`, `uncovered_reference_ids`, and
 requires `revalidate_on_design_start: true`; editing the status cannot create
 readiness. To bind a ready pack to design exploration, add its path/file digest,
 the exact completed producer-state path/file digest, and the explicit
-internal-critic source-access contract as the optional `reference_pack` in the
+internal-critic source-access contract as `reference_pack` in the
 design brief:
 
 ```json

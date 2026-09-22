@@ -22,8 +22,11 @@ Do not fall back to an ordinary design run while claiming reference delivery.
 
 ## Resolve source intent before creation
 
-For new visual exploration, propose reference-first from the actual product
-brief before asking for a style, direction or palette. A missing `reference_pack`
+For new visual exploration, **UI Bowl references are required by default**.
+Propose actual task-fit references from the product brief before asking for a
+style, direction or palette. The public starter declares required intent and
+deliberately has no pack or Owner waiver: it is NOT_EXECUTABLE until real evidence
+is bound. A missing `reference_pack`
 is **unresolved**, not permission to generate without references. New `design
 run`, its dry-run, unfinished resume and packet dispatch stop with exit 5 until
 there is either a verified ready pack or an explicit scoped Owner opt-out.
@@ -31,15 +34,21 @@ No creator is spawned and no historical design state is rewritten at this stop.
 Otherwise-valid historical status/provenance remain read-only and distinguish `reference-bound`,
 `owner-opt-out` and `unresolved-historical` intent.
 
-This is not a universal UI Bowl dependency: a scoped Owner opt-out is a distinct
-supported path. The current reference-pack provider is UI Bowl; arbitrary URLs
+This requirement covers new visual exploration, not every KSR operation.
+The current reference-pack provider is UI Bowl; arbitrary URLs
 or another provider do not bypass that contract. Approved-style bounded bug fixes continue through
 the integrated audit/redesign route without unrelated research or new matrices.
 An explicit UI Bowl request must use the required-reference contract below; do
 not treat a generic “진행해”, continuation after compaction, “latest KSR”, a
-browser pass, or an old no-reference run as a change of that request.
+browser pass, or an old no-reference run as a change of that request. A correction
+such as “UI Bowl 레퍼런스를 필수로 두라고 안했어?” reinforces required intent.
+Missing login, captures, coverage or adapter support is a stop, not a reason to
+offer no-reference generation. Keep authorized planning and source preparation
+moving without creating a visual candidate or fabricating a selection.
 
-If the actual Owner chooses **no reference-derived design** for this scope,
+### Separate Owner scope changes, not a missing-source workaround
+
+Only if the actual Owner separately chooses **no reference-derived design** for a new scope,
 record that real decision outside the child-writable `.design/` directory using
 [`design-reference-opt-out.schema.json`](../schemas/design-reference-opt-out.schema.json):
 version 1, matching `project_id`, `surface`, `screen_id`, `owner_id`,
@@ -72,13 +81,15 @@ The decision path is relative to the **brief's directory**, not `--root`.
 active brief. New opted-out packets bind the decision digest and explicitly state
 `source_derived_craft: false`. They keep the exact-three matrices, independent
 critics, browser proof, Owner shortlist, palette and final approval gates.
-The packaged example decision is synthetic teaching/test material, not a
-decision for any real project; copying it does not create Owner authority.
+Synthetic exception decisions are test-only and excluded from the package.
+Do not manufacture an exception from a repair authorization, required-reference
+correction or continuation. The current required-reference journey remains
+blocked until its genuine sources are ready.
 
 ## Make an explicit reference request durable
 
-When the Owner requests UI Bowl / released-product reference-derived design,
-record the requirement in a **new** design brief:
+For a new visual exploration, record the default UI Bowl requirement in a
+**new** design brief, even if the Owner does not repeat the source name:
 
 ```json
 {
@@ -126,8 +137,8 @@ source assets, copy or pixels. This is not permission to clone a released UI.
 
 The plugin should bring the reference choices to the Owner, not require the
 Owner to discover a research command. For a new visual direction, explain the
-reference-first option from the actual product brief. An explicit UI Bowl
-request makes that requirement durable as above; it does not grant source
+reference-first path from the actual product brief. Bind the required intent as
+above; it does not grant source
 access, pick a design, or authorize a copy. An approved-style bug fix does not
 need unrelated reference research. An existing no-reference run stays historical.
 

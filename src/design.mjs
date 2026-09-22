@@ -888,7 +888,7 @@ function resolveReferencePack(brief, root) {
 // new creation/continuation needs a bound pack or a separately recorded opt-out.
 function assertResolvedReferenceIntent(brief) {
   requireValue(brief.reference_pack || brief.reference_opt_out,
-    "design reference intent is unresolved: propose reference-first before visual choice; bind a verified reference_pack or an actual Owner no-reference decision in a new brief. Preserve historical runs and start a successor; a continuation, latest KSR, or browser pass is not an opt-out", 5);
+    "design reference intent is unresolved: UI Bowl is required by default for new visual exploration; propose reference-first and bind a verified reference_pack before visual choice. Preserve historical runs and start a successor. Only a separate explicit Owner scope change can authorize no-reference work; continuation, latest KSR, missing access, or a browser pass cannot", 5);
 }
 
 function resolveReferenceOptOut(brief, briefPath) {
@@ -4984,7 +4984,7 @@ export function designReferenceDelivery(state) {
       ? "Show the selected source links and intended concrete component transfers; independently verify the rendered specimen before Owner choice."
       : state.reference_opt_out_source
         ? "Proceed only within the recorded no-reference scope. Do not claim source-derived craft or waive independent review/browser/Owner stops."
-        : "Preserve this historical ledger. Propose reference-first; start a successor with a ready pack or a genuine scoped Owner no-reference decision before any further dispatch.",
+        : "Preserve this historical ledger. UI Bowl is required by default: propose reference-first and start a successor with a ready pack before further dispatch. Missing access is a stop, not permission to substitute no-reference work.",
     pack_digest: pack?.pack_digest || null,
     required_recipe_families: [...(state.brief.reference_requirement?.required_recipe_families || [])],
     selected_recipe_families: [...new Set((pack?.normalized.verified_grammar || [])

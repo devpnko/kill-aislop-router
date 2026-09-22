@@ -34,10 +34,12 @@ The first pass reads the project contract and existing evidence. It may bootstra
 
 ## Read the result
 
-For UI Bowl or reference-derived design, use the
+For new visual exploration, UI Bowl references are required by default. Use the
 [reference delivery checks](reference-delivery.md) first. The exact installed
 CLI must expose reference/component capabilities, and the project must bind a
 verified pack. Ask for `design provenance` alongside candidate previews.
+Missing access or evidence is a stop, not a generic-design fallback. This does
+not impose unrelated reference research on an approved-style bounded bug fix.
 `not_bound` means no reference was delivered, even if browser tests pass.
 Before a new visual direction is chosen, the plugin presents actual UI Bowl
 links, fit and component/hierarchy transfers through `reference choices`.

@@ -36,6 +36,7 @@ import { resolveVisualIntent, resolveVisualSignature } from "../src/router.mjs";
 import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { designScenarios } from "./fixtures/design-browser-contract.mjs";
 import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
+import { fixtureOptOutPath, noReferenceFixtureBrief } from "./fixtures/design-no-reference.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -46,7 +47,7 @@ const fixture = path.join(root, "test", "fixtures", "design-host-adapter.mjs");
 const referenceFixture = path.join(root, "test", "fixtures", "reference-host-adapter.mjs");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
 const CHECKPOINT_CHILD_TIMEOUT_MS = 500;
-const exampleBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "design-brief.example.json"), "utf8"));
+const exampleBrief = noReferenceFixtureBrief();
 // These tests exercise provenance/authority and the exact-three lifecycle, not
 // a repeated six-state browser benchmark for every independent tamper variant.
 // The dedicated Playwright E2E covers the complete six-state/two-locale matrix.
@@ -92,7 +93,7 @@ function workspace() {
   fs.mkdirSync(baseline, { recursive: true });
   fs.writeFileSync(path.join(baseline, "app.html"), "<!doctype html><main>existing operator UI</main>\n");
   const briefPath = path.join(directory, "design-brief.json");
-  fs.copyFileSync(path.join(root, "examples/design-reference-opt-out.example.json"),
+  fs.copyFileSync(fixtureOptOutPath,
     path.join(directory, "design-reference-opt-out.example.json"));
   fs.writeFileSync(briefPath, `${JSON.stringify(fixtureBrief, null, 2)}\n`);
   const statePath = path.join(baseline, ".killsloprouter", "design-run.json");
