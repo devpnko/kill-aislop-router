@@ -18,6 +18,7 @@ import {
   resolvePlaywrightRuntimeRoot
 } from "../src/playwright.mjs";
 import { createJourneyIdentity, createParticipant } from "../src/identity.mjs";
+import { designScenarios, designPrototype } from "./fixtures/design-browser-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "bin", "killsloprouter.mjs");
@@ -868,17 +869,20 @@ test("Playwright scenario identity and manifest-relative paths remain bound acro
     fs.copyFileSync(paths.scenarios, sameBytes);
     fs.renameSync(paths.scenarios, displaced);
     fs.symlinkSync(sameBytes, paths.scenarios);
-    const symlinked = executeAuditPacket({
+    const symlinkedOutput = path.join(directory, "symlinked-scenario-output");
+    assert.throws(() => executeAuditPacket({
       run,
       packet,
       manifest,
-      outputDirectory: path.join(directory, "symlinked-scenario-output"),
+      outputDirectory: symlinkedOutput,
       outputGrantRoot: directory
+    }), (error) => {
+      assert.equal(error.exitCode, 4);
+      assert.match(error.message, /Playwright scenario file.*symlink/);
+      return true;
     });
-    assert.equal(symlinked.execution_status, "blocked_execution_error");
-    assert.match(symlinked.error, /Playwright scenario file.*symlink/);
-    assert.equal(symlinked.child_pid, null,
-      "a substituted scenario path must fail before the browser child starts");
+    assert.equal(fs.existsSync(symlinkedOutput), false,
+      "a substituted scenario path must fail before browser output or child creation");
     fs.rmSync(paths.scenarios);
     fs.renameSync(displaced, paths.scenarios);
     fs.rmSync(sameBytes);
@@ -1018,11 +1022,20 @@ for (const authorityKind of ["scenario-file", "baseline-directory"]) {
 }
 
 test("official Playwright adapter verifies a digest-bound static design prototype", {
-  timeout: 60_000
+  timeout: 180_000
 }, () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-playwright-design-"));
   try {
+    const designStates = ["default", "selected", "loading", "empty", "error", "permission-denied"];
+    const scenarios = designScenarios(designStates);
     const paths = bootstrapProject(directory);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios
+    });
+    const configuredProfile = readJson(paths.profile);
+    configuredProfile.evidence.required_scenarios = scenarios.map((item) => item.id);
+    writeJson(paths.profile, configuredProfile);
     configurePlaywright({
       profilePath: paths.profile,
       hostManifestPath: paths.host,
@@ -1030,14 +1043,7 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
       browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome"
     });
     const prototype = path.join(directory, "candidate.html");
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Design candidate</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
-<body><main data-killsloprouter-locale="en-US">
-<p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype({ states: designStates }));
     const capabilities = [
       "responsive-evidence", "keyboard-evidence", "state-evidence", "overflow-evidence",
       "contrast-evidence", "zoom-evidence"
@@ -1071,7 +1077,7 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
         prototype_paths: [prototype],
         prototypes: [{ path: prototype, digest: hashArtifact(prototype) }],
         locales: ["en-US", "ko-KR"],
-        required_states: ["default", "error"]
+        required_states: designStates
       },
       packet_digest: `sha256:${"1".repeat(64)}`
     };
@@ -1106,19 +1112,22 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     assert.equal(result.result.browser_engine, "playwright");
     assert.ok(Object.values(result.result.checks).every(Boolean));
     assert.deepEqual(new Set(result.result.locales_tested), new Set(["en-US", "ko-KR"]));
-    assert.deepEqual(new Set(result.result.states_tested), new Set(["default", "error"]));
+    assert.deepEqual(new Set(result.result.states_tested), new Set(designStates));
+    const proof = readJson(result.result.evidence.find((item) => item.kind === "test-report").path);
+    assert.equal(proof.design_playwright_report_version, 2);
+    assert.equal(proof.executions.length, 24);
+    assert.ok(proof.executions.every((item) => item.outcome === "passed"));
+    assert.equal(result.result.evidence.filter((item) => item.kind === "trace").length, 24);
     assert.deepEqual(
       new Set(result.result.evidence.filter((item) => item.kind === "screenshot").map((item) => item.viewport)),
       new Set(["mobile", "desktop"])
     );
 
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Layout defect</title>
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}h2{width:100px;white-space:nowrap;overflow:hidden}</style></head>
-<body><main data-killsloprouter-locale="en-US"><p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button><h2>Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype({
+      states: designStates,
+      extraCss: '.collision{display:grid;grid-template-columns:100px 100px}.collision span:first-child{width:150px}.clipped{width:100px;white-space:nowrap;overflow:hidden}',
+      extra: '<h2 class="clipped">Required unclipped heading</h2><div class="collision"><span>First</span><span>Second</span></div>'
+    }));
     const layoutPacket = structuredClone(packet);
     layoutPacket.packet_id = "browser-design-layout-defect";
     layoutPacket.run_id = "official-design-browser-layout-run";
@@ -1151,15 +1160,9 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     assert.ok(layoutBlockedReport.executions.every((execution) => execution.overflow.clipped_text.length > 0));
 
     fs.writeFileSync(path.join(directory, "unbound.css"), "body { background: hotpink; }\n");
-    fs.writeFileSync(prototype, `<!doctype html>
-<html lang="en-US"><head><meta charset="utf-8"><title>Unbound resource</title>
-<link rel="stylesheet" href="./unbound.css">
-<style>body{margin:0;color:#0f172a;background:#fff;font:16px sans-serif}main{padding:24px}button{color:#fff;background:#1d4ed8;border:2px solid #1d4ed8;padding:12px}</style></head>
-<body><main data-killsloprouter-locale="en-US">
-<p data-killsloprouter-locale="ko-KR">검토 대기</p>
-<section data-killsloprouter-state="default"><button type="button">Review exception</button></section>
-<section data-killsloprouter-state="error" role="alert">A recoverable error</section>
-</main></body></html>\n`);
+    fs.writeFileSync(prototype, designPrototype({
+      states: designStates, extraHead: '<link rel="stylesheet" href="./unbound.css">'
+    }));
     const blockedPacket = structuredClone(packet);
     blockedPacket.packet_id = "browser-design-unbound-resource";
     blockedPacket.run_id = "official-design-browser-block-run";
@@ -1175,7 +1178,8 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
         ...run,
         run_id: blockedPacket.run_id,
         journey_identity: blockedPacket.journey_identity,
-        packets: [blockedPacket]
+        packets: [blockedPacket],
+        artifacts: [snapshotArtifact(prototype, { root: directory })]
       },
       packet: blockedPacket,
       manifest,
@@ -1188,6 +1192,94 @@ test("official Playwright adapter verifies a digest-bound static design prototyp
     const blockedReport = readJson(blockedReportPath);
     assert.ok(blockedReport.executions.every((execution) =>
       execution.blocked_requests.some((item) => item.url.endsWith("/unbound.css"))));
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official design child rejects hidden states/locales, no-op actions, and intercepted mobile clicks", {
+  timeout: 180_000
+}, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-design-proof-regression-"));
+  try {
+    const scenarios = designScenarios();
+    const paths = bootstrapProject(directory, scenarios.map((item) => item.id));
+    writeJson(paths.scenarios, { playwright_scenario_version: 1, scenarios });
+    configurePlaywright({ profilePath: paths.profile, hostManifestPath: paths.host,
+      baseUrl: "http://127.0.0.1:4173", browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome" });
+    const host = readJson(paths.host);
+    host.providers["browser-evidence"].settings.navigation_timeout_ms = 1000;
+    host.providers["browser-evidence"].settings.color_schemes = ["light", "dark"];
+    writeJson(paths.host, host);
+    const manifest = loadHostManifest(paths.host);
+    const prototype = path.join(directory, "prototype.html");
+    const packet = {
+      design_packet_version: 1, packet_id: "design-state-proof", stage_id: "browser-evidence",
+      run_id: "design-state-proof", journey_identity: createJourneyIdentity({
+        runId: "design-state-proof", routerVersion: "1.0.0"
+      }),
+      participant: createParticipant({ providerId: "browser-evidence", stageId: "browser-evidence",
+        designTaskKind: "browser-evidence" }),
+      provider: { id: "browser-evidence" }, minimum_strength: 3,
+      assigned_capabilities: ["responsive-evidence", "keyboard-evidence", "state-evidence",
+        "overflow-evidence", "contrast-evidence", "zoom-evidence"],
+      required_permissions: ["artifact:read", "evidence:write", "browser:control"],
+      evidence_contract: { required_viewports: ["mobile", "desktop"], required_checks: [
+        "keyboard", "state", "overflow", "contrast", "zoom-200", "aria-semantics", "console", "network"
+      ] },
+      design_task: { kind: "browser-evidence", subject_kind: "direction-candidate",
+        subject_id: "candidate", subject_result_digest: `sha256:${"3".repeat(64)}`,
+        prototypes: [{ path: prototype, digest: `sha256:${"2".repeat(64)}` }],
+        locales: ["en-US", "ko-KR"], required_states: ["default", "error"] }
+    };
+    sealPacket(packet);
+    const missing = structuredClone(packet);
+    missing.design_task.required_states.push("permission-denied");
+    sealPacket(missing);
+    const pending = inspectPacketAdapter(missing, manifest);
+    assert.equal(pending.execution_status, "manual_pending");
+    assert.match(pending.reason, /permission-denied/);
+    assert.equal(pending.child_pid, undefined);
+
+    const cases = [
+      { name: "no-op-error", options: { brokenState: "error" },
+        failed: (e) => e.state === "error" },
+      { name: "hidden-korean-marker", options: { brokenLocale: "ko-KR",
+        extra: '<p hidden data-killsloprouter-locale="ko-KR">숨겨진 한국어</p>' },
+        failed: (e) => e.locale === "ko-KR" },
+      { name: "already-visible-states", options: { allStatesVisible: true },
+        failed: (e) => e.state === "error" },
+      { name: "mobile-pointer-interception", options: {
+        extra: '<div class="interceptor" aria-hidden="true"></div>',
+        extraCss: '@media(max-width:500px){.interceptor{position:fixed;inset:0;z-index:9999}}'
+      }, failed: (e) => e.viewport === "mobile" }
+    ];
+    for (const item of cases) await t.test(item.name, () => {
+      fs.writeFileSync(prototype, designPrototype(item.options));
+      packet.design_task.prototypes[0].digest = hashArtifact(prototype);
+      sealPacket(packet);
+      const result = executeAuditPacket({
+        run: { run_id: packet.run_id, journey_identity: packet.journey_identity, packets: [packet],
+          creator: { provider_id: "fixture-creator", actor_id: "fixture-creator" },
+          scope: { kind: "design-exploration" }, artifacts: [snapshotArtifact(prototype, { root: directory })],
+          results: [] },
+        packet, manifest, outputDirectory: path.join(directory, item.name)
+      });
+      assert.equal(result.execution_status, "ran", result.error);
+      assert.notEqual(result.child_pid, process.pid);
+      assert.equal(result.result.checks.state, false);
+      const report = readJson(result.result.evidence.find((entry) => entry.kind === "test-report").path);
+      assert.equal(report.executions.length, 16);
+      for (const execution of report.executions) {
+        assert.equal(execution.checks.state, !item.failed(execution), JSON.stringify(execution));
+        assert.ok(execution.trace_digest);
+      }
+      if (item.name === "mobile-pointer-interception") {
+        const mobile = report.executions.filter((entry) => entry.viewport === "mobile");
+        assert.ok(mobile.every((entry) => entry.actions.some((action) => action.status === "failed")));
+        assert.ok(mobile.every((entry) => entry.assertions.every((assertion) => assertion.status === "skipped")));
+      }
+    });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -1224,6 +1316,178 @@ test("served artifact attestation mismatch fails closed across the child boundar
     assert.equal(result.execution_status, "blocked_execution_error");
     assert.equal(result.exit_code, 4);
     assert.match(result.error, /served artifact attestation does not match/);
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official Playwright keyboard proof traverses shadow focus without aliasing controls or hiding traps", {
+  timeout: 90_000
+}, async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-shadow-keyboard-"));
+  let server = null;
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    fs.writeFileSync(artifact, "<!doctype html><p>synthetic shadow keyboard artifact</p>\n");
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startServer(artifactDigests);
+    const visibilityScenarios = ["body", "host"].flatMap((ancestor) => [false, true].map((trap) => ({
+      id: `visible-${ancestor}-${trap ? "trap" : "reachable"}`,
+      path: `/keyboard-visible-${ancestor}${trap ? "-trap" : ""}`,
+      actions: [], assertions: [{ type: "visible", locator: "#first" }, { type: "visible", locator: "#second" }]
+    })));
+    const paths = bootstrapProject(directory, ["shadow-reachable", "shadow-trap", ...visibilityScenarios.map((entry) => entry.id)]);
+    writeJson(paths.scenarios, {
+      playwright_scenario_version: 1,
+      scenarios: [
+        { id: "shadow-reachable", path: "/keyboard-shadow" },
+        { id: "shadow-trap", path: "/keyboard-shadow-trap" }
+      ].map((scenario) => ({ ...scenario, actions: [{ type: "click", locator: "#nested #deep-action" }], assertions: [
+        { type: "visible", locator: "#component-b #shared-action" },
+        { type: "text", locator: "#nested #deep-action", value: "Nested selected" },
+        { type: "visible", locator: "#slotted-action" }
+      ] })).concat(visibilityScenarios)
+    });
+    configurePlaywright({
+      profilePath: paths.profile, hostManifestPath: paths.host, baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome",
+      scenarioPath: paths.scenarios, baselineDirectory: paths.baselines
+    });
+    const profile = readJson(paths.profile);
+    const manifest = loadHostManifest(paths.host);
+    const packet = makePacket(profile, artifactDigests);
+    const output = path.join(directory, "evidence");
+    const executed = executeAuditPacket({
+      run: makeRun(directory, artifact, packet), packet, manifest, attempt: 1, outputDirectory: output
+    });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    assert.notEqual(executed.child_pid, process.pid);
+    const report = readJson(path.join(output, "browser-report.json"));
+    const reachable = report.executions.filter((entry) => entry.scenario === "shadow-reachable");
+    const trapped = report.executions.filter((entry) => entry.scenario === "shadow-trap");
+    assert.equal(reachable.length, 3);
+    assert.equal(trapped.length, 3);
+    for (const entry of reachable) {
+      assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+      assert.equal(entry.keyboard.focusable_count, 7, "light, two hosts, nested, two anonymous and slotted controls");
+      const keys = new Set(entry.keyboard.visited.map((item) => item.key));
+      for (const key of ["#shared-action", "#component-a >>> #shared-action", "#component-b >>> #shared-action",
+        "#nested >>> #inner-host >>> #deep-action", "#anonymous >>> button:nth-of-type(1)",
+        "#anonymous >>> button:nth-of-type(2)", "#slotted-action"]) assert.ok(keys.has(key), key);
+      assert.ok(entry.actions.every((action) => action.status === "passed"));
+      assert.ok(![...keys].some((key) => key.includes("#inert-host") || key.includes("#closed-host")));
+      assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"));
+    }
+    for (const entry of trapped) {
+      assert.ok(entry.keyboard.visited.some((item) => item.key === "#component-a >>> #shared-action"));
+      assert.ok(entry.keyboard.unreached.some((item) => item.key === "#component-b >>> #shared-action"),
+        "a same-ID visited control in a different root cannot hide a real keyboard trap");
+    }
+    for (const scenario of visibilityScenarios) {
+      const executions = report.executions.filter((entry) => entry.scenario === scenario.id);
+      assert.equal(executions.length, 3);
+      for (const entry of executions) {
+        const inHost = scenario.id.includes("-host-");
+        const prefix = inHost ? "#visibility-host >>> " : "";
+        assert.equal(entry.keyboard.focusable_count, inHost ? 3 : 2,
+          `${entry.id}: visibility:visible restores descendants of a visibility:hidden ancestor`);
+        assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"));
+        assert.ok(!entry.keyboard.visited.some((item) => item.key.includes("inherited-hidden")));
+        if (scenario.id.endsWith("-trap")) {
+          assert.ok(entry.keyboard.visited.some((item) => item.key === `${prefix}#first`));
+          assert.ok(entry.keyboard.unreached.some((item) => item.key === `${prefix}#second`),
+            "a visible pre-host control must not turn a trapped shadow subtree into a pass");
+        } else assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+      }
+    }
+    const keyboardFindings = executed.result.findings.filter((finding) => finding.category === "keyboard");
+    assert.equal(keyboardFindings.length, 9);
+    assert.ok(keyboardFindings.every((finding) => finding.claim.includes("trap")));
+    assert.equal(executed.result.verdict, "block");
+    assert.ok(executed.result.findings.some((finding) => finding.category === "visual-regression"),
+      "keyboard correctness must not waive unapproved pixel baselines");
+  } finally {
+    if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("official Playwright sequential focus scopes native modals and radio groups without hiding traps", {
+  timeout: 180_000
+}, async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-tab-scope-"));
+  let server = null;
+  try {
+    const artifact = path.join(directory, "artifact.html");
+    fs.writeFileSync(artifact, "<!doctype html><p>Synthetic sequential focus scope artifact</p>\n");
+    const snapshot = snapshotArtifact(artifact, { root: directory });
+    const artifactDigests = { [snapshot.path]: snapshot.digest };
+    server = await startServer(artifactDigests);
+    const modes = ["modal", "modal-trap", "modal-shadow", "modal-stack", "modal-inert-ancestor",
+      "modeless", "aria-modal", "radio-checked", "radio-unchecked", "radio-unchecked-trap", "radio-trap", "radio-groups"];
+    const paths = bootstrapProject(directory, modes);
+    writeJson(paths.scenarios, { playwright_scenario_version: 1, scenarios: modes.map((id) => ({
+      id, path: `/keyboard-tab-scope/${id}`,
+      actions: [{ type: "click", locator: "#last" }],
+      assertions: [{ type: "visible", locator: "#last" }, { type: "visible", locator: "h1" }]
+    })) });
+    configurePlaywright({ profilePath: paths.profile, hostManifestPath: paths.host, baseUrl: server.url,
+      browserChannel: process.env.KSR_PLAYWRIGHT_CHANNEL || "chrome", scenarioPath: paths.scenarios,
+      baselineDirectory: paths.baselines });
+    const packet = makePacket(readJson(paths.profile), artifactDigests);
+    const output = path.join(directory, "evidence");
+    const executed = executeAuditPacket({ run: makeRun(directory, artifact, packet), packet,
+      manifest: loadHostManifest(paths.host), outputDirectory: output });
+    assert.equal(executed.execution_status, "ran", executed.error);
+    assert.notEqual(executed.child_pid, process.pid);
+    const report = readJson(path.join(output, "browser-report.json"));
+    assert.equal(report.executions.length, modes.length * 3);
+    for (const mode of modes) await t.test(mode, () => {
+      const executions = report.executions.filter((entry) => entry.scenario === mode);
+      assert.equal(executions.length, 3);
+      for (const entry of executions) {
+        assert.ok(entry.actions.every((action) => action.status === "passed"), entry.id);
+        assert.ok(entry.assertions.every((assertion) => assertion.status === "passed"), entry.id);
+        const visited = new Set(entry.keyboard.visited.map((item) => item.key));
+        if (mode.startsWith("radio-unchecked")) {
+          assert.deepEqual(entry.keyboard.sequential_targets.find((item) => item.key === "#choice-a"), {
+            key: "#choice-a", alternative_keys: ["#choice-b", "#choice-c"]
+          }, entry.id);
+        }
+        if (mode.endsWith("-trap")) {
+          const requiredRadio = mode === "radio-unchecked-trap" ? "#choice-a" : "#choice-b";
+          assert.ok(entry.keyboard.unreached.some((item) => item.key === requiredRadio), entry.id);
+          continue;
+        }
+        assert.deepEqual(entry.keyboard.unreached, [], entry.id);
+        if (mode.startsWith("modal")) {
+          assert.equal(entry.keyboard.focusable_count, 3, entry.id);
+          assert.ok(!visited.has("#outside") && !visited.has("#lower-action"), entry.id);
+          const prefix = mode === "modal-shadow" ? "#holder >>> " : "";
+          for (const id of ["first", "choice-b", "last"]) assert.ok(visited.has(`${prefix}#${id}`), entry.id);
+        } else if (mode === "modeless" || mode === "aria-modal") {
+          assert.equal(entry.keyboard.focusable_count, 4, entry.id);
+          assert.ok(visited.has("#outside"), "open/ARIA-only dialogs cannot hide outside targets");
+        } else if (mode === "radio-groups") {
+          const expected = ["#outside", "#before", "#last", "#form-a-b", "#form-b-b", "#upper-b", "#lower-b",
+            "#unnamed-a", "#unnamed-b", "#root-a >>> #shadow-b", "#root-b >>> #shadow-b",
+            "#legend-action", "#custom-a", "#custom-b"];
+          assert.equal(entry.keyboard.focusable_count, expected.length, entry.id);
+          for (const key of expected) assert.ok(visited.has(key), `${entry.id}: ${key}`);
+        } else {
+          assert.equal(entry.keyboard.focusable_count, 4, entry.id);
+          assert.ok(["#choice-a", "#choice-b", "#choice-c"].some((key) => visited.has(key)), entry.id);
+        }
+      }
+    });
+    const keyboardFindings = executed.result.findings.filter((finding) => finding.category === "keyboard");
+    assert.equal(keyboardFindings.length, 9, "only three actual trap scenarios across three widths");
+    assert.ok(keyboardFindings.every((finding) => finding.claim.includes("trap")));
+    assert.equal(executed.result.verdict, "block");
+    assert.ok(executed.result.findings.some((finding) => finding.category === "visual-regression"),
+      "correct sequential inventory does not approve missing screenshot baselines");
   } finally {
     if (server?.child && !server.child.killed) server.child.kill("SIGTERM");
     fs.rmSync(directory, { recursive: true, force: true });

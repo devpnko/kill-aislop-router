@@ -7,6 +7,7 @@ import {
   readJsonPinned,
   snapshotArtifact
 } from "./integrity.mjs";
+import { isReservedParentIdentityAlias } from "./parent-identity.mjs";
 
 const VALID_PHASES = new Set(["phase_1", "phase_2"]);
 const VALID_GATE_STATUSES = new Set([
@@ -726,6 +727,9 @@ function verifyLineageOwnerApproval(approval, lineage) {
     errors.push("G7 owner-approval evidence is not an explicit approved owner decision");
   }
   requiredString(approval.owner_id, "G7 owner-approval evidence.owner_id", errors);
+  if (isReservedParentIdentityAlias(approval.owner_id)) {
+    errors.push("G7 owner-approval evidence.owner_id cannot use the KillSlopRouter parent identity");
+  }
   requiredString(approval.lineage_id, "G7 owner-approval evidence.lineage_id", errors);
   if (!DIGEST_PATTERN.test(approval.baseline_lineage_digest || "")) {
     errors.push("G7 owner-approval evidence.baseline_lineage_digest must be a sha256 digest");
@@ -892,6 +896,8 @@ function verifyRequiredGate(
           const ownerId = approval.owner_id || approval.owner_approval?.owner_id;
           if (approval.status !== "approved" || !ownerId) {
             errors.push(`${requirement.gate} owner-approval evidence is not an explicit approved owner decision`);
+          } else if (isReservedParentIdentityAlias(ownerId)) {
+            errors.push(`${requirement.gate} owner-approval evidence.owner_id cannot use the KillSlopRouter parent identity`);
           }
         } catch (error) {
           errors.push(

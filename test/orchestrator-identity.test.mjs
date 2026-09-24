@@ -6,13 +6,18 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  assertInternalIdentityIsNotOrchestrator,
   assertJourneyPresentation,
+  canonicalIdentityKey,
+  containsReservedParentInvocation,
   createJourneyIdentity,
   createParticipant,
   identitiesMatch,
+  isOrchestratorIdentityAlias,
   presentationViolations,
   resolveJourneyPresentation,
-  verifyJourneyIdentity
+  verifyJourneyIdentity,
+  verifyParticipant
 } from "../src/identity.mjs";
 import {
   createPluginInstallMarker,
@@ -106,6 +111,69 @@ test("identity digest and internal participant metadata fail closed on tamper", 
     visibility: "internal",
     orchestrator_id: "kill-slop-router"
   });
+});
+
+test("parent identity aliases cannot become internal providers or result actors", () => {
+  const aliases = [
+    "kill-slop-router",
+    "kill slop router",
+    "kill_slop_router",
+    "KillSlopRouter",
+    " killsloprouter ",
+    "killsloprouter:kill-slop-router",
+    "killsloprouter:kill_slop_router",
+    "킬슬롭라우터",
+    "킬 슬롭 라우터",
+    "킬_슬롭_라우터",
+    "ＫｉｌｌＳｌｏｐＲｏｕｔｅｒ"
+  ];
+  const packetRoles = [
+    { stageId: "reference-discovery", role: "researcher" },
+    { stageId: "reference-review", role: "critic" },
+    { stageId: "design-direction-generation", designTaskKind: "direction-candidate" },
+    { stageId: "design-direction-review", designTaskKind: "direction-review" },
+    { stageId: "browser-evidence", designTaskKind: "browser-evidence" }
+  ];
+  for (const alias of aliases) {
+    assert.equal(isOrchestratorIdentityAlias(alias), true, alias);
+    assert.equal(containsReservedParentInvocation(`${alias}를 실행해`), true, alias);
+    assert.throws(() => assertInternalIdentityIsNotOrchestrator(alias, {
+      label: "result actor.actor_id"
+    }), /cannot use the KillSlopRouter parent identity/);
+    for (const role of packetRoles) {
+      assert.throws(() => createParticipant({ providerId: alias, ...role }),
+        /cannot use the KillSlopRouter parent identity/);
+    }
+  }
+
+  const forged = {
+    participant_version: 1,
+    provider_id: "KillSlopRouter",
+    role: "critic",
+    visibility: "internal",
+    orchestrator_id: "kill-slop-router"
+  };
+  assert.throws(() => verifyParticipant(forged, {
+    providerId: "KillSlopRouter",
+    role: "critic"
+  }), /cannot use the KillSlopRouter parent identity/);
+
+  for (const distinct of [
+    "anti-slop",
+    "kill-ai-slop-router",
+    "kill-slop-router-independent-critic",
+    "my-killsloprouter-reviewer",
+    "pre킬슬롭라우터post",
+    "킬슬롭"
+  ]) {
+    assert.equal(isOrchestratorIdentityAlias(distinct), false, distinct);
+    assert.equal(containsReservedParentInvocation(distinct), false, distinct);
+    assert.doesNotThrow(() => createParticipant({ providerId: distinct, role: "critic" }));
+  }
+  assert.equal(canonicalIdentityKey(" ＣＲＩＴＩＣ：ＲＥＦＥＲＥＮＣＥ－ＩＮＤＥＰＥＮＤＥＮＴ "),
+    "critic:reference-independent");
+  assert.equal(resolveJourneyPresentation({ utterance: "$antislop" }).active_workflow,
+    "antislop (standalone)");
 });
 
 test("installer detects duplicate entries and performs only explicit backup-bound shim migration", () => {

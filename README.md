@@ -1,5 +1,34 @@
 # KillSlopRouter
 
+For UI Bowl/reference-derived design, verify the exact installed bundle and
+bind the reference before creation. A Git push or browser pass does not prove
+reference delivery. See [reference delivery and recovery](docs/reference-delivery.md)
+for `capabilities`, `reference choices`, `design run --require-reference`, and
+`design provenance`. Before settling a new visual direction, the plugin presents
+real UI Bowl source links, project fit and transferable component/hierarchy
+features for the Owner's choice. Selected sources remain visible at later design
+reviews; source pixels are not redistributed or passed to creators.
+
+Start source discovery from the [representative candidate catalog](docs/reference-catalog.md):
+30 historical product leads, 14 task families, source links, transfer limits and
+explicit coverage gaps. It is an offline research aid, not a ready project pack,
+an approved theme, or evidence that source craft reached a creator.
+
+For specific UI parts, search the [component research library](docs/reference-library.md):
+14 component analyses across 30 Korean-service frames, with source links,
+anatomy, visual craft, application limits and proposed target checks.
+
+```bash
+node bin/killsloprouter.mjs reference library --query '검색/탭'
+node bin/killsloprouter.mjs reference library --component briefing-card --details
+```
+
+The older [part-by-part application map](docs/reference-application-map.md) remains
+a separate eight-frame study. Neither is a ready project pack or Owner choice;
+source behavior and responsive reflow still need target validation. A Git push
+does not update the Mac plugin. Check the actual CLI's `capabilities --json` for
+`reference-research-library` before using the new command.
+
 KillSlopRouter selects independent anti-slop reviewers, executes explicitly
 authorized host adapters, and records the evidence needed to approve an exact
 artifact version. It keeps route planning, tool execution, scanner triage,
@@ -14,8 +43,10 @@ Every V1 journey carries a digest-bound `journey_identity` naming
 `anti-slop`, creators, scanners, and browser reviewers remain visible only as
 internal participant provenance; they never become the active mode.
 
-Version 1.0.0 is release-ready source. This repository does not publish an npm
-package or create a GitHub Release as part of the V1 work.
+The package retains version 1.0.0 for compatibility; a version number or passing
+contract tests do not certify complete design automation or aesthetic quality.
+Development branches require their own review and verification. This work does
+not publish an npm package or create a GitHub Release.
 
 ## What V1 does
 
@@ -40,6 +71,11 @@ package or create a GitHub Release as part of the V1 work.
 - Binds runtime redesign to a finalized pre-change audit executed by the official Playwright child adapter.
 - Resolves missing direction through a resumable 3-thesis × 3-depth exploration, owner shortlist, 3-strategy color matrix, and exact owner-approved receipts.
 
+Reference-backed design can opt into [fit-first reference selection](docs/reference-fit-first.md)
+when popularity counts are unavailable. Missing numbers stay explicitly unknown;
+they are never fabricated as zero. A referenced component does not select a
+source-brand theme or replace project visual authority.
+
 ## Requirements
 
 - Node.js 20 or 22
@@ -52,6 +88,20 @@ package or create a GitHub Release as part of the V1 work.
 does not implicitly download a browser.
 
 ## Quickstart
+
+For project use, start with the [project guide](docs/getting-started.md):
+install one reviewed plugin build, open the target repository in a new Codex
+thread, and invoke `$killsloprouter:kill-slop-router`. The CLI also prints this
+starting path when run with no arguments or `--help`. The setup and approval
+gates remain fail-closed; installation alone does not run a project audit.
+
+The [first-project checklist](docs/project-setup.md) explains initial authority,
+reviewer/Playwright setup, and what to retain before continuing in another
+conversation. `doctor` gives ordered setup actions; run output shows actual
+attempts and the next action without changing approval or receipt semantics.
+
+The commands below verify this source checkout rather than start a journey in
+another project.
 
 From a clean checkout:
 
@@ -76,7 +126,16 @@ isolated real child-process, Codex-host, design, and Playwright inventory;
 `npm run check` adds static contracts and the example doctor verification. CI
 runs all three layers on Node 20 and Node 22.
 
+The full E2E command retains two file workers and includes all eight deterministic
+design shards. The fast suite verifies their complete, non-overlapping inventory;
+no browser checks are dropped. For standalone design debugging,
+`node --test test/design.test.mjs` still runs the entire design suite.
+
 ## Codex plugin
+
+Multiple Codex accounts default to [one synchronized KSR version](docs/account-plugin-sync.md).
+The `plugin sync` toggle selects shared updates or account-managed activation;
+existing explicit OFF choices are preserved.
 
 Install the local Codex plugin once, then invoke the same bundled CLI from
 any project. The shortest install from the default branch is one command:
@@ -218,13 +277,119 @@ fixtures in `examples/planning-evidence/`.
 When those contracts are genuinely undecided, use design exploration instead
 of selecting a generic creator or guessing a style:
 
+New visual exploration requires UI Bowl references by default: show the actual
+source binding before creation. Missing access, evidence or source selection is
+a stop, not permission to generate a generic candidate. A separate genuine
+Owner scope change is the only no-reference exception; continuation is not one.
+Historical runs stay inspectable but unresolved unfinished
+creation needs a successor. See [the exact contract and recovery](docs/reference-delivery.md).
+Approved-style bounded bug fixes do not need unrelated reference research.
+
+If service planning is already authoritative but the team needs better design
+inputs first, run the reference-intelligence stage. It studies
+popular released-product patterns without turning popularity into visual
+authority:
+
+```bash
+cp examples/reference-brief.example.json .killsloprouter/reference-brief.json
+
+killsloprouter reference run \
+  --brief .killsloprouter/reference-brief.json \
+  --root "$PWD" \
+  --dry-run \
+  --json
+```
+
+The bundled `FlowDesk`, `MarketLine`, and `ProofGrid` records are synthetic
+schema and package-install fixtures. Their names, URLs, and popularity values
+are not claims about real UI Bowl records and must not be used as research
+evidence. Replace them with a caller-owned, rights-reviewed export before a
+real run. They intentionally contain only `source-metadata`: they can exercise
+a research-complete reference run, but the resulting pack reports reviewer
+source-capture readiness as `manual_pending` and is not design-ready.
+
+The brief binds service-planning, owner activation, UI Bowl query scope,
+reference-use rights, a schema-validated and digest-bound manual-export
+manifest (or separately authorized read-only network adapter), coverage, and
+three independent provider roles. Manual discovery may use only products,
+screens, frames, URIs, popularity records, and source-evidence files present in
+that exact manifest. KSR reads each evidence file from inside the manifest
+directory, validates its declared kind and content, and locks its bytes plus
+physical identity. Each evidence record stays closed over its product and
+screen record, enumerated frame IDs, and explicit product-or-screen subject;
+an observation must cite a bound frame, while a popularity signal must cite an
+evidence item carrying the same subject. KillSlopRouter ranks popularity
+strongly only inside the same product-fit band, admits only independently
+verified references with `copy_risk: low`, stops for a real owner to select one
+anchor plus supporting products, and emits a `discovery-evidence-only` grammar
+pack with no source image bytes or paths. A bundled, digest-bound reasoning
+registry forces each hierarchy principle to explain the target decision,
+likely constraint, flattening consequence, applicability, tradeoff, and
+harmful context. Product fit remains reproducible across six target axes;
+popularity values bind an explicit product-or-screen subject, configured
+scope/category, common normalization policy, and weight. A product-level
+signal repeated by several screens must remain one canonically identical claim
+or be declared conflicted; it cannot become extra popularity votes. The full
+audit pack retains source identities, links, verified text observations, and a path-free
+evidence digest manifest for provenance. Downstream creators receive only its
+aliased, source-identity-free causal reasoning and transferable grammar. Eleven
+fixed checks are stage-scoped: direction review applies ten and color review
+applies two, with `source-composition-independence` shared by both. Every
+applicable check binds explicit pass conditions, typed digest-bound evidence,
+and a hard-failure code. Sampling caps product/ecosystem dominance and requires
+task-fit, cross-domain, and competent-baseline evidence without turning
+popularity into a hard gate. Promotional screens remain weak evidence, and
+conflicted popularity cannot decide eligibility. Every completed pack records
+router-recomputed `reviewer_source_capture_readiness`: the exact capture IDs,
+uncovered selected references and verified observations, and mandatory
+design-start revalidation. Research may complete with
+`status: manual_pending`, but only `ready_at_compilation` with full
+reference/frame coverage may enter design exploration. Attach that ready pack
+to a reference-required design brief through its `reference_pack` field together with
+the exact producing state. A reference-backed brief must also explicitly bind
+`reference_pack.reviewer_source_access` version 1 in
+`digest-bound-internal-critic` mode. Its purposes are limited to
+`promotional-citation-firewall` and `source-composition-independence`, its only
+allowed evidence kind is `source-capture`, and redistribution, creator access,
+browser-provider access, and external network are all false. KSR exposes
+aliased captures plus their `capture_set_digest` only to an
+`independent-reviewer` packet with `reference-evidence:read`; actual paths exist
+only in that reviewer's run artifacts. Creator and browser packets forbid that
+permission and keep
+`source_pixels_exposed_to_downstream_creator: false`. The derived authority
+also binds sorted unique provider IDs from accepted results and every
+executable source-recipient attempt, including failures, plus actor IDs from
+accepted normalized results. Across the consuming
+design run, none may reappear as a direction/color creator or browser
+participant; an independent direction/color reviewer may overlap because that
+is the only source-privileged role. It additionally binds the canonical
+per-attempt `source_recipient_execution_lineage`, including provider
+adapter, declaration and immutable authority digests plus entrypoint content,
+physical-identity, and graph digests. Fully manual production records an empty
+attempt list instead of invented executable provenance. The final design decision retains the
+non-authoritative pack/producer-state,
+`review_source_capture_set_digest`, direction/color source-composition
+analysis digests, and selected-trace digest chain. It neither grants visual
+intent/signature authority nor changes the
+exact-three 3×3 design route. UI Bowl access defaults to manual export; no
+scraper or MCP is silently enabled.
+
+The bundled study is deliberately non-exhaustive: 24 products and 48 screens
+were sampled to improve the reasoning contract, not to copy or redistribute a
+catalog.
+See [Reference intelligence](docs/reference-intelligence.md).
+
 ```bash
 cp examples/design-brief.example.json .killsloprouter/design-brief.json
 
+# Edit the product/theses and bind a genuine completed UI Bowl reference_pack.
+# This required-reference starter deliberately blocks until that pack is ready;
+# it contains no Owner waiver, source selection or project approval.
 killsloprouter design run \
   --brief .killsloprouter/design-brief.json \
   --baseline . \
   --host-config .killsloprouter/host-adapters.json \
+  --require-reference \
   --dry-run \
   --json
 
@@ -232,12 +397,15 @@ killsloprouter design run \
   --brief .killsloprouter/design-brief.json \
   --baseline . \
   --host-config .killsloprouter/host-adapters.json \
+  --require-reference \
   --out .killsloprouter/design-direction.json \
   --json
 ```
 
-Edit the example first: its product evidence and theses are illustrative, not a
-style preset. The workflow compares three project-specific theses at `refine`,
+Edit the example first: its product evidence, theses and synthetic opt-out are
+illustrative, not a style preset or Owner authority. Its decision path is relative
+to the brief; copying only the brief does not make it executable. The workflow
+compares three project-specific theses at `refine`,
 `evolve`, and `reimagine` depth, requires separate Playwright evidence for all
 nine candidates, stops for an owner shortlist of three, then evaluates three
 declared color strategies for each shortlisted direction. It never treats
@@ -246,14 +414,29 @@ declared color strategies for each shortlisted direction. It never treats
 
 The bundled official Playwright adapter can inspect digest-bound,
 self-contained static HTML candidate prototypes as well as the final served
-application. Candidate HTML marks its demonstrated locales and states
-explicitly; unbound local and network resources are blocked. Exploration
+application. Each required state/locale needs a reviewed, digest-bound scenario;
+the browser executes it at every required viewport and configured color scheme.
+Hidden DOM markers, inert buttons, and root-only screenshots are not state proof.
+Each case records native actions, visible-state assertions, a screenshot, and a
+trace. Unbound local and network resources are blocked. Exploration
 captures do not bypass the final audit's served-artifact attestation or
 approved pixel baseline. Design receipts authorize direction, not domain,
 privacy, runtime, release approval, or a reusable design system; those remain
 hard gates in the integrated run. Implement the selected evidence with one
 explicit project creator. A build/redesign route still requires a separately
 approved design system or an explicit project surface creator.
+
+See [design-state browser setup and migration](docs/design-exploration.md#executed-state-proof)
+and the [remaining design-journey work](docs/design-journey-work.md). The default
+host is manual-only, and the bundled Codex reviewer does not create or critique
+design-exploration candidates. Missing design adapters remain `manual_pending`.
+
+Every design browser result must come from a KSR-run, digest-locked
+`browser-json-v1` Playwright attempt; a manual JSON result is never accepted as
+browser execution. The existing no-reference exact-three route may keep an
+explicitly allowlisted custom Playwright adapter. Once a reference pack is
+bound, candidate browser packets use the official Playwright provider and
+still receive none of the reviewer-only source captures.
 
 Its browser gate detects viewport escape, flex/grid child overlap, and required
 text clipping. Digest-locked scenarios can add `no-overlap`, `no-clipping`,
@@ -719,6 +902,38 @@ version 1, and audit receipt version 1 remain supported. V1 adds bootstrap
 receipt version 1, automation run version 1, and host adapter version 1.
 The additive design workflow uses design exploration run version 1, design
 result version 1, shortlist version 1, and owner decision version 1.
+The reference workflow adds reference brief, packet, result, run,
+owner-selection, and pack version 1. Its pack is discovery evidence only and
+does not alter existing route, design, audit, or receipt versions.
+States or packets produced by an earlier reference-intelligence preview must
+not be hand-edited, re-signed, or resumed under the stronger contract. Retain
+them as historical evidence, then regenerate the dry-run, packets, child
+results, Owner selection, and final pack in a new reference run; restart any
+design run that had bound the preview pack so it gains the explicit reviewer
+source-access/capture-set, capture-readiness, and source-recipient separation
+contract. The derived reviewer authority also retains a digest-bound,
+canonically ordered execution lineage for every executable source-recipient
+attempt: provider, adapter, declaration, authority, and entrypoint content,
+physical identity, and graph digests. An entirely manual producer has an empty
+lineage rather than fabricated executable authority. Historical design briefs
+without `reference_pack` remain readable. New creation requires a ready pack or
+scoped Owner opt-out; do not retrofit old runs. The matrices stay exact-three.
+Automated reference and design attempts now retain the exact host manifest,
+provider declaration, and adapter entrypoint/module graph that authorized the
+child. Reference attempts bind an immutable execution-authority sidecar as
+well. A pre-contract state with an automated attempt but no such authority
+cannot be repaired by copying the current manifest or re-signing the ledger;
+start a new run from the unchanged external brief, baseline, planning, and
+Owner authority. Inspection-only `manual_pending` and caller-supplied
+`manual_recorded` attempts remain manual and are never relabeled as automated.
+Modern design approval also uses a digest-bound `pending_finalization`
+transaction: the four approved files are staged, sealed into state, and only
+then published and rebound as outputs. Resume may adopt only the exact sealed
+staged or published directory. A legacy state interrupted while publishing
+approval outputs, or otherwise lacking the new lease/recovery checkpoint needed
+to prove that transition, must not be hand-patched or have an orphan directory
+adopted; preserve it as historical evidence and restart from unchanged external
+authorities.
 The additive official Codex host uses setup receipt version 1 and extends host
 adapter response version 1 with an explicit `manual_pending` envelope; existing
 result envelopes remain valid.
@@ -785,6 +1000,8 @@ cannot be reconstructed safely from a mutable old ledger.
 - [Visual signature contract](docs/visual-signature-contract.md)
 - [Parent baseline and slice lineage](docs/baseline-lineage.md)
 - [Project-aware design exploration](docs/design-exploration.md)
+- [Reference intelligence](docs/reference-intelligence.md)
+- [Component craft and responsive recipes](docs/component-recipes.md): capture visual detail, bind actual target specifications and verify rendered craft across sizes without turning every product into one theme.
 - [Codex plugin](docs/codex-plugin.md)
 - [Sidefy parent-identity UAT](docs/sidefy-parent-identity-uat.md)
 - [Official Codex review host](docs/codex-review-host.md)

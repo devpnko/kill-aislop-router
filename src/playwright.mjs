@@ -13,6 +13,7 @@ import {
 } from "./integrity.mjs";
 import { RouterError, readJson, validateProfile } from "./router.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
+import { validateDesignScenario } from "./design-browser-proof.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -76,7 +77,7 @@ const PLAYWRIGHT_ASSERTION_TYPES = new Set([
   "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
   "computed-style"
 ]);
-const PLAYWRIGHT_SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
+const PLAYWRIGHT_SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions", "design"]);
 const PLAYWRIGHT_ACTION_KEYS = new Set(["type", "locator", "value"]);
 const PLAYWRIGHT_ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 
@@ -384,6 +385,7 @@ export function validateOfficialPlaywrightSettings(settings, {
       scenario.id,
       (scenario.assertions || []).length
     ])),
+    designScenarios: scenarioDocument.scenarios.filter((scenario) => scenario.design),
     verificationContractDigest: playwrightVerificationContractDigest(settings),
     baselineDirectory: realDirectory(baselineDirectory, "Playwright baseline directory"),
     baselineSnapshot,
@@ -637,6 +639,11 @@ export function validatePlaywrightScenarioDocument(value) {
         requireValue(Number.isInteger(assertion.value) && assertion.value >= 0,
           "Playwright assertion count requires a non-negative integer value");
       }
+    }
+    try {
+      validateDesignScenario(scenario);
+    } catch (error) {
+      throw new RouterError(error.message, 2);
     }
   }
   return value;

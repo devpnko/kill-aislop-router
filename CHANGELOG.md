@@ -2,6 +2,144 @@
 
 ## Unreleased
 
+- Added offline `reference library` lookup for 14 component analyses across 30
+  Korean-service frames. It pins the study, intake and independent manual review;
+  Korean/English task queries return source scope, limitations and optional
+  concrete craft/test proposals. Missing coverage stays empty, tampered evidence
+  fails closed, and writes/profile/selection flags are rejected. The separate
+  historical candidate and part catalogs remain non-authoritative research.
+  No project receipt migration, source-pixel delivery, creator approval or change
+  to the default reference/3×3/Owner gates is introduced. Isolated npm/plugin
+  parity is tested; actual Mac rollout and real specimen approval are separate.
+
+- Fixed official Playwright sequential keyboard inventory for native modal
+  background inertness and named radio-group Tab stops. Grouping preserves exact
+  form ownership, DOM-tree and case-sensitive name boundaries; disabled controls
+  and all negative tabindex values are excluded without dropping legend controls.
+  Real child-process regressions retain genuine trap detection and unapproved
+  baseline blockers. An additive `keyboard.sequential_targets` field explains
+  unchecked-group alternatives; existing receipt schemas and control keys are
+  unchanged. Radio arrow navigation, native/AT approval and historical findings
+  are not automatically cleared. Rebind the adapter and run fresh evidence.
+
+- Added a read-only Owner reference handoff: `reference choices --run` revalidates
+  the canonical research state and shows actual source links, fit, verified
+  component/grammar transfers, capture gaps and recorded anchor/support roles.
+  Normal reference text output presents the choices; design status/provenance
+  retains selected sources and intended transfers at subsequent Owner stops.
+  Existing state/receipt JSON, source-pixel isolation, exact-three flow and
+  approval gates are unchanged. The additive provenance fields need no ledger
+  migration. Bundled skill guidance presents references before design decisions;
+  report success is not selection, creation or rendered-quality approval.
+
+- Fixed official Playwright keyboard evidence for open Shadow DOM: inventory and
+  focus now share deep-control identity, qualify keys by shadow host, distinguish
+  anonymous siblings, and honor composed display-hidden/inert ancestors without
+  dropping descendants that restore `visibility:visible`. Real child regressions
+  cover nested/slotted controls, duplicate local IDs and genuine Tab traps.
+  No schema or approval change; old reports remain immutable and need
+  a fresh observation after adapter rebinding, not automatic finding removal.
+
+- Fixed source/npm/plugin delivery parity: the npm tarball now includes the
+  complete integrity-bound `scripts/` tree. Packaging tests compare all payload
+  entries, verify both cross-channel doctor paths and identical install markers,
+  and reject script tamper. Added a global-command versus plugin recovery guide;
+  no catalog integrity, project receipt or approval rule is relaxed.
+
+- Added opt-in `popularity_prior.unavailable_policy: fit-only`. Export, child
+  result and pack contracts preserve subject-bound unavailable signals with
+  evidence, reason and check time but no invented value, score or as-of date.
+  This policy ranks by product-fit band, fit score and stable ID, excluding all
+  popularity from ranking. Legacy policy, coverage, independent review, source
+  access, Owner gates and the exact-three design route remain unchanged.
+  Existing ledgers are not migrated; new fields require a capable pinned build.
+  Reference guidance distinguishes component transfer from source-brand themes.
+  Discovery now requires the exact exported popularity-record set, rejecting
+  omitted or repeated conflicts even when other signals are unavailable.
+
+- Split the complete design E2E inventory into eight deterministic shards while
+  retaining the two-worker limit and standalone test entrypoint. Inventory
+  regressions reject omitted, duplicate, skipped and invalid shard selections.
+  Existing child-process, browser, authority and crash-recovery assertions are
+  unchanged; sharding does not turn a timed-out CI lane into a passing result.
+
+- Added optional capture-bound component craft recipes: anatomy, eight visual
+  treatments, interaction states and compact/medium/wide variants. Selected
+  recipes require digest-bound target specifications, distinct browser widths
+  and independent rendered-craft review in direction and color stages. Child
+  packets carry closed schemas rather than unresolved package-relative paths.
+  The no-recipe exact-three flow, source-pixel boundary and Owner gates remain
+  unchanged. Recipes are not approved themes or human-authorship certification.
+
+- Replaced marker-only static-design browser coverage with reviewed native
+  scenarios for the complete state × locale × viewport × color-scheme matrix.
+  Hidden states/locales, no-op controls, intercepted clicks, and pre-visible
+  non-default states fail closed. Each case retains exact steps, assertions,
+  checks, screenshot/trace digests, and version-2 report evidence; ingest and
+  replay verify it against the original host/scenario authority. Missing
+  bindings stop before child spawn. Legacy marker-only reports require a new
+  run, not re-signing. Runtime audit behavior, exact-three matrices, independent
+  reviewer and Owner gates remain unchanged. Contract test success is explicitly
+  distinguished from completed design automation and aesthetic quality.
+
+- Added a digest-bound, non-authoritative human-design reasoning registry and
+  a rights-safe 24-product/48-screen UI Bowl study. Reference discovery now
+  records screen-family strength, use environment, business/session context,
+  sampling cohort, visible priority, and snapshot-specific popularity;
+  promotional or single-frame evidence cannot establish operational grammar.
+  Grammar must trace visible hierarchy through a user decision, constraint,
+  flattening consequence, application conditions, tradeoff, harmful context,
+  live-data dependency, and anti-copy boundary. Sampling limits product and
+  ecosystem dominance through non-popularity reasoning cohorts, and conflicted
+  popularity ranks last without affecting eligibility. Completed,
+  reviewer-capture-ready packs can be bound as an optional, pixel-free creator
+  input to the existing exact-three design route without granting visual
+  authority or weakening Playwright and Owner gates. Metadata-only packs may
+  complete research but remain `manual_pending` at the design boundary.
+  Follow-up hardening schema-validates manual-export membership and forbids
+  network access in manual discovery and downstream design participants,
+  separates canonical product and screen identities, enumerates frame roles,
+  fixes popularity scope/category/normalization in the brief, recomputes
+  fit/popularity scores,
+  binds popularity to explicit product-or-screen subjects, carries reproducible
+  fit into the pack, and enforces target-locale transferability plus
+  critic-verified, frame-bound evidence closure,
+  and validates the same strict pack plus its exact completed producer state at
+  the design boundary. Eleven stage-scoped design checks now include linked
+  lenses, pass conditions, typed digest-bound evidence requirements, a
+  source-composition-independence check, and hard-failure codes. Design
+  participants receive only aliased causal reasoning and transferable grammar,
+  never source identities or observations, and every selected dimension needs
+  an applied or target-specific not-applicable trace. Final approved design
+  decisions retain a non-authoritative pack/producer/target/trace/review digest chain; omitting the pack
+  preserves the original design packet and receipt shape.
+  Browser evidence is never accepted as a manually recorded result. The
+  existing no-reference exact-three flow retains digest-locked custom
+  `browser-json-v1` Playwright compatibility, while a reference-backed flow
+  resolves every candidate browser packet to the official Playwright contract
+  without exposing reviewer-only source captures.
+
+- Reserved the KillSlopRouter parent identity across provider, result-actor,
+  Owner, and visual-authority fields. NFKC/case/whitespace comparison and exact
+  parent separator aliases close full-width, English, namespaced, and Korean
+  identity relabeling while preserving original provenance. Owner-direction
+  authority must match the independently verified Owner identity; children
+  remain internal participants and never become the presented workflow.
+
+- Added an optional, resumable reference-intelligence stage that binds an
+  approved service-planning frame, rights evidence, bounded UI Bowl queries,
+  popularity provenance, distinct researcher/critic children, and a real
+  Owner selection. Deterministic ranking applies popularity only inside equal
+  product-fit bands, and the compiled pixel-free grammar pack remains
+  `discovery-evidence-only` without visual or creator authority. Atomic state
+  leases, exact child checkpoints, idempotent crash recovery, tamper rejection,
+  pinned single-descriptor authority inputs, critic-verified component/pattern
+  coverage, and real child-process regressions preserve fail-closed execution. The
+  existing exact-three 3×3 design route remains unchanged.
+  Manual dispatch now emits a self-digested stage request alongside the
+  compatibility packet, containing public authority snapshots and only the
+  prior semantic results and evidence digests required by grammar or review.
+
 - Closed the standalone audit CLI's `--run` read race by binding path checks,
   parsing, and provenance to one descriptor before dispatch, ingest, triage,
   status, or finalization. Sealed adapter discovery now distinguishes the CJS
@@ -18,6 +156,18 @@
   verified source runtime and reuses its digest-bound readiness cache without
   cloning the complete runtime once per provider. The actual reviewer child
   still executes only from a fresh private runtime seal.
+
+- Bound official Codex readiness caching to pinned authentication content and
+  stable file identity while excluding expected hard-link lifecycle metadata.
+  Authentication changes during a probe, same-byte inode replacement, and
+  unresolved isolation cleanup fail closed without poisoning the cache; only
+  successful authenticated observations are cached. Authentication filesystem
+  errors and all nested Codex abnormal stdout/stderr or malformed JSON output
+  are reduced to fixed non-path-bearing public failures, and unsafe thread IDs
+  cannot enter actor or receipt provenance. The fixed diagnostic boundary also
+  covers runtime version probing, stores only the canonical numeric version
+  tuple, and gives post-review credential-view cleanup failure an integrated
+  fail-closed regression.
 
 - Preserved the documented standalone kill-ai-slop scanner-to-audit workflow
   without weakening parent identity: only the exact unbound compatibility

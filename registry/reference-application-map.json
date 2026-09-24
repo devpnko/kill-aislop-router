@@ -1,0 +1,621 @@
+{
+  "reference_application_map_version": 1,
+  "id": "uibowl-parts-20260922",
+  "status": "research-only",
+  "audience": [
+    "internal-researcher",
+    "independent-critic",
+    "owner"
+  ],
+  "orchestrator": "KillSlopRouter",
+  "source_pixels_included": false,
+  "creator_input_approved": false,
+  "visual_authority_granted": false,
+  "design_ready": false,
+  "rights": {
+    "access": "ordinary-public-ui",
+    "redistribution": false,
+    "creator_pixel_access": false,
+    "cross_project_approval_reuse": false,
+    "license_grant": false
+  },
+  "limits": [
+    "Original comparative notes about archived real-product UI; no proof of human authorship, popularity, usability or current source implementation.",
+    "Eight distinct frames in five products were visually inspected. This is a bounded part study, not an exhaustive search or a globally best shortlist.",
+    "Private native-browser screenshots are hash-identified but not shipped. Public readers must reopen permitted source pages; these notes are not export/capture authority.",
+    "No source app interaction, mobile layout, contrast ratio, exact CSS token or accessibility result was verified. Qualitative observations are not pixel measurements.",
+    "This map is not a reference pack, component recipe, source selection or approval. Project gates, independent reference review and real Owner decisions remain required."
+  ],
+  "sources": [
+    {
+      "id": "magnific",
+      "name": "Magnific",
+      "frames": [
+        {
+          "id": "cmttckbdm0013kx04kb8voa19",
+          "url": "https://uibowl.io/website?patterns=%EA%B2%80%EC%83%89&imgId=cmttckbdm0013kx04kb8voa19",
+          "observed_state": "Image-search entry and category grid",
+          "capture_digest": "sha256:d24a3cacf5929cfd1c85f819b34ec90c5cc41589ed98fe83968ff4f586131fe6",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        },
+        {
+          "id": "cmttckbeb0015kx04dcc9as7f",
+          "url": "https://uibowl.io/website?patterns=%EA%B2%80%EC%83%89&imgId=cmttckbeb0015kx04dcc9as7f",
+          "observed_state": "Search/upload panel over the category grid",
+          "capture_digest": "sha256:e9d00eb46684900911ae41f919154621ebf8a51114bcd86bd01f3e3700244d84",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        }
+      ]
+    },
+    {
+      "id": "cardgorilla",
+      "name": "CardGorilla",
+      "frames": [
+        {
+          "id": "cmr360f1y0010jt047oqepqjd",
+          "url": "https://uibowl.io/website?imgId=cmr360f1y0010jt047oqepqjd",
+          "observed_state": "Populated side-by-side card comparison",
+          "capture_digest": "sha256:430a80247f694b8ef7fd9492a4babd3164fadf0c2aa266237f8d47e70a5306c3",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        },
+        {
+          "id": "cmr360eyd000qjt04zk847cz7",
+          "url": "https://uibowl.io/website?imgId=cmr360eyd000qjt04zk847cz7",
+          "observed_state": "Empty comparison with three selection slots",
+          "capture_digest": "sha256:eab37b23b341b90bb32506866e65660564916384dc2392772beadd0705ad13d1",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        }
+      ]
+    },
+    {
+      "id": "clarity",
+      "name": "Microsoft Clarity",
+      "frames": [
+        {
+          "id": "cmt17w3iw001fjy04fiwqu9a6",
+          "url": "https://uibowl.io/website?imgId=cmt17w3iw001fjy04fiwqu9a6",
+          "observed_state": "Dashboard with filters, metric panels and a local empty state",
+          "capture_digest": "sha256:9d353ed33221a607db08b5d33440d7c89db669e8c12855a5887533b3daa6db0d",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        }
+      ]
+    },
+    {
+      "id": "clovanote",
+      "name": "ClovaNote",
+      "frames": [
+        {
+          "id": "cmpnujssg000dlb04d6sfajqk",
+          "url": "https://uibowl.io/website/%ED%81%B4%EB%A1%9C%EB%B0%94%EB%85%B8%ED%8A%B8?imgId=cmpnujssg000dlb04d6sfajqk",
+          "observed_state": "Transcript and grouped summary side by side",
+          "capture_digest": "sha256:92299e2d03040afffdb31bf70f104128a2e93c170921430b14eef89156c3591e",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        }
+      ]
+    },
+    {
+      "id": "facticity",
+      "name": "Facticity.AI",
+      "frames": [
+        {
+          "id": "cmi7e3sgu000bl504ahcdkudz",
+          "url": "https://uibowl.io/website/Facticity.AI?imgId=cmi7e3sgu000bl504ahcdkudz",
+          "observed_state": "Source media beside selectable extracted claims",
+          "capture_digest": "sha256:bc5bc96cfacdf8918b5abacbc389628ab58eaf9b2a6984140f3c4e831c381337",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        },
+        {
+          "id": "cmi7e3skq000jl504it0ys9ct",
+          "url": "https://uibowl.io/website/Facticity.AI?imgId=cmi7e3skq000jl504it0ys9ct",
+          "observed_state": "Claim explanation and source-summary cards beside the source media",
+          "capture_digest": "sha256:af2b46a64e85e627f934545edf700ad3557f5104bc865bbc4e9e2b845f93e62c",
+          "evidence_kind": "archived-ui-image-visually-inspected",
+          "observed_on": "2026-09-22",
+          "interaction": "not-executed",
+          "responsive": "not-observed",
+          "capture_bundled": false
+        }
+      ]
+    }
+  ],
+  "search_record": {
+    "method": "Task-led ordinary UI Bowl browsing, public taxonomy/search and reopening dated frame leads. No hidden endpoint, MCP, scraper, account switch or membership bypass.",
+    "comparisons": [
+      "ClovaNote versus Facticity: continuous original/summary reading versus per-claim explanation and source relationships; neither establishes a complete knowledge-search product.",
+      "Magnific versus Facticity: visual category discovery versus evidence-bearing results; vivid media is useful only when media is the task object.",
+      "Clarity versus CardGorilla: operational overview versus attribute-by-attribute choice; dashboard tiles must not replace comparable rows."
+    ],
+    "excluded_leads": [
+      {
+        "url": "https://uibowl.io/website/Perplexity%20(%ED%8D%BC%ED%94%8C%EB%A0%89%EC%8B%9C%ED%8B%B0)?imgId=cmr1evx410029jp04pbpmwhia",
+        "reason": "Only a scheduling-entry preview was inspected; task mismatch and insufficient fine-craft visibility. Not counted as a studied transferable frame."
+      },
+      {
+        "url": "https://uibowl.io/website?imgId=cmt17vmck00qhl504uxthpwi4",
+        "reason": "No enlarged source image loaded in the current visit; historical popover notes are not fresh evidence."
+      }
+    ],
+    "stop_reason": "Bounded desktop part mapping is documented. Stop before claiming a project shortlist: mobile, focus/error states and end-to-end search/reading still require targeted acquisition.",
+    "remaining_gaps": [
+      "same-product-mobile",
+      "source-app-interaction",
+      "keyboard-focus-error-loading",
+      "end-to-end-knowledge-search",
+      "mobile-news-reading",
+      "public-access"
+    ]
+  },
+  "shared_rules": [
+    "Choose a product-fit whole-screen anchor separately. Supporting sources answer a named part need; they never each supply a competing theme.",
+    "Normalize borrowed principles into the project's authorized typography, spacing, color roles, radii, elevation and density. Do not impose gray/editorial neutrality or copy source literals.",
+    "Keep hierarchy relational: primary task before embellishment, data before decorative counters, visible provenance before unsupported confidence.",
+    "For every target component record adopted cues, deliberate differences, states and reflow, then compare the implemented artifact to that specification.",
+    "Owner source/direction/color/exact-artifact decisions are distinct. Research notes and browser passes cannot grant any of them.",
+    "Only the existing source-separated, aliased grammar/recipe projection may reach a creator; this named map is researcher/critic/Owner material."
+  ],
+  "parts": [
+    {
+      "id": "query-entry",
+      "label": "검색 진입",
+      "job": "Choose search scope and enter a query without losing the surrounding task.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmttckbdm0013kx04kb8voa19",
+          "facts": [
+            "A wide search control sits above a low-emphasis category grid; small colorful category images carry much of the visual energy.",
+            "The search control has a rounded outline and compact icons; category cards pair a rounded thumbnail with a short dark label on a pale fill rather than a loud colored card."
+          ]
+        },
+        {
+          "frame_id": "cmttckbeb0015kx04dcc9as7f",
+          "facts": [
+            "A white bounded panel separates a narrow mode list from a larger input/upload area while the category grid remains visible behind it.",
+            "The panel has softened corners and a visible low shadow; an underline marks the selected mode, while the upload region uses a lighter boundary and centered instructions."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Separating scope from input may reduce ambiguity without forcing a new page; that is a design hypothesis, not a measured usability result.",
+      "target_craft": {
+        "anatomy": "Labelled scope, query, clear/submit and optional suggestions; add upload only when the product supports it.",
+        "material": "Use the project's input surface, not a decorative hero slab.",
+        "edge": "One readable control boundary; related sub-controls share alignment.",
+        "depth": "Give a temporary suggestion panel one deliberate elevation level.",
+        "type": "Distinguish field label, entered query and help text; do not copy source font.",
+        "spacing": "Group scope tightly with its query; separate results more strongly.",
+        "color": "Reserve the authorized accent for focus/submit/selected scope, not every suggestion.",
+        "imagery": "Use category imagery only when it identifies a real category.",
+        "motion": "Specify focus/open/close behavior; none was observed running."
+      },
+      "exclude": [
+        "Magnific's promotional banner, generator features and image-search taxonomy are not a knowledge-reader brief.",
+        "No evidence of search relevance, empty-result handling or mobile reflow."
+      ],
+      "target_states": [
+        "idle",
+        "focused",
+        "scope-selected",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "responsive_proposal": "Target proposal: compact widths use one query row and a labelled scope control; suggestions fit the viewport and keyboard. This is not observed source behavior.",
+      "validation": [
+        "Native input/submit/clear works; keyboard and IME are supported.",
+        "Focus panel does not obscure the active result; long queries do not clip.",
+        "Reviewer checks specified material/type/spacing/color in actual target screenshots."
+      ]
+    },
+    {
+      "id": "sidebar",
+      "label": "사이드바",
+      "job": "Expose recurring destinations with clear current location and bounded utility actions.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmpnujssg000dlb04d6sfajqk",
+          "facts": [
+            "A labelled left navigation separates note destinations from lower utility items; a thin vertical divider separates it from reading content.",
+            "Small line icons sit beside text; the current destination uses heavier text, while account usage gets a separate small colored indicator instead of coloring every navigation row."
+          ]
+        },
+        {
+          "frame_id": "cmttckbdm0013kx04kb8voa19",
+          "facts": [
+            "A narrow icon rail gives more area to the media grid and marks a selected destination."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Labelled navigation suits unfamiliar destinations; an icon rail may suit frequent expert use. Density alone does not decide which is appropriate.",
+      "target_craft": {
+        "anatomy": "Separate primary destinations, account/context and utilities; mark the current destination.",
+        "material": "Match shell surface to the approved project, retaining a distinct content region.",
+        "edge": "Use alignment and a light divider before adding boxes around each item.",
+        "depth": "Navigation itself need not float; overlays require a separate specified layer.",
+        "type": "Use legible destination labels and secondary metadata rather than uniformly bold items.",
+        "spacing": "Group related items; keep utility spacing deliberate, not arbitrarily at every row.",
+        "color": "Selected destination has one consistent role; never borrow source brand colors.",
+        "imagery": "Icons supplement labels unless recognition is demonstrated.",
+        "motion": "Define focus and collapse transitions as proposals."
+      },
+      "exclude": [
+        "An icon-only rail is not universally suitable for Korean labels or first-time users.",
+        "Do not import subscriptions, recording actions or unrelated account structures."
+      ],
+      "target_states": [
+        "default",
+        "current",
+        "focus",
+        "disabled",
+        "expanded",
+        "collapsed"
+      ],
+      "responsive_proposal": "Target proposal: compact navigation becomes an explicitly labelled drawer or reduced destination set, with focus return and no trapped body scroll.",
+      "validation": [
+        "Current location agrees with URL/state.",
+        "Keyboard reachability, accessible names and drawer focus return are tested.",
+        "Long localized labels remain readable."
+      ]
+    },
+    {
+      "id": "tabs",
+      "label": "탭·필터",
+      "job": "Change the view inside a stable task without conflating navigation and data filters.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmt17w3iw001fjy04fiwqu9a6",
+          "facts": [
+            "Global navigation, context/date controls and panel-local selected views occupy separate rows; purple/lavender selected treatments are localized.",
+            "Local tabs sit at the top edge of their white panel with restrained separators; the filter action is filled more strongly than its neighboring outlined context controls."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "The separation may help users distinguish changing the dataset from changing how it is viewed; this is inferred from one static frame.",
+      "target_craft": {
+        "anatomy": "Keep task navigation, query filters and local view tabs separate.",
+        "material": "Use a coherent shared tab strip, not one unrelated card per tab.",
+        "edge": "Give the active tab a visible edge or fill within project rules.",
+        "depth": "Keep tabs on their owning panel plane; do not elevate every tab.",
+        "type": "Use short peer labels; optional counts stay secondary and truthful.",
+        "spacing": "Group peer tabs; reserve space between tab strip and data.",
+        "color": "Active, focus and disabled are separate roles, not only hue variations.",
+        "imagery": "No decorative imagery is necessary for task tabs.",
+        "motion": "Specify state transition and focus behavior; do not claim it was observed."
+      },
+      "exclude": [
+        "Clarity's dashboard taxonomy and metric definitions are not generic tab labels.",
+        "No keyboard or filter behavior was executed in the source app."
+      ],
+      "target_states": [
+        "active",
+        "inactive",
+        "focus",
+        "disabled",
+        "loading"
+      ],
+      "responsive_proposal": "Target proposal: compact tabs may scroll within the strip with a discoverable active item; page-level horizontal overflow is not acceptable.",
+      "validation": [
+        "Actual native tab activation and keyboard semantics are tested.",
+        "Selection remains identifiable without color alone.",
+        "Filter changes do not silently switch or reset unrelated views."
+      ]
+    },
+    {
+      "id": "comparison-table",
+      "label": "비교표",
+      "job": "Compare options on the same axes while retaining terms, unknowns and actions.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmr360f1y0010jt047oqepqjd",
+          "facts": [
+            "Option identity and actions align above shared attribute rows; column bands and horizontal rules preserve cross-column comparison.",
+            "Dark filled actions share a baseline below the option identities; orange promotional text is limited to a particular row, while ordinary conditions are gray/dark text.",
+            "Option names are heavier than issuer metadata; the tall identity area gives way to shorter repeated data rows, and long benefit text wraps inside the shared grid."
+          ]
+        },
+        {
+          "frame_id": "cmr360eyd000qjt04zk847cz7",
+          "facts": [
+            "An empty comparison preserves three visible selection positions below an explanatory heading instead of drawing fictitious results."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "A shared row vocabulary may reduce comparison effort; visible slots also explain what the next action will populate.",
+      "target_craft": {
+        "anatomy": "Identity/header, same-meaning attribute rows, condition details, unknown values and aligned actions.",
+        "material": "Use subtle banding only where it improves row/column tracking.",
+        "edge": "Rules divide comparable facts; avoid a heavy border around every cell.",
+        "depth": "Keep table rows on one plane; reserve elevation for optional disclosures.",
+        "type": "Separate option title, primary measure, unit and conditions; align numeric values where appropriate.",
+        "spacing": "Use repeated cell padding and stable label columns; allow long terms to wrap.",
+        "color": "Apply semantic emphasis only to known differences; no invented best-option badge.",
+        "imagery": "Include a small item image only if it disambiguates options.",
+        "motion": "Define selection/disclosure changes without implying tested source animation."
+      },
+      "exclude": [
+        "CardGorilla's promotions, financial meanings, brand assets and three-option count are not target requirements.",
+        "Do not convert all rows to isolated cards if that destroys comparability."
+      ],
+      "target_states": [
+        "empty",
+        "partial",
+        "populated",
+        "unknown-value",
+        "expanded-conditions",
+        "error"
+      ],
+      "responsive_proposal": "Target proposal: choose a labelled comparison scroller or grouped attribute view at compact widths; preserve identity, units and conditions. Do not assume the source stacks cards.",
+      "validation": [
+        "Same row means the same attribute across options.",
+        "Unknown/missing values are not zeros; conditions remain accessible.",
+        "Long labels, compact widths and keyboard disclosures are tested."
+      ]
+    },
+    {
+      "id": "result-card",
+      "label": "결과·근거 카드",
+      "job": "Make a result's identity, meaning and evidence inspectable before its optional actions.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmi7e3skq000jl504it0ys9ct",
+          "facts": [
+            "Source-summary cards have a link-like title, supporting excerpt and a separate relationship badge inside a thin boundary.",
+            "Blue source titles contrast with dark reading text; a small tinted relation pill is positioned apart from the excerpt, and the card uses a fine border without a dramatic shadow."
+          ]
+        },
+        {
+          "frame_id": "cmttckbdm0013kx04kb8voa19",
+          "facts": [
+            "Media-category cards instead emphasize compact colorful thumbnails with short labels."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Evidence-bearing cards need provenance and reading space; visual-category cards need recognizable media. They are not interchangeable card skins.",
+      "target_craft": {
+        "anatomy": "For evidence: title, source/date when known, excerpt, relation and inspect action; for media: thumbnail, label and optional count.",
+        "material": "Keep readable card fill distinct from the canvas without a universal paper texture.",
+        "edge": "Use a coherent radius and boundary family; cards in one list share anatomy.",
+        "depth": "Use restrained list-level depth; reserve stronger depth for interaction layers.",
+        "type": "Title leads excerpt; provenance and relation remain legible, not tiny decorative chips.",
+        "spacing": "Align title/excerpt starts and use repeatable internal gaps; preserve enough lines for meaning.",
+        "color": "Links, relations and selection get distinct project roles; not all body text should look clickable.",
+        "imagery": "Only authorized task-relevant imagery; do not copy source media.",
+        "motion": "Specify hover/focus/expanded behavior as target-only."
+      },
+      "exclude": [
+        "A relation badge or source count does not establish truth or confidence.",
+        "Magnific's imagery-first treatment is inappropriate for long evidence text.",
+        "Source copy, media and literal colors are excluded."
+      ],
+      "target_states": [
+        "default",
+        "selected",
+        "expanded",
+        "no-source",
+        "stale",
+        "error"
+      ],
+      "responsive_proposal": "Target proposal: compact cards prioritize title, provenance and excerpt; secondary actions move without hiding evidence. Test wrapping instead of adding automatic ellipsis.",
+      "validation": [
+        "Card title and excerpt do not overlap or lose critical content.",
+        "Links have names and separate hit targets; relation is not color-only.",
+        "Creator implementation is compared to adopted craft cues, not just scanner/browser pass."
+      ]
+    },
+    {
+      "id": "metric-card",
+      "label": "지표·상태 카드",
+      "job": "Provide an operational overview with enough context to interpret a number.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmt17w3iw001fjy04fiwqu9a6",
+          "facts": [
+            "A compact metric strip and repeated white panels contrast with a light blue workspace; larger numbers, smaller labels and localized accent areas create hierarchy.",
+            "Top values use dark blue emphasis; insight rows pair pale circular icons with a main value and smaller basis text. Lower panel shadows are faintly colored rather than heavy black.",
+            "Magenta/purple occupies a specific ratio bar and selected region; it is not used as a blanket background for all panels."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Repeated hierarchy can make scanning faster, but attractive counters without time, denominator or data provenance are misleading.",
+      "target_craft": {
+        "anatomy": "Name, value, unit, period, denominator/basis and optional drill-down.",
+        "material": "Choose a project-authorized contrast between canvas and metric surface.",
+        "edge": "Apply a consistent perimeter and radius; keep dense rows simpler than top-level panels.",
+        "depth": "Small panel separation, not equal heavy shadows on every statistic.",
+        "type": "Value/label/context use a deliberate size-weight relation; unknown is text, not a fake zero.",
+        "spacing": "Align baselines and repeat the same card gutters.",
+        "color": "Accent draws attention to a specific state; semantic colors require truthful status.",
+        "imagery": "Only meaningful small charts/icons with equivalent text.",
+        "motion": "No animated counters unless their effect and reduced-motion alternative are justified."
+      },
+      "exclude": [
+        "A dashboard is not the default form for a reader or search result.",
+        "Do not borrow metrics, denominators, benchmark status or fake live activity."
+      ],
+      "target_states": [
+        "known",
+        "unknown",
+        "zero",
+        "stale",
+        "loading",
+        "error"
+      ],
+      "responsive_proposal": "Target proposal: reduce columns while preserving label-value-context groups; do not truncate units or periods.",
+      "validation": [
+        "Every figure has a real data basis or an explicit fixture/unknown label.",
+        "Units/time/context survive compact reflow.",
+        "Color and visual emphasis agree with semantics, not magnitude alone."
+      ]
+    },
+    {
+      "id": "source-reader",
+      "label": "원문·요약·근거 읽기",
+      "job": "Read an explanation without losing the original context needed to challenge it.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmpnujssg000dlb04d6sfajqk",
+          "facts": [
+            "A continuous transcript with speaker/time markers sits beside grouped summary boxes; document identity stays above the reading area.",
+            "Original paragraphs are largely unboxed; summary sections instead use lightly rounded thin boundaries. The document title is heavier than the gray metadata line.",
+            "Colored speaker markers and subdued timestamps provide local anchors; summary headings are darker/heavier than their bullet text, with whitespace between sections rather than large shadows."
+          ]
+        },
+        {
+          "frame_id": "cmi7e3skq000jl504it0ys9ct",
+          "facts": [
+            "Source media remains adjacent to a claim explanation, ambiguity text and source-summary cards.",
+            "The explanation uses a continuous body-text region before bounded source cards; bold inline terms and section labels create emphasis without boxing every paragraph."
+          ]
+        },
+        {
+          "frame_id": "cmi7e3sgu000bl504ahcdkudz",
+          "facts": [
+            "Source media and metadata sit beside a selectable list of extracted claims before processing."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Original and interpretation remain visually related. ClovaNote emphasizes continuous reading; Facticity emphasizes claim-level inspection. Neither alone proves end-to-end knowledge search.",
+      "target_craft": {
+        "anatomy": "Original identity, reading body, interpretation and provenance/relationship; keep uncertainty visibly separate.",
+        "material": "Prioritize a quiet reading surface within the project's authorized character, not mandatory editorial beige.",
+        "edge": "Use bounded summaries and source cards; avoid boxing every paragraph.",
+        "depth": "Separate temporary details from reading planes; do not layer panels over required original context.",
+        "type": "Use a readable body rhythm with clear heading/source/time levels; retain Korean and long-text readability.",
+        "spacing": "Give continuous prose a stable reading measure; side detail spacing follows its own repeated rhythm.",
+        "color": "Reserve emphasis for selected passage, links and uncertainty roles.",
+        "imagery": "Media is optional original context, not a compulsory hero.",
+        "motion": "Any source-jump/highlight synchronization is a target proposal, not observed behavior."
+      },
+      "exclude": [
+        "Do not claim summary accuracy, working citations, real confidence or synchronized scrolling from these images.",
+        "Do not copy credit/reward actions or source health/factual claims.",
+        "No approved TeraWiki/SourcePilot/other-project theme is implied."
+      ],
+      "target_states": [
+        "original",
+        "summary",
+        "selected-source",
+        "missing-source",
+        "conflicting-evidence",
+        "long-content"
+      ],
+      "responsive_proposal": "Target proposal: at compact widths show original and interpretation in an explicitly switchable or sequential view that retains a visible return-to-source path; validate reading and focus order.",
+      "validation": [
+        "Original/summary/source are distinguishable in content and semantics.",
+        "Every claimed source action actually reaches the intended evidence.",
+        "Long Korean text and missing/conflicting evidence do not collapse into decorative cards."
+      ]
+    },
+    {
+      "id": "empty-state",
+      "label": "빈 상태",
+      "job": "Explain an unfilled task and offer the correct next action without faking results.",
+      "coverage": "bounded-study",
+      "observations": [
+        {
+          "frame_id": "cmr360eyd000qjt04zk847cz7",
+          "facts": [
+            "An explanatory heading and repeated add positions communicate an empty comparison.",
+            "A heavier centered heading is followed by lighter help text; pale slot backgrounds, dashed add outlines and small plus symbols distinguish empty positions from actual products."
+          ]
+        },
+        {
+          "frame_id": "cmt17w3iw001fjy04fiwqu9a6",
+          "facts": [
+            "An illustrated empty watchlist is localized inside the dashboard rather than replacing other data."
+          ]
+        }
+      ],
+      "rationale_hypothesis": "Empty treatment should match whether the whole task or only one region lacks data.",
+      "target_craft": {
+        "anatomy": "State explanation, reason when known, one eligible next action and retained surrounding context.",
+        "material": "Use the same container family as the eventual content.",
+        "edge": "Keep placeholders visibly distinct from real result cards.",
+        "depth": "No dramatic overlay for a routine local empty state.",
+        "type": "Action and explanation lead; decorative captions do not replace useful text.",
+        "spacing": "Retain meaningful slot rhythm without wasting the full screen.",
+        "color": "Use project accent on the eligible action, not fake success.",
+        "imagery": "Optional original illustration supports meaning; source illustration is excluded.",
+        "motion": "Define loading separately from empty; do not infer animation from a still image."
+      },
+      "exclude": [
+        "Three source slots do not mandate three target items.",
+        "No permission to display working Add/Save when the backend disallows it."
+      ],
+      "target_states": [
+        "first-use",
+        "no-results",
+        "filtered-empty",
+        "permission-denied",
+        "offline",
+        "loading"
+      ],
+      "responsive_proposal": "Target proposal: keep explanation and eligible action together on compact widths; preserve distinction from errors and loading.",
+      "validation": [
+        "Empty, denied, error and loading have different truthful messages.",
+        "Disabled/owner-gated actions are not falsely presented as available.",
+        "The local state does not hide unrelated valid content."
+      ]
+    },
+    {
+      "id": "responsive-layout",
+      "label": "모바일·반응형",
+      "job": "Retain task hierarchy and evidence at compact widths.",
+      "coverage": "gap",
+      "observations": [],
+      "rationale_hypothesis": "These desktop images cannot establish a source's responsive strategy.",
+      "target_craft": null,
+      "exclude": [
+        "Do not mark mobile, pointer, keyboard or screen-reader behavior verified from resized archive images.",
+        "Do not claim a desktop-to-card transform came from these sources."
+      ],
+      "target_states": [
+        "compact",
+        "medium",
+        "wide",
+        "keyboard-visible",
+        "zoomed",
+        "long-localized-content"
+      ],
+      "responsive_proposal": "Acquire permitted same-product compact frames or explicitly label the target adaptation as a proposal. Reflow choices follow the target task, not a universal card stack.",
+      "validation": [
+        "Collect missing source evidence for any claim of source-derived mobile behavior.",
+        "Execute target Playwright at scoped compact/medium/wide widths, native pointer and keyboard paths, overflow/clipping and zoom.",
+        "Independent critic checks retained identity, reading order, evidence and visual craft; real Owner approval remains separate."
+      ]
+    }
+  ]
+}

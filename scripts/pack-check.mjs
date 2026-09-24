@@ -3,8 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { hashArtifact } from "../src/integrity.mjs";
+import { PLUGIN_BUNDLE_ENTRIES } from "../src/skill-catalog.mjs";
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-pack-"));
 
 function run(command, args, options = {}) {
@@ -37,13 +41,20 @@ try {
     "src/router.mjs",
     "src/audit.mjs",
     "src/automation.mjs",
+    "src/usage-guidance.mjs",
     "src/state-lease.mjs",
     "src/state-lease-public.mjs",
     "src/bootstrap.mjs",
+    "src/plugin-sync.mjs",
+    "src/distribution.mjs",
     "src/codex.mjs",
     "src/design.mjs",
+    "src/design-browser-proof.mjs",
     "src/execution.mjs",
     "src/playwright.mjs",
+    "src/reference.mjs",
+    "src/reference-library.mjs",
+    "src/source-composition.mjs",
     "src/adapters/playwright-browser.mjs",
     "src/adapters/codex-review.mjs",
     "router/default-router.json",
@@ -59,8 +70,10 @@ try {
     "schemas/codex-host-setup-receipt.schema.json",
     "schemas/codex-review-output.schema.json",
     "schemas/design-brief.schema.json",
+    "schemas/design-reference-opt-out.schema.json",
     "schemas/design-font-report.schema.json",
     "schemas/design-packet.schema.json",
+    "schemas/design-playwright-report.schema.json",
     "schemas/design-result.schema.json",
     "schemas/design-exploration-run.schema.json",
     "schemas/design-shortlist.schema.json",
@@ -68,20 +81,70 @@ try {
     "schemas/design-owner-decision.schema.json",
     "schemas/design-direction-decision.schema.json",
     "schemas/design-profile-bindings.schema.json",
+    "schemas/design-source-composition-analysis.schema.json",
+    "schemas/human-design-reasoning-registry.schema.json",
+    "schemas/reference-brief.schema.json",
+    "schemas/reference-dispatch-request.schema.json",
+    "schemas/reference-lease-recovery.schema.json",
+    "schemas/reference-owner-selection.schema.json",
+    "schemas/reference-pack.schema.json",
+    "schemas/reference-popularity-unavailable.schema.json",
+    "schemas/component-recipe.schema.json",
+    "schemas/component-specs.schema.json",
+    "src/component-recipes.mjs",
+    "schemas/reference-packet.schema.json",
+    "schemas/reference-result.schema.json",
+    "schemas/reference-run.schema.json",
+    "schemas/uibowl-manual-export.schema.json",
     "schemas/host-adapter-request.schema.json",
     "schemas/host-adapter-response.schema.json",
     "schemas/browser-attestation.schema.json",
     "schemas/playwright-scenarios.schema.json",
     "schemas/playwright-setup-receipt.schema.json",
     "schemas/plugin-install-marker.schema.json",
+    "schemas/plugin-sync-policy.schema.json",
     "schemas/legacy-skill-shim-marker.schema.json",
     "schemas/project-profile.schema.json",
     "schemas/visual-intent-receipt.schema.json",
     "schemas/visual-signature-receipt.schema.json",
     "docs/adapter-authoring.md",
+    "docs/getting-started.md",
+    "docs/project-setup.md",
     "docs/baseline-lineage.md",
     "docs/design-exploration.md",
+    "docs/design-journey-work.md",
+    "docs/reference-intelligence.md",
+    "docs/reference-fit-first.md",
+    "docs/component-recipes.md",
+    "docs/reference-delivery.md",
+    "docs/reference-catalog.md",
+    "docs/reference-library.md",
+    "docs/research/component-specimen-verification-proposal.md",
+    "registry/reference-library.json",
+    "schemas/reference-library.schema.json",
+    "registry/reference-candidates.json",
+    "schemas/reference-candidate-catalog.schema.json",
+    "scripts/reference-catalog.mjs",
+    "scripts/reference-application-map.mjs",
+    "registry/reference-application-map.json",
+    "schemas/reference-application-map.schema.json",
+    "docs/reference-application-map.md",
+    "docs/research/ui-bowl-task-design-study-2026-09-10.md",
+    "docs/research/ui-bowl-task-design-samples-2026-09-10.json",
+    "docs/research/ui-bowl-korea-familiar-30-2026-09-22.json",
+    "docs/research/ui-bowl-korea-familiar-30-2026-09-22.md",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+    "docs/research/ui-bowl-korea-component-study-2026-09-22.md",
+    "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+    "docs/research/ui-bowl-component-choice-matrix-2026-09-23.json",
+    "docs/research/ui-bowl-component-choice-matrix-2026-09-23.md",
+    "docs/research/ui-bowl-component-choice-review-2026-09-23.json",
+    "docs/research/ui-bowl-second-pass-access-2026-09-23.json",
+    "docs/research/ui-bowl-second-pass-access-2026-09-23.md",
+    "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
+    "docs/reviews/fable-5.1-reference-intelligence.md",
     "docs/codex-plugin.md",
+    "docs/account-plugin-sync.md",
     "docs/codex-review-host.md",
     "docs/surface-contract.md",
     "docs/visual-intent-contract.md",
@@ -98,13 +161,28 @@ try {
     "examples/planning-evidence/policy-slice.html",
     "examples/planning-evidence/policy-slice-owner-approval.json",
     "examples/design-brief.example.json",
+    "examples/design-playwright-scenarios.example.json",
+    "examples/reference-brief.example.json",
+    "examples/reference-brief.fit-only.example.json",
+    "examples/component-recipe.example.json",
+    "examples/component-card-recipe.example.json",
+    "examples/reference-evidence/flowdesk-source-metadata.json",
+    "examples/reference-evidence/marketline-source-metadata.json",
+    "examples/reference-evidence/owner-request.md",
+    "examples/reference-evidence/proofgrid-source-metadata.json",
+    "examples/reference-evidence/service-planning-gate.json",
+    "examples/reference-evidence/ui-bowl-manual-export.json",
+    "examples/reference-evidence/ui-bowl-rights.md",
     "examples/playwright-scenarios.example.json",
     "README.md",
     "LICENSE"
   ];
 
   for (const expected of required) assert.ok(files.has(expected), `package is missing ${expected}`);
+  assert.equal(files.has("examples/design-reference-opt-out.example.json"), false,
+    "a synthetic Owner waiver must not ship as public starter authority");
   for (const file of files) {
+    assert.equal(file.startsWith(".killsloprouter/"), false, `private reference study leaked into package: ${file}`);
     assert.equal(file.startsWith("test/"), false, `test fixture leaked into package: ${file}`);
     assert.equal(file.startsWith(".git/"), false, `Git metadata leaked into package: ${file}`);
   }
@@ -138,11 +216,150 @@ try {
 
   const installedRoot = path.join(consumer, "node_modules", "killsloprouter");
   const installedCli = path.join(installedRoot, "bin", "killsloprouter.mjs");
+  const catalogLookup = run(process.execPath, [
+    path.join(installedRoot, "scripts/reference-catalog.mjs"), "--family", "news-reading", "--json"
+  ], { cwd: consumer });
+  assert.equal(catalogLookup.status, 0, catalogLookup.stderr);
+  const catalogReport = JSON.parse(catalogLookup.stdout);
+  assert.equal(catalogReport.status, "discovery-only");
+  assert.equal(catalogReport.summary.candidate_count, 0);
+  assert.equal(catalogReport.selection_allowed, false);
+  assert.equal(catalogReport.design_ready, false);
+  assert.ok(catalogReport.discovery_routes.length > 0);
+  const partLookup = run(process.execPath, [
+    path.join(installedRoot, "scripts/reference-application-map.mjs"), "--part", "source-reader", "--json"
+  ], { cwd: consumer });
+  assert.equal(partLookup.status, 0, partLookup.stderr);
+  const partReport = JSON.parse(partLookup.stdout);
+  assert.equal(partReport.status, "research-only");
+  assert.equal(partReport.summary.visually_inspected_frames, 3);
+  assert.equal(partReport.summary.source_products, 2);
+  assert.equal(partReport.summary.source_mobile_frames, 0);
+  assert.equal(partReport.selection_allowed, false);
+  assert.equal(partReport.creator_input_approved, false);
+  assert.equal(partReport.design_ready, false);
+  const libraryReports = [];
+  for (const filters of [[], ["--query", "브리핑"], ["--component", "mixed-search-palette", "--details"], ["--component", "comparison-table"]]) {
+    const args = ["reference", "library", ...filters, "--json"];
+    const source = run(process.execPath, [path.join(sourceRoot, "bin/killsloprouter.mjs"), ...args], { cwd: consumer });
+    const installed = run(process.execPath, [installedCli, ...args], { cwd: consumer });
+    assert.equal(source.status, 0, source.stderr);
+    assert.equal(installed.status, 0, installed.stderr);
+    const result = JSON.parse(installed.stdout);
+    assert.deepEqual(result, JSON.parse(source.stdout), "source/npm library bytes and boundaries differ");
+    assert.equal(result.status, "research-only");
+    assert.equal(result.selection_allowed, false);
+    assert.equal(result.creator_input_approved, false);
+    assert.equal(result.design_ready, false);
+    libraryReports.push({ args, result });
+  }
+  assert.equal(libraryReports[0].result.summary.matching_components, 14);
+  assert.equal(libraryReports[0].result.summary.unique_source_frames, 30);
+  assert.equal(libraryReports[1].result.summary.matching_components, 1);
+  assert.equal(libraryReports[2].result.entries[0].analysis.component_recipe.family, "mixed-search-palette");
+  assert.equal(libraryReports[3].result.summary.matching_components, 0);
+  const forbiddenOutput = path.join(consumer, "library-must-not-write.json");
+  const forbiddenLookup = run(process.execPath, [installedCli, "reference", "library", "--out", forbiddenOutput], { cwd: consumer });
+  assert.equal(forbiddenLookup.status, 2);
+  assert.equal(fs.existsSync(forbiddenOutput), false);
+  // Feature/version equality alone cannot prove installer identity: doctor
+  // binds the complete payload, including scripts, across delivery channels.
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
+    assert.equal(
+      hashArtifact(path.join(installedRoot, entry), { ignores: [] }),
+      hashArtifact(path.join(sourceRoot, entry), { ignores: [] }),
+      `npm/source plugin payload mismatch: ${entry}`
+    );
+  }
+  const capabilities = run(process.execPath, [installedCli, "capabilities", "--json"], { cwd: consumer });
+  assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
+  const distribution = JSON.parse(capabilities.stdout);
+  assert.equal(distribution.status, "available");
+  assert.equal(distribution.features.length, 8);
+  assert.equal(distribution.features.find((item) => item.id === "reference-research-library").status, "available");
+  assert.equal(distribution.features.find((item) => item.id === "reference-selection-handoff").status, "available");
+  assert.ok(distribution.features.every((item) => item.status === "available"));
+  assert.equal(distribution.project_reference_bound, false);
+  assert.equal(distribution.live_skill_loading_verified, false);
+  const designExample = path.join(installedRoot, "examples/design-brief.example.json");
+  const requiredStarter = JSON.parse(fs.readFileSync(designExample, "utf8"));
+  assert.equal(requiredStarter.reference_requirement.mode, "required");
+  assert.equal(Object.hasOwn(requiredStarter, "reference_opt_out"), false);
+  assert.equal(Object.hasOwn(requiredStarter, "reference_pack"), false);
+  const requiredByDefault = run(process.execPath, [installedCli, "design", "run", "--brief", designExample,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(requiredByDefault.status, 5, requiredByDefault.stderr || requiredByDefault.stdout);
+  assert.match(requiredByDefault.stderr, /reference-required design is blocked/);
+  const unresolvedBrief = JSON.parse(fs.readFileSync(designExample, "utf8"));
+  delete unresolvedBrief.reference_requirement;
+  const unresolvedPath = path.join(consumer, "unresolved-design.json");
+  fs.writeFileSync(unresolvedPath, JSON.stringify(unresolvedBrief));
+  const unresolved = run(process.execPath, [installedCli, "design", "run", "--brief", unresolvedPath,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(unresolved.status, 5, unresolved.stderr || unresolved.stdout);
+  assert.match(unresolved.stderr, /reference intent is unresolved/);
+  const unboundReference = run(process.execPath, [installedCli, "design", "run",
+    "--brief", path.join(installedRoot, "examples/design-brief.example.json"),
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"),
+    "--require-reference", "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(unboundReference.status, 5, unboundReference.stderr || unboundReference.stdout);
+  assert.match(unboundReference.stderr, /reference-required design is blocked/);
+  // Only an isolated test creates this synthetic exception, never the package.
+  const optOutDecisionPath = path.join(consumer, "synthetic-owner-decision.json");
+  fs.writeFileSync(optOutDecisionPath, JSON.stringify({
+    design_reference_opt_out_version: 1, project_id: requiredStarter.project_id,
+    surface: requiredStarter.surface, screen_id: requiredStarter.screen_id,
+    owner_id: "synthetic-isolated-package-test-owner", decision: "no-reference",
+    rationale: "Isolated package test only; not authority for any real product.",
+    decided_at: "2026-09-22T00:00:00.000Z"
+  }));
+  const optOutBriefPath = path.join(consumer, "synthetic-opt-out-brief.json");
+  fs.writeFileSync(optOutBriefPath, JSON.stringify({ ...unresolvedBrief,
+    reference_opt_out: { path: optOutDecisionPath, digest: hashArtifact(optOutDecisionPath) }
+  }));
+  const optedOut = run(process.execPath, [installedCli, "design", "run", "--brief", optOutBriefPath,
+    "--baseline", path.join(installedRoot, "examples/planning-evidence"), "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(optedOut.status, 6, optedOut.stderr || optedOut.stdout);
+  assert.equal(JSON.parse(optedOut.stdout).reference_delivery.intent_status, "owner-opt-out");
   const help = run(process.execPath, [installedCli, "--help"], { cwd: consumer });
   assert.equal(help.status, 0, help.stderr || help.stdout);
   assert.match(help.stdout, /host configure-codex/);
   assert.match(help.stdout, /lease recover/);
   assert.match(help.stdout, /--module-graph/);
+  assert.match(help.stdout, /reference run --brief FILE/);
+  assert.match(help.stdout, /reference dispatch --run FILE/);
+  assert.match(help.stdout, /reference choices --run FILE/);
+  assert.match(help.stdout, /reference library/);
+  const missingChoices = run(process.execPath, [installedCli, "reference", "choices"], { cwd: consumer });
+  assert.equal(missingChoices.status, 2);
+  assert.match(missingChoices.stderr, /reference choices requires --run/);
+  const referenceState = path.join(consumer, ".killsloprouter", "package-reference-run.json");
+  const manualReference = run(process.execPath, [installedCli, "reference", "run",
+    "--brief", path.join(installedRoot, "examples/reference-brief.example.json"),
+    "--root", installedRoot, "--out", referenceState, "--json"], { cwd: consumer });
+  assert.equal(manualReference.status, 6, manualReference.stderr || manualReference.stdout);
+  const referenceStateDigest = hashArtifact(referenceState);
+  const pendingChoices = run(process.execPath, [installedCli, "reference", "choices",
+    "--run", referenceState, "--json"], { cwd: consumer });
+  assert.equal(pendingChoices.status, 0, pendingChoices.stderr);
+  const pendingReport = JSON.parse(pendingChoices.stdout);
+  assert.equal(pendingReport.registry_comparison.status, "matching");
+  assert.equal(pendingReport.registry_comparison.resume_authorized, false);
+  assert.equal(pendingReport.recovery.same_run_result_replacement_allowed, false);
+  assert.deepEqual(pendingReport.recovery.accepted_packet_ids, []);
+  assert.deepEqual(pendingReport.recovery.unresolved_packet_ids, ["reference-discovery"]);
+  assert.equal(pendingReport.can_select, false);
+  assert.equal(hashArtifact(referenceState), referenceStateDigest);
+  assert.match(help.stdout, /reference recover --state FILE/);
+  const referenceHelp = run(process.execPath, [
+    installedCli,
+    "reference",
+    "--help"
+  ], { cwd: consumer });
+  assert.equal(referenceHelp.status, 0,
+    referenceHelp.stderr || referenceHelp.stdout);
+  assert.match(referenceHelp.stdout, /reference run --resume FILE/);
+  assert.match(referenceHelp.stdout, /reference status --run FILE/);
   const installedGraphDigest = run(process.execPath, [
     installedCli,
     "digest",
@@ -167,6 +384,100 @@ try {
     "import('killsloprouter/state-lease').then((module) => { if (!module.acquireStateLease || !module.inspectStateLease || module.claimStaleStateLease || module.completeStateLeaseRecovery) process.exit(1); })"
   ], { cwd: consumer });
   assert.equal(leaseExport.status, 0, leaseExport.stderr || leaseExport.stdout);
+  const referenceContractExport = run(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    `import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+const root = ${JSON.stringify(installedRoot)};
+const reference = await import("killsloprouter/reference");
+const components = await import(path.join(root, "src", "component-recipes.mjs"));
+for (const name of ["component-recipe.example.json", "component-card-recipe.example.json"]) {
+  components.validateComponentRecipe(JSON.parse(fs.readFileSync(path.join(root, "examples", name), "utf8")));
+}
+assert.equal(typeof components.componentSchemaContract("specs").schema, "object");
+const brief = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-brief.example.json"), "utf8"));
+const manualExport = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-evidence", "ui-bowl-manual-export.json"), "utf8"));
+const registry = JSON.parse(fs.readFileSync(path.join(root, "registry", "human-design-reasoning.json"), "utf8"));
+const designBriefSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-brief.schema.json"), "utf8"));
+const designDecisionSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-direction-decision.schema.json"), "utf8"));
+const designPacketSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-packet.schema.json"), "utf8"));
+const designRunSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-exploration-run.schema.json"), "utf8"));
+const referenceRunSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "reference-run.schema.json"), "utf8"));
+const referencePacketSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "reference-packet.schema.json"), "utf8"));
+const referenceDispatchSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "reference-dispatch-request.schema.json"), "utf8"));
+const sourceCompositionSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "design-source-composition-analysis.schema.json"), "utf8"));
+reference.validateReferenceBrief(brief, { root });
+const fitBrief = JSON.parse(fs.readFileSync(path.join(root, "examples", "reference-brief.fit-only.example.json"), "utf8"));
+reference.validateReferenceBrief(fitBrief, { root });
+assert.equal(fitBrief.popularity_prior.unavailable_policy, "fit-only");
+reference.validateUiBowlManualExport(manualExport);
+// Shape-only synthetic unavailable records; no real source file is rewritten.
+const unavailableExport = structuredClone(manualExport);
+for (const record of unavailableExport.records) {
+  record.popularity_records = record.popularity_records.map((item) => {
+    const { raw_value, as_of, snapshot_at, ...rest } = item;
+    return { ...rest, record_kind: "unavailable", checked_at: "2026-09-04T01:00:00.000Z",
+      reason: "Synthetic package fixture: no count was observed." };
+  });
+}
+reference.validateUiBowlManualExport(unavailableExport);
+reference.validateHumanDesignReasoningRegistry(registry);
+assert.ok(manualExport.records.flatMap((record) => record.evidence_records).every((evidence) => evidence.kind === "source-metadata"));
+assert.equal(sourceCompositionSchema.properties.design_source_composition_analysis_version.const, 1);
+assert.deepEqual(sourceCompositionSchema.properties.stage.enum, ["direction-review", "color-review"]);
+assert.equal(sourceCompositionSchema.additionalProperties, false);
+assert.deepEqual(designBriefSchema.properties.reference_pack.required, ["path", "digest", "producer_state", "reviewer_source_access"]);
+assert.equal(referenceRunSchema.properties.reasoning_registry.properties.design_checks.minItems, 11);
+assert.equal(referenceRunSchema.properties.reasoning_registry.properties.design_checks.maxItems, 11);
+assert.equal(referencePacketSchema.properties.reference_task.properties.human_design_reasoning.properties.design_checks.minItems, 11);
+assert.equal(referencePacketSchema.properties.reference_task.properties.human_design_reasoning.properties.design_checks.maxItems, 11);
+assert.equal(referencePacketSchema.$defs.digest.pattern, "^sha256:[a-f0-9]{64}$");
+for (const field of ["brief_digest", "authority_graph_digest"]) {
+  assert.ok(referencePacketSchema.properties.reference_task.required.includes(field));
+  assert.equal(referencePacketSchema.properties.reference_task.properties[field].$ref, "#/$defs/digest");
+}
+assert.equal(referenceRunSchema.properties.packets.items.$ref, "reference-packet.schema.json");
+assert.equal(referenceDispatchSchema.properties.packet.$ref, "reference-packet.schema.json");
+const sourceCaptureReadinessSchema = JSON.parse(fs.readFileSync(path.join(root, "schemas", "reference-pack.schema.json"), "utf8")).properties.downstream_contract.properties.reviewer_source_capture_readiness;
+assert.deepEqual(sourceCaptureReadinessSchema.required, ["status", "capture_evidence_ids", "uncovered_reference_ids", "uncovered_observation_ids", "revalidate_on_design_start"]);
+assert.deepEqual(sourceCaptureReadinessSchema.properties.status.enum, ["ready_at_compilation", "manual_pending"]);
+assert.equal(sourceCaptureReadinessSchema.properties.revalidate_on_design_start.const, true);
+assert.ok(referenceRunSchema.$defs.attempt.properties.execution_authority);
+assert.ok(referenceRunSchema.$defs.attempt.properties.execution_authority_source);
+assert.ok(referenceRunSchema.$defs.attempt.allOf.some((entry) => entry.then?.required?.includes("execution_authority") && entry.then?.required?.includes("execution_authority_source")));
+assert.ok(designRunSchema.$defs.attempt.allOf.some((entry) => entry.then?.required?.includes("execution_authority")));
+assert.ok(designRunSchema.required.includes("lease_recoveries") && designRunSchema.required.includes("in_flight"));
+assert.equal(designRunSchema.properties.pending_finalization.oneOf[1].$ref, "#/$defs/pendingFinalization");
+assert.deepEqual(designRunSchema.$defs.pendingFinalization.required, ["design_finalization_transaction_version", "directory", "staging_directory", "files", "final_receipt_digests", "transaction_digest"]);
+assert.deepEqual(designRunSchema.$defs.finalizationFile.required, ["name", "digest", "bytes"]);
+for (const field of ["source_recipient_provider_ids", "source_recipient_actor_ids"]) {
+  assert.ok(designRunSchema.$defs.reviewSourceAuthority.required.includes(field));
+  assert.equal(designRunSchema.$defs.reviewSourceAuthority.properties[field].minItems, 1);
+  assert.equal(designRunSchema.$defs.reviewSourceAuthority.properties[field].uniqueItems, true);
+}
+assert.ok(designRunSchema.$defs.reviewSourceAuthority.required.includes("source_recipient_execution_lineage"));
+assert.deepEqual(designRunSchema.$defs.sourceRecipientExecutionLineage.required, ["reference_source_recipient_execution_lineage_version", "attempts", "lineage_digest"]);
+assert.equal(designRunSchema.$defs.sourceRecipientExecutionLineage.properties.attempts.minItems, undefined);
+assert.ok(designRunSchema.$defs.sourceRecipientExecutionAttempt.required.includes("adapter"));
+assert.deepEqual(designRunSchema.$defs.sourceRecipientExecutionAttempt.properties.adapter.enum, ["kill-ai-slop-v1", "agent-json-v1", "skill-json-v1", "browser-json-v1", "manual-v1"]);
+assert.deepEqual(designRunSchema.$defs.sourceRecipientExecutionEntrypoint.required, ["digest", "physical_identity_digest", "graph_digest"]);
+assert.ok(designRunSchema.$defs.reviewSourceAuthority.properties.captures.items.properties.frames.items.properties.role.enum.includes("navigational"));
+const priorEvidence = referenceDispatchSchema.properties.prior_results.items.properties.evidence_digests.items;
+for (const field of ["reference_id", "product_record_id", "screen_record_id", "frame_ids", "subject_bindings"]) assert.ok(priorEvidence.allOf[0].then.required.includes(field));
+assert.ok(designPacketSchema.allOf.some((entry) => entry.if?.properties?.design_task?.required?.includes("reference_intelligence") && entry.then?.properties?.forbidden_permissions?.contains?.const === "network:external"));
+assert.ok(designPacketSchema.allOf.some((entry) => entry.if?.properties?.design_task?.properties?.reference_intelligence?.properties?.audience?.const === "independent-reviewer" && entry.then?.properties?.required_permissions?.contains?.const === "reference-evidence:read"));
+const finalBinding = designDecisionSchema.$defs["reference-intelligence-binding"];
+for (const field of ["review_source_capture_set_digest", "direction_source_composition_analysis_digest", "color_source_composition_analysis_digest"]) assert.ok(finalBinding.required.includes(field));`
+  ], { cwd: consumer });
+  assert.equal(referenceContractExport.status, 0,
+    referenceContractExport.stderr || referenceContractExport.stdout);
+  const syncExport = run(process.execPath, [
+    "--input-type=module", "--eval",
+    "import('killsloprouter/plugin-sync').then((module) => { if (!module.pluginAccountSync || !module.readPluginSyncPolicy) process.exit(1); })"
+  ], { cwd: consumer });
+  assert.equal(syncExport.status, 0, syncExport.stderr || syncExport.stdout);
 
   const installedProfile = path.join(installedRoot, "examples", "project-profile.example.json");
   const installedHost = path.join(installedRoot, "examples", "host-adapter.example.json");
@@ -180,11 +491,41 @@ try {
   ], { cwd: consumer });
   assert.equal(pluginInstall.status, 0, pluginInstall.stderr || pluginInstall.stdout);
   const pluginReceipt = JSON.parse(pluginInstall.stdout);
+  const pluginCatalog = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "scripts/reference-catalog.mjs"), "--family", "news-reading", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginCatalog.status, 0, pluginCatalog.stderr);
+  assert.deepEqual(JSON.parse(pluginCatalog.stdout), catalogReport,
+    "catalog discovery and evidence levels must agree across package and isolated plugin");
+  const pluginParts = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "scripts/reference-application-map.mjs"), "--part", "source-reader", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginParts.status, 0, pluginParts.stderr);
+  assert.deepEqual(JSON.parse(pluginParts.stdout), partReport,
+    "part evidence, proposal boundaries and digests must agree across package and isolated plugin");
+  for (const { args, result } of libraryReports) {
+    const lookup = run(process.execPath, [path.join(pluginReceipt.plugin_target, "bin/killsloprouter.mjs"), ...args], { cwd: consumer });
+    assert.equal(lookup.status, 0, lookup.stderr);
+    assert.deepEqual(JSON.parse(lookup.stdout), result, "isolated plugin library differs from source/npm");
+  }
+  const pluginCapabilities = run(process.execPath, [
+    path.join(pluginReceipt.plugin_target, "bin/killsloprouter.mjs"), "capabilities", "--json"
+  ], { cwd: consumer });
+  assert.equal(pluginCapabilities.status, 0, pluginCapabilities.stderr || pluginCapabilities.stdout);
+  assert.deepEqual(JSON.parse(pluginCapabilities.stdout), distribution,
+    "npm consumer and isolated installed plugin must deliver the same reference feature bytes");
   assert.equal(pluginReceipt.skill_catalog.status, "ready");
   assert.equal(pluginReceipt.skill_catalog.canonical.status, "installed");
   assert.match(pluginReceipt.skill_catalog.canonical.marker_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(pluginReceipt.skill_catalog.canonical.payload_digest, /^sha256:[a-f0-9]{64}$/);
   assert.match(pluginReceipt.skill_catalog.canonical.runtime_digest, /^sha256:[a-f0-9]{64}$/);
+  const syncStatus = run(process.execPath, [
+    installedCli, "plugin", "sync", "--home", isolatedHome, "--json"
+  ], { cwd: consumer });
+  assert.equal(syncStatus.status, 5, syncStatus.stderr || syncStatus.stdout);
+  assert.equal(JSON.parse(syncStatus.stdout).mode, "shared");
+  assert.equal(JSON.parse(syncStatus.stdout).status, "enrollment_required");
+  assert.equal(fs.existsSync(path.join(isolatedHome, ".killsloprouter", "plugin-sync.json")), false);
   const doctor = run(process.execPath, [
     installedCli,
     "doctor",
@@ -194,6 +535,74 @@ try {
   ], { cwd: consumer });
   assert.equal(doctor.status, 0, doctor.stderr || doctor.stdout);
   assert.equal(JSON.parse(doctor.stdout).status, "automation-ready");
+
+  // Verify both real cross-channel paths, not just npm -> npm-installed plugin.
+  const sourceCli = path.join(sourceRoot, "bin", "killsloprouter.mjs");
+  const sourceHome = path.join(temporary, "source-installed-codex-home");
+  const legacy = path.join(sourceHome, ".codex", "skills", "kill-slop-router");
+  fs.mkdirSync(path.join(legacy, "agents"), { recursive: true });
+  fs.writeFileSync(path.join(legacy, "SKILL.md"), "# legacy full router fixture\n");
+  fs.writeFileSync(path.join(legacy, "agents", "openai.yaml"), "policy:\n  allow_implicit_invocation: true\n");
+  const legacyDigest = hashArtifact(legacy);
+  const sourceInstall = run(process.execPath, [sourceCli,
+    "plugin", "install", "--home", sourceHome, "--migrate-legacy-entry", "--no-activate"], { cwd: sourceRoot });
+  assert.equal(sourceInstall.status, 0, sourceInstall.stderr || sourceInstall.stdout);
+  const sourceReceipt = JSON.parse(sourceInstall.stdout);
+  assert.equal(sourceReceipt.legacy_migration.status, "migrated");
+  assert.equal(sourceReceipt.legacy_migration.backup.digest, legacyDigest);
+  assert.equal(hashArtifact(sourceReceipt.legacy_migration.backup.path), legacyDigest);
+  assert.equal(sourceReceipt.skill_catalog.canonical.marker_digest,
+    pluginReceipt.skill_catalog.canonical.marker_digest,
+    "source and npm installations must issue the same complete marker");
+  for (const [checkingCli, home] of [[installedCli, sourceHome], [sourceCli, isolatedHome]]) {
+    const crossDoctor = run(process.execPath, [checkingCli, "doctor",
+      "--profile", installedProfile, "--home", home, "--json"], { cwd: consumer });
+    assert.equal(crossDoctor.status, 0, crossDoctor.stderr || crossDoctor.stdout);
+    const checked = JSON.parse(crossDoctor.stdout);
+    assert.equal(checked.skill_catalog.status, "ready");
+    assert.equal(checked.skill_catalog.identity_conflict, false);
+    assert.equal(checked.skill_catalog.legacy.status,
+      home === sourceHome ? "verified-explicit-shim" : "absent");
+    assert.equal(checked.skill_catalog.canonical.marker_digest,
+      pluginReceipt.skill_catalog.canonical.marker_digest);
+  }
+  const scriptToTamper = path.join(sourceReceipt.plugin_target, "scripts", "static-check.mjs");
+  fs.appendFileSync(scriptToTamper, "\n// package verification tamper fixture\n");
+  const tamperedDoctor = run(process.execPath, [installedCli, "doctor",
+    "--profile", installedProfile, "--home", sourceHome, "--json"], { cwd: consumer });
+  assert.equal(tamperedDoctor.status, 5, tamperedDoctor.stderr || tamperedDoctor.stdout);
+  assert.equal(JSON.parse(tamperedDoctor.stdout).skill_catalog.identity_conflict, true,
+    "cross-channel parity must not weaken complete script integrity");
+
+  const installedReferenceBrief = path.join(
+    installedRoot,
+    "examples",
+    "reference-brief.example.json"
+  );
+  const referenceDryRun = run(process.execPath, [
+    installedCli,
+    "reference", "run",
+    "--brief", installedReferenceBrief,
+    "--root", installedRoot,
+    "--dry-run",
+    "--json"
+  ], { cwd: consumer });
+  assert.equal(referenceDryRun.status, 6,
+    referenceDryRun.stderr || referenceDryRun.stdout);
+  const referenceDryReport = JSON.parse(referenceDryRun.stdout);
+  assert.equal(referenceDryReport.status, "manual_pending");
+  assert.equal(referenceDryReport.source.provider, "uibowl");
+  assert.equal(referenceDryReport.source.access_mode, "manual-export");
+  assert.equal(referenceDryReport.reasoning_registry.design_check_count, 11);
+  assert.ok(referenceDryReport.readiness.every((item) =>
+    item.execution_status === "manual_pending"));
+  const fitDryRun = run(process.execPath, [installedCli, "reference", "run",
+    "--brief", path.join(installedRoot, "examples", "reference-brief.fit-only.example.json"),
+    "--root", installedRoot, "--dry-run", "--json"], { cwd: consumer });
+  assert.equal(fitDryRun.status, 6, fitDryRun.stderr || fitDryRun.stdout);
+  assert.equal(JSON.parse(fitDryRun.stdout).status, "manual_pending");
+  assert.equal(JSON.parse(fitDryRun.stdout).popularity_policy.within_band, "fit-score-descending");
+  assert.equal(JSON.parse(fitDryRun.stdout).popularity_policy.unavailable_policy, "fit-only");
 
   const dryRun = run(process.execPath, [
     installedCli,
@@ -219,7 +628,9 @@ try {
   process.stdout.write(`package: ${report.filename}\n`);
   process.stdout.write(`files: ${report.entryCount}\n`);
   process.stdout.write(`bytes: ${report.size}\n`);
-  process.stdout.write("installed consumer: help/module-graph digest, Codex/state-lease exports, integrity-bound plugin install, doctor, manual dry-run passed\n");
+  process.stdout.write("reference library: source/npm/isolated-plugin lookup, details, empty coverage, digest parity and no-write option rejection passed\n");
+  process.stdout.write("source/npm: complete payload parity, both cross-channel doctors, marker equality, migrated legacy backup/shim and script tamper rejection passed\n");
+  process.stdout.write("installed consumer: help/module-graph digest, Codex/state-lease/reference exports, reference contract validation and dry-run, integrity-bound plugin install, doctor, manual runtime dry-run passed\n");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

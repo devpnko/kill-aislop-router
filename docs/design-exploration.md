@@ -46,6 +46,13 @@ and validate it against
 The runtime validator is stricter than the descriptive schema in several
 places.
 
+Before creation, resolve [reference intent](reference-delivery.md): UI Bowl is
+required by default. The public starter declares this requirement but has no
+pack, so schema validation and preflight deliberately block until a genuine,
+completed project `reference_pack` is bound. It contains no synthetic Owner
+waiver. Separate exception fixtures are test-only, not packaged authority. Historical
+unbound runs remain inspectable but need a successor before further creation.
+
 The brief must contain:
 
 - the user, job, main object, core task, trust risk, density, real states, and
@@ -63,10 +70,80 @@ The brief must contain:
 - at least two viewports, every real state, all project locales, and the
   mandatory Playwright checks.
 
+The default reference-required brief must bind one digest-bound `reference_pack`, the exact completed
+producer-state path/digest, and a required `reviewer_source_access` contract
+from the
+[reference-intelligence stage](reference-intelligence.md). KSR verifies that
+the pack belongs to the same project, surface, screen ID, product frame, and
+current bundled reasoning registry and producer output lineage, remains
+`discovery-evidence-only`, contains causal hierarchy reasoning with conditions
+and tradeoffs, excludes source image bytes and paths, and grants no visual
+authority. Its router-recomputed
+`reviewer_source_capture_readiness` must be `ready_at_compilation`; a
+research-complete pack marked `manual_pending` cannot start design work, and
+the exact capture/reference/observation coverage is revalidated from the
+producer at design start. The complete pack remains an audit artifact with
+selected source identities, links, verified observations, causal reasoning,
+grammar, and its path-free evidence digest manifest. Each creator packet receives only a
+source-identity-free projection of causal reasoning and transferable grammar;
+raw source observations, URLs, names, pixels, and capture paths are absent.
+
+`reviewer_source_access` must be version 1,
+`mode: digest-bound-internal-critic`, limited to
+`promotional-citation-firewall` and `source-composition-independence`, and
+allow only `source-capture`. Redistribution, creator access, browser-provider
+access, and external network are false. KSR derives `review_source_authority`
+version 1 with pack/producer digests, aliased captures, and a
+`capture_set_digest`. Actual paths appear only in independent-reviewer run
+artifacts. That packet requires `reference-evidence:read` and declares source
+descriptors/pixels available to its participant while preserving
+`source_pixels_exposed_to_downstream_creator: false`. Creator and browser
+packets forbid both source-evidence access and external network.
+The authority also binds every accepted source-recipient provider and actor,
+plus providers from executable attempts even when an attempt failed. None may
+serve as a direction/color creator or browser
+participant in this consuming design run; independent direction/color reviewer
+reuse remains allowed. Provider conflicts stop before state creation, and actor
+conflicts stop before accepting a creator/browser result.
+The same authority carries a canonically ordered, digest-bound execution
+lineage for the reference attempts, including provider declaration and adapter
+type, entrypoint content, physical-identity, and graph digests. A fully manual
+producer has an empty attempts array; it never receives synthetic executable
+provenance.
+
+Creator traces must disposition every selected dimension as applied or
+target-specific not-applicable while preserving actual grammar-to-reasoning
+edges. Reviewers apply the eleven fixed checks by stage: ten for direction and
+two for color, with `source-composition-independence` shared by both. Each
+applicable check requires typed, digest-bound evidence and its fixed failure
+code. `reference-capture-set` must resolve to
+`reference-authority/source-capture-set`; `source-composition-analysis` must
+resolve to `review-evidence/source-composition-analysis` and validate against
+[`design-source-composition-analysis.schema.json`](../schemas/design-source-composition-analysis.schema.json).
+The approved decision retains pack, producer, target, trace,
+independent-review digests, `review_source_capture_set_digest`, and the
+direction/color `*_source_composition_analysis_digest` values as
+non-authoritative provenance. Historical packets without `reference_pack` stay
+readable. New explicitly opted-out packets add the decision-bound `not_bound`
+delivery metadata. Neither choice changes the three theses, three depths, three color
+strategies, Playwright checks, or Owner gates.
+An earlier preview brief or pack that lacks the complete
+`reviewer_source_access`, router-recomputed capture-readiness, or
+source-recipient separation and execution-lineage contract is intentionally
+rejected; regenerate the
+reference run and start a new design run rather than patching or re-signing the
+old state.
+
 Do not derive a thesis from the semantic surface label. Do not fill all three
 rows with renamed versions of `editorial`, `minimal SaaS`, or another familiar
 template. A useful row explains how this product's object, task, trust, brand,
 or subject world creates a distinct visual logic.
+
+When the selected reference pack includes component recipes, follow
+[component craft and responsive recipes](component-recipes.md): require three
+distinct browser widths, preserve visual treatments in `component_specs`, and
+inspect the rendered specimen through `component-craft-and-reflow` in both
+direction and color review. A readable spec alone is not visual approval.
 
 ## Dry run
 
@@ -137,6 +214,30 @@ child execution error. Completed results are not silently regenerated. Manual
 adapter results can be supplied with repeatable `--result FILE` and pass the
 same schema, identity, capability, evidence, and digest checks.
 
+Every completed automated design attempt also retains the exact execution
+authority used for that child: a digest- and physical-identity-bound host
+manifest, provider declaration digest, optional adapter-entrypoint snapshot,
+and an authority digest over that tuple. State reads and resumes revalidate the
+snapshot before trusting the attempt. A recovery receipt may represent an
+abandoned child whose outcome is unknown, but it never upgrades that child to
+`ran`. A pre-contract design state containing an automated attempt without this
+authority cannot be made trustworthy by copying values from today's host
+manifest or re-signing the state; start the design run again from the unchanged
+brief, baseline, and external Owner authority. Inspection-only
+`manual_pending` and genuine `manual_recorded` attempts remain distinguishable
+and do not claim automated execution.
+
+Final approval publication is also crash-resumable rather than an untracked
+directory write. KSR stages exactly the decision, visual-intent receipt,
+visual-signature receipt, and profile bindings, records their names, byte
+counts, digests, receipt digests, destination paths, and transaction digest in
+`pending_finalization`, and durably writes that state before publishing the
+directory. Resume may adopt only that exact staged or already-published file
+set, after revalidating the full authority graph. Missing, doubled, redirected,
+or changed staging/published directories fail closed. A lease recovery can
+record the already-durable checkpoint, but it cannot manufacture a finalization
+transaction or publish a second copy.
+
 Inspect or redispatch the current immutable packets with:
 
 ```bash
@@ -169,6 +270,16 @@ then run `doctor`. These receipts authorize visual direction only; the normal
 integrated run still requires its locale, domain, privacy, browser, critic,
 conflict, and final owner gates. This keeps a generated candidate from gaining project
 authority through an implicit write.
+
+A design state created before the lease/recovery and transactional-finalization
+contract is not upgraded by adding fields or re-signing JSON. In particular,
+an interrupted legacy approval with an unbound `approved/` or staging directory
+has no adoptable `pending_finalization` authority. Preserve it only as
+historical evidence and start a new design run from the unchanged external
+brief, baseline, reference pack (when present), and Owner inputs. The same
+restart rule applies when an automated attempt lacks its historical execution
+authority. Do not copy either authority from the current filesystem or host
+manifest.
 
 Exploration also does not approve a reusable `design_system`. Implement the
 chosen prototype and token spec through one explicit project creator. An
@@ -205,22 +316,91 @@ and palette fields; naming a fashionable font or a harmonious palette is not
 enough.
 
 Creators need `artifact:read` and `evidence:write`. Browser packets additionally
-require `browser:control` and must use a `browser-json-v1` declaration. The
-browser result must attest `browser_engine: "playwright"`, cover every viewport,
-locale, and state, pass every requested check, and return screenshots plus a
-test report inside the granted output directory.
+require `browser:control` and must use a digest-locked `browser-json-v1`
+declaration. The browser result must come from a KSR-run sealed adapter attempt;
+a caller-supplied manual browser result is never execution evidence. The result
+must attest `browser_engine: "playwright"`, cover every viewport, locale, and
+state, pass every requested check, and return screenshots plus a test report
+inside the granted output directory.
+
+The no-reference exact-three flow retains compatibility with an explicitly
+allowlisted custom `browser-json-v1` Playwright adapter. A reference-backed
+flow is stricter: every candidate browser packet resolves to the bundled
+official Playwright contract. The browser never receives source-reference
+pixels, paths, identities, or the reviewer-only `reference-evidence:read`
+permission. A generic or manual browser remains `manual_pending` before child
+spawn in that flow.
 
 The bundled official Playwright adapter also accepts design browser packets.
 For that path, each creator returns exactly one digest-bound static `.html`
-prototype. Mark every demonstrated locale and state so the browser verifies
-coverage rather than trusting a claim:
+prototype.
+
+### Executed state proof
+
+Define exactly one reviewed scenario for every required state × locale in the
+digest-locked Playwright scenario file. Add `design: {state, locale}` to those
+scenarios; runtime scenarios without that field remain compatible. Missing or
+duplicate coverage is `manual_pending` before child spawn. `design run --dry-run`
+checks the same inventory. The default root scenario is not design-state proof.
+
+```json
+{
+  "id": "save-error.ko-KR",
+  "path": "/",
+  "design": {"state": "error", "locale": "ko-KR"},
+  "actions": [{"type": "click", "locator": "#save"}],
+  "assertions": [
+    {"type": "visible", "locator": "#save-error"},
+    {"type": "text", "locator": "#save-error", "value": "저장하지 못했습니다"}
+  ]
+}
+```
+
+Use real prototype controls and meaningful assertions. The complete
+[`design scenario example`](../examples/design-playwright-scenarios.example.json)
+covers the example brief's six states and two locales, but its generic test
+selectors are illustrative: replace them with the intended product interactions
+and share that reviewed interaction contract with the creator. A debug state
+switcher does not prove the real save/navigation workflow. Never add an internal
+JavaScript state switch after a failed native click or label it a successful
+user interaction.
+
+Use `browser configure --scenario <reviewed-file>` with the existing reviewed
+host setup to seal the changed file; do not manually update a digest. Keep the
+integrated runtime `required_scenarios` inventory separate from design-only
+cases when the same host serves both workflows. The adapter never starts a
+server, reads a profile command, or obtains new network authority for a design
+prototype.
+
+Mark the active state and its inherited locale. Exactly one matching state must
+be visible, outside hidden/inert/aria-hidden ancestors, with nonzero geometry.
+Its closest `lang` or `data-killsloprouter-locale` ancestor must match the case:
 
 ```html
-<section data-killsloprouter-locale="ko-KR">...</section>
-<section data-killsloprouter-locale="en-US">...</section>
-<section data-killsloprouter-state="default">...</section>
-<section data-killsloprouter-state="error">...</section>
+<main lang="ko-KR">
+  <section data-killsloprouter-state="default">...</section>
+  <section id="save-error" data-killsloprouter-state="error" hidden>...</section>
+</main>
 ```
+
+Each case opens a fresh browser context with its own locale and color scheme,
+performs the declared native actions, and checks the declared assertions plus
+the visible state/locale. Non-default states must start hidden and become
+visible through a native action. Showing every state at initial load does not
+prove an interaction. Static state boards need a separate review; they are not
+silently promoted to interactive evidence. Locale markers are an automated
+coverage check, not certification of translation quality.
+
+All required state/locale scenarios run at every required viewport and every
+configured color scheme. Overflow, clipping, keyboard, axe, console, and network
+checks run in those actual states. A failed action stops subsequent actions;
+assertions are marked skipped and diagnostic captures do not turn the case into
+a pass. Each execution has a unique screenshot and trace with content digests.
+[`design-playwright-report.schema.json`](../schemas/design-playwright-report.schema.json)
+version 2 records the full matrix. Ingest and resume recompute exact scenario
+steps, matrix coverage, viewport sizes, and screenshot/trace bindings from the
+immutable execution authority. A `ran` child with a failed check is still
+blocked at result ingest; it is never Owner approval.
 
 The official adapter requires a self-contained prototype: inline CSS/JS and
 `data:` or `blob:` assets. It opens only the exact bound HTML and blocks every
@@ -229,6 +409,15 @@ image cannot change after the prototype digest is recorded. It runs the pinned
 Chromium/axe harness. Exploration screenshots do not become approved pixel
 baselines. The later integrated artifact audit still requires served-artifact
 attestation and exact owner-approved baselines.
+
+Marker-only version-1 reports are historical diagnostics, not resumable design
+approval evidence under this contract. Preserve old state and outputs unchanged,
+configure reviewed scenarios using the updated bundled adapter, and start a new
+design run from verified external inputs. Do not rewrite/re-sign old reports,
+copy approvals, or delete a completed browser result to force a retry. An
+unaccepted browser attempt in a run that has no legacy accepted proof can be
+retried explicitly after restoring its unchanged bound inputs. An intentional
+prototype change requires a new run.
 
 The static-design path intentionally does not claim a real screen-reader run or
 an approved visual-regression comparison. If either check is added to the

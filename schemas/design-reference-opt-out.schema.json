@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-reference-opt-out.schema.json",
+  "title": "Scoped Owner decision to explore without reference-derived craft",
+  "type": "object",
+  "required": ["design_reference_opt_out_version", "project_id", "surface", "screen_id", "owner_id", "decision", "rationale", "decided_at"],
+  "properties": {
+    "design_reference_opt_out_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
+    "screen_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "decision": {"const": "no-reference"},
+    "rationale": {"type": "string", "minLength": 1},
+    "decided_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,221 @@
+{
+  "reference_library_version": 1,
+  "status": "research-only",
+  "audience": [
+    "internal-researcher",
+    "independent-critic",
+    "owner"
+  ],
+  "study": {
+    "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+    "digest": "sha256:8500cbe81a478e42e139378351371a655d210e5273cf917b9fbcf09c36f2a7b9"
+  },
+  "study_document": {
+    "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.md",
+    "digest": "sha256:63acbd1a942a2ae3888b57d44817c9f5c877871938b28e0b487aa9549302e06e"
+  },
+  "review": {
+    "path": "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+    "digest": "sha256:cfa27ad63c49883238cca3e9d4ca96b3173e9f5bcfb91ec255fa4ad7f84807b7"
+  },
+  "source_index": {
+    "path": "docs/research/ui-bowl-korea-familiar-30-2026-09-22.json",
+    "digest": "sha256:b3a04d073bc5e3ae33418ca6a8d806e0d1109c8bd1bb795cedcca6efd2478fd3"
+  },
+  "keyword_basis": "curator-search-facets-not-verified-fit-rank-or-owner-selection",
+  "entries": [
+    {
+      "entry_id": "kakaotalk-summary-transcript",
+      "keywords": [
+        "대화",
+        "요약",
+        "원문",
+        "카드",
+        "재생",
+        "conversation",
+        "summary",
+        "source"
+      ]
+    },
+    {
+      "entry_id": "naverpay-briefing-reader",
+      "keywords": [
+        "브리핑",
+        "읽기",
+        "요약",
+        "카드",
+        "시각",
+        "출처",
+        "briefing",
+        "reader",
+        "card"
+      ]
+    },
+    {
+      "entry_id": "coupang-managed-choice-dialog",
+      "keywords": [
+        "선택",
+        "격자",
+        "입력",
+        "오류",
+        "모달",
+        "결제",
+        "choice",
+        "grid",
+        "dialog",
+        "form"
+      ]
+    },
+    {
+      "entry_id": "naver-travel-media-discovery",
+      "keywords": [
+        "여행",
+        "탐색",
+        "이미지",
+        "사진",
+        "카드",
+        "media",
+        "discovery",
+        "image"
+      ]
+    },
+    {
+      "entry_id": "naver-travel-hierarchical-search",
+      "keywords": [
+        "검색",
+        "지역",
+        "탭",
+        "목적지",
+        "계층",
+        "search",
+        "tabs",
+        "hierarchy"
+      ]
+    },
+    {
+      "entry_id": "naver-map-web-help-disclosure",
+      "keywords": [
+        "도움말",
+        "검색",
+        "펼침",
+        "FAQ",
+        "탭",
+        "help",
+        "disclosure",
+        "search",
+        "tabs"
+      ]
+    },
+    {
+      "entry_id": "toss-business-composer-preview",
+      "keywords": [
+        "작성",
+        "미리보기",
+        "검토",
+        "입력",
+        "알림",
+        "composer",
+        "preview",
+        "form"
+      ]
+    },
+    {
+      "entry_id": "toss-business-local-assistance",
+      "keywords": [
+        "작성",
+        "제안",
+        "근거",
+        "적용",
+        "AI",
+        "보조",
+        "assistant",
+        "suggestion",
+        "writing"
+      ]
+    },
+    {
+      "entry_id": "kakaopay-watchlist-sheet",
+      "keywords": [
+        "수치",
+        "비교",
+        "목록",
+        "시트",
+        "탭",
+        "관심",
+        "comparison",
+        "list",
+        "sheet",
+        "tabs"
+      ]
+    },
+    {
+      "entry_id": "kakaopay-news-timeline",
+      "keywords": [
+        "뉴스",
+        "시간",
+        "제목",
+        "사진",
+        "목록",
+        "타임라인",
+        "news",
+        "timeline",
+        "list"
+      ]
+    },
+    {
+      "entry_id": "papago-web-dual-pane-handwriting",
+      "keywords": [
+        "번역",
+        "입력",
+        "필기",
+        "후보",
+        "패널",
+        "translation",
+        "input",
+        "handwriting"
+      ]
+    },
+    {
+      "entry_id": "kurly-web-payment-registration",
+      "keywords": [
+        "결제",
+        "등록",
+        "입력",
+        "단계",
+        "키패드",
+        "payment",
+        "registration",
+        "form"
+      ]
+    },
+    {
+      "entry_id": "toss-securities-search-palette",
+      "keywords": [
+        "검색",
+        "탭",
+        "결과",
+        "뉴스",
+        "연관",
+        "search",
+        "tabs",
+        "results",
+        "palette"
+      ]
+    },
+    {
+      "entry_id": "toss-securities-dense-modules",
+      "keywords": [
+        "비교",
+        "수치",
+        "표",
+        "차트",
+        "작업대",
+        "고밀도",
+        "comparison",
+        "table",
+        "chart",
+        "workbench"
+      ]
+    }
+  ]
+}

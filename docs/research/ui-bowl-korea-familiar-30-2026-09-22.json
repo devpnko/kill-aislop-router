@@ -1,0 +1,876 @@
+{
+  "research_study_version": 1,
+  "id": "korea-familiar-first-30-20260922",
+  "date": "2026-09-22",
+  "status": "visually-inspected-intake-independent-review-pending",
+  "authority_scope": "non-authoritative-research-aid",
+  "audience": [
+    "researcher",
+    "independent-reviewer",
+    "owner"
+  ],
+  "downstream_creator_access": false,
+  "owner_cohort_request": "근데 디자인을 국내 사람들이 다아는 서비스 위주로 가자",
+  "selection_policy": {
+    "priority": [
+      "domestic-familiarity-researcher-heuristic",
+      "source-displayed-MAU-order-within-app-or-web-cohort",
+      "actual-operational-screen-and-component-usefulness"
+    ],
+    "caveats": [
+      "Familiarity is a bounded research heuristic requested by Owner, not a surveyed fact about all Korean people.",
+      "The site's Korea filter includes foreign products; filter membership alone did not select a product.",
+      "Popularity is a discovery prior, not source or target design approval.",
+      "This is not a ready reference pack, source export, executable recipe, project theme or model training.",
+      "Project task fit, rights, independent review and actual Owner selection remain mandatory."
+    ],
+    "foreign_batch_disposition": "preserved-as-comparison-not-counted-in-this-30"
+  },
+  "counts": {
+    "product_surface_groups": 10,
+    "distinct_ecosystems": 5,
+    "distinct_frames": 30,
+    "primary_consumer_frames": 24,
+    "adjacent_support_or_operator_frames": 6,
+    "source_behavior_executions": 0,
+    "same_product_responsive_pairs": 0,
+    "independent_review_passes": 0,
+    "ready_project_packs": 0
+  },
+  "acquisition": {
+    "method": "ordinary-visible-UI-Bowl-browser-navigation-and-native-screenshots",
+    "access_bypass": false,
+    "mcp_used": false,
+    "private_capture_distribution": false,
+    "source_pixels_exposed_to_creator": false,
+    "capture_viewer_dimensions": {
+      "width": 1440,
+      "height": 1000,
+      "basis": "capture-wrapper-not-source-app-viewport"
+    },
+    "rights_notice_url": "https://uibowl.io/",
+    "limits": [
+      "Private study only; public summaries and source links do not grant pixel/asset/copy reuse rights.",
+      "Screens are archived samples, not a current audit of each source product.",
+      "Observed static states do not prove source clicks, keyboard, motion, accessibility, accuracy or responsive behavior.",
+      "Source account labels or input examples stay private and are not transcribed here."
+    ]
+  },
+  "ranking_evidence": {
+    "app_url": "https://uibowl.io/?area=%F0%9F%87%B0%F0%9F%87%B7+%ED%95%9C%EA%B5%AD",
+    "web_url": "https://uibowl.io/website?area=%F0%9F%87%B0%F0%9F%87%B7+%ED%95%9C%EA%B5%AD",
+    "sort": "MAU 많은순",
+    "area": "🇰🇷 한국",
+    "app_capture_digest": "sha256:43c4fd825a4b0d85d21251e0477c8a611350ae8f7c130bed4f02a51d2a63d608",
+    "web_capture_digest": "sha256:e6ed3a833268040fbf1a2494f4372952049ea1423be10f2d0dfc393ece2909a1",
+    "ranking_record_digest": "sha256:e28b70e11a960359e3c774afef718c872d5d18d9c291b20145a17ec6136e4978"
+  },
+  "products": [
+    {
+      "id": "kakaotalk",
+      "name": "카카오톡",
+      "canonical_product_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/app",
+      "ecosystem": "kakao",
+      "observed_surface": "consumer / 통화 기록·요약",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2025-09",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "4,800만",
+        "display_order_within_observed_cohort": 2,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:52ded62a2e61bd51a128235d3528904af3f74d22c7bb0f6bec44220409bde988",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmg0ha65f000mlb04d8mo58ga",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1?imgId=cmg0ha65f000mlb04d8mo58ga&detail=1",
+          "role": "통화 녹음 텍스트 이용 안내 모달",
+          "private_capture_digest": "sha256:845308980ee3d3e0051e1d1bd2a7c85fd7b0e2b005b747a30b9210bc18a6bd85",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmg0ha67n000slb042cqwuvad",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1?imgId=cmg0ha67n000slb042cqwuvad&detail=1",
+          "role": "전사 원문 하단·고지·재생 컨트롤",
+          "private_capture_digest": "sha256:fc0f804c84e6652bfda74943617f99ca7f5e83b35bef11a7a0b44f9eeefb87b5",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmg0ha6a3000ylb04xk566so2",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%86%A1?imgId=cmg0ha6a3000ylb04xk566so2&detail=1",
+          "role": "AI 요약 카드·복사 완료 토스트",
+          "private_capture_digest": "sha256:397ff35786095ae924d9b38544961087bfb0e8f52ff806a4da6eb26600bfaf60",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "modal",
+          "frame_ids": [
+            "cmg0ha65f000mlb04d8mo58ga"
+          ],
+          "visible_fact": "전사 대화 위를 어둡게 덮은 중앙 안내창이 사용 고지와 한 가지 확인 행동을 분리한다."
+        },
+        {
+          "part": "source-reader",
+          "frame_ids": [
+            "cmg0ha67n000slb042cqwuvad"
+          ],
+          "visible_fact": "좌우 말풍선, 낮은 강조의 시각, 하단 재생 컨트롤과 별도 고지가 대화 원문을 구성한다."
+        },
+        {
+          "part": "summary-card",
+          "frame_ids": [
+            "cmg0ha6a3000ylb04xk566so2"
+          ],
+          "visible_fact": "원문 위에 독립된 흰 요약 카드와 복사 컨트롤이 있고 작은 완료 토스트가 보인다."
+        }
+      ],
+      "craft_observation": "흰 카드·얇은 경계·절제된 깊이와 회색/노란 말풍선을 구분한다. 요약 제목과 목록, 시각·고지의 글자 비중이 다르며 반복 대화 간격은 촘촘하다.",
+      "rationale_hypothesis": "원문과 요약을 함께 유지하면 압축된 설명에서 원래 발화 맥락으로 돌아갈 단서가 남는다는 가설이다.",
+      "target_application_proposal": "기록/요약 화면에서 원문·요약·처리 고지를 분리하고 복사 피드백은 국소적으로 설계한다.",
+      "excluded_transfer": "개인 대화·화자·문구·브랜드 색/아이콘을 복제하지 않는다. 녹음 동의의 적법성, 요약 정확도, 실제 재생/복사 성공은 입증되지 않았다.",
+      "remaining_gap": "키보드·모션·화면낭독기·오류/빈 기록·다른 폭은 미검증."
+    },
+    {
+      "id": "naverpay",
+      "name": "네이버페이",
+      "canonical_product_url": "https://uibowl.io/name/%EB%84%A4%EC%9D%B4%EB%B2%84%ED%8E%98%EC%9D%B4",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/app",
+      "ecosystem": "naver",
+      "observed_surface": "consumer / 금융 AI 브리핑",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2026-08",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "2,831만 7천",
+        "display_order_within_observed_cohort": 8,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:96bd1848f8e3afe21d25651144419d6c88133b440172d60da0f62910c7375346",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmsx00zry000fkz04dtycmqdw",
+          "source_url": "https://uibowl.io/name/%EB%84%A4%EC%9D%B4%EB%B2%84%ED%8E%98%EC%9D%B4?imgId=cmsx00zry000fkz04dtycmqdw&detail=1",
+          "role": "AI 브리핑 상세·요약 인셋",
+          "private_capture_digest": "sha256:fa579da9a92b54fd34a6a02a93dad6ebc219635cb789a5ce203a1568f626dca2",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmsx00zsi000hkz04elipsuer",
+          "source_url": "https://uibowl.io/name/%EB%84%A4%EC%9D%B4%EB%B2%84%ED%8E%98%EC%9D%B4?imgId=cmsx00zsi000hkz04elipsuer&detail=1",
+          "role": "키워드·기준시각·유의사항",
+          "private_capture_digest": "sha256:68eaf68d70cc53a6ecf6d34658aa78c53a5a38b8dc9d06bba01af0dcf87e6266",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmsx00zt2000jkz04qb773hya",
+          "source_url": "https://uibowl.io/name/%EB%84%A4%EC%9D%B4%EB%B2%84%ED%8E%98%EC%9D%B4?imgId=cmsx00zt2000jkz04qb773hya&detail=1",
+          "role": "날짜 선택·시간대별 브리핑 목록",
+          "private_capture_digest": "sha256:e7b2d1f648594e8e66a377889818d7a5e2759298a786c86d6e41f2893d3141e3",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "reading-hierarchy",
+          "frame_ids": [
+            "cmsx00zry000fkz04dtycmqdw"
+          ],
+          "visible_fact": "큰 제목 아래 회색 요약 인셋·날짜·AI 유의 문구와 본문 계층이 나뉜다."
+        },
+        {
+          "part": "metadata",
+          "frame_ids": [
+            "cmsx00zsi000hkz04elipsuer"
+          ],
+          "visible_fact": "키워드 묶음·기준시각·유의사항·이전 글 단서가 본문과 분리된다."
+        },
+        {
+          "part": "result-card",
+          "frame_ids": [
+            "cmsx00zt2000jkz04qb773hya"
+          ],
+          "visible_fact": "날짜 선택과 시간대별 카드가 제목·요약 목록·새 항목 표지를 반복한다."
+        }
+      ],
+      "craft_observation": "주요 이동 버튼에 선명한 녹색, 본문·메타데이터에 서로 다른 글자 크기/명도, 요약에는 부드러운 회색 면을 쓴다. 카드와 문단의 여백 단위가 다르다.",
+      "rationale_hypothesis": "빨리 훑는 요약과 자세히 읽는 본문, 정보의 시점을 각각 찾게 하려는 구성이라는 가설이다.",
+      "target_application_proposal": "브리핑/기사 목록에서 핵심 문장·시각·출처·제약을 서로 다른 우선순위로 배치한다.",
+      "excluded_transfer": "금융 추천이나 정보 신뢰도의 보증이 아니다. 녹색 브랜드·원문·금융 수치를 가져오지 않는다.",
+      "remaining_gap": "본문 작은 고지의 대비·확대, 긴 한국어 제목·업데이트/오류 상태, 다른 폭은 미검증."
+    },
+    {
+      "id": "coupang-web",
+      "name": "쿠팡 웹",
+      "canonical_product_url": "https://uibowl.io/website/%EC%BF%A0%ED%8C%A1",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "coupang",
+      "observed_surface": "consumer / 결제수단 관리",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2026-04",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "3,419만 5천",
+        "display_order_within_observed_cohort": 2,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:f8e0fe3d8188fe27091da85f7c6436e80581c5b06b42d46251131685420e1632",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmob47r2b0005l504di0j6b0b",
+          "source_url": "https://uibowl.io/website/%EC%BF%A0%ED%8C%A1?imgId=cmob47r2b0005l504di0j6b0b",
+          "role": "결제수단 관리·추가 버튼",
+          "private_capture_digest": "sha256:a1c8e5c9d00b6e706dda9cce0bbc7479aa0a800be0c0b24ad42815518aa602d5",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmob47r440009l504y27hxqbv",
+          "source_url": "https://uibowl.io/website/%EC%BF%A0%ED%8C%A1?imgId=cmob47r440009l504y27hxqbv",
+          "role": "은행 선택 격자",
+          "private_capture_digest": "sha256:e50a5ab64cdfde7ae3f8d102f467cdb47f8ae6b086c168d233d63719f5309071",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmob47r6f000fl504gum8kqv5",
+          "source_url": "https://uibowl.io/website/%EC%BF%A0%ED%8C%A1?imgId=cmob47r6f000fl504gum8kqv5",
+          "role": "계좌 입력 오류 알림",
+          "private_capture_digest": "sha256:37567f439b9538945d6b6c440dcb556dce790f87a7acba504dfa6a1c39844221",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "dialog",
+          "frame_ids": [
+            "cmob47r2b0005l504di0j6b0b"
+          ],
+          "visible_fact": "흐리게 남은 계정 화면 위 관리 패널 안에 기존 수단·삭제·추가 행동이 분리된다."
+        },
+        {
+          "part": "choice-grid",
+          "frame_ids": [
+            "cmob47r440009l504y27hxqbv"
+          ],
+          "visible_fact": "은행은 이름과 로고를 함께 둔 세 열 격자로 표시된다."
+        },
+        {
+          "part": "error-state",
+          "frame_ids": [
+            "cmob47r6f000fl504gum8kqv5"
+          ],
+          "visible_fact": "입력 화면 위에 계좌 오류를 알리는 확인창이 겹쳐 있다."
+        }
+      ],
+      "craft_observation": "흰 패널·회색 구획·파란 주 행동을 사용하고, 은행 선택은 작은 이미지와 이름을 같은 셀에 묶는다. 오류창이 가장 높은 깊이에 놓인다.",
+      "rationale_hypothesis": "기억해서 입력하기보다 알아보고 선택하게 만드는 격자와, 저장되지 않은 오류를 분명히 알리는 층이라는 가설이다.",
+      "target_application_proposal": "익숙한 유한 옵션에는 텍스트 동반 선택 셀을 비교하고, 오류 뒤 입력값·포커스 복구를 명시한다.",
+      "excluded_transfer": "은행 로고/이름 체계를 다른 도메인의 테마로 수입하지 않는다. 중첩 모달이 최선이거나 결제가 실행됐다고 주장하지 않는다.",
+      "remaining_gap": "모달 포커스·ESC·중첩 닫기·터치 접근성·반응형은 미검증."
+    },
+    {
+      "id": "naver-travel",
+      "name": "네이버 여행",
+      "canonical_product_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%97%AC%ED%96%89",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "naver",
+      "observed_surface": "consumer / 여행지 탐색·상세",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2026-03",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "3,600만",
+        "display_order_within_observed_cohort": 1,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:e5ead16d523b8ace0e5c70edd8161a659e756962ddd9c664f3b3c6d61e721e2b",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmn71cbuz0007l104i9wyonsv",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%97%AC%ED%96%89?imgId=cmn71cbuz0007l104i9wyonsv",
+          "role": "여행 탐색·주제 카드",
+          "private_capture_digest": "sha256:bfdb470d16c7f9252b217644ee72429dd31f55d4011b4d8d7589d8e5b022e5c1",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmn71cbx0000bl104lpabjhm6",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%97%AC%ED%96%89?imgId=cmn71cbx0000bl104lpabjhm6",
+          "role": "지역·국가·도시 검색 패널",
+          "private_capture_digest": "sha256:2e263f137f0562761277d0aae01e2fceff8ac7cd46ed63f6ffa023111c723b7b",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmn71cbym000fl104niwwsidp",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%97%AC%ED%96%89?imgId=cmn71cbym000fl104niwwsidp",
+          "role": "여행지 상세·사진·추천 보조열",
+          "private_capture_digest": "sha256:d3380fa4a08b441493eeae7dff2a25e96485ccdad78dadba57452ccfec8267ec",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "discovery-card",
+          "frame_ids": [
+            "cmn71cbuz0007l104i9wyonsv"
+          ],
+          "visible_fact": "큰 사진 묶음과 강한 제목, 주제 칩, 하위 탐색 영역의 비중이 다르다."
+        },
+        {
+          "part": "search-panel",
+          "frame_ids": [
+            "cmn71cbx0000bl104lpabjhm6"
+          ],
+          "visible_fact": "검색 입력 아래 지역 열과 국가/도시 열을 나눈 패널이 기존 탐색 화면 위에 놓인다."
+        },
+        {
+          "part": "detail-composition",
+          "frame_ids": [
+            "cmn71cbym000fl104niwwsidp"
+          ],
+          "visible_fact": "여행지 사진·정보와 최근/추천 보조열이 비대칭으로 나뉜다."
+        }
+      ],
+      "craft_observation": "사진 크롭·비율이 시각 에너지를 만들고 둥근 흰 면·낮은 그림자·파란 활성 선/입력 경계가 탐색 계층을 표시한다. 보조 콘텐츠를 같은 크기의 카드로 평준화하지 않는다.",
+      "rationale_hypothesis": "목적지 결정 전 감각적 후보 탐색과, 지역을 좁혀 들어가는 정확한 선택을 함께 지원하려는 구성이라는 가설이다.",
+      "target_application_proposal": "사진이 실제 결정 근거인 탐색에는 크롭·제목 대비를 설계하고, 분류 탐색은 깊이가 보이는 패널로 분리한다.",
+      "excluded_transfer": "여행 사진·마케팅 문구·상업 추천을 복제하지 않는다. ERP·원문 리더에 대형 사진 구성을 기본값으로 적용하지 않는다.",
+      "remaining_gap": "작은 화면의 검색 패널·추천열 재배치, 이미지 지연/누락·키보드 선택은 미검증."
+    },
+    {
+      "id": "naver-map-web",
+      "name": "네이버 지도 웹",
+      "canonical_product_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%A7%80%EB%8F%84",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "naver",
+      "observed_surface": "support / 지도 고객센터·도움말",
+      "coverage_role": "adjacent-support",
+      "source_archive_group_date": "2025-02",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "2,699만",
+        "display_order_within_observed_cohort": 4,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:1f150d71a78ec2871627e703c023577f5046a3f7af2d4664f2a16f9df7a29c68",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cm6rhjf6v00cnjj0c1gypfh4q",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%A7%80%EB%8F%84?imgId=cm6rhjf6v00cnjj0c1gypfh4q",
+          "role": "지도 고객센터 검색·도움말 목록",
+          "private_capture_digest": "sha256:d133943d9cda9028af6a01ac7b681e1637a324267aa2762c673d61110082d183",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm6rhjf7q00crjj0c49w1zqmt",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%A7%80%EB%8F%84?imgId=cm6rhjf7q00crjj0c49w1zqmt",
+          "role": "지도 도움말 펼침·운영체제 탭",
+          "private_capture_digest": "sha256:0bf25c74a41423b8476e9bd582b17af48778b653e78e168396aa9a75a0fd34b1",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm6rhjf9000cxjj0c5puyni0j",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%EC%A7%80%EB%8F%84?imgId=cm6rhjf9000cxjj0c5puyni0j",
+          "role": "지도 도움말 하단·유용성 피드백",
+          "private_capture_digest": "sha256:6b8733ccdaef1ec2f1726564c7ad80ee58a79f989acf52a32f2ef4389c8651af",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "help-search",
+          "frame_ids": [
+            "cm6rhjf6v00cnjj0c1gypfh4q"
+          ],
+          "visible_fact": "녹색 계열 헤더와 겹친 검색 필드 아래 주제 선택과 도움말 목록이 있다."
+        },
+        {
+          "part": "accordion-tabs",
+          "frame_ids": [
+            "cm6rhjf7q00crjj0c49w1zqmt"
+          ],
+          "visible_fact": "펼친 질문 안에 운영체제 탭과 번호 단계·설명 그림이 배치된다."
+        },
+        {
+          "part": "feedback-row",
+          "frame_ids": [
+            "cm6rhjf9000cxjj0c5puyni0j"
+          ],
+          "visible_fact": "설명 하단에 별도 경계의 유용성 피드백 행이 있다."
+        }
+      ],
+      "craft_observation": "도움말 목록은 개별 카드보다 구분선 중심이다. 선택은 국소 녹색, 본문은 흰 면·넓은 문단 간격, 피드백은 작은 선택 버튼으로 처리한다.",
+      "rationale_hypothesis": "문제를 찾는 단계와 해결 절차를 읽는 단계, 피드백 단계를 순서대로 분리하려는 구성이라는 가설이다.",
+      "target_application_proposal": "지원/설정 도움말에 질문 검색·단계 설명·문맥 안 피드백을 검토한다.",
+      "excluded_transfer": "이 자료를 지도 탐색·길찾기·위치 선택의 증거로 사용하지 않는다. 지도 앱 메인 UI를 확보한 것이 아니다.",
+      "remaining_gap": "실제 검색·아코디언·탭 키보드·모바일 레이아웃은 미검증."
+    },
+    {
+      "id": "toss-business",
+      "name": "토스 비즈니스",
+      "canonical_product_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%20%EB%B9%84%EC%A6%88%EB%8B%88%EC%8A%A4",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "toss",
+      "observed_surface": "operator / 푸시 메시지 작성·검토 요청",
+      "coverage_role": "adjacent-operator",
+      "source_archive_group_date": "2026-03",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "1,266만 5천",
+        "display_order_within_observed_cohort": 9,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:9b1e577ae65f1d645d70623e2ebdaffd944f4438afecbca549fb36f9e8bd5dd9",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmmjxg6qf000nky04kgkkbjx1",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%20%EB%B9%84%EC%A6%88%EB%8B%88%EC%8A%A4?imgId=cmmjxg6qf000nky04kgkkbjx1",
+          "role": "푸시 작성 폼·미리보기·검토 요청",
+          "private_capture_digest": "sha256:c42258a167dcca33586ed9d011f0d0c1ef55276910dc9809db662148fefa9151",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmmjxg6r7000pky04vci947qw",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%20%EB%B9%84%EC%A6%88%EB%8B%88%EC%8A%A4?imgId=cmmjxg6r7000pky04vci947qw",
+          "role": "문구 제안 로딩 팝오버",
+          "private_capture_digest": "sha256:1ecdba0ac03c1d7dd1123556f1339359ae5cbd2b21658b9cd513b4cc10216486",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmmjxg6ss000tky04qixj9vdp",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%20%EB%B9%84%EC%A6%88%EB%8B%88%EC%8A%A4?imgId=cmmjxg6ss000tky04qixj9vdp",
+          "role": "문구 제안 근거·적용 버튼",
+          "private_capture_digest": "sha256:4b08b06c43d3260b63f77af02b0cbeca3acbf825ebb971c03ebbb1ebb34f3c95",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "form-preview",
+          "frame_ids": [
+            "cmmjxg6qf000nky04kgkkbjx1"
+          ],
+          "visible_fact": "라벨이 있는 아이콘 탐색 열, 작성 폼과 기기 미리보기, 임시저장과 검토 요청이 구별된다."
+        },
+        {
+          "part": "loading-popover",
+          "frame_ids": [
+            "cmmjxg6r7000pky04vci947qw"
+          ],
+          "visible_fact": "입력 포커스와 글자 수, 미리보기를 남긴 채 문구 제안의 작은 로딩 팝오버가 보인다."
+        },
+        {
+          "part": "assistance-panel",
+          "frame_ids": [
+            "cmmjxg6ss000tky04qixj9vdp"
+          ],
+          "visible_fact": "제안 문구·이유·적용 행동이 입력 옆 팝오버에 묶인다."
+        }
+      ],
+      "craft_observation": "연한 회색 캔버스 위 큰 흰 구획 안에 폼/미리보기용 중첩 면을 두고, 파란 입력 경계와 행동을 국소 강조한다. 구획 탭과 세그먼트를 다른 계층에 사용한다.",
+      "rationale_hypothesis": "문구 작성·실제 표시 예상·사람의 검토를 같은 화면에서 구분하면 작성과 발송 승인이 혼동되지 않는다는 가설이다.",
+      "target_application_proposal": "작성 도구에 입력과 결과 미리보기, 국소 AI 제안, 초안과 제출 상태를 분리한다.",
+      "excluded_transfer": "일반 토스 금융 앱 디자인이나 보편적 소비자 선호의 증거가 아니다. 소스 승인의 실효성·실제 발송 성공은 미검증.",
+      "remaining_gap": "긴 내용·접근성·좁은 화면 미리보기 접근 경로·제안 오류/취소는 미검증."
+    },
+    {
+      "id": "kakaopay",
+      "name": "카카오페이",
+      "canonical_product_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%8E%98%EC%9D%B4",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/app",
+      "ecosystem": "kakao",
+      "observed_surface": "consumer / 증권 관심 목록·이슈·뉴스",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2025-10",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "2,347만",
+        "display_order_within_observed_cohort": 10,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:59aa5a695c847238d8abc15bd0667c6338feb1cf3ce0d9c57e74da046bbb23e2",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmgnsyutl0003ld043cfu0jkd",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%8E%98%EC%9D%B4?imgId=cmgnsyutl0003ld043cfu0jkd&detail=1",
+          "role": "증권 관심 목록·그룹 요약",
+          "private_capture_digest": "sha256:8b0585b7874fc423cf19578b8b8a4bf5c82cf5b963d23a6b92e70dc866172e77",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmgnsyuv40007ld04gm46idz5",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%8E%98%EC%9D%B4?detail=1&imgId=cmgnsyuv40007ld04gm46idz5",
+          "role": "그룹 이슈 바텀시트",
+          "private_capture_digest": "sha256:437f4d0c993fd62149619815c1bb217a425061d098e5ce8bb3bbd0530043cb0d",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmgnsyuxr000fld04nc3njick",
+          "source_url": "https://uibowl.io/name/%EC%B9%B4%EC%B9%B4%EC%98%A4%ED%8E%98%EC%9D%B4?detail=1&imgId=cmgnsyuxr000fld04nc3njick",
+          "role": "관련 뉴스 타임라인",
+          "private_capture_digest": "sha256:ee4792cea8c2c2ca46d623afc6352b5c3c0f3eb4a538e03336c120b1cce84eca",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "watchlist",
+          "frame_ids": [
+            "cmgnsyutl0003ld043cfu0jkd"
+          ],
+          "visible_fact": "관심 목록에는 식별자·이름·보조 코드와 오른쪽 수치가 반복되고 위에 그룹 요약 카드가 있다."
+        },
+        {
+          "part": "bottom-sheet",
+          "frame_ids": [
+            "cmgnsyuv40007ld04gm46idz5"
+          ],
+          "visible_fact": "배경 목록을 남긴 바텀시트에 이슈/관련 뉴스 탭, 그룹 제목·건수, 국소 요약이 나뉜다."
+        },
+        {
+          "part": "news-timeline",
+          "frame_ids": [
+            "cmgnsyuxr000fld04nc3njick"
+          ],
+          "visible_fact": "관련 뉴스는 시각 열·제목·작은 이미지·대상 종목 칩으로 반복된다."
+        }
+      ],
+      "craft_observation": "흰 시트와 둥근 상단, 옅은 회색 인셋, 굵은 선택 탭의 밑줄을 사용한다. 붉은색/파란색은 변동 방향과 함께 쓰이며 이름·가격·메타데이터의 무게가 다르다.",
+      "rationale_hypothesis": "관심 대상의 상태를 훑은 뒤 왜 변했는지 같은 맥락에서 좁혀 보는 구성이라는 가설이다.",
+      "target_application_proposal": "목록 → 이슈 → 근거 흐름에서 공통 대상과 시각을 잃지 않고 상세를 열며, 숫자는 일정한 열로 비교하게 한다.",
+      "excluded_transfer": "시세·인과 설명·뉴스의 사실성 보증이 아니다. 금융의 빨강/파랑 의미를 다른 산업에 무조건 적용하지 않는다.",
+      "remaining_gap": "긴 제목·혼합 언어·빈 뉴스·오래된 시세·시트 포커스와 다른 폭은 미검증."
+    },
+    {
+      "id": "papago-web",
+      "name": "네이버 파파고 웹",
+      "canonical_product_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%ED%8C%8C%ED%8C%8C%EA%B3%A0",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "naver",
+      "observed_surface": "consumer / 번역·필기 인식",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2025-03",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "2,400만",
+        "display_order_within_observed_cohort": 5,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:7c210c1e148c6b819628b3884b6abd98993dc088c3981d851108e5f37d37b6b8",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cm7u1cwvr000gjr0c3vr61xj7",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%ED%8C%8C%ED%8C%8C%EA%B3%A0?imgId=cm7u1cwvr000gjr0c3vr61xj7",
+          "role": "필기 인식 보조창 빈 상태",
+          "private_capture_digest": "sha256:41091d8b4e15b4a5ad40fa31e5abc023066f2d0cb74ec64c2f5392bd03118abb",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm7u1cwwe000kjr0cb6pwx3vs",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%ED%8C%8C%ED%8C%8C%EA%B3%A0?imgId=cm7u1cwwe000kjr0cb6pwx3vs",
+          "role": "필기·인식 후보 표시",
+          "private_capture_digest": "sha256:28dc22e688f1c0e3742a8c9447c31fc834ce57da3a260069edd42d174d8213d6",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm7u1cwwp000mjr0czwqnpgv5",
+          "source_url": "https://uibowl.io/website/%EB%84%A4%EC%9D%B4%EB%B2%84%20%ED%8C%8C%ED%8C%8C%EA%B3%A0?imgId=cm7u1cwwp000mjr0czwqnpgv5",
+          "role": "후보 반영된 원문·번역문",
+          "private_capture_digest": "sha256:e69f24a85b2318e86d6232022815838dbc6e7fa957bcb418dd5831a13a66a9b3",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "dual-pane",
+          "frame_ids": [
+            "cm7u1cwvr000gjr0c3vr61xj7"
+          ],
+          "visible_fact": "원문과 번역문이 나란한 큰 패널에 있고 입력 보조창은 그 아래 별도 층에 놓인다."
+        },
+        {
+          "part": "recognition-candidates",
+          "frame_ids": [
+            "cm7u1cwwe000kjr0cb6pwx3vs"
+          ],
+          "visible_fact": "필기 흔적과 인식 후보가 보조창 안에서 함께 보인다."
+        },
+        {
+          "part": "applied-result",
+          "frame_ids": [
+            "cm7u1cwwp000mjr0czwqnpgv5"
+          ],
+          "visible_fact": "후보가 반영된 원문/번역문과 다시 비워진 보조창이 보인다."
+        }
+      ],
+      "craft_observation": "큰 읽기 글자·얇은 패널 경계·툴바 구분선으로 입력과 출력의 크기를 맞춘다. 녹색은 활성 입력/번역 행동에, 작은 그림자는 보조창에 쓰인다.",
+      "rationale_hypothesis": "입력 방식이 바뀌어도 원문과 결과를 대조할 자리를 유지하려는 구성이라는 가설이다.",
+      "target_application_proposal": "변환/요약 도구에서 입력·출력·보조 입력을 계층으로 구분하고 부분 적용 결과를 확인 가능하게 설계한다.",
+      "excluded_transfer": "필기 인식률·번역 정확도나 드래그 성공을 보증하지 않는다. 브랜드·예문을 그대로 사용하지 않는다.",
+      "remaining_gap": "작은 화면에서 두 패널 순서·필기 대체 입력·키보드·오류·모션은 미검증."
+    },
+    {
+      "id": "kurly-web",
+      "name": "컬리 웹",
+      "canonical_product_url": "https://uibowl.io/website/%EC%BB%AC%EB%A6%AC",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "kurly",
+      "observed_surface": "consumer / 웹 내 좁은 결제수단 패널",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2026-04",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "510만 9천",
+        "display_order_within_observed_cohort": null,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:a167dd47ebfe732067c1b1dcd549a10ecbe085d49263523f67284b73975c7cd2",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cmno1m3rt000el1047g23hehb",
+          "source_url": "https://uibowl.io/website/%EC%BB%AC%EB%A6%AC?imgId=cmno1m3rt000el1047g23hehb",
+          "role": "카드 미등록 결제수단 목록",
+          "private_capture_digest": "sha256:5cc5c99dd2bebfb97eef8dc8fe7131d3f7401a37001ed9fe95c7eae49f695a5e",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmno1m3vx000ol104jis9ysmv",
+          "source_url": "https://uibowl.io/website/%EC%BB%AC%EB%A6%AC?imgId=cmno1m3vx000ol104jis9ysmv",
+          "role": "카드 입력·가림 필드·숫자 키패드",
+          "private_capture_digest": "sha256:0b187521cbae830cc39d1ff0f5768a53b0c3a784fd555fcfe4822c4324370d8d",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cmno1m3zl000yl104fykio70e",
+          "source_url": "https://uibowl.io/website/%EC%BB%AC%EB%A6%AC?imgId=cmno1m3zl000yl104fykio70e",
+          "role": "등록 카드가 표시된 결제수단 목록",
+          "private_capture_digest": "sha256:86ec79114536ad40466abbf34a447a7f18e330a512741256a4cf8389bb1fd375",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "payment-empty-state",
+          "frame_ids": [
+            "cmno1m3rt000el1047g23hehb"
+          ],
+          "visible_fact": "계좌/카드 구획과 카드 등록 행동, 잔액 요약·혜택이 나뉜다."
+        },
+        {
+          "part": "masked-form",
+          "frame_ids": [
+            "cmno1m3vx000ol104jis9ysmv"
+          ],
+          "visible_fact": "필수 입력 라벨, 나뉜 카드번호와 가린 값, 숫자 키패드가 좁은 패널 안에 배치된다."
+        },
+        {
+          "part": "payment-populated-state",
+          "frame_ids": [
+            "cmno1m3zl000yl104fykio70e"
+          ],
+          "visible_fact": "카드 구획의 건수와 등록 카드가 표시되면서 추가 등록 행동이 유지된다."
+        }
+      ],
+      "craft_observation": "흰 세로 패널에 연한 회색 요약 면, 보라색 행동 강조, 선으로 구별한 입력을 쓴다. 선택 수단의 카드 모양과 등록용 점선 영역의 역할이 다르다.",
+      "rationale_hypothesis": "현재 등록 상태와 다음 행동을 같은 위치에서 확인시키려는 구성이라는 가설이다.",
+      "target_application_proposal": "중요 입력에서 필수·가림·추가·등록 완료의 서로 다른 표현을 설계하고 실패/취소 때 상태 보존을 검증한다.",
+      "excluded_transfer": "보안성·결제 성공을 증명하지 않는다. 임의 숫자 키패드를 일반 양식의 좋은 기본값으로 추천하지 않는다.",
+      "remaining_gap": "이는 웹 자료의 좁은 패널이지 반응형 모바일 검증이 아니다. 상단이 잘린 입력 프레임의 전체 정보·포커스·스크롤은 미검증."
+    },
+    {
+      "id": "toss-securities",
+      "name": "토스증권 웹",
+      "canonical_product_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%EC%A6%9D%EA%B6%8C",
+      "source_native_product_id": null,
+      "cohort": "Korean-familiar/web",
+      "ecosystem": "toss",
+      "observed_surface": "consumer / 증권 홈·통합 검색·거래 화면",
+      "coverage_role": "primary",
+      "source_archive_group_date": "2024-12",
+      "popularity": {
+        "provider": "UI Bowl",
+        "displayed_mau": "1,910만",
+        "display_order_within_observed_cohort": 7,
+        "numeric_independently_verified": false,
+        "measurement_month": null,
+        "geography": null,
+        "source_metadata_capture_digest": "sha256:7fb53b512c4dbbf2d92fee982dfc674eab9592694ec1a2e6cd7eaa29768a7af6",
+        "caveat": "Source-displayed monthly-active wording only; app/web metrics and ecosystem products are not additive; not national traffic or design-quality proof."
+      },
+      "frames": [
+        {
+          "frame_id": "cm520gp8p0004ju0cha3llmnm",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%EC%A6%9D%EA%B6%8C?imgId=cm520gp8p0004ju0cha3llmnm",
+          "role": "증권 홈·뉴스 카드·투자 보조열",
+          "private_capture_digest": "sha256:728b3509b2069e6171c47595e1134b634e1d78a3431b988c6f8b92300a65de35",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm520gp9n0008ju0czmf3mxov",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%EC%A6%9D%EA%B6%8C?imgId=cm520gp9n0008ju0czmf3mxov",
+          "role": "종목·뉴스 통합 검색 결과",
+          "private_capture_digest": "sha256:be7bdf27a0b1eca80a6e913e07774777d3173c17ccab1b9c5fe6569a89ba41d4",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        },
+        {
+          "frame_id": "cm520gp9z000aju0c1gnu05zl",
+          "source_url": "https://uibowl.io/website/%ED%86%A0%EC%8A%A4%EC%A6%9D%EA%B6%8C?imgId=cm520gp9z000aju0c1gnu05zl",
+          "role": "종목 상세·차트·호가·주문 모듈",
+          "private_capture_digest": "sha256:65f1dc3727ef4fdaa67b8e5e8f159aa45e59658ce59958e45a1f4cf51411a815",
+          "capture_kind": "native-browser-screenshot-of-archived-source-image",
+          "source_interaction_tested": false
+        }
+      ],
+      "observations": [
+        {
+          "part": "news-cards-sidebar",
+          "frame_ids": [
+            "cm520gp8p0004ju0cha3llmnm"
+          ],
+          "visible_fact": "시장 카드·이미지 뉴스·텍스트 뉴스와 투자 보조열이 서로 다른 밀도로 배치된다."
+        },
+        {
+          "part": "grouped-search",
+          "frame_ids": [
+            "cm520gp9n0008ju0czmf3mxov"
+          ],
+          "visible_fact": "검색 패널에는 종류 탭·종목 결과·뉴스·연관 대상과 하단 키보드 안내가 구별된다."
+        },
+        {
+          "part": "data-modules",
+          "frame_ids": [
+            "cm520gp9z000aju0c1gnu05zl"
+          ],
+          "visible_fact": "차트·호가·주문·내역이 각 구획에 놓이고 투자 목록은 옆에 유지된다."
+        }
+      ],
+      "craft_observation": "옅은 캔버스/흰 모듈, 촘촘한 수치 정렬, 낮은 강조의 라벨과 강한 주 행동을 섞는다. 같은 화면에서도 뉴스 이미지는 크고 보유 목록의 아이콘은 작다.",
+      "rationale_hypothesis": "탐색·비교·실행의 정보 밀도는 달라도 공통 대상을 잃지 않게 하려는 구성이라는 가설이다.",
+      "target_application_proposal": "고밀도 작업 UI에서 비교 수치·판단 근거·실행 양식을 분리하고, 보조열의 지속 필요성은 실제 과업으로 판단한다.",
+      "excluded_transfer": "주식 주문 UI를 뉴스 리더나 ERP의 기본 테마로 쓰지 않는다. 보이는 단축키 안내는 키보드 실행 증거가 아니다.",
+      "remaining_gap": "좁은 화면·오래된/누락 데이터·실제 단축키·주문 확인/오류/권한은 미검증. 아카이브는 2024-12로 현재 UI 보증이 아니다."
+    }
+  ],
+  "deferred": [
+    {
+      "name": "네이버 앱",
+      "reason": "현재 접근 가능한 첫 그룹이 App Store 홍보 이미지. 실제 UI 화면 30장에는 포함하지 않음.",
+      "source_metadata_capture_digest": "sha256:5676a3afce52f3973d25ca310436228756ab74b371e8e13d37151a059ad9ff29"
+    },
+    {
+      "name": "토스 앱",
+      "reason": "iPhone 홍보 그룹 노출; 메인 필터 선택 시 0개. 실제 UI 미확보.",
+      "source_metadata_capture_digest": "sha256:415af388ed11c9f62f249f9630bd2e000299cc449c0392af79b3660c5a132fa7"
+    },
+    {
+      "name": "쿠팡 앱",
+      "reason": "현재 노출 그룹은 App Store 홍보 이미지; 실제 UI에 포함하지 않음.",
+      "source_metadata_capture_digest": "sha256:1f99c39d053a55c8a67778ed01f7b329637eaf178ae6d55d49845f4cbff019af"
+    },
+    {
+      "name": "당근 앱",
+      "reason": "현재 노출 그룹은 iPhone 홍보 이미지; 실제 UI에 포함하지 않음.",
+      "source_metadata_capture_digest": "sha256:dc7f17451668c8031bbbc7524c33aa235781d9bd27b716f0c04dbf445734d66a"
+    },
+    {
+      "name": "네이버 지도 앱",
+      "reason": "현재 노출 그룹은 iPhone 홍보 이미지; 실제 UI에 포함하지 않음.",
+      "source_metadata_capture_digest": "sha256:e1ac3acbbb8a67aff8c6df1a01cb3d0240b662a662ad210c73ce6a32ffbe61bf"
+    },
+    {
+      "name": "배달의민족 앱",
+      "reason": "현재 노출 그룹은 iPhone 홍보 스크린샷; 실제 운영 UI로 세지 않음",
+      "source_metadata_capture_digest": "sha256:0cfb29fcd5ef80ce6184fd69ad2232f3a4e94e3d9bcc6b90680269fd1bc02133"
+    },
+    {
+      "name": "무신사 앱",
+      "reason": "현재 노출 그룹은 iPhone 홍보 이미지; 일반 메인 필터는 표시 결과 0건",
+      "source_metadata_capture_digest": "sha256:be89686ff089ae97b2d622a78b8c394a735b8ba36a24a7085cf910110f2cc071"
+    },
+    {
+      "name": "네이버 웹툰 웹",
+      "reason": "현재 노출 그룹이 광고 가이드 센터 검색으로, 소비자 웹툰 탐색·감상 증거가 아님; 이번 추가 확보에서 보류",
+      "source_metadata_capture_digest": "sha256:d2d2f652d82b21695df4461ee57492b5a0c108ca1c11b513f228a270d3e5a234"
+    },
+    {
+      "name": "컬리 앱",
+      "reason": "현재 노출 그룹은 iPhone 홍보 이미지; 운영 UI로 세지 않음",
+      "source_metadata_capture_digest": "sha256:ad8d71466aef17bd3427cf3fcaa1dd8aa491e016e29b66ad87429be7fb010461"
+    }
+  ],
+  "capture_quality_note": "One incomplete Naver Travel image was recaptured after decoding; only the complete replacement is counted. Rejected bytes are preserved privately.",
+  "remaining_coverage": [
+    "Consumer shopping product-list/detail and cart",
+    "Food delivery store/menu/order and local-community discovery",
+    "Actual map search/location/route surfaces, not help pages",
+    "Long-form evidence reading with precise source relationships",
+    "Same-product compact/medium/wide behavior and interaction/accessibility evidence"
+  ],
+  "next_gate": "For a real project: current scoped planning and rights, task-fit research/recipes, independent reference critic, real Owner anchor/support selection, compiled capture-ready pack; then existing design/browser/Owner gates."
+}

@@ -1,0 +1,88 @@
+{
+  "research_access_observation_version": 1,
+  "id": "korea-component-second-pass-access-20260923",
+  "orchestrator": "KillSlopRouter",
+  "kind": "manual-visible-browser-observation-not-authority",
+  "authority_scope": "non-authoritative-research-aid",
+  "status": "external-wait-owner-login",
+  "observed_at": "2026-09-22T21:43:23.239Z",
+  "scope": "Current research tab access check and derivative comparison of the retained Korean static study; no new product UI creation",
+  "method": "ordinary-visible-browser-home-and-membership-navigation",
+  "source_urls": ["https://uibowl.io/", "https://uibowl.io/membership"],
+  "observed_account": {
+    "login_button_visible": true,
+    "authenticated_account_verified": false,
+    "active_membership_verified": false,
+    "active_membership": null,
+    "all_product_image_access_verified": false,
+    "historical_capture_entitlement_verified": false
+  },
+  "published_plan_descriptions": [
+    {"plan": "Starter", "displayed_exploration_scope": "latest-three-apps-and-websites"},
+    {"plan": "individual-Pro", "displayed_exploration_scope": "all-apps-and-websites"},
+    {"plan": "group-Pro", "displayed_exploration_scope": "all-apps-and-websites"}
+  ],
+  "plan_description_is_account_entitlement": false,
+  "evidence": [
+    {
+      "id": "current-home-access",
+      "kind": "private-native-browser-screenshot",
+      "source_url": "https://uibowl.io/",
+      "captured_at": "2026-09-22T21:42:55.372Z",
+      "digest": "sha256:8c61123f2b8eaccffff71544498394f8b47ba9aae14b9653285c577b9660c794",
+      "supports": ["login-button-visible"],
+      "source_product_frame": false,
+      "pixels_distributed": false
+    },
+    {
+      "id": "published-membership-descriptions",
+      "kind": "private-native-browser-screenshot",
+      "source_url": "https://uibowl.io/membership",
+      "captured_at": "2026-09-22T21:43:23.239Z",
+      "digest": "sha256:98956b57b0524119cd8ac940b643612159862e76279049aafb404c04f330f16d",
+      "supports": ["published-plan-descriptions", "login-button-visible"],
+      "source_product_frame": false,
+      "pixels_distributed": false
+    }
+  ],
+  "existing_research": {
+    "study": {
+      "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+      "digest": "sha256:8500cbe81a478e42e139378351371a655d210e5273cf917b9fbcf09c36f2a7b9"
+    },
+    "independent_static_review": {
+      "path": "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+      "digest": "sha256:cfa27ad63c49883238cca3e9d4ca96b3173e9f5bcfb91ec255fa4ad7f84807b7"
+    },
+    "new_product_frames_acquired": 0,
+    "existing_frame_count": 30,
+    "historical_evidence_rewritten": false,
+    "access_check_retroactively_authenticates_old_acquisition": false
+  },
+  "boundaries": {
+    "mcp_used": false,
+    "hidden_api_or_asset_access": false,
+    "access_bypass": false,
+    "cookies_or_tokens_read": false,
+    "credentials_collected": false,
+    "subscription_or_payment_changed": false,
+    "account_or_profile_switched": false,
+    "creator_dispatched": false,
+    "source_pixels_exposed_to_creator": false,
+    "source_reuse_rights_verified": false,
+    "formal_reference_run_executed": false,
+    "official_design_browser_evidence": false,
+    "owner_selection_created": false,
+    "ready_reference_pack": false,
+    "design_ready": false,
+    "visual_authority_granted": false,
+    "global_install_performed": false
+  },
+  "next_steps": [
+    "Owner signs in directly in the normal browser; do not request passwords or buy a subscription.",
+    "Inspect the actual account's visible membership and permitted source scope before further full-image acquisition; a public plan table alone is insufficient.",
+    "Preserve this dated observation. Record later successful login and access as new evidence, not a retroactive approval of historical capture rights.",
+    "Meanwhile compare only the already reviewed study's textual observations; label all application rules as researcher hypotheses.",
+    "Creation still requires actual project planning, scoped reference-use evidence, independent project review and real Owner reference selection."
+  ]
+}

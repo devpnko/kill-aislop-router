@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -38,17 +39,37 @@ import { hashArtifact, readJsonPinned } from "./integrity.mjs";
 import { bootstrapProject } from "./bootstrap.mjs";
 import { configurePlaywright, createBrowserAttestation } from "./playwright.mjs";
 import {
+  assertDesignReferenceRequirement,
+  designReferenceDelivery,
   designExitCode,
   dispatchDesignPackets,
   dryRunDesignExploration,
+  inspectDesignStateLease,
   readDesignState,
+  recoverDesignStateLease,
   resumeDesignExploration,
   startDesignExploration
 } from "./design.mjs";
+import {
+  dispatchReferencePackets,
+  dryRunReferenceIntelligence,
+  readReferenceChoices,
+  readReferenceState,
+  recoverReferenceStateLease,
+  referenceExitCode,
+  resumeReferenceIntelligence,
+  startReferenceIntelligence
+} from "./reference.mjs";
 import { configureCodexReviewers } from "./codex.mjs";
 import { inspectSkillCatalog } from "./skill-catalog.mjs";
+import { pluginAccountSync } from "./plugin-sync.mjs";
 import { secureExistingRegularFile, secureWritablePath } from "./path-security.mjs";
 import { sealedEntrypointGraphDigest } from "./sealed-entrypoint.mjs";
+import {
+  automationGuidance, designReferenceGuidance, doctorNextActions, referenceChoicesGuidance
+} from "./usage-guidance.mjs";
+import { inspectDistribution } from "./distribution.mjs";
+import { loadReferenceLibrary, referenceLibraryReport, formatReferenceLibrary } from "./reference-library.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -59,10 +80,16 @@ const BOOLEAN_OPTIONS = new Set([
   "json",
   "force",
   "no-activate",
+  "apply",
+  "discover-accounts",
   "allow-external",
   "migrate-identity",
   "migrate-legacy-entry",
-  "module-graph"
+  "module-graph",
+  "require-reference"
+]);
+const PLUGIN_SYNC_OPTIONS = new Set([
+  "home", "mode", "account-home", "discover-accounts", "apply", "dry-run", "json", "format"
 ]);
 
 function parseArgs(argv) {
@@ -80,18 +107,34 @@ function parseArgs(argv) {
     args.command = argv[0];
     index = 1;
   }
-  if (["audit", "browser", "design", "host", "lease", "plugin"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
+  if (["audit", "browser", "design", "host", "lease", "plugin", "reference"].includes(args.command) && argv[index] && !argv[index].startsWith("-")) {
     args.subcommand = argv[index];
     index += 1;
   }
+  const libraryLookup = args.command === "reference" && args.subcommand === "library";
+  const libraryOptions = new Set(["component", "source", "query", "details", "json", "format", "help"]);
+  const librarySeen = new Set();
   for (; index < argv.length; index += 1) {
     const token = argv[index];
+    if (libraryLookup) {
+      const key = token === "-h" ? "help" : token.startsWith("--") ? token.slice(2) : null;
+      if (!libraryOptions.has(key) || librarySeen.has(key)) throw new RouterError(`unknown or repeated reference library option: ${token}`, 2);
+      librarySeen.add(key);
+      if (key === "details") { args.details = true; continue; }
+    }
     if (token === "--help" || token === "-h") {
       args.help = true;
       continue;
     }
     if (!token.startsWith("--")) throw new RouterError(`unexpected argument: ${token}`, 2);
     const key = token.slice(2);
+    if (key === "require-reference" &&
+        !(args.command === "design" && ["run", "status", "provenance", "dispatch"].includes(args.subcommand))) {
+      throw new RouterError("--require-reference is only supported by design run/status/provenance/dispatch", 2);
+    }
+    if (args.command === "plugin" && args.subcommand === "sync" && !PLUGIN_SYNC_OPTIONS.has(key)) {
+      throw new RouterError(`unknown plugin sync option: --${key}`, 2);
+    }
     if (BOOLEAN_OPTIONS.has(key)) {
       args[key] = true;
       continue;
@@ -106,12 +149,16 @@ function parseArgs(argv) {
     } else if (key === "result") {
       args.results.push(value);
       args.result = value;
-    } else if (key === "skill-provider") {
-      args["skill-provider"] ||= [];
-      args["skill-provider"].push(value);
+    } else if (["skill-provider", "account-home"].includes(key)) {
+      args[key] ||= [];
+      args[key].push(value);
     } else {
       args[key] = value;
     }
+  }
+  if (libraryLookup && (!["text", "json"].includes(args.format) ||
+      (librarySeen.has("format") && args.json && args.format !== "json"))) {
+    throw new RouterError("reference library format must be text or json and agree with --json", 2);
   }
   return args;
 }
@@ -119,16 +166,41 @@ function parseArgs(argv) {
 function help() {
   return `KillSlopRouter
 
+Start here:
+  1. Install the reviewed Codex plugin once (see README.md#codex-plugin).
+  2. In your project, start a new Codex thread and say:
+     Use $killsloprouter:kill-slop-router to inspect this project's current UI and continue the safest eligible journey.
+  3. For direct CLI use, run "killsloprouter doctor" before "run --dry-run".
+
+The plugin is the parent workflow; reviewers such as anti-slop are internal children.
+Missing visual authority, adapters, browser evidence, or owner approval are hard stops.
+Account plugin versions default to shared; an explicit per-account OFF preference is preserved.
+For a new visual direction, review UI Bowl choices before creation; a ranked reference is not Owner approval.
+Guide (bundled): ${path.join(packageRoot, "docs", "getting-started.md")}
+Project setup (bundled): ${path.join(packageRoot, "docs", "project-setup.md")}
+
 Usage:
+  killsloprouter capabilities [--json]
   killsloprouter plugin install [--dry-run] [--force] [--migrate-legacy-entry] [--no-activate] [--home DIR]
+  killsloprouter plugin sync [--mode shared|per-account] [--account-home DIR ... | --discover-accounts] [--apply] [--dry-run] [--json]
   killsloprouter host configure-codex --runtime FILE --model MODEL --agent-providers ID,ID [options]
   killsloprouter host configure-codex --runtime FILE --model MODEL --skill-provider ID=DIR [options]
   killsloprouter browser configure --base-url URL --required-scenarios ID,ID [--scenario FILE] [options]
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
-  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE]
+  killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE] [--require-reference]
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
   killsloprouter design status --run FILE [--json]
+  killsloprouter design provenance --run FILE [--json]
   killsloprouter design dispatch --run FILE --out-dir DIR
+  killsloprouter design lease-status --state FILE [--json]
+  killsloprouter design recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST [--json]
+  killsloprouter reference run --brief FILE --out FILE [--host-config FILE]
+  killsloprouter reference run --resume FILE [--host-config FILE] [--selection FILE]
+  killsloprouter reference status --run FILE [--json]
+  killsloprouter reference choices --run FILE [--json]
+  killsloprouter reference library [--component ID] [--source ID] [--query TEXT] [--details] [--json]
+  killsloprouter reference dispatch --run FILE --out-dir DIR
+  killsloprouter reference recover --state FILE --owner-token TOKEN --acquired-at TIMESTAMP --state-digest DIGEST
   killsloprouter bootstrap --project-id ID --locale LOCALE --surface SURFACE [--root DIR] [--json]
   killsloprouter plan [--surface SURFACE] --task TASK [--artifact PATH] [options]
   killsloprouter run [--surface SURFACE] --task TASK --artifact PATH --scope SCOPE --out FILE [options]
@@ -235,7 +307,7 @@ function browserCommand(args) {
     throw new RouterError("browser requires the configure or attest subcommand", 2);
   }
   if (!args["base-url"]) throw new RouterError("browser configure requires --base-url", 2);
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   if (!profilePath) throw new RouterError("browser configure requires a project profile", 2);
   const hostManifestPath = path.resolve(args["host-config"] ||
     path.join(path.dirname(profilePath), "host-adapters.json"));
@@ -296,7 +368,7 @@ function hostCommand(args) {
   if (!args.runtime || !args.model) {
     throw new RouterError("host configure-codex requires --runtime and --model", 2);
   }
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   if (!profilePath) throw new RouterError("host configure-codex requires a project profile", 2);
   const hostManifestPath = path.resolve(args["host-config"] ||
     path.join(path.dirname(profilePath), "host-adapters.json"));
@@ -335,8 +407,29 @@ function hostCommand(args) {
 }
 
 function pluginCommand(args) {
+  if (args.subcommand === "sync") {
+    const result = pluginAccountSync({
+      home: args.home || os.homedir(), mode: args.mode,
+      accounts: args["account-home"], discover: Boolean(args["discover-accounts"]),
+      dryRun: Boolean(args["dry-run"]), apply: Boolean(args.apply)
+    });
+    if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    else process.stdout.write([
+      "KillSlopRouter account version sync",
+      `mode: ${result.mode === "shared" ? "shared (ON)" : "per-account (KSR auto-sync OFF)"}`,
+      `status: ${result.status}${result.dry_run ? " (preview)" : ""}`,
+      `version: ${result.target?.version || "unavailable"}`,
+      ...result.accounts.map((account) => `${account.account_home}: ${account.status}${account.error ? ` — ${account.error}` : ""}`),
+      ...result.blockers.map((blocker) => `blocker: ${blocker}`),
+      `settings: ${result.config_path}`,
+      ...(result.receipt_path ? [`receipt: ${result.receipt_path} (${result.receipt_digest})`] : []),
+      "next: plugin sync --apply to sync enrolled accounts; --mode per-account turns automatic updates off"
+    ].join("\n") + "\n");
+    process.exitCode = result.ok ? 0 : 5;
+    return;
+  }
   if (args.subcommand !== "install") {
-    throw new RouterError("plugin requires the install subcommand", 2);
+    throw new RouterError("plugin requires the install subcommand or sync", 2);
   }
   const installer = path.join(packageRoot, "scripts", "install-codex-plugin.mjs");
   const installerArgs = [installer];
@@ -348,7 +441,7 @@ function pluginCommand(args) {
   const result = spawnSync(process.execPath, installerArgs, {
     encoding: "utf8",
     shell: false,
-    timeout: 30_000
+    timeout: 3_000_000
   });
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
@@ -356,9 +449,26 @@ function pluginCommand(args) {
   process.exitCode = result.status ?? 5;
 }
 
+function projectProfilePath(args) {
+  if (args.root) {
+    try {
+      if (!fs.statSync(path.resolve(args.root)).isDirectory()) throw new Error("not a directory");
+    } catch {
+      throw new RouterError("--root must be an existing directory", 2);
+    }
+  }
+  if (args.profile) return path.resolve(args.profile);
+  if (!args.root) return findProjectProfile(process.cwd());
+  // An explicit project root is a discovery boundary, not a request to inherit
+  // the invoking or enclosing project's authority. Explicit --profile is the
+  // compatibility path for a deliberately shared/custom configuration.
+  const candidate = path.join(path.resolve(args.root), ".killsloprouter", "profile.json");
+  return fs.existsSync(candidate) ? candidate : null;
+}
+
 function loadContext(args) {
   const routerPath = path.resolve(args.router || defaultRouterPath);
-  const profilePath = args.profile ? path.resolve(args.profile) : findProjectProfile(process.cwd());
+  const profilePath = projectProfilePath(args);
   return {
     routerPath,
     router: readJson(routerPath, "router"),
@@ -416,6 +526,7 @@ function doctor(args) {
     router_path: context.routerPath,
     skill_catalog: skillCatalog,
     profile_path: context.profilePath,
+    project_root: routingRoot(context.profilePath, args.root || null),
     project_id: context.profile?.project_id || null,
     surface_contract: context.profile?.surface_contract || null,
     surface_boundary: surfaceBoundary,
@@ -433,10 +544,13 @@ function doctor(args) {
     completion_eligible: false,
     next_required_command: !catalogReady
       ? (skillCatalog.migration.command || skillCatalog.migration.reason)
-      : visualIntentsReady && visualSignaturesReady
-        ? "killsloprouter run --dry-run"
-        : "resolve and digest-lock project visual authority"
+      : !context.profilePath
+        ? "killsloprouter bootstrap"
+        : visualIntentsReady && visualSignaturesReady
+          ? "killsloprouter run --dry-run"
+          : "resolve and digest-lock project visual authority"
   };
+  report.next_actions = doctorNextActions(report);
   const rendered = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : [
     `status: ${report.status}`,
     `router: ${report.router_id} ${report.router_version}`,
@@ -460,7 +574,8 @@ function doctor(args) {
     `boundary: ${report.execution_boundary}`,
     `execution readiness: ${report.execution_readiness}`,
     `completion eligible: ${report.completion_eligible}`,
-    `next: ${report.next_required_command}`
+    `next: ${report.next_required_command}`,
+    ...report.next_actions.map((action) => `setup ${action.id}: ${action.instruction} (${action.documentation})`)
   ].join("\n") + "\n";
   return { status: report.status, output: rendered };
 }
@@ -527,7 +642,7 @@ function defaultPacketsDir(runPath) {
   return `${stem}.packets`;
 }
 
-function formatAutomationState(state) {
+function formatAutomationState(state, args) {
   const lines = [
     `KillSlopRouter automation ${state.run_id || "dry-run"}`,
     `status: ${state.status}`
@@ -548,6 +663,10 @@ function formatAutomationState(state) {
   for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
   if (state.state_path) lines.push(`state: ${state.state_path}`);
   if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  lines.push(...automationGuidance(state, {
+    hostConfig: args["host-config"] ? path.resolve(args["host-config"]) : null,
+    commandPrefix: [process.execPath, path.join(packageRoot, "bin", "killsloprouter.mjs")]
+  }));
   return `${lines.join("\n")}\n`;
 }
 
@@ -555,7 +674,7 @@ function automationOutput(value, args) {
   if (args.json || args.format === "json") {
     process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
   } else {
-    process.stdout.write(formatAutomationState(value));
+    process.stdout.write(formatAutomationState(value, args));
   }
 }
 
@@ -709,6 +828,15 @@ function formatDesignState(state) {
     lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
   }
   if (state.phase) lines.push(`phase: ${state.phase}`);
+  const reference = state.design_exploration_run_version === 1
+    ? designReferenceDelivery(state)
+    : state.design_exploration_dry_run_version === 1 ? state.reference_delivery : null;
+  if (reference) {
+    lines.push(`reference delivery: ${reference.status}`);
+    lines.push(reference.note);
+    if (reference.pack_digest) lines.push(`reference pack: ${reference.pack_digest}`);
+    lines.push(...designReferenceGuidance(reference));
+  }
   if (state.selection_scope_digest) lines.push(`shortlist scope: ${state.selection_scope_digest}`);
   if (state.approval_scope_digest) lines.push(`approval scope: ${state.approval_scope_digest}`);
   for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
@@ -728,12 +856,61 @@ function designOutput(value, args) {
 
 function designCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "dispatch"].includes(command)) {
-    throw new RouterError("design requires run, status, or dispatch", 2);
+  if (!command || !["run", "status", "provenance", "dispatch", "lease-status", "recover"].includes(command)) {
+    throw new RouterError("design requires run, status, provenance, dispatch, lease-status, or recover", 2);
   }
-  if (command === "status" || command === "dispatch") {
+  if (command === "lease-status") {
+    if (!args.state) throw new RouterError("design lease-status requires --state", 2);
+    output(inspectDesignStateLease(args.state), args, (value) => [
+      "KillSlopRouter design state lease",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.status === "locked" ? [
+        `operation: ${value.operation}`,
+        `phase: ${value.phase}`,
+        `owner pid: ${value.owner_pid}`,
+        `owner pid in use: ${value.owner_pid_in_use}`,
+        `owner process alive: ${value.owner_process_alive}`,
+        `owner process identity matches: ${value.owner_process_identity_matches}`,
+        `acquired at: ${value.acquired_at}`,
+        `recover after: ${value.recover_after}`,
+        `lease digest: ${value.lease_digest}`
+      ] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (command === "recover") {
+    if (!args.state) throw new RouterError("design recover requires --state", 2);
+    const result = recoverDesignStateLease(args.state, {
+      ownerToken: args["owner-token"],
+      acquiredAt: args["acquired-at"],
+      stateDigest: args["state-digest"]
+    });
+    output(result, args, (value) => [
+      "KillSlopRouter design state lease recovery",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.recovery ? [
+        `outcome: ${value.recovery.outcome}`,
+        `recovery digest: ${value.recovery.recovery_digest}`,
+        `retry required: ${value.recovery.retry_required}`
+      ] : []),
+      ...(value.blocker ? [`blocker: ${value.blocker}`] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (["status", "provenance", "dispatch"].includes(command)) {
     if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
     const state = readDesignState(args.run);
+    assertDesignReferenceRequirement(state.brief, args["require-reference"]);
+    if (command === "provenance") {
+      output(designReferenceDelivery(state), args, (value) =>
+        [`KillSlopRouter reference delivery: ${value.status}`, value.note,
+          ...designReferenceGuidance(value)].join("\n") + "\n");
+      return;
+    }
     if (command === "status") {
       designOutput(state, args);
       return;
@@ -747,6 +924,7 @@ function designCommand(args) {
   if (args.resume) {
     if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
     const state = resumeDesignExploration(args.resume, {
+      requireReference: Boolean(args["require-reference"]),
       hostManifest,
       resultPaths: args.results,
       shortlistPath: args.shortlist || null,
@@ -763,6 +941,7 @@ function designCommand(args) {
   const router = readJson(defaultRouterPath, "default router");
   const request = {
     briefPath: args.brief,
+    requireReference: Boolean(args["require-reference"]),
     baselinePath: args.baseline,
     hostManifest,
     routerId: router.router_id,
@@ -787,6 +966,130 @@ function designCommand(args) {
   });
   designOutput(state, args);
   process.exitCode = designExitCode(state);
+}
+
+function formatReferenceState(state) {
+  const lines = [
+    `KillSlopRouter reference intelligence ${state.run_id || "dry-run"}`,
+    `status: ${state.status}`
+  ];
+  if (state.journey_identity) {
+    lines.push(`orchestrator: ${state.journey_identity.display_name}`);
+    lines.push(`journey identity: ${state.journey_identity.identity_digest}`);
+  }
+  if (state.phase) lines.push(`phase: ${state.phase}`);
+  if (state.selection_scope_digest) lines.push(`selection scope: ${state.selection_scope_digest}`);
+  if (state.reference_intelligence_run_version === 1) {
+    lines.push(...referenceChoicesGuidance(readReferenceChoices(state.state_path, {
+      expectedStateDigest: state.state_digest
+    })));
+  } else {
+    for (const blocker of state.blockers || []) lines.push(`blocker: ${blocker}`);
+    for (const pending of state.pending || []) lines.push(`pending: ${pending}`);
+  }
+  if (state.state_path) lines.push(`state: ${state.state_path}`);
+  if (state.state_digest) lines.push(`state digest: ${state.state_digest}`);
+  if (state.outputs?.reference_pack) {
+    lines.push(`reference pack: ${state.outputs.reference_pack.resolved_path || state.outputs.reference_pack.path} (${state.outputs.reference_pack.digest})`);
+  }
+  if (state.downstream) lines.push(`downstream: ${state.downstream}`);
+  return `${lines.join("\n")}\n`;
+}
+
+function referenceOutput(value, args) {
+  if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  else process.stdout.write(formatReferenceState(value));
+}
+
+function referenceCommand(args) {
+  const command = args.subcommand;
+  if (!command || !["run", "status", "choices", "library", "dispatch", "recover"].includes(command)) {
+    throw new RouterError("reference requires run, status, choices, library, dispatch, or recover", 2);
+  }
+  if (command === "library") {
+    const filters = Object.fromEntries(["component", "source", "query", "details"]
+      .filter(key => args[key] !== undefined).map(key => [key, args[key]]));
+    output(referenceLibraryReport(loadReferenceLibrary(), filters), args, formatReferenceLibrary);
+    return;
+  }
+  if (command === "choices") {
+    if (!args.run) throw new RouterError("reference choices requires --run", 2);
+    output(readReferenceChoices(args.run), args, (value) =>
+      ["KillSlopRouter", ...referenceChoicesGuidance(value)].join("\n") + "\n");
+    return;
+  }
+  if (command === "recover") {
+    if (!args.state) throw new RouterError("reference recover requires --state", 2);
+    const result = recoverReferenceStateLease(args.state, {
+      ownerToken: args["owner-token"],
+      acquiredAt: args["acquired-at"],
+      stateDigest: args["state-digest"]
+    });
+    output(result, args, (value) => [
+      "KillSlopRouter reference state lease recovery",
+      `status: ${value.status}`,
+      `state: ${value.state_path}`,
+      `state digest: ${value.state_digest}`,
+      ...(value.recovery ? [
+        `outcome: ${value.recovery.outcome}`,
+        `recovery digest: ${value.recovery.recovery_digest}`,
+        `retry required: ${value.recovery.retry_required}`
+      ] : []),
+      ...(value.blocker ? [`blocker: ${value.blocker}`] : [])
+    ].join("\n") + "\n");
+    return;
+  }
+  if (command === "status" || command === "dispatch") {
+    if (!args.run) throw new RouterError(`reference ${command} requires --run`, 2);
+    const state = readReferenceState(args.run);
+    if (command === "status") {
+      referenceOutput(state, args);
+      return;
+    }
+    if (!args["out-dir"]) throw new RouterError("reference dispatch requires --out-dir", 2);
+    output(dispatchReferencePackets(state, args["out-dir"]), args);
+    return;
+  }
+
+  const hostManifest = args["host-config"] ? loadHostManifest(args["host-config"]) : null;
+  if (args.resume) {
+    if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
+    const state = resumeReferenceIntelligence(args.resume, {
+      hostManifest,
+      resultPaths: args.results,
+      selectionPath: args.selection || null,
+      retry: args.retry || null
+    });
+    referenceOutput(state, args);
+    process.exitCode = referenceExitCode(state);
+    return;
+  }
+  if (!args.brief) throw new RouterError("reference run requires --brief", 2);
+  const router = readJson(defaultRouterPath, "default router");
+  const request = {
+    briefPath: args.brief,
+    hostManifest,
+    routerId: router.router_id,
+    routerVersion: router.router_version,
+    invocation: args.invocation || "explicit",
+    root: args.root || process.cwd()
+  };
+  if (args["dry-run"]) {
+    const report = dryRunReferenceIntelligence(request);
+    referenceOutput(report, args);
+    process.exitCode = referenceExitCode(report);
+    return;
+  }
+  if (!args.out) throw new RouterError("reference run requires --out for resumable state", 2);
+  const state = startReferenceIntelligence({
+    ...request,
+    statePath: args.out,
+    resultPaths: args.results,
+    selectionPath: args.selection || null,
+    retry: args.retry || null
+  });
+  referenceOutput(state, args);
+  process.exitCode = referenceExitCode(state);
 }
 
 function auditCommand(args) {
@@ -914,8 +1217,19 @@ function auditCommand(args) {
 export async function main(argv) {
   const args = parseArgs(argv);
   if (args.json) args.format = "json";
-  if (args.help) {
+  if (args.help || argv.length === 0) {
     process.stdout.write(help());
+    return;
+  }
+  if (args.command === "capabilities") {
+    const report = inspectDistribution();
+    output(report, args, (value) => [
+      `KillSlopRouter ${value.plugin_version}`,
+      `distribution: ${value.status} (${value.distribution_digest})`,
+      ...value.features.map((feature) => `${feature.id}: ${feature.status}`),
+      value.note
+    ].join("\n") + "\n");
+    process.exitCode = report.status === "available" ? 0 : 5;
     return;
   }
   if (args.command === "bootstrap") {
@@ -936,6 +1250,10 @@ export async function main(argv) {
   }
   if (args.command === "design") {
     designCommand(args);
+    return;
+  }
+  if (args.command === "reference") {
+    referenceCommand(args);
     return;
   }
   if (args.command === "audit") {

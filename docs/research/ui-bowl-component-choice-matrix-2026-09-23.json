@@ -1,0 +1,623 @@
+{
+  "component_choice_matrix_version": 1,
+  "id": "ui-bowl-component-choice-matrix-20260923",
+  "date": "2026-09-23",
+  "orchestrator": "KillSlopRouter",
+  "status": "derivative-of-reviewed-static-study",
+  "authority_scope": "research-only",
+  "purpose": "같은 결정에 쓰일 수 있는 구성 대안의 조건과 보존 관계를 비교한다. 서비스의 우열이나 특정 프로젝트의 적합 순위를 정하지 않는다.",
+  "boundaries": {
+    "fit_ranking": false,
+    "ready_reference_pack": false,
+    "creator_input": false,
+    "owner_selection": false,
+    "visual_authority": false,
+    "formal_reference_pipeline_ran": false,
+    "independent_approval_of_this_derivative": false,
+    "new_source_pixels_inspected": false,
+    "new_source_observations": false,
+    "source_behavior_executed": false,
+    "same_product_responsive_verified": false,
+    "source_reuse_rights_verified": false,
+    "source_acquisition_method_authenticated": false,
+    "source_pixels_included": false,
+    "source_assets_included": false,
+    "private_paths_included": false,
+    "account_metadata_included": false
+  },
+  "source_artifacts": [
+    {
+      "role": "sealed-static-study",
+      "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+      "digest": "sha256:8500cbe81a478e42e139378351371a655d210e5273cf917b9fbcf09c36f2a7b9",
+      "digest_recomputed_and_matched": true
+    },
+    {
+      "role": "independent-review-of-source-study-not-this-matrix",
+      "path": "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+      "digest": "sha256:cfa27ad63c49883238cca3e9d4ca96b3173e9f5bcfb91ec255fa4ad7f84807b7",
+      "digest_recomputed_and_matched": true,
+      "verdict": "accepted-as-bounded-static-research-with-nonblocking-notes"
+    }
+  ],
+  "method": {
+    "input": "고정된 연구 JSON의 관찰·해석·제한 및 그 연구의 독립 검토 기록만 사용한다. 원본 픽셀을 다시 보거나 새로운 웹·계정·브라우저·네트워크 조사로 확인한 자료가 아니다.",
+    "observed_source": "각 대안의 source_entries는 기존 관찰의 축약이다. source_json_pointer, part_id 또는 visual_observations의 키, 해당 frame_ids로 정확한 고정 연구 항목을 가리킨다.",
+    "hypothesis": "when_to_consider, when_not_to_use, target_relationships, tradeoff는 연구자의 조건부 해석이며 사용성 효과·소스 팀 의도·실행 검증 결과가 아니다.",
+    "target_relationship_citation_rule": "각 대안의 target_relationships.hierarchy는 그 대안의 anatomy_citations, 나머지 여섯 축은 같은 이름의 aspect_citations를 근거로 삼는다. 두 source_entries가 있는 대안은 두 역할의 관계를 분리해 기술한다.",
+    "scope": "선택된 아카이브 프레임의 관계만 비교한다. 한 화면을 같은 서비스 전체의 디자인 규칙으로 일반화하지 않는다.",
+    "precision": "원본 CSS·폰트명·색 코드·픽셀 크기를 추출하거나 추정하지 않는다. 구체적인 타깃 값도 아직 승인된 프로젝트 계약이 없어 정하지 않는다.",
+    "selection": "공통 결정과 대안의 차이가 분명한 다섯 문제를 골랐다. 모든 14개 항목을 억지로 짝지어 할당하지 않는다. 한 source entry는 하나의 문제에만 사용한다.",
+    "cross_component_coherence": "서비스마다 예쁜 부위를 임의로 섞는 지침이 아니다. 실제 프로젝트는 진짜 Owner가 선택한 anchor/support와 공통 타깃 토큰·상태·밀도 문법의 정합성을 별도 검증해야 한다. 독립된 비교 가설은 새 Owner 선택이나 ready pack을 대신하지 않는다."
+  },
+  "coverage": {
+    "decision_questions": 5,
+    "alternatives": 10,
+    "unique_compared_entries": 11,
+    "unique_compared_source_frames": 25,
+    "unique_compared_product_surface_groups": 9,
+    "source_study_entries": 14,
+    "source_study_frames": 30,
+    "source_study_responsive_proposals": 42,
+    "source_study_application_check_proposals": 65,
+    "responsive_proposals_executed": 0,
+    "application_check_proposals_executed": 0,
+    "new_capture_count": 0,
+    "meaning": "25개는 이번 비교에 인용한 기존 프레임의 합집합이다. 새로 확보하거나 직접 재검토한 화면 수가 아니다. 42개 반응형·65개 검사는 원래 연구의 전체 타깃 제안 수이며 여전히 미실행이다."
+  },
+  "decisions": [
+    {
+      "id": "summary-and-reading",
+      "question": "핵심을 먼저 읽은 뒤 무엇을 더 확인해야 하는가: 같은 기록의 원문인가, 발행 시점이 있는 브리핑의 상세인가?",
+      "discriminator_hypothesis": "원문 대조가 핵심이면 기록과 요약을 분리해 공존시키고, 시점별 읽을거리 선택이 핵심이면 날짜·발행 시각·목록과 상세의 관계를 먼저 설계할 수 있다. 같은 요약 카드라는 이름만으로 교환하지 않는다.",
+      "alternatives": [
+        {
+          "id": "summary-with-transcript",
+          "label": "같은 기록 안에서 요약과 원문을 대조",
+          "source_entries": [
+            {
+              "entry_id": "kakaotalk-summary-transcript",
+              "source_id": "kakaotalk",
+              "source_json_pointer": "/entries/0",
+              "frame_ids": ["cmg0ha65f000mlb04d8mo58ga", "cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"],
+              "anatomy_citations": [
+                {"part_id": "summary", "frame_ids": ["cmg0ha6a3000ylb04xk566so2"], "observed": "굵은 제목과 내어쓴 다행 불릿이 흰 카드에 묶인다."},
+                {"part_id": "source", "frame_ids": ["cmg0ha65f000mlb04d8mo58ga", "cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"], "observed": "좌우 발화 면과 바깥 재생 오프셋으로 화자와 녹음 내 위치를 구별한다."},
+                {"part_id": "caveat", "frame_ids": ["cmg0ha65f000mlb04d8mo58ga", "cmg0ha67n000slb042cqwuvad"], "observed": "사용 고지가 안내창 및 원문 하단의 별도 목록에 있다."},
+                {"part_id": "copy-action", "frame_ids": ["cmg0ha6a3000ylb04xk566so2"], "observed": "카드 하단의 넓은 테두리 버튼과 어두운 토스트가 보인다. 복사 실행을 뜻하지 않는다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"], "observed": "밝은 원문과 별도 요약 면, 더 옅은 회색 재생 영역이 나뉜다."},
+                "edges": {"frame_ids": ["cmg0ha65f000mlb04d8mo58ga", "cmg0ha6a3000ylb04xk566so2"], "observed": "둥근 안내창·요약 카드와 더 작은 곡률의 테두리 버튼, 확인 행의 선이 있다."},
+                "elevation": {"frame_ids": ["cmg0ha65f000mlb04d8mo58ga", "cmg0ha6a3000ylb04xk566so2"], "observed": "배경을 가리는 안내창, 낮은 그림자의 요약 카드, 국소 토스트가 서로 다른 층이다."},
+                "typography": {"frame_ids": ["cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"], "observed": "요약 제목이 본문보다 굵고 메타데이터·고지는 옅은 회색으로 시각적 강조가 낮다. 대비 측정은 아니다."},
+                "spacing": {"frame_ids": ["cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"], "observed": "계속되는 불릿 줄의 시작선이 맞고 항목 간격이 내부 행간보다 크다. 원문과 고지 사이에는 큰 단락 간격과 선이 있다."},
+                "color": {"frame_ids": ["cmg0ha67n000slb042cqwuvad", "cmg0ha6a3000ylb04xk566so2"], "observed": "회색·노란 발화 면과 작은 요약 표식이 구별된다. 복사 버튼은 강한 브랜드색 채움이 아니다."}
+              }
+            }
+          ],
+          "when_to_consider": ["같은 기록의 요약·원문·시점·처리 한계가 존재하고 사용자가 요약을 원문과 대조해야 할 때.", "복사나 재생 같은 국소 행동이 원문 읽기와 구별되어야 할 때."],
+          "when_not_to_use": ["날짜별 발행물을 고르는 일이 중심인데 대화형 좌우 배치를 가져오는 경우.", "원문이나 권한이 없는데 근거가 있는 요약처럼 보이게 하는 경우."],
+          "target_relationships": {
+            "hierarchy": "요약·원문·처리 한계를 서로 식별 가능하게 남기고 복사와 기록 조작을 해당 맥락에 둔다.",
+            "surface": "요약의 별도 면은 유지하되 모든 원문·고지를 동등한 카드로 감싸지 않는다.",
+            "edges": "내용을 묶는 외곽과 행동 버튼 경계를 다른 역할로 설계한다.",
+            "elevation": "국소 요약·짧은 피드백·전면 안내의 층위를 구별한다. 소스의 안내창 필요성을 그대로 승인하지 않는다.",
+            "typography": "요약 제목과 본문 차이는 남기고 낮은 강조의 시점·고지도 타깃에서 읽을 수 있어야 한다.",
+            "spacing": "다행 불릿 시작선과 항목 내부/항목 사이/원문-고지의 간격 단계를 보존한다.",
+            "color": "화자·요약·행동의 의미 차이를 타깃 권한의 색 역할로 다시 정한다. 노란 말풍선 조합을 복제하지 않는다."
+          },
+          "tradeoff": "원문과 요약을 함께 남기면 대조 경로를 얻는 대신 중복 읽기와 스크롤이 늘 수 있다.",
+          "unknowns": ["원문·요약 정확도와 처리 동의", "복사·재생의 실제 실행 및 오류 회복", "같은 제품의 폭 변화, 키보드·초점·접근성", "타깃의 기록 접근권한과 실제 데이터 계약"],
+          "anti_copy_boundary": "화자·대화·사진·브랜드 표식과 정확한 스타일 값은 이전하지 않는다. 보이는 토스트를 수행 성공으로 재사용하지 않는다."
+        },
+        {
+          "id": "dated-briefing-reader",
+          "label": "시점별 브리핑 선택과 핵심·상세 읽기",
+          "source_entries": [
+            {
+              "entry_id": "naverpay-briefing-reader",
+              "source_id": "naverpay",
+              "source_json_pointer": "/entries/1",
+              "frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"],
+              "anatomy_citations": [
+                {"part_id": "date-scope", "frame_ids": ["cmsx00zt2000jkz04qb773hya"], "observed": "날짜 입력 아래 발행 시각과 새 항목 표지가 있다."},
+                {"part_id": "headline", "frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zt2000jkz04qb773hya"], "observed": "상세 제목은 크고 굵으며 목록 카드 제목도 본문보다 굵다."},
+                {"part_id": "summary", "frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zt2000jkz04qb773hya"], "observed": "옅은 면의 불릿 요약에 상세의 시각과 표식이 결합한다."},
+                {"part_id": "body", "frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer"], "observed": "본문에서 굵은 절 제목이 떨어져 있고 키워드 묶음은 별도 회색 면 안에 있다."},
+                {"part_id": "limitations", "frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer"], "observed": "요약 아래 작은 고지와 하단의 상세 유의 목록이 별도로 있다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "흰 읽기 바탕과 옅은 요약·키워드 면, 얇은 목록 카드 경계가 있다."},
+                "edges": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "작은 곡률의 요약 상자·키워드 캡슐·날짜 입력 경계가 역할별로 다르다."},
+                "elevation": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "큰 부양 효과보다 면과 얇은 선이 분리의 중심이다. 그림자 CSS 부재를 확정하지 않는다."},
+                "typography": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "상세 제목, 요약·절 제목, 본문, 작은 시점·고지의 차이가 있고 다행 제목이 보인다."},
+                "spacing": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "불릿의 줄 시작선과 항목/단락 간격이 나뉘고 키워드는 줄바꿈한다."},
+                "color": {"frame_ids": ["cmsx00zry000fkz04dtycmqdw", "cmsx00zsi000hkz04elipsuer", "cmsx00zt2000jkz04qb773hya"], "observed": "진한 본문·회색 보조 정보와 강한 녹색 전체 폭 행동, 작은 붉은 새 항목 표지가 구별된다."}
+              }
+            }
+          ],
+          "when_to_consider": ["발행·갱신 시각과 날짜 범위가 실제로 구별되고 사용자가 읽을 브리핑을 먼저 골라야 할 때.", "핵심·상세·관련 키워드·제약을 읽기 깊이에 따라 구별해야 할 때."],
+          "when_not_to_use": ["비교 가능한 숫자를 반복해서 빠르게 훑는 작업에 여유 있는 기사 위계를 그대로 쓰는 경우.", "날짜·갱신 여부·원 출처 연결이 없는데 최신 브리핑처럼 꾸미는 경우."],
+          "target_relationships": {
+            "hierarchy": "날짜 범위·개별 시각·제목·요약·상세·제약을 서로 다른 판단 단위로 유지한다.",
+            "surface": "읽기 바탕과 요약 인셋의 차이를 남기되 각 문단을 독립 카드로 분절하지 않는다.",
+            "edges": "날짜 입력의 조작 경계와 내용 묶음·키워드의 경계를 혼동하지 않게 한다.",
+            "elevation": "읽기 계층은 면·선 중심으로 옮길 수 있다. 이를 프로젝트 전체 무그림자 규칙으로 일반화하지 않는다.",
+            "typography": "다행 제목과 절 제목의 위계를 유지하고 시점·고지는 작게 숨겨도 되는 정보로 취급하지 않는다.",
+            "spacing": "불릿 내부·불릿 사이·요약에서 본문으로 넘어가는 간격을 구별한다.",
+            "color": "새 항목·이동 행동·본문의 역할을 분리한다. 소스 녹색과 금융 의미는 복제하지 않는다."
+          },
+          "tradeoff": "핵심부터 읽을 수 있지만 요약과 본문이 반복되고 낮은 강조의 고지를 놓칠 가능성이 있다.",
+          "unknowns": ["날짜·이전 글·목록 복귀의 실행", "빈 날짜·오류·로딩과 실제 새 항목 판정", "원 출처 완전성 및 정보 정확도", "장문 전체 읽기와 동일 제품 반응형"],
+          "anti_copy_boundary": "기사 문구·금융 전망·표식·브랜드색을 가져오지 않는다. 상세 하단 공백을 빈 검색 결과나 빈 날짜 증거로 보지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "numeric-list-and-workbench",
+      "question": "숫자의 빠른 비교가 중심인가, 여러 수치와 실행 조건을 동시에 검토하는 작업이 중심인가?",
+      "discriminator_hypothesis": "공통 단위의 항목 비교에는 연속 행의 축이 중요하고, 실제 다변수 검토에는 역할별 모듈의 동시성이 중요할 수 있다. 고밀도가 고급이라는 순위도, 모든 행을 카드로 바꾸는 규칙도 아니다.",
+      "alternatives": [
+        {
+          "id": "aligned-metric-list",
+          "label": "이름과 수치의 비교 행 + 목록 범위 설명 시트",
+          "source_entries": [
+            {
+              "entry_id": "kakaopay-watchlist-sheet",
+              "source_id": "kakaopay",
+              "source_json_pointer": "/entries/8",
+              "frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"],
+              "anatomy_citations": [
+                {"part_id": "item-identity", "frame_ids": ["cmgnsyutl0003ld043cfu0jkd"], "observed": "굵은 이름과 작은 회색 식별자·작은 국가 표지가 묶인다."},
+                {"part_id": "metrics", "frame_ids": ["cmgnsyutl0003ld043cfu0jkd"], "observed": "변화율과 그 아래 가격이 행의 오른쪽에 정렬된다."},
+                {"part_id": "detail-scope", "frame_ids": ["cmgnsyuv40007ld04gm46idz5"], "observed": "가려진 배경 위 시트에 닫기와 두 개의 같은 폭 탭이 있다."},
+                {"part_id": "issue-groups", "frame_ids": ["cmgnsyuv40007ld04gm46idz5"], "observed": "그룹 제목·개수·설명·연결선과 한 항목 아래의 옅은 설명 면이 보인다. 단일 종목의 상세라고 확정하지 않는다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"], "observed": "목록은 연속 행이고 요약과 설명에 별도 면이 있다. 시트는 별도 층이다."},
+                "edges": {"frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"], "observed": "각 행이 둥근 카드로 둘러싸이지 않으며 요약·설명·시트 외곽의 곡률이 다르다."},
+                "elevation": {"frame_ids": ["cmgnsyuv40007ld04gm46idz5"], "observed": "배경 덮개와 밝은 시트의 앞뒤 관계가 보인다. 실제 중첩 구현은 모른다."},
+                "typography": {"frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"], "observed": "굵은 이름·그룹 제목과 작은 보조 식별자가 나뉘고 가격·변화율은 우측 열을 이룬다."},
+                "spacing": {"frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"], "observed": "아이콘-이름, 반복 행, 요약-목록, 시트의 그룹 간격은 서로 다르다."},
+                "color": {"frame_ids": ["cmgnsyutl0003ld043cfu0jkd", "cmgnsyuv40007ld04gm46idz5"], "observed": "붉은·파란 수치와 검정 밑줄 탭은 다른 강조 문법을 쓴다."}
+              }
+            }
+          ],
+          "when_to_consider": ["항목의 단위·시점이 비교 가능하고 이름과 값의 연속 훑기가 우선일 때.", "목록/그룹 설명을 따로 읽되 돌아갈 비교 맥락이 명확할 때."],
+          "when_not_to_use": ["다른 의미의 숫자를 같은 상승·하락 색으로 통일하는 경우.", "긴 원문이나 여러 실행 조건을 좁은 시트에 몰아넣는 경우."],
+          "target_relationships": {
+            "hierarchy": "항목 식별과 값 비교 축을 먼저 보존하고 설명의 범위를 목록·그룹·개별 항목 중 정확히 명명한다.",
+            "surface": "연속 비교 행과 요약·설명 면을 구별한다.",
+            "edges": "행마다 큰 외곽을 반복해 비교축을 끊지 않는다. 설명 묶음의 경계와 선택 표시를 분리한다.",
+            "elevation": "상세를 별도 층으로 쓴다면 복귀할 맥락을 유지해야 한다. 시트 채택은 타깃 검증이 필요한 선택이다.",
+            "typography": "이름과 수치의 정렬 축을 유지하고 단위·식별자는 보조 계층에서 읽히게 한다.",
+            "spacing": "행의 일정한 리듬과 더 큰 그룹 간격을 보존한다.",
+            "color": "숫자의 의미와 탐색 선택을 같은 신호로 평준화하지 않는다. 금융의 붉음·파랑은 타깃 의미가 확정되기 전 이전하지 않는다."
+          },
+          "tradeoff": "시트는 목록 맥락을 남길 수 있지만 긴 내용·글자 확대에서는 스크롤과 초점 관리 부담이 커진다.",
+          "unknowns": ["요약 막대의 분모와 지표 정확도", "시트 진입 트리거 및 목록/그룹과의 실제 관계", "탭·닫기·복귀 초점·스크롤", "다른 폭과 갱신 중 행 순서·값 표시"],
+          "anti_copy_boundary": "실제 종목·회사 아이콘·금융 데이터나 거래 의미를 복제하지 않는다. 시트를 단일 종목 상세로 부르지 않는다."
+        },
+        {
+          "id": "role-separated-data-workbench",
+          "label": "발견 화면과 수치·조건 검토 작업대를 구별",
+          "source_entries": [
+            {
+              "entry_id": "toss-securities-dense-modules",
+              "source_id": "toss-securities",
+              "source_json_pointer": "/entries/13",
+              "frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"],
+              "anatomy_citations": [
+                {"part_id": "summary-discovery", "frame_ids": ["cm520gp8p0004ju0cha3llmnm"], "observed": "홈의 지표 요약·사진 뉴스·텍스트 뉴스가 서로 다른 밀도로 놓인다."},
+                {"part_id": "instrument-context", "frame_ids": ["cm520gp9z000aju0c1gnu05zl"], "observed": "상세 상단에 식별자·현재 값·변화 정보와 그 아래 지역 탭이 있다."},
+                {"part_id": "chart", "frame_ids": ["cm520gp9z000aju0c1gnu05zl"], "observed": "상세 왼쪽의 넓은 차트에 눈금·기간·도구가 있다."},
+                {"part_id": "numeric-grid", "frame_ids": ["cm520gp9z000aju0c1gnu05zl"], "observed": "좁은 수치 열과 길이가 다른 배경 막대, 보유·기록 행이 정렬된다."},
+                {"part_id": "action-conditions", "frame_ids": ["cm520gp9z000aju0c1gnu05zl"], "observed": "가격·수량·단위·주문 종류와 강한 실행 버튼이 입력 패널에 모인다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "홈은 흰 바탕 안 옅은 지표 카드이고 상세는 옅은 바탕 위 흰 차트·수치·입력 모듈이다. 두 면 관계를 합치지 않는다."},
+                "edges": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "모듈 외곽·내부 선·분절 선택·사진 곡률은 역할별로 다르다."},
+                "elevation": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "대부분 면과 선으로 분리하며 이 두 프레임에는 떠 있는 검색 층이 없다."},
+                "typography": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "값·제목·이름은 강하고 단위·라벨·기록 정보는 작다. 상세를 큰 제목이 점유하지 않는다."},
+                "spacing": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "수치 행 간격은 모듈 간격보다 작다. 넓은 차트와 목적별 좁은 열, 더 여유 있는 뉴스가 구별된다."},
+                "color": {"frame_ids": ["cm520gp8p0004ju0cha3llmnm", "cm520gp9z000aju0c1gnu05zl"], "observed": "중립 면에 금융 지표와 실행 버튼이 국소 강조되고 홈 뉴스 사진이 별도 활력을 만든다."}
+              }
+            }
+          ],
+          "when_to_consider": ["구조화된 여러 값·축·조건을 같은 맥락에서 비교할 실제 과업이 있을 때.", "실행 권한·서버 검증·확인 단계가 별도로 정의되어 있을 때만 행동 영역을 검토한다."],
+          "when_not_to_use": ["뉴스 읽기·가벼운 발견에 작업대 열 수와 밀도를 그대로 강제하는 경우.", "실시간 데이터·행동 권한이 없는데 거래 작업대의 신뢰감만 이식하는 경우."],
+          "target_relationships": {
+            "hierarchy": "대상·시간 변화·세부 값·실행 조건의 역할을 구별한다. 발견과 실행을 동일 화면 규칙으로 합치지 않는다.",
+            "surface": "홈의 요약 면과 상세의 작업 모듈 면은 별개 근거다. 타깃의 역할에 맞는 관계만 검토한다.",
+            "edges": "모듈 경계, 행 구분, 선택 컨트롤의 경계를 서로 다른 기능으로 둔다.",
+            "elevation": "기본 작업 모듈은 면·선으로 읽히게 하되 이 관찰을 모든 오버레이나 전체 제품의 평면화 근거로 삼지 않는다.",
+            "typography": "값과 대상의 강조, 단위·라벨의 보조 계층을 남긴다. 큰 장식 제목으로 비교 공간을 잠식하지 않는다.",
+            "spacing": "모듈 간격보다 조밀한 수치 행과 상대적으로 여유 있는 발견 콘텐츠를 구별한다.",
+            "color": "수치 변화·행동·사진의 역할을 분리한다. 값 색과 위험 행동 색의 혼동은 타깃에서 따로 검증한다."
+          },
+          "tradeoff": "동시 비교 면적을 확보하지만 좁은 폭·초보 사용자·글자 확대에서는 복잡성과 오류 위험이 늘 수 있다.",
+          "unknowns": ["실시간 수치·지연·축·집계 기준", "고위험 행동 안전성 및 권한·서버 검증", "홈 하단 표의 전체 내용: 캡처에는 머리 부분만 보임", "작은 폭·중간 폭·키보드 순서·접근성"],
+          "anti_copy_boundary": "거래 버튼이 보인다는 이유로 거래를 구현하거나 안전성을 승인하지 않는다. 브랜드·실제 투자 데이터·홈과 상세를 섞은 스킨을 이전하지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "hierarchical-and-mixed-search",
+      "question": "정확한 이름을 몰라 범위를 좁혀야 하는가, 하나의 질의로 서로 다른 종류의 결과를 구별해야 하는가?",
+      "discriminator_hypothesis": "실제 상하 관계가 있는 대상은 계층 탐색을 병행할 수 있고, 질의 결과의 성격이 다르면 직접 대상·문서·연관 결과를 분리해야 한다. 두 열이라는 외형이 아니라 데이터 관계가 판단 기준이다.",
+      "alternatives": [
+        {
+          "id": "query-with-parent-child-navigation",
+          "label": "직접 검색과 상위·하위 범주의 병렬 탐색",
+          "source_entries": [
+            {
+              "entry_id": "naver-travel-hierarchical-search",
+              "source_id": "naver-travel",
+              "source_json_pointer": "/entries/4",
+              "frame_ids": ["cmn71cbuz0007l104i9wyonsv", "cmn71cbx0000bl104lpabjhm6"],
+              "anatomy_citations": [
+                {"part_id": "query", "frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "탭 아래 넓은 검색 입력에 파란 외곽·아이콘·안내 문자가 보인다. 키보드 포커스 여부는 알 수 없다."},
+                {"part_id": "parent-list", "frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "왼쪽 좁은 열의 상위 범주에서 흰 면·파란 굵은 글자의 강조 행이 구별된다."},
+                {"part_id": "child-list", "frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "더 넓은 오른쪽 열에 나라 제목·목적지 행이 있고 펼친 그룹과 제목만 있는 그룹이 구별된다."},
+                {"part_id": "item-type-cue", "frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "작은 국기·사진뿐 아니라 이름 뒤 유형 문자가 남는다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmn71cbuz0007l104i9wyonsv", "cmn71cbx0000bl104lpabjhm6"], "observed": "사진·제목이 보이는 기존 탐색 위에 흰 패널이 겹치며 전체 어두운 덮개는 없다. 왼쪽 목록 면과 오른쪽 흰 영역이 다르다."},
+                "edges": {"frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "패널·입력의 곡률, 상위 목록의 분할선, 펼친 그룹의 강조 경계가 구별된다."},
+                "elevation": {"frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "패널에 확산 음영이 있고 하위 행마다 별도 부양 효과를 반복하지 않는다."},
+                "typography": {"frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "범위 탭은 굵고 선택 범주·펼친 제목은 색과 굵기가 함께 강조된다. 이름과 유형의 대비가 다르다."},
+                "spacing": {"frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "상위 행의 세로 호흡이 하위 행보다 크며 이미지·이름·유형은 가깝다. 그룹 사이는 더 넓다."},
+                "color": {"frame_ids": ["cmn71cbx0000bl104lpabjhm6"], "observed": "검색 외곽·선택 지역·펼친 제목의 파랑과 식별 이미지의 다색은 다른 역할이다."}
+              }
+            }
+          ],
+          "when_to_consider": ["대상이 실제 상위·하위 관계를 가지고 이름을 모르는 사용자의 탐색도 지원해야 할 때.", "같은 이름의 서로 다른 유형을 문자로 구별할 필요가 있을 때."],
+          "when_not_to_use": ["다중 소속 자료를 상위 하나에 억지로 종속시키는 경우.", "선택지가 적은데 범주·하위 목록·이미지까지 추가하는 경우."],
+          "target_relationships": {
+            "hierarchy": "현재 범위와 하위 대상의 관계, 직접 검색 경로를 보존한다. 모든 수준을 같은 칩으로 만들지 않는다.",
+            "surface": "상위 범주와 하위 목록의 면 차이를 유지하고 바깥 맥락을 남길 필요를 타깃에서 판단한다.",
+            "edges": "선택 범주·펼친 그룹·검색 입력의 경계를 역할별로 구별한다.",
+            "elevation": "보조 탐색 패널의 한 층과 그 안의 연속 행을 분리한다. 패널 안 각 항목에 별도 떠 있는 카드를 반복하지 않는다.",
+            "typography": "범위·대상 이름·유형의 위계를 남기고 작은 이미지만으로 유형을 전달하지 않는다.",
+            "spacing": "상위/하위 행과 그룹 간격의 차이를 유지한다. 좁은 폭에서는 이름·유형을 자르기 전에 구성을 재검토한다.",
+            "color": "범위 선택과 대상 식별을 구별하며 강조 테두리만으로 키보드 초점이 입증됐다고 보지 않는다."
+          },
+          "tradeoff": "범주와 현재 대상을 동시에 볼 수 있지만 좁은 폭에서 이름·유형 공간이 줄고 이미지 관리 비용이 생긴다.",
+          "unknowns": ["검색 정확도·별칭·분류 최신성", "동시 펼침 수·패널 스크롤·복귀 초점", "실제 결과 없음·오류·로딩", "입력 방식·같은 제품 폭 변화"],
+          "anti_copy_boundary": "목적지 목록·사진·국기 자산·검색 문구·패널 좌표를 가져오지 않는다. 빈 검색어를 빈 검색 결과로 부르지 않는다."
+        },
+        {
+          "id": "typed-mixed-search-results",
+          "label": "직접 대상·기사·연관 결과를 나누는 혼합 검색",
+          "source_entries": [
+            {
+              "entry_id": "toss-securities-search-palette",
+              "source_id": "toss-securities",
+              "source_json_pointer": "/entries/12",
+              "frame_ids": ["cm520gp9n0008ju0czmf3mxov"],
+              "anatomy_citations": [
+                {"part_id": "query", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "상단 둥근 입력 면의 질의가 검색 결과와 떨어져 있다."},
+                {"part_id": "category", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "검색 아래 분류 탭 중 하나에 진한 밑줄이 있다."},
+                {"part_id": "entity-results", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "직접 대상은 이름·보조 식별자·우측 수치 열로 놓이고 한 행에 회색 면이 있다."},
+                {"part_id": "article-results", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "기사는 별도 제목 아래 제목·발행 시각·출처가 묶인다."},
+                {"part_id": "related-results", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "세로선 오른쪽에 연관 항목 제목·정보 아이콘·목록이 있다."},
+                {"part_id": "keyboard-hints", "frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "방향키·선택·ESC 지우기 안내가 보인다. 안내의 존재는 키 실행이나 닫기 성공의 증거가 아니다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "어둡게 가려진 홈 위 흰 패널과 회색 입력·현재 행의 면이 겹친다. 홈 자체가 어두운 테마라는 뜻이 아니다."},
+                "edges": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "패널 외곽·입력 캡슐·탭 밑줄·결과 분리선이 역할별로 다르다."},
+                "elevation": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "덮개와 패널이 검색을 앞세우지만 정확한 배치 규칙은 모른다."},
+                "typography": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "이름·기사 제목은 코드·시각·출처보다 강하고 수치와 연관 제목은 독립된 읽기 영역이다."},
+                "spacing": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "입력·탭·결과군·키 안내가 단계별로 떨어지고 연관 열이 직접 결과보다 좁다."},
+                "color": {"frame_ids": ["cm520gp9n0008ju0czmf3mxov"], "observed": "질의 일치의 파랑과 값 의미의 파랑·빨강이 일부 색을 공유한다. 맥락 의존성이 있다."}
+              }
+            }
+          ],
+          "when_to_consider": ["하나의 질의에 직접 대상·읽을거리·연관 대상이 실제로 함께 반환될 때.", "유형·식별자·시점·출처와 연관 근거를 구별하는 데이터 계약이 있을 때."],
+          "when_not_to_use": ["관련 근거가 없는 추천으로 빈 보조 열을 채우는 경우.", "동질적·소수 결과에 복잡한 다열 팔레트를 강제하는 경우."],
+          "target_relationships": {
+            "hierarchy": "질의와 결과 종류를 먼저 읽히게 하고 직접 일치·문서·연관 탐색의 이동 목적을 구별한다.",
+            "surface": "입력 면과 현재 행, 전체 검색 층의 구별을 유지한다. 현재 행의 입력 방식은 새로 검증한다.",
+            "edges": "탭 선택선과 결과군 분리선, 입력 외곽을 서로 다른 의미로 둔다.",
+            "elevation": "검색에 집중하는 층을 채택하면 배경 조작과 닫기·복귀 계약을 별도 검증한다.",
+            "typography": "대상명·문서 제목을 중심으로 식별자·시각·출처를 가까운 보조 계층에 남긴다.",
+            "spacing": "질의-유형-결과-조작 안내의 단계를 유지하고 보조 결과가 직접 결과의 읽기 폭을 과도하게 빼앗지 않게 한다.",
+            "color": "일치 강조와 값의 의미가 같은 색에 의존하지 않도록 문자·기호 등 타깃 보조 단서를 검토한다. 소스의 색 중복은 복사할 정답이 아니다."
+          },
+          "tradeoff": "서로 다른 결과를 한곳에서 판단할 수 있지만 읽기·키보드 순서가 복잡해질 수 있다.",
+          "unknowns": ["질의별 정확도·중복 제거·연관 근거", "키보드·ESC의 실제 작동과 초점", "회색 행이 마우스·선택·키보드 중 어떤 상태인지", "빈 결과·오류·지연·반응형"],
+          "anti_copy_boundary": "실제 금융 결과·회사 표식·브랜드 파랑을 이전하지 않는다. ESC의 표시 의미는 지우기이며 닫기로 바꿔 기록하지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "field-local-assistance",
+      "question": "입력 중 돕는 도구는 문구 수정의 이유를 검토하게 하는가, 대체 입력의 후보를 원문·결과와 대조하게 하는가?",
+      "discriminator_hypothesis": "공통점은 현재 입력을 남기는 국소 보조 구조다. 문구 제안·이유·명시적 반영과 필기 공간·후보·원문/결과 대조는 다른 과업이며 자동 처리 완료를 뜻하지 않는다.",
+      "alternatives": [
+        {
+          "id": "composer-with-reasoned-suggestion",
+          "label": "작성·미리보기 맥락 안의 후보·이유·적용",
+          "source_entries": [
+            {
+              "entry_id": "toss-business-composer-preview",
+              "source_id": "toss-business",
+              "source_json_pointer": "/entries/6",
+              "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"],
+              "anatomy_citations": [
+                {"part_id": "body-field", "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "다중 줄 입력에 라벨·필수 표지·변수 조작이 붙고 한 캡처에서 외곽 강조가 보인다."},
+                {"part_id": "preview", "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "작성 열 옆 밝은 기기 모형 안에 작은 알림 면과 전환 표시가 있다."},
+                {"part_id": "workflow-actions", "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "별도 하단 면에서 검토 안내와 보조 저장·강한 검토 요청이 묶인다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "옅은 페이지·흰 큰 섹션·편집 인셋·밝은 기기 모형이 구별된다. 필드마다 독립 카드인 구조는 아니다."},
+                "edges": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "큰 섹션과 필드의 곡률이 다르고 탭 밑줄·입력 전체 외곽은 다른 역할이다."},
+                "elevation": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "작성 섹션은 큰 그림자보다 면·간격으로 나뉜다. 미리보기 전환에는 약한 음영이 있다."},
+                "typography": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "섹션 제목·검토 안내가 라벨보다 굵고 미리보기 내부에도 제목·부가 문구의 차이가 있다."},
+                "spacing": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "라벨-필드는 가깝고 필드 그룹 간격은 더 크며 작성 열과 미리보기 사이에 넓은 여백이 있다."},
+                "color": {"frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "밝은 저채도 면 위 파랑은 입력·검토·일부 보조 조작, 작은 붉은 표지는 필수 항목에 쓰인다. 옅은 조작이 disabled라는 증거는 아니다."}
+              }
+            },
+            {
+              "entry_id": "toss-business-local-assistance",
+              "source_id": "toss-business",
+              "source_json_pointer": "/entries/7",
+              "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"],
+              "anatomy_citations": [
+                {"part_id": "context-field", "frame_ids": ["cmmjxg6qf000nky04kgkkbjx1", "cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "현재 입력과 수신 모형이 보이는 맥락에 보조창이 놓인다."},
+                {"part_id": "suggestion-surface", "frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "필드 왼쪽의 흰 보조 면에 작은 기능 이름이 있고 후보가 있는 캡처에서는 제안 문구가 더 진하고 굵다."},
+                {"part_id": "rationale", "frame_ids": ["cmmjxg6ss000tky04qixj9vdp"], "observed": "제안 아래 옅은 인셋에 짧은 표제와 여러 줄 설명이 있다."},
+                {"part_id": "apply-control", "frame_ids": ["cmmjxg6ss000tky04qixj9vdp"], "observed": "제안 오른쪽 적용 조작은 최종 검토 요청보다 작고 가볍다."},
+                {"part_id": "progress-cue", "frame_ids": ["cmmjxg6r7000pky04vci947qw"], "observed": "넓은 빈 보조창에 크기가 다른 파란 점이 보인다. 로딩 실행·AI 호출·지속 시간은 관찰하지 않았다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "기존 편집 면 옆의 흰 패널 안에서 이유만 다시 옅은 면으로 묶인다."},
+                "edges": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "패널보다 작은 곡률의 이유 인셋, 입력 외곽, 작은 적용 면이 구별된다."},
+                "elevation": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "제안 패널에는 확산 음영이 있고 이유 인셋은 면 차이로 구별된다."},
+                "typography": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "제안 문구가 도구 이름보다 진하고 굵다. 이유는 표제와 가벼운 설명으로 나뉘며 적용은 최종 행동보다 낮은 위계다."},
+                "spacing": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "현재 입력 옆에서 문구와 적용은 가깝고 이유 블록은 분리된다. 점만 있는 캡처의 내부 여백은 더 크다."},
+                "color": {"frame_ids": ["cmmjxg6r7000pky04vci947qw", "cmmjxg6ss000tky04qixj9vdp"], "observed": "입력 외곽·점·적용의 파랑과 회색 이유 설명이 구별된다. 같은 색은 동일 비동기 작업의 증거가 아니다."}
+              }
+            }
+          ],
+          "when_to_consider": ["명확한 현재 필드의 수정 후보와 이유를 원문·예상 출력과 대조해야 할 때.", "반영을 명시적으로 선택하고 저장·시험·검토·실제 전송을 구별할 업무 계약이 있을 때."],
+          "when_not_to_use": ["필드가 바뀌었는데 오래된 제안을 적용하거나 검토 없이 약속·가격·전문 문구를 덮어쓰는 경우.", "실제 출력이 달라질 수 있는데 한 기기 모형을 확정된 전달 결과처럼 제시하는 경우."],
+          "target_relationships": {
+            "hierarchy": "작성·미리보기·최종 검토를 기본 업무로 남기고 후보·이유·적용은 현재 필드의 보조 결정으로 둔다.",
+            "surface": "큰 작성 묶음 안의 필드와 미리보기, 그 옆의 제안 면, 그 안의 이유 면을 구별한다.",
+            "edges": "탭의 선택선, 입력 외곽, 제안 패널·이유 인셋·적용 면의 역할을 보존한다.",
+            "elevation": "기본 작성은 면·간격 중심이고 국소 도움은 별도 층일 수 있다. 이유 인셋을 또 하나의 팝업으로 만들지 않는다.",
+            "typography": "필드 라벨·내용·후보·이유의 계층을 남기고 적용이 최종 업무 행동보다 강해지지 않게 검토한다.",
+            "spacing": "라벨과 필드, 후보와 적용은 가깝게 묶되 필드 그룹·이유 블록은 분리한다. 좁은 폭에서 원문·후보가 가려지지 않아야 한다.",
+            "color": "필수·현재 대상·제안 반영·최종 요청의 의미를 타깃 상태 계약으로 명명한다. 색만으로 로딩·초점·비활성을 확정하지 않는다."
+          },
+          "tradeoff": "문맥을 보존하지만 가장자리·좁은 폭에서 패널이 잘릴 수 있고 간단한 이유가 도메인 예외를 생략할 수 있다.",
+          "unknowns": ["실제 AI 사용·호출·처리 상태·응답 정확도·보관 정책", "제안의 입력 버전과 적용·되돌리기", "미리보기 갱신·변수 치환·실제 수신 렌더", "저장·시험·검토·발송의 실행·권한", "파란 외곽의 입력 방식과 옅은 조작의 disabled 여부"],
+          "anti_copy_boundary": "operator 작성 사례를 consumer 전체 디자인으로 확대하지 않는다. 작성 문구·주소·캠페인·기기 모형·브랜드를 복제하지 않고 정적 점/후보를 처리 완료로 부르지 않는다."
+        },
+        {
+          "id": "paired-text-with-alternative-input",
+          "label": "원문·결과 대조 + 필기 공간과 후보 검토",
+          "source_entries": [
+            {
+              "entry_id": "papago-web-dual-pane-handwriting",
+              "source_id": "papago-web",
+              "source_json_pointer": "/entries/10",
+              "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"],
+              "anatomy_citations": [
+                {"part_id": "language-context", "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "각 주 패널 상단에 언어 표기가 있어 원문·결과의 언어 조건이 나뉜다."},
+                {"part_id": "source-pane", "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "큰 원문·지우기 표시·문자 수가 있고 한 캡처에는 길어진 원문과 강조 외곽이 보인다. 삽입 이력을 증명하지 않는다."},
+                {"part_id": "target-pane", "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "나란한 결과 면에 큰 문자와 작은 회색 보조 표기·조작이 있다."},
+                {"part_id": "handwriting-canvas", "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "원문 쪽 아래의 흰 보조창은 빈 안내 모습 또는 굵기가 불규칙한 필기 획을 보인다."},
+                {"part_id": "candidate-strip", "frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "필기창 위 띠에는 안내 또는 가로 텍스트 후보가 있고 첫 후보가 강조된다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "같은 밝기의 원문·결과 면과 그 아래 겹친 필기창이 있다. 내부는 선으로 헤더·내용·도구를 나눈다."},
+                "edges": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "두 주 패널은 비슷한 둥근 외곽·얇은 경계를 가지며 한 캡처의 원문 외곽은 초록으로 강조된다."},
+                "elevation": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "거의 평평한 주 패널보다 필기창 둘레의 확산 음영이 분명하다."},
+                "typography": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "원문·결과는 언어·도구·수량보다 크고 보조 읽기는 작고 회색이다. 후보는 안내보다 진하다."},
+                "spacing": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "두 패널 기준선이 맞고 사이 간격은 좁다. 필기창은 원문 쪽에 정렬되며 후보·입력 공간·도구가 세로로 나뉜다."},
+                "color": {"frame_ids": ["cm7u1cwvr000gjr0c3vr61xj7", "cm7u1cwwe000kjr0cb6pwx3vs", "cm7u1cwwp000mjr0czwqnpgv5"], "observed": "주 행동·필기 도구·첫 후보·입력 외곽의 초록과 회색 보조 문자가 나뉜다. 붉은 점선의 발생 주체는 미확인이다."}
+              }
+            }
+          ],
+          "when_to_consider": ["원문과 변환 결과를 함께 대조해야 하고 키보드 외 입력의 실제 필요가 있을 때.", "불확실한 후보를 검토할 경로와 필기 이외의 동등한 핵심 입력 경로를 제공할 수 있을 때."],
+          "when_not_to_use": ["문구 개선만 필요한데 큰 필기 도구까지 차용하는 경우.", "후보를 검토 없이 자동 반영하거나 손동작만으로 작업을 강제하는 경우."],
+          "target_relationships": {
+            "hierarchy": "원문·결과의 동등한 대조 계층과 그 아래 입력 보조 후보를 구별한다. 언어·갱신 상태는 실제 계약으로 보충해야 한다.",
+            "surface": "두 주 문서 면과 원문에 종속된 보조 입력 공간의 관계를 남긴다.",
+            "edges": "각 패널 외곽과 헤더·내용·도구의 내부 구획, 후보의 강조를 구별한다.",
+            "elevation": "보조 입력은 주 문서와 별도 층임을 알리되 원문·결과의 읽기 경로를 막지 않게 한다.",
+            "typography": "주 텍스트를 대조 가능한 위계로 남기고 언어·도구·후보 안내를 역할별로 나눈다.",
+            "spacing": "병렬 대조의 기준선과 필기 후보-작업 공간-도구 순서를 유지하되 좁은 폭의 구성은 새로 검증한다.",
+            "color": "현재 입력·후보·주 행동의 구분은 문자·상태와 함께 설계한다. 초록을 소스 브랜드 그대로 가져오거나 붉은 점선을 서비스 오류로 단정하지 않는다."
+          },
+          "tradeoff": "후보 검토와 원문 대조를 지원할 수 있지만 큰 입력 영역이 공간을 차지하고 스크롤·제스처·키보드와 충돌할 수 있다.",
+          "unknowns": ["필기 인식·후보 선택·삽입·번역 실행과 정확도", "입력 장치·지연·서버 응답·데이터 보관", "도구 비활성 여부·보조창 이동·접근성", "같은 제품의 좁은/중간 폭"],
+          "anti_copy_boundary": "원문·결과·필기 문자열·광고·브랜드 자산을 이전하지 않는다. 길어진 텍스트가 보이는 프레임을 후보 반영 완료나 번역 성공으로 명명하지 않는다."
+        }
+      ]
+    },
+    {
+      "id": "recognition-choice-and-registration",
+      "question": "먼저 익숙한 제공자를 알아보고 골라야 하는가, 이미 고른 수단의 등록 상태와 입력을 구별해야 하는가?",
+      "discriminator_hypothesis": "이름·식별 표시로 고르는 격자와 라벨·민감 입력·현재 등록 목록은 서로 다른 단계의 문제다. 같은 결제 맥락에 있다는 이유로 격자·키패드·중첩 모달을 한 세트로 복사하지 않는다.",
+      "alternatives": [
+        {
+          "id": "recognized-provider-choice",
+          "label": "기존 목록·등록 제약·인지형 제공자 선택·오류 표지",
+          "source_entries": [
+            {
+              "entry_id": "coupang-managed-choice-dialog",
+              "source_id": "coupang-web",
+              "source_json_pointer": "/entries/2",
+              "frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv", "cmob47r6f000fl504gum8kqv5"],
+              "anatomy_citations": [
+                {"part_id": "registered-list", "frame_ids": ["cmob47r2b0005l504di0j6b0b"], "observed": "이름·식별 그림·가린 식별 정보·작은 삭제가 한 행을 이룬다."},
+                {"part_id": "eligibility", "frame_ids": ["cmob47r440009l504y27hxqbv"], "observed": "선택 격자 위에 등록 가능 대상의 제약 한 줄이 있다."},
+                {"part_id": "choice-grid", "frame_ids": ["cmob47r440009l504y27hxqbv"], "observed": "로고 위·이름 아래인 셀이 3열로 반복된다. 이 열 수는 모든 폭의 규칙이 아니다."},
+                {"part_id": "entry", "frame_ids": ["cmob47r6f000fl504gum8kqv5"], "observed": "작은 오류창 뒤에 라벨·입력·선택 제공자의 보조 표지가 보인다. 오류 발생 동작은 실행하지 않았다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv", "cmob47r6f000fl504gum8kqv5"], "observed": "어두운 배경 위 흰 패널과 옅은 옵션 셀, 오류의 작은 흰 창이 구별된다."},
+                "edges": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv", "cmob47r6f000fl504gum8kqv5"], "observed": "작게 둥근 패널 외곽·얇은 제목/행 선·낮은 강조의 격자 경계가 보인다."},
+                "elevation": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r6f000fl504gum8kqv5"], "observed": "오류 캡처는 등록 패널까지 어두워져 중첩 깊이가 증가한다. 이 방식의 접근성은 입증되지 않았다."},
+                "typography": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv", "cmob47r6f000fl504gum8kqv5"], "observed": "단계 제목은 중앙의 굵은 글자, 선택명은 셀 아래, 식별 정보·삭제는 작은 보조 계층이다."},
+                "spacing": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv"], "observed": "기존 행의 식별/삭제는 좌우로 갈리고 격자는 가로·세로 틈을 반복한다."},
+                "color": {"frame_ids": ["cmob47r2b0005l504di0j6b0b", "cmob47r440009l504y27hxqbv", "cmob47r6f000fl504gum8kqv5"], "observed": "추가·확인의 파란 면과 제공자 로고의 다색이 구별된다. 작은 삭제는 같은 주 행동이 아니다."}
+              }
+            }
+          ],
+          "when_to_consider": ["동등하고 유한한 선택지가 있으며 이름이 익숙한 식별 단서일 때.", "추가 가능 조건·등록 목록·입력 검증 상태를 실제 데이터로 제공할 수 있을 때."],
+          "when_not_to_use": ["긴 조건을 열별로 비교해야 하는 대상을 로고 격자로만 제시하는 경우.", "선택지가 계속 늘거나 이름이 길어지는데 3열을 고정하는 경우."],
+          "target_relationships": {
+            "hierarchy": "현재 등록 대상·등록 제약·선택 대상·입력 오류를 구별하고 제약이 선택 전에 읽히게 한다.",
+            "surface": "관리·선택·입력의 맥락과 현재 오류 표지를 분리한다. 각 정적 프레임을 완료된 과정으로 연결하지 않는다.",
+            "edges": "선택 셀과 목록 행, 패널 제목의 경계를 역할에 맞게 유지한다.",
+            "elevation": "현재 조작 층은 명확해야 하지만 소스의 중첩 오류창은 필수 전이 요소가 아니다. 타깃은 오류-필드 연결과 복귀를 따로 검증한다.",
+            "typography": "대상 이름·단계 제목과 보조 식별/삭제의 차이를 남기며 로고가 없어도 이름으로 고를 수 있어야 한다.",
+            "spacing": "인지형 선택의 일정한 격자 리듬과 관리 행의 좌우 관계를 유지하되 타깃 열 수는 콘텐츠와 폭에 따라 결정한다.",
+            "color": "추가·확인과 삭제·식별 로고의 역할을 분리하고 특정 금융기관·브랜드색은 이전하지 않는다."
+          },
+          "tradeoff": "익숙한 이름을 빠르게 찾을 수 있지만 옵션 증가·긴 이름·조건 비교에는 약하다. 중첩 오류창은 입력 가림과 초점 혼동 위험이 있다.",
+          "unknowns": ["추가·삭제·입력 검증·오류 회복의 실제 실행", "중첩 층의 초점·ESC·배경 조작·복귀", "등록 가능 조건·현재 목록의 진실성", "같은 제품의 다른 폭·이미지 누락·긴 이름"],
+          "anti_copy_boundary": "계정 예시·기관 로고·브랜드색을 복제하지 않는다. 정적 오류창으로 지급·보안·접근성을 승인하지 않는다."
+        },
+        {
+          "id": "registration-state-and-labeled-fields",
+          "label": "기존 수단·추가 경로·라벨 있는 민감 입력의 분리",
+          "source_entries": [
+            {
+              "entry_id": "kurly-web-payment-registration",
+              "source_id": "kurly-web",
+              "source_json_pointer": "/entries/11",
+              "frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"],
+              "anatomy_citations": [
+                {"part_id": "method-list", "frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3zl000yl104fykio70e"], "observed": "범주별 목록에 카드 추가만 보이는 모습과 일부 카드 타일이 보이는 모습이 있다. 등록 성공을 증명하지 않는다."},
+                {"part_id": "add-method", "frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3zl000yl104fykio70e"], "observed": "추가 조작은 긴 테두리 행 또는 카드 옆 점선 타일로 구별된다."},
+                {"part_id": "credential-fields", "frame_ids": ["cmno1m3vx000ol104jis9ysmv"], "observed": "분절 입력·나란한 필드·전체 폭 필드에 라벨과 필수 표지가 있고 일부 값은 가려져 있다."},
+                {"part_id": "numeric-keypad", "frame_ids": ["cmno1m3vx000ol104jis9ysmv"], "observed": "입력 아래 강한 색의 숫자 키패드와 삭제 형태 조작이 보인다. 숫자 순서·값은 전사하지 않는다."},
+                {"part_id": "return-control", "frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "목록에 뒤로 가기 형태, 입력에 닫기 형태 조작이 보인다. 실제 결과는 알 수 없다."}
+              ],
+              "aspect_citations": {
+                "surface": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "회색 주변과 좁은 흰 웹 면, 흰 입력과 강한 색 키패드가 구별된다. 좁은 폭이 모바일 viewport의 증거는 아니다."},
+                "edges": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "둥근 카드·추가 타일에 실선/점선 차이가 있고 입력은 얇은 외곽, 키패드는 직사각 색 면이다."},
+                "elevation": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "주변과의 밝기 차이가 층을 나누며 필드는 경계, 키패드는 면색으로 구별된다. 실제 모달·보안 동작은 모른다."},
+                "typography": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "범주·라벨은 굵고 입력값·키패드 숫자는 안내보다 크다. 상단 등록 제목 일부는 잘려 있다."},
+                "spacing": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "라벨-필드는 가깝고 필드 묶음은 더 떨어져 있다. 키패드는 마지막 필드 아래에서 큰 높이를 차지한다."},
+                "color": {"frame_ids": ["cmno1m3rt000el1047g23hehb", "cmno1m3vx000ol104jis9ysmv", "cmno1m3zl000yl104fykio70e"], "observed": "추가·키패드의 보라, 기관 타일의 식별색, 작은 붉은 필수 표지와 혜택 면의 색은 다른 역할이다."}
+              }
+            }
+          ],
+          "when_to_consider": ["승인된 업무가 기존 수단 관리와 새 수단의 민감 입력을 구별해야 할 때.", "검토된 결제 제공자의 입력·권한·민감값 비기록 계약이 있고 필드별 오류·복귀를 설계할 때."],
+          "when_not_to_use": ["화면만 보고 자체 보안 키패드를 만들어 검증된 제공자 기능을 대체하는 경우.", "마스킹·비순차 숫자·카드 타일을 인증 또는 결제 완료의 증거로 쓰는 경우."],
+          "target_relationships": {
+            "hierarchy": "기존 수단과 추가 행동, 등록 필드의 종류·라벨·복귀 경로를 구별한다. 표시된 카드와 서버 처리 성공은 별도다.",
+            "surface": "관리 목록과 입력 맥락을 나누고 필드 조작 영역이 오류·닫기를 가리지 않게 한다. 전용 키패드 채택은 이 연구가 승인하지 않는다.",
+            "edges": "수단의 표시 타일·추가 경계·입력 외곽을 역할별로 구별하며 라벨을 placeholder로만 대체하지 않는다.",
+            "elevation": "현재 등록 층과 바깥 영역의 구별을 유지하되 시각 깊이를 보안 계층으로 설명하지 않는다.",
+            "typography": "입력 라벨과 안내, 입력값의 차이를 남기고 소스에서 잘린 제목은 타깃의 허용 사항으로 가져오지 않는다.",
+            "spacing": "라벨과 해당 필드를 가까이, 필드 묶음은 분리한다. 큰 입력 도구를 쓰면 남는 읽기·오류·닫기 공간을 검증한다.",
+            "color": "필수·오류·추가 행동·기관 식별의 의미를 분리한다. 붉은 필수 표지를 오류라고 부르지 않는다."
+          },
+          "tradeoff": "입력 종류와 목록 상태를 구별할 수 있지만 분절 필드는 수정·붙여넣기를 어렵게 하고 큰 키패드는 화면과 접근성을 압박할 수 있다.",
+          "unknowns": ["등록·인증·결제·서버 응답·현재 유효성", "마스킹·암호화·난수성·입력 보안", "키패드 접근성·일반 입력·붙여넣기·오류 회복", "제목·카드의 가려진 부분과 동일 제품 반응형"],
+          "anti_copy_boundary": "계정·카드·잔액·입력값·기관 자산·숫자 배열을 포함하지 않는다. 좁은 웹 패널을 모바일 검증이나 등록 성공으로 승격하지 않는다."
+        }
+      ]
+    }
+  ],
+  "excluded_entries": [
+    {
+      "entry_id": "naver-travel-media-discovery",
+      "source_json_pointer": "/entries/3",
+      "frame_ids": ["cmn71cbuz0007l104i9wyonsv", "cmn71cbym000fl104niwwsidp"],
+      "reason": "대표 사진·보조 사진·제목·주제 선택의 발견 과업은 중요하지만 현재 항목 중 같은 이미지 결정의 대등한 교차 서비스 사례가 없다. 사진이 보이는 금융 뉴스와 임의로 동일 과업으로 묶지 않았다.",
+      "preserved_limit": "여행지 사진 상세를 상품 목록·상품 상세 또는 실제 지도 탐색의 대용 증거로 쓰지 않는다."
+    },
+    {
+      "entry_id": "naver-map-web-help-disclosure",
+      "source_json_pointer": "/entries/5",
+      "frame_ids": ["cm6rhjf6v00cnjj0c1gypfh4q", "cm6rhjf7q00crjj0c49w1zqmt", "cm6rhjf9000cxjj0c5puyni0j"],
+      "reason": "질문·조건별 도움말 공개는 support 과업이다. 요약 원문이나 금융 뉴스와 같은 독서 결정이라고 가정하지 않고 대응하는 소비자 도움말 사례를 확보한 뒤 비교할 항목으로 남긴다.",
+      "preserved_limit": "지도 UI가 아니다. 열린 두 캡처는 서로 다른 기사이며 같은 기사의 연속 스크롤·탭 전환 증거가 아니다. 빈 상태는 help-query의 검색어 없음에만 한정한다."
+    },
+    {
+      "entry_id": "kakaopay-news-timeline",
+      "source_json_pointer": "/entries/9",
+      "frame_ids": ["cmgnsyuxr000fld04nc3njick"],
+      "reason": "시각별 뉴스와 연관 대상의 목록은 단일 정적 프레임에 근거한다. 이번 요약/원문·시점별 브리핑 비교에 세 번째 선택지로 덧붙여 과업을 넓히지 않았다.",
+      "preserved_limit": "행의 원 출처 완전성·말줄임 전체 보기·새 항목 삽입·긴 본문은 미확인이다. 시간 목록은 긴 읽기 검증의 대용이 아니다."
+    }
+  ],
+  "review_note_handling": [
+    {
+      "source_review_note_id": "B-O02-remaining",
+      "source_entry_id": "naver-travel-hierarchical-search",
+      "frame_ids": ["cmn71cbx0000bl104lpabjhm6"],
+      "derived_static_label": "empty-query-visible",
+      "part_scope": ["query"],
+      "meaning": "검색 입력에 검색어가 없는 모습만 뜻한다. 펼친 하위 항목이 보이므로 검색 결과 없음으로 변환하지 않는다.",
+      "source_state_transition_verified": false
+    },
+    {
+      "source_review_note_id": "B-O02-remaining",
+      "source_entry_id": "naver-map-web-help-disclosure",
+      "frame_ids": ["cm6rhjf6v00cnjj0c1gypfh4q"],
+      "derived_static_label": "empty-query-visible",
+      "part_scope": ["help-query"],
+      "meaning": "비교에서 제외한 도움말도 검색어 없음의 범위를 보존한다. 도움말 결과 없음이나 빈 기사라는 뜻이 아니다.",
+      "source_state_transition_verified": false
+    },
+    {
+      "source_review_note_id": "F-O02",
+      "source_entry_id": "toss-business-local-assistance",
+      "frame_ids": ["cmmjxg6r7000pky04vci947qw"],
+      "derived_static_label": "wait-like-dots-visible",
+      "part_scope": ["suggestion-surface", "progress-cue"],
+      "meaning": "점만 보이는 보조창의 정적 외형이다. 로딩 실행·AI 요청·응답 대기·완료나 시간 측정으로 읽지 않는다.",
+      "source_state_transition_verified": false
+    },
+    {
+      "source_review_note_id": "F-O02",
+      "source_entry_id": "toss-business-local-assistance",
+      "frame_ids": ["cmmjxg6ss000tky04qixj9vdp"],
+      "derived_static_label": "candidate-rationale-and-control-visible",
+      "part_scope": ["suggestion-surface", "rationale", "apply-control"],
+      "meaning": "후보·이유·적용 조작이 함께 보이는 모습이다. 생성 완료·정확성·사용자 적용을 입증하지 않는다.",
+      "source_state_transition_verified": false
+    },
+    {
+      "source_review_note_id": "F-O02",
+      "source_entry_id": "papago-web-dual-pane-handwriting",
+      "frame_ids": ["cm7u1cwwp000mjr0czwqnpgv5"],
+      "derived_static_label": "populated-text-panes-with-empty-handwriting-canvas",
+      "part_scope": ["source-pane", "target-pane", "handwriting-canvas"],
+      "meaning": "원문·결과 문자가 채워지고 필기창이 빈 정적 화면이다. 후보 반영·번역 완료라는 과정형 명칭을 사용하지 않는다. 캡처 배열 순서로 이력을 복원하지 않는다.",
+      "source_state_transition_verified": false
+    }
+  ],
+  "unresolved_coverage_gaps": [
+    {"id": "commerce-listing", "status": "not-covered", "reason": "실제 상품 목록·가격/조건 비교 사례가 없다. 결제수단 관리 화면으로 대체할 수 없다."},
+    {"id": "commerce-detail", "status": "not-covered", "reason": "실제 상품 상세·옵션·구매 조건의 연결 사례가 없다. 여행지 사진 상세는 동일 과업이 아니다."},
+    {"id": "map-interaction", "status": "not-covered", "reason": "지도·핀·영역·목록 연결·경로 조작을 관찰하지 않았다. 지도 고객센터는 도움말이다."},
+    {"id": "long-source-reading", "status": "insufficient", "reason": "브리핑과 일부 도움말은 있지만 긴 원문 전체의 연속 읽기·출처·복귀 행동까지 확인하지 않았다."},
+    {"id": "same-product-responsive", "status": "not-covered", "reason": "같은 제품의 여러 실제 폭에 대한 관찰 쌍은 0개다. 좁은 웹 패널과 기기 모형은 반응형 근거가 아니다."}
+  ],
+  "global_unknowns": [
+    "현재 서비스 버전과 실제 열람·재사용 권한: 이 비교 작업에서 새로 확인하지 않았다.",
+    "hover·focus-visible·클릭·키보드·motion·감소 설정·오류 회복은 원본 실행으로 확인하지 않았다.",
+    "이미지는 각 source entry의 imagery 관찰 범위만 유효하다. 브랜드·사진·기관 아이콘을 타깃 자산으로 제공하지 않는다.",
+    "폰트·CSS·픽셀·정확한 대비·접근성 적합성·도메인 정보 정확도는 미검증이다.",
+    "현재 인기·인지도 순위·소스의 성공률·사람이 직접 제작했는지는 이 연구로 입증하지 않는다.",
+    "금융/입력 및 네이버 생태계 편중이 남아 있으므로 이 행렬을 모든 제품의 선택 사전으로 일반화하지 않는다."
+  ],
+  "blocked_followups": [
+    "자료 보완은 정상 열람 권한과 수집 범위·재사용 제한을 확인한 뒤에만 진행한다. 이 문서는 접근 허가나 수집 실행을 대신하지 않는다.",
+    "실제 적용 대상을 정하는 프로젝트 기획·과업·시나리오·시각 권한을 별도로 확보해야 한다. 이 비교의 when 조건은 확정된 제품 요구가 아니다.",
+    "정식 reference 검토·권리/개인정보 검토·독립 검증·진짜 Owner 출처 선택·ready pack과 creator-safe 투영이 준비되기 전에는 이 문서를 creator 입력으로 보내지 않는다.",
+    "그 뒤 승인된 디자인 경로에서 타깃 스펙·세 실제 폭·상태/키보드/긴 콘텐츠 검증·독립 craft 검토를 수행해야 한다. 현재 42개 반응형과 65개 검사는 미실행 제안이다.",
+    "시제품 제작이나 브라우저 통과만으로 공유 컴포넌트 승인에 도달하지 않는다. 기존 Owner 및 G6T/G7 systemize 게이트가 별도로 필요하다."
+  ]
+}

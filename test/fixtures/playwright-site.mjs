@@ -1,4 +1,5 @@
 import http from "node:http";
+import { keyboardTabScopeHtml } from "./keyboard-tab-scope.mjs";
 
 const html = `<!doctype html>
 <html lang="en">
@@ -77,7 +78,58 @@ const layoutFailureHtml = html
       </section>
     </main>`);
 
+const keyboardShadowHtml = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,"><title>Shadow keyboard fixture</title>
+<style>body { margin: 1rem; color: #111; background: #fff; font: 16px/1.5 sans-serif; }
+button { min-height: 44px; padding: .5rem; color: #111; background: #fff; }
+button:focus-visible { outline: 3px solid #175cd3; }</style></head>
+<body><main><h1>Shadow keyboard fixture</h1>
+<button id="shared-action">Light action</button>
+<div id="component-a"></div><div id="component-b"></div><div id="nested"></div><div id="anonymous"></div>
+<div id="slotted"><button id="slotted-action">Slotted action</button></div>
+<div id="inert-host" inert></div>
+<details><summary>Closed details</summary><div id="closed-host"></div></details>
+</main><script>
+const shadowStyle = '<style>:host{display:block;margin:.25rem 0}button{min-height:44px;padding:.5rem;color:#111;background:#fff}button:focus-visible{outline:3px solid #175cd3}</style>';
+for (const name of ['component-a', 'component-b', 'inert-host', 'closed-host']) {
+  const root = document.getElementById(name).attachShadow({mode:'open'});
+  root.innerHTML = shadowStyle + '<button id="shared-action">' + name + ' action</button>';
+}
+const outer = document.getElementById('nested').attachShadow({mode:'open'});
+outer.innerHTML = '<div id="inner-host"></div>';
+outer.getElementById('inner-host').attachShadow({mode:'open'}).innerHTML = shadowStyle + '<button id="deep-action">Nested action</button>';
+outer.getElementById('inner-host').shadowRoot.querySelector('button').addEventListener('click', event => { event.target.textContent = 'Nested selected'; });
+document.getElementById('anonymous').attachShadow({mode:'open'}).innerHTML = shadowStyle + '<button>First anonymous action</button><button>Second anonymous action</button>';
+document.getElementById('slotted').attachShadow({mode:'open'}).innerHTML = '<slot></slot>';
+if (/* TRAP */ false) document.getElementById('component-a').shadowRoot.querySelector('button').addEventListener('keydown', event => {
+  if (event.key === 'Tab') event.preventDefault();
+});
+</script></body></html>`;
+
+const keyboardVisibilityHtml = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,"><title>Restored visibility keyboard fixture</title>
+<style>body { margin: 1rem; color: #111; background: #fff; font: 16px/1.5 sans-serif; }</style></head>
+<body><main></main><script>
+const hiddenBody = /* HIDDEN_BODY */ false;
+const main = document.querySelector('main');
+if (hiddenBody) document.body.style.visibility = 'hidden';
+else main.innerHTML = '<button id="before">Before hidden host</button><div id="visibility-host" style="visibility:hidden"></div>';
+const container = hiddenBody ? main : document.getElementById('visibility-host').attachShadow({mode:'open'});
+container.innerHTML = '<style>button{min-height:44px;padding:.5rem;color:#111;background:#fff}.restored{visibility:visible}button:focus-visible{outline:3px solid #175cd3}</style><button class="restored" id="first">First restored control</button><button class="restored" id="second">Second restored control</button><button id="inherited-hidden">Actually hidden</button>';
+if (/* TRAP */ false) container.querySelector('#first').addEventListener('keydown', event => {
+  if (event.key === 'Tab') event.preventDefault();
+});
+</script></body></html>`;
+
 const server = http.createServer((request, response) => {
+  const tabScopeMode = request.url?.match(/^\/keyboard-tab-scope\/(modal|modal-trap|modal-shadow|modal-stack|modal-inert-ancestor|modeless|aria-modal|radio-checked|radio-unchecked|radio-unchecked-trap|radio-trap|radio-groups)$/)?.[1];
+  if (tabScopeMode) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(keyboardTabScopeHtml(tabScopeMode));
+    return;
+  }
   if (request.url === "/.well-known/killsloprouter-artifact.json") {
     const artifactDigests = JSON.parse(process.env.KSR_TEST_ARTIFACT_DIGESTS || "{}");
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
@@ -85,6 +137,17 @@ const server = http.createServer((request, response) => {
       killsloprouter_browser_attestation_version: 1,
       artifact_digests: artifactDigests
     }));
+    return;
+  }
+  if (["/keyboard-shadow", "/keyboard-shadow-trap"].includes(request.url)) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(keyboardShadowHtml.replace("/* TRAP */ false", String(request.url === "/keyboard-shadow-trap")));
+    return;
+  }
+  if (["/keyboard-visible-body", "/keyboard-visible-body-trap", "/keyboard-visible-host", "/keyboard-visible-host-trap"].includes(request.url)) {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    response.end(keyboardVisibilityHtml.replace("/* HIDDEN_BODY */ false", String(request.url.includes("-body")))
+      .replace("/* TRAP */ false", String(request.url.endsWith("-trap"))));
     return;
   }
   if (["/", "/index.html", "/changed", "/layout-bad"].includes(request.url)) {

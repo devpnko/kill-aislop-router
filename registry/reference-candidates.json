@@ -1,0 +1,1718 @@
+{
+  "reference_candidate_catalog_version": 1,
+  "catalog_id": "uibowl-representative-candidates-20260922",
+  "prepared_on": "2026-09-22",
+  "status": "discovery-only",
+  "authority_scope": "non-authoritative-discovery-index",
+  "audience": [
+    "internal-researcher",
+    "independent-critic",
+    "owner"
+  ],
+  "source_provider": "uibowl",
+  "source_pixels_included": false,
+  "source_assets_included": false,
+  "creator_input_approved": false,
+  "visual_authority_granted": false,
+  "design_ready": false,
+  "rights": {
+    "scope": "Source links and original research summaries only; not a screenshot license or cross-project reuse grant.",
+    "source_notice_url": "https://uibowl.io/",
+    "redistribution": false,
+    "creator_pixel_access": false,
+    "cross_project_approval_reuse": false
+  },
+  "limits": [
+    "Entries are discovery candidates, not verified references, ready packs or universal design answers.",
+    "Historical observations retain their dates; no source frame was freshly inspected during catalog preparation.",
+    "The 24-product study does not retain per-product frame closure. Never divide its 48-screen total into invented per-product evidence.",
+    "Frame links preserve historical identifiers but are not local capture bytes or content hashes. A source URL can change.",
+    "Family/component tags are research indexing hypotheses, not evidence-backed product-fit ratings or extracted component recipes.",
+    "Popularity was not revalidated; do not rank candidates by guessed counts or turn unknown into zero.",
+    "No source interaction, responsive transition, font, exact color, CSS value or accessibility behavior is certified by this catalog.",
+    "No private project captures, login data, selection, approval or source authority are imported.",
+    "Source-brand names and these notes are for research/Owner use, never a downstream creator prompt.",
+    "Public page text may be cached and may omit gated or client-rendered frames. Login in that text says nothing about the user's browser session."
+  ],
+  "studies": [
+    {
+      "id": "study-20260904",
+      "observed_on": "2026-09-04",
+      "path": "docs/research/ui-bowl-popular-design-study-2026-09-04.md",
+      "digest": "sha256:8a568e34dc0f41dc4d8d2d27ccae1a7bf3b5f6606da99c19901cca3ee4c37952",
+      "frame_index_path": null,
+      "frame_index_digest": null,
+      "source_captures_included": false
+    },
+    {
+      "id": "study-20260910",
+      "observed_on": "2026-09-10",
+      "path": "docs/research/ui-bowl-task-design-study-2026-09-10.md",
+      "digest": "sha256:aa15fa6453f72e2cb041b1ceb736db1ec4d180e14e5c53bdf475f7ce759a87c4",
+      "frame_index_path": "docs/research/ui-bowl-task-design-samples-2026-09-10.json",
+      "frame_index_digest": "sha256:b76bf5d6862a65c3ccafbd04b39b400828d526f30e46f5ba4984eb0ffb5bad81",
+      "source_captures_included": false
+    }
+  ],
+  "families": [
+    {
+      "id": "news-reading",
+      "label": "뉴스·피드·본문 읽기",
+      "job": "주요 소식을 훑고 원문·시각·출처를 확인한다.",
+      "component_families": [
+        "feed-row",
+        "reader-detail",
+        "source-preview",
+        "topic-filter"
+      ],
+      "research_states": [
+        "중요순/시간순 구분",
+        "출처와 시각",
+        "장문/빈 목록/중복",
+        "모바일 읽기"
+      ],
+      "catalog_coverage": "gap",
+      "discovery_queries": [
+        "앱 콘텐츠 > 목록/뷰어",
+        "뉴스 본문 미리보기, 연대순 목록, 출처 링크"
+      ],
+      "discovery_route_ids": [
+        "app-content",
+        "app-viewer"
+      ]
+    },
+    {
+      "id": "knowledge-search",
+      "label": "지식·문서·근거 검색",
+      "job": "질문으로 찾고 문서의 근거와 최신성을 판별한다.",
+      "component_families": [
+        "search-results",
+        "evidence-panel",
+        "document-reader",
+        "breadcrumbs"
+      ],
+      "research_states": [
+        "검색 없음/일부 일치",
+        "원문 근거/갱신시각",
+        "문서 계층",
+        "키보드 탐색"
+      ],
+      "catalog_coverage": "gap",
+      "discovery_queries": [
+        "웹 콘텐츠 > 검색/뷰어",
+        "문서 검색, 근거 펼치기, 읽기 복귀"
+      ],
+      "discovery_route_ids": [
+        "web-search",
+        "web-content"
+      ]
+    },
+    {
+      "id": "comparison",
+      "label": "조건·가격·후보 비교",
+      "job": "같은 축의 값·조건·불확실성을 비교한다.",
+      "component_families": [
+        "comparison-table",
+        "result-card",
+        "filter-bar",
+        "selection-slot"
+      ],
+      "research_states": [
+        "empty/partial/filled",
+        "가격과 조건",
+        "긴 한글·단위",
+        "모바일 비교 축"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "비교하기 > 금융/여행",
+        "테이블, 정렬, 후보 선택"
+      ],
+      "discovery_route_ids": [
+        "web-comparison"
+      ]
+    },
+    {
+      "id": "operations",
+      "label": "업무·운영·다중 작업공간",
+      "job": "대상·범위·상태를 잃지 않고 다음 업무를 고른다.",
+      "component_families": [
+        "sidebar",
+        "tabs",
+        "work-card",
+        "state-badge",
+        "empty-state"
+      ],
+      "research_states": [
+        "신규/운영 중/미승인",
+        "작업공간 전환",
+        "고밀도 데이터",
+        "권한 상태"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "대시보드 > 비즈니스툴",
+        "사이드 네비게이션, 상태별 목록"
+      ],
+      "discovery_route_ids": [
+        "web-dashboard"
+      ]
+    },
+    {
+      "id": "analytics",
+      "label": "수치·현황·원인 탐색",
+      "job": "결론과 분모를 읽고 원인 근거로 좁혀 간다.",
+      "component_families": [
+        "metric-summary",
+        "data-table",
+        "chart",
+        "evidence-panel"
+      ],
+      "research_states": [
+        "0과 누락 구분",
+        "기간/비교 기준",
+        "분모/상세 진입",
+        "빈/부분 데이터"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "통계·리포트, 그래프&차트",
+        "수치에서 근거로 이동"
+      ],
+      "discovery_route_ids": [
+        "web-report"
+      ]
+    },
+    {
+      "id": "commerce",
+      "label": "구매·장바구니·결제",
+      "job": "상품과 최종 조건을 확인하고 주문을 확정한다.",
+      "component_families": [
+        "product-card",
+        "cart-row",
+        "price-summary",
+        "checkout-form"
+      ],
+      "research_states": [
+        "품절/수량/할인",
+        "비용·배송·취소",
+        "결제 오류",
+        "터치/키보드"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "장바구니, 예약·결제",
+        "이미지 상품 카드, 수량/합계"
+      ],
+      "discovery_route_ids": [
+        "app-cart"
+      ]
+    },
+    {
+      "id": "maps-travel",
+      "label": "장소·여행·지도",
+      "job": "공간적 맥락을 유지하며 장소와 조건을 선택한다.",
+      "component_families": [
+        "map-sheet",
+        "place-card",
+        "itinerary",
+        "result-card"
+      ],
+      "research_states": [
+        "지도↔목록",
+        "위치 권한/없는 결과",
+        "가격/시간/조건",
+        "재방문 연속성"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "지도뷰·내주변, 여행",
+        "조건이 함께 있는 장소 상세"
+      ],
+      "discovery_route_ids": [
+        "app-map"
+      ]
+    },
+    {
+      "id": "conversation",
+      "label": "대화·커뮤니티",
+      "job": "대상·맥락·신뢰를 확인하며 읽고 답한다.",
+      "component_families": [
+        "conversation",
+        "composer",
+        "context-header",
+        "permission-row"
+      ],
+      "research_states": [
+        "긴 메시지",
+        "키보드 열린 모바일",
+        "차단/전송 실패",
+        "실제 다중 권한 상태"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "채팅, 커뮤니티",
+        "대화의 대상과 다음 행동"
+      ],
+      "discovery_route_ids": [
+        "app-chat"
+      ]
+    },
+    {
+      "id": "creation",
+      "label": "제작·편집·미디어 도구",
+      "job": "입력과 결과를 비교하며 안전하게 편집·내보낸다.",
+      "component_families": [
+        "editor-toolbar",
+        "output-preview",
+        "parameter-form",
+        "work-card"
+      ],
+      "research_states": [
+        "저장 전/후",
+        "비용/출력 조건",
+        "초심자와 숙련자",
+        "빈 입력/실패/재시도"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "편집·수정하기, 생성하기",
+        "미리보기, 도구모음, 생성 결과"
+      ],
+      "discovery_route_ids": [
+        "web-edit"
+      ]
+    },
+    {
+      "id": "learning",
+      "label": "학습·진행·피드백",
+      "job": "한 단계를 이해하고 피드백으로 다음을 결정한다.",
+      "component_families": [
+        "progress",
+        "choice-control",
+        "feedback-layer"
+      ],
+      "research_states": [
+        "정답/오답/중단",
+        "진행과 과제",
+        "반복 학습",
+        "오디오/키보드 대안"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "교육&도서, 학습하기",
+        "단계별 피드백"
+      ],
+      "discovery_route_ids": [
+        "app-education"
+      ]
+    },
+    {
+      "id": "health",
+      "label": "건강·자기 기록·신뢰",
+      "job": "현재 상태와 다음 행동을 이해한다.",
+      "component_families": [
+        "daily-summary",
+        "chart",
+        "record-form",
+        "context-header"
+      ],
+      "research_states": [
+        "0/미기록/미연결 구분",
+        "기록과 해석 분리",
+        "민감정보",
+        "글자 확대"
+      ],
+      "catalog_coverage": "weak",
+      "discovery_queries": [
+        "운동&건강, 의료",
+        "기록, 통계, 위험 안내"
+      ],
+      "discovery_route_ids": [
+        "all-taxonomy"
+      ]
+    },
+    {
+      "id": "forms-permissions",
+      "label": "입력·설정·승인·권한",
+      "job": "입력·동의·보관·외부 반영을 구별한다.",
+      "component_families": [
+        "choice-control",
+        "permission-row",
+        "form-preview",
+        "tabs"
+      ],
+      "research_states": [
+        "초안/확정",
+        "다중 값 권한",
+        "오류 복구",
+        "미승인/접근 제한"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "온보딩, 약관동의, 설정",
+        "입력과 결과, 동의, 검토"
+      ],
+      "discovery_route_ids": [
+        "web-onboarding"
+      ]
+    },
+    {
+      "id": "expressive",
+      "label": "개성·브랜드·감성적 발견",
+      "job": "탐색의 속도와 분위기를 제품 목적에 맞춘다.",
+      "component_families": [
+        "image-card",
+        "conversation",
+        "context-header"
+      ],
+      "research_states": [
+        "콘텐츠 주도/도구 주도 대조",
+        "표현과 경고 분리",
+        "작은 화면 가독성",
+        "동작 줄이기"
+      ],
+      "catalog_coverage": "historical-only",
+      "discovery_queries": [
+        "콘텐츠, 심리, 커머스",
+        "사진/캐릭터/재질의 역할"
+      ],
+      "discovery_route_ids": [
+        "app-content"
+      ]
+    },
+    {
+      "id": "public-access",
+      "label": "공공·고령·접근성 중심",
+      "job": "숙련도·감각·입력 방식과 무관하게 핵심 과제를 완수한다.",
+      "component_families": [
+        "form-preview",
+        "permission-row",
+        "reader-detail"
+      ],
+      "research_states": [
+        "큰 글자/200% 줌",
+        "키보드/보조기기",
+        "복잡한 용어",
+        "오류·복구·시간 제한"
+      ],
+      "catalog_coverage": "gap",
+      "discovery_queries": [
+        "실제 공공/고령 대상 제품을 먼저 확인",
+        "스크린샷만으로 접근성 우수 판정 금지"
+      ],
+      "discovery_route_ids": [
+        "all-taxonomy"
+      ]
+    }
+  ],
+  "discovery_routes": [
+    {
+      "id": "all-taxonomy",
+      "label": "전체 분류",
+      "url": "https://uibowl.io/explore",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-content",
+      "label": "앱 콘텐츠",
+      "url": "https://uibowl.io/?category=%EC%BD%98%ED%85%90%EC%B8%A0",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-education",
+      "label": "앱 교육·도서",
+      "url": "https://uibowl.io/?category=%EA%B5%90%EC%9C%A1%26%EB%8F%84%EC%84%9C",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-content",
+      "label": "웹 콘텐츠",
+      "url": "https://uibowl.io/website?category=%EC%BD%98%ED%85%90%EC%B8%A0",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-guide",
+      "label": "웹 디자인 가이드",
+      "url": "https://uibowl.io/website?category=%EB%94%94%EC%9E%90%EC%9D%B8%EC%8B%9C%EC%8A%A4%ED%85%9C%C2%B7%EA%B0%80%EC%9D%B4%EB%93%9C",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-viewer",
+      "label": "앱 뷰어",
+      "url": "https://uibowl.io/?patterns=%EB%B7%B0%EC%96%B4",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-search",
+      "label": "웹 검색",
+      "url": "https://uibowl.io/website?patterns=%EA%B2%80%EC%83%89",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-comparison",
+      "label": "웹 비교",
+      "url": "https://uibowl.io/website?patterns=%EB%B9%84%EA%B5%90%ED%95%98%EA%B8%B0",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-dashboard",
+      "label": "웹 대시보드",
+      "url": "https://uibowl.io/website?patterns=%EB%8C%80%EC%8B%9C%EB%B3%B4%EB%93%9C",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-report",
+      "label": "웹 통계·리포트",
+      "url": "https://uibowl.io/website?patterns=%ED%86%B5%EA%B3%84%C2%B7%EB%A6%AC%ED%8F%AC%ED%8A%B8",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-cart",
+      "label": "앱 장바구니",
+      "url": "https://uibowl.io/?patterns=%EC%9E%A5%EB%B0%94%EA%B5%AC%EB%8B%88",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-map",
+      "label": "앱 지도",
+      "url": "https://uibowl.io/?patterns=%EC%A7%80%EB%8F%84%EB%B7%B0%C2%B7%EB%82%B4%EC%A3%BC%EB%B3%80",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "app-chat",
+      "label": "앱 채팅",
+      "url": "https://uibowl.io/?patterns=%EC%B1%84%ED%8C%85",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-edit",
+      "label": "웹 편집",
+      "url": "https://uibowl.io/website?patterns=%ED%8E%B8%EC%A7%91%C2%B7%EC%88%98%EC%A0%95%ED%95%98%EA%B8%B0",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    },
+    {
+      "id": "web-onboarding",
+      "label": "웹 온보딩",
+      "url": "https://uibowl.io/website?patterns=%EC%98%A8%EB%B3%B4%EB%94%A9",
+      "checked_on": "2026-09-22",
+      "evidence": "public-page-text-only",
+      "source_frames_inspected": false
+    }
+  ],
+  "entries": [
+    {
+      "id": "daangn",
+      "name": "Daangn / 당근",
+      "ecosystem": "daangn",
+      "platform": "mobile",
+      "family_ids": [
+        "conversation",
+        "commerce"
+      ],
+      "component_families": [
+        "conversation",
+        "context-header"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 거래 대상·상대 신뢰·대화·결제 동작이 한 맥락에 있음을 기록했다.",
+      "transfer_hypothesis": "거래 판단에 필요한 대상과 신뢰 정보를 대화 가까이에 유지할 수 있다.",
+      "harmful_when": "일반 커뮤니티에 거래 신뢰 표현을 그대로 이식하거나 홍보 프레임을 실제 거래 상태로 세는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "inout",
+      "name": "InOut / 인아웃",
+      "ecosystem": "inout",
+      "platform": "mobile",
+      "family_ids": [
+        "health",
+        "analytics"
+      ],
+      "component_families": [
+        "daily-summary",
+        "chart"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 당일의 언어적 답이 차트보다 앞에 있고 현재 수치가 선택적으로 강조됨을 기록했다.",
+      "transfer_hypothesis": "일일 기록에서는 전체 차트보다 오늘의 상태를 먼저 설명하는 안을 비교한다.",
+      "harmful_when": "해석 근거가 없거나 전문 분석 작업에서 필요한 세부 수치를 가리는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "rround",
+      "name": "Rround",
+      "ecosystem": "rround",
+      "platform": "mobile",
+      "family_ids": [
+        "expressive"
+      ],
+      "component_families": [
+        "image-card"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "브랜드 표현의 대조군 후보로 다시 확인한다.",
+      "harmful_when": "과거 연구가 홍보 프레임으로 분류했으므로 업무 구조 근거로 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "planfit",
+      "name": "Planfit",
+      "ecosystem": "planfit",
+      "platform": "mobile",
+      "family_ids": [
+        "health",
+        "learning"
+      ],
+      "component_families": [
+        "progress",
+        "record-form"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "건강 과제의 안내와 진행 표현을 조사할 후보다. 구체 화면은 재확인이 필요하다.",
+      "harmful_when": "홍보 이미지에서 실제 운동 기록·오류·접근성 품질을 추정하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "yeogi",
+      "name": "Yeogi Eottae / 여기어때",
+      "ecosystem": "yeogi",
+      "platform": "mobile",
+      "family_ids": [
+        "maps-travel",
+        "commerce"
+      ],
+      "component_families": [
+        "place-card",
+        "filter-bar"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 카테고리 진입과 반복 혜택 정보가 긴 탐색보다 앞에 있음을 기록했다.",
+      "transfer_hypothesis": "방문 시 목적이 분명하면 직접 진입 경로를 우선할 수 있다.",
+      "harmful_when": "목적이 불명확한 새 제품에 같은 카테고리 수·할인 밀도를 복제하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "socar",
+      "name": "Socar / 쏘카",
+      "ecosystem": "socar",
+      "platform": "mobile",
+      "family_ids": [
+        "maps-travel"
+      ],
+      "component_families": [
+        "map-sheet",
+        "price-summary"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 지도 맥락을 남긴 상세 면에 가격·조건·결정 동작이 모임을 기록했다.",
+      "transfer_hypothesis": "장소와 비용을 함께 판단해야 할 때 지도와 조건의 연결을 유지한다.",
+      "harmful_when": "지도 필요가 없는 서비스에 지도/시트 조합을 스타일로 도입하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "29cm",
+      "name": "29CM",
+      "ecosystem": "29cm",
+      "platform": "mobile",
+      "family_ids": [
+        "commerce",
+        "expressive"
+      ],
+      "component_families": [
+        "image-card",
+        "product-card"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 이미지 중심의 느린 발견과 Instacart의 빠른 주문을 대비했다.",
+      "transfer_hypothesis": "시각 콘텐츠를 천천히 고르는 작업에는 이미지·텍스트의 다른 리듬을 검토한다.",
+      "harmful_when": "뉴스·고밀도 업무까지 에디토리얼로 통일하거나 접근 제한을 우회하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "my-doctor",
+      "name": "My Doctor",
+      "ecosystem": "my-doctor",
+      "platform": "mobile",
+      "family_ids": [
+        "health"
+      ],
+      "component_families": [
+        "context-header"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "의료 신뢰 표현의 조사 후보다. 실제 과제·오류 상태를 새로 확인해야 한다.",
+      "harmful_when": "홍보 표현을 의료 신뢰성·안전성의 증명으로 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "wechat",
+      "name": "WeChat",
+      "ecosystem": "wechat",
+      "platform": "mobile",
+      "family_ids": [
+        "forms-permissions",
+        "conversation"
+      ],
+      "component_families": [
+        "permission-row"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 이진 토글이 아닌 값 표시와 상세 진입으로 다중 권한 상태를 표현함을 기록했다.",
+      "transfer_hypothesis": "대상 제품의 실제 상태 수에 맞춰 조절기를 고른다.",
+      "harmful_when": "복잡한 권한을 보기 좋은 ON/OFF로 축약하거나 다른 제품의 정책을 가져오는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "capcut",
+      "name": "CapCut",
+      "ecosystem": "capcut",
+      "platform": "mobile",
+      "family_ids": [
+        "creation"
+      ],
+      "component_families": [
+        "parameter-form",
+        "output-preview"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 내보내기 매개변수 옆의 설명·추천·비용·예상 출력을 기록했다.",
+      "transfer_hypothesis": "결과가 비싸거나 되돌리기 어려운 도구에서 결정 전 피드백을 검토한다.",
+      "harmful_when": "편집 맥락 없이 어두운 도구 외형만 복제하거나 실제 없는 예측값을 꾸미는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "duolingo",
+      "name": "Duolingo",
+      "ecosystem": "duolingo",
+      "platform": "mobile",
+      "family_ids": [
+        "learning",
+        "expressive"
+      ],
+      "component_families": [
+        "progress",
+        "feedback-layer",
+        "choice-control"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 한 번의 결정·진행·기능적 캐릭터·강한 피드백 층을 기록했다.",
+      "transfer_hypothesis": "반복 학습에서는 현재 과제와 피드백의 위계를 비교한다.",
+      "harmful_when": "캐릭터 복제, 타깃에 없는 보상 데이터, 비용/위험을 가리는 게임화.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "instacart",
+      "name": "Instacart",
+      "ecosystem": "instacart",
+      "platform": "mobile",
+      "family_ids": [
+        "commerce"
+      ],
+      "component_families": [
+        "cart-row",
+        "product-card"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 빠른 주문에 맞춘 조밀한 행 단위 제어를 이미지 중심 상거래와 대비했다.",
+      "transfer_hypothesis": "반복 주문에서는 수량·조건·행별 행동을 가까이 유지하는 안을 검토한다.",
+      "harmful_when": "영감을 얻는 탐색까지 고밀도로 밀어붙이거나 과거 도달 수치를 현재 인기로 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "toss-business",
+      "name": "Toss Business",
+      "ecosystem": "toss",
+      "platform": "desktop",
+      "family_ids": [
+        "forms-permissions",
+        "operations"
+      ],
+      "component_families": [
+        "form-preview",
+        "state-badge"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 입력·출력 미리보기·초안·검토/제출 권한의 분리를 기록했다.",
+      "transfer_hypothesis": "외부 반영 작업에서 저장과 승인·제출을 구분한다.",
+      "harmful_when": "간단한 개인 입력에 조직 승인 단계를 불필요하게 복제하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "toss-pos",
+      "name": "Toss POS",
+      "ecosystem": "toss",
+      "platform": "desktop",
+      "family_ids": [
+        "commerce",
+        "operations"
+      ],
+      "component_families": [
+        "price-summary",
+        "choice-control"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 금액/주문 상태의 우선과 자주 쓰는 결제 갈래의 균형을 기록했다.",
+      "transfer_hypothesis": "거리·시간 압박에 맞춘 숫자 위계와 분기 제어를 조사한다.",
+      "harmful_when": "일반 책상용 도구에 큰 결제 버튼이나 어두운 색을 보편 규칙으로 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "toss-payments",
+      "name": "Toss Payments",
+      "ecosystem": "toss",
+      "platform": "desktop",
+      "family_ids": [
+        "forms-permissions",
+        "commerce"
+      ],
+      "component_families": [
+        "form-preview",
+        "price-summary"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "결제 업무의 구체 화면을 다시 찾아 조건과 상태를 확인할 후보다.",
+      "harmful_when": "동일 Toss 계열을 서로 독립인 스타일 3종으로 세거나 목록 포함을 화면 분석으로 부풀리는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "tagby",
+      "name": "Tagby",
+      "ecosystem": "tagby",
+      "platform": "desktop",
+      "family_ids": [
+        "operations",
+        "creation"
+      ],
+      "component_families": [
+        "work-card",
+        "sidebar"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "과거 B2B 표본에 포함된 후보이며 화면 역할과 상태를 재확인한다.",
+      "harmful_when": "구체 관찰이 없는 상태에서 카드·내비게이션을 이미 검증했다고 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "payhere-pos",
+      "name": "Payhere POS",
+      "ecosystem": "payhere",
+      "platform": "desktop",
+      "family_ids": [
+        "commerce",
+        "operations"
+      ],
+      "component_families": [
+        "price-summary",
+        "choice-control"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 금액/주문 상태와 자주 쓰는 결제 분기의 동등한 노출을 기록했다.",
+      "transfer_hypothesis": "결제 현장의 가독성과 분기 선택을 Toss POS와 대조한다.",
+      "harmful_when": "물리적 사용 환경을 모른 채 확대된 화면 규격을 가져오는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "recatch",
+      "name": "Recatch",
+      "ecosystem": "recatch",
+      "platform": "desktop",
+      "family_ids": [
+        "comparison",
+        "operations"
+      ],
+      "component_families": [
+        "work-card",
+        "state-badge"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 반복 객체의 비교 슬롯과 상태·동작에 제한된 색의 역할을 기록했다.",
+      "transfer_hypothesis": "업무 대상의 같은 항목을 같은 위치에서 비교하는 안을 검토한다.",
+      "harmful_when": "CRM 단계를 소비자 서비스의 필수 흐름으로 이식하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "kurly",
+      "name": "Kurly / 컬리",
+      "ecosystem": "kurly",
+      "platform": "desktop",
+      "family_ids": [
+        "commerce"
+      ],
+      "component_families": [
+        "product-card",
+        "cart-row"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "상거래의 다른 발견/주문 속도를 조사할 후보다. 화면 관찰은 재수집한다.",
+      "harmful_when": "상품 브랜드 인지도나 색만으로 타깃 적합성을 판정하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "jandi",
+      "name": "Jandi / 잔디",
+      "ecosystem": "jandi",
+      "platform": "desktop",
+      "family_ids": [
+        "conversation",
+        "creation"
+      ],
+      "component_families": [
+        "composer",
+        "output-preview"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 열린 입력에 제안 행동과 결과/상태가 함께 제시됨을 기록했다.",
+      "transfer_hypothesis": "막막한 빈 입력을 실제 가능한 행동과 연결하는 안을 검토한다.",
+      "harmful_when": "데이터나 결과 경로가 없는 추천 칩을 장식으로 배치하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "pandarank",
+      "name": "Pandarank / 판다랭크",
+      "ecosystem": "pandarank",
+      "platform": "desktop",
+      "family_ids": [
+        "creation",
+        "analytics"
+      ],
+      "component_families": [
+        "composer",
+        "output-preview"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 열린 입력·추천 시작점·출력 상태의 연결을 기록했다.",
+      "transfer_hypothesis": "생성 도구가 무엇을 할 수 있는지 실제 출력 경로와 함께 설명한다.",
+      "harmful_when": "AI 입력을 모든 제품의 메인 화면으로 고정하거나 권한 밖 데이터를 가정하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "slack-admin",
+      "name": "Slack Admin",
+      "ecosystem": "slack",
+      "platform": "desktop",
+      "family_ids": [
+        "operations",
+        "forms-permissions"
+      ],
+      "component_families": [
+        "sidebar",
+        "permission-row"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "study-listed",
+      "study_id": "study-20260904",
+      "study_locator": "Corpus / Known gaps",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": null,
+      "transfer_hypothesis": "과거 운영 표본에 포함된 후보다. 설정/관리 상태의 구체 근거를 새로 모은다.",
+      "harmful_when": "높은 사용자 수를 관리 화면의 접근성·권한 설계 증명으로 취급하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "naver-travel",
+      "name": "Naver Travel / 네이버 여행",
+      "ecosystem": "naver",
+      "platform": "desktop",
+      "family_ids": [
+        "maps-travel"
+      ],
+      "component_families": [
+        "itinerary",
+        "place-card"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 기억·발견·편의 기능·예약이 여러 세션의 목적지 맥락에 놓임을 기록했다.",
+      "transfer_hypothesis": "재방문하는 조사 과제에서 이전 탐색과 다음 결정을 연결한다.",
+      "harmful_when": "콘텐츠 운영과 저장 기능이 없는데 모듈 외형만 배치하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "skyscanner",
+      "name": "Skyscanner",
+      "ecosystem": "skyscanner",
+      "platform": "desktop",
+      "family_ids": [
+        "comparison",
+        "maps-travel"
+      ],
+      "component_families": [
+        "result-card",
+        "filter-bar",
+        "price-summary"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-summary",
+      "study_id": "study-20260904",
+      "study_locator": "What the screens actually teach",
+      "observed_on": "2026-09-04",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/",
+      "source_locator_kind": "study-index-only",
+      "frames": [],
+      "observation": "과거 연구는 반복 후보의 고정된 비교 슬롯과 상태/동작 중심의 색을 기록했다.",
+      "transfer_hypothesis": "조건 비교에서 카드 간 개성보다 같은 항목의 정렬을 우선하는 안을 검토한다.",
+      "harmful_when": "가격만 남기고 경유·수수료·불확실성을 숨기거나 다른 업종 조건을 이식하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the genuine source through permitted UI, verify exact product/frame identity, and bind project-scoped evidence before research/selection."
+    },
+    {
+      "id": "museby-web",
+      "name": "Museby",
+      "ecosystem": "museby",
+      "platform": "desktop",
+      "family_ids": [
+        "operations",
+        "creation"
+      ],
+      "component_families": [
+        "sidebar",
+        "work-card",
+        "state-badge"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "museby-web",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/website?imgId=cmttba5ql000ikz04cmgzxnd2",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmttba5ql000ikz04cmgzxnd2",
+          "url": "https://uibowl.io/website?imgId=cmttba5ql000ikz04cmgzxnd2",
+          "role": "operational-with-onboarding",
+          "recorded_state": "Campaign home, expanded navigation, one campaign and onboarding banner"
+        },
+        {
+          "id": "cmttba5r8000kkz045ejrnu24",
+          "url": "https://uibowl.io/website?imgId=cmttba5r8000kkz045ejrnu24",
+          "role": "operational-with-onboarding",
+          "recorded_state": "Campaign home, icon navigation, two campaign cards with different status labels"
+        }
+      ],
+      "observation": "과거 확대 화면 기록은 주황 동작·밝은 작업 면·어두운 안내 배너와 진행/완료 분리를 설명한다.",
+      "transfer_hypothesis": "브랜드 강약과 작업 상태를 함께 설계하되 재방문자의 객체 접근을 우선할지 비교한다.",
+      "harmful_when": "숙련 업무에 큰 안내 배너를 영구히 붙이거나 내비게이션 축소 동작을 실행 검증했다고 주장하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    },
+    {
+      "id": "clarity-web",
+      "name": "Microsoft Clarity",
+      "ecosystem": "microsoft",
+      "platform": "desktop",
+      "family_ids": [
+        "analytics",
+        "operations"
+      ],
+      "component_families": [
+        "metric-summary",
+        "chart",
+        "evidence-panel",
+        "empty-state"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "clarity-web",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/website?imgId=cmt17w3iw001fjy04fiwqu9a6",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmt17w3iw001fjy04fiwqu9a6",
+          "url": "https://uibowl.io/website?imgId=cmt17w3iw001fjy04fiwqu9a6",
+          "role": "operational",
+          "recorded_state": "Dashboard with metrics, user-friction signals, session counts and empty watchlist"
+        },
+        {
+          "id": "cmt17vmck00qhl504uxthpwi4",
+          "url": "https://uibowl.io/website?imgId=cmt17vmck00qhl504uxthpwi4",
+          "role": "operational",
+          "recorded_state": "Dashboard with active filters and a trend popover"
+        }
+      ],
+      "observation": "과거 기록은 수치와 세션 수·근거 진입, 배경을 유지한 추이 팝오버, 푸른 면/흰 패널/그림자를 설명한다.",
+      "transfer_hypothesis": "수치→맥락→근거의 연결과 색·깊이의 역할을 함께 검토한다.",
+      "harmful_when": "모든 KPI에 장식 차트를 추가하거나 실제 없는 근거 링크를 만드는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    },
+    {
+      "id": "daangn-business-web",
+      "name": "당근 비즈니스",
+      "ecosystem": "daangn",
+      "platform": "desktop",
+      "family_ids": [
+        "operations",
+        "analytics"
+      ],
+      "component_families": [
+        "empty-state",
+        "work-card",
+        "state-badge"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "daangn-business-web",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/website?imgId=cmso68mja000el704vilcy6lq",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmso68mja000el704vilcy6lq",
+          "url": "https://uibowl.io/website?imgId=cmso68mja000el704vilcy6lq",
+          "role": "operational-empty",
+          "recorded_state": "Admin home upper viewport, setup progress, next task, zero metrics"
+        },
+        {
+          "id": "cmso68mk2000gl704j44a8xph",
+          "url": "https://uibowl.io/website?imgId=cmso68mk2000gl704j44a8xph",
+          "role": "operational-empty",
+          "recorded_state": "Same home lower viewport, zero chart, empty posts and reviews"
+        }
+      ],
+      "observation": "과거 기록은 준비 진행과 추천 작업, 실제 0 수치와 빈 소식·후기를 설명한다.",
+      "transfer_hypothesis": "새 계정의 준비 상태와 아직 생기지 않은 성과를 구별한다.",
+      "harmful_when": "동일 홈의 상하 뷰포트를 다른 사용자 상태로 세거나 성숙 ERP를 빈 온보딩 화면으로 만드는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    },
+    {
+      "id": "npay-property-web",
+      "name": "Npay 부동산",
+      "ecosystem": "naver",
+      "platform": "desktop",
+      "family_ids": [
+        "comparison",
+        "forms-permissions"
+      ],
+      "component_families": [
+        "choice-control",
+        "tabs",
+        "result-card",
+        "price-summary"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "npay-property-web",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/website?imgId=cmrvqfnmp0009kz04n4z1m62g",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmrvqfnmp0009kz04n4z1m62g",
+          "url": "https://uibowl.io/website?imgId=cmrvqfnmp0009kz04n4z1m62g",
+          "role": "entry",
+          "recorded_state": "Service entry with loan-type tabs and alternative starting paths, not yet a condition-input form"
+        },
+        {
+          "id": "cmrvqfnnn000bkz04x8vuiquh",
+          "url": "https://uibowl.io/website?imgId=cmrvqfnnn000bkz04x8vuiquh",
+          "role": "consent",
+          "recorded_state": "Consent screen with expandable terms and a primary action"
+        },
+        {
+          "id": "cmrvqfnoe000dkz04l8elzhlk",
+          "url": "https://uibowl.io/website?imgId=cmrvqfnoe000dkz04l8elzhlk",
+          "role": "decision-input",
+          "recorded_state": "Purpose question with four choices and a qualifying explanation"
+        },
+        {
+          "id": "cmrvqh889000al704eue8whlx",
+          "url": "https://uibowl.io/website?imgId=cmrvqh889000al704eue8whlx",
+          "role": "comparison-result",
+          "recorded_state": "Result summary, property context, sorted offer list and qualification caveat"
+        }
+      ],
+      "observation": "과거 기록은 진입·동의·목적 질문·비교 결과의 서로 다른 정보 밀도와 조건 안내를 설명한다.",
+      "transfer_hypothesis": "입력에서는 현재 선택지, 비교에서는 정렬된 값과 조건을 강조하는 안을 검토한다.",
+      "harmful_when": "전문가 반복 입력에 질문 한 개씩을 강제하거나 녹색을 금융 안전성의 증명으로 쓰는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    },
+    {
+      "id": "cardgorilla-web",
+      "name": "카드고릴라",
+      "ecosystem": "cardgorilla",
+      "platform": "desktop",
+      "family_ids": [
+        "comparison"
+      ],
+      "component_families": [
+        "comparison-table",
+        "selection-slot",
+        "filter-bar",
+        "tabs"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "cardgorilla-web",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/website?imgId=cmr360eyd000qjt04zk847cz7",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmr360eyd000qjt04zk847cz7",
+          "url": "https://uibowl.io/website?imgId=cmr360eyd000qjt04zk847cz7",
+          "role": "comparison-empty",
+          "recorded_state": "Three empty comparison slots"
+        },
+        {
+          "id": "cmr360ez2000sjt04zqbm7ex4",
+          "url": "https://uibowl.io/website?imgId=cmr360ez2000sjt04zqbm7ex4",
+          "role": "selection",
+          "recorded_state": "Credit-card candidate selector with issuer filters and search"
+        },
+        {
+          "id": "cmr360ezt000ujt04sar13zkz",
+          "url": "https://uibowl.io/website?imgId=cmr360ezt000ujt04sar13zkz",
+          "role": "selection",
+          "recorded_state": "Debit-card tab and candidate list"
+        },
+        {
+          "id": "cmr360f0j000wjt04lct4bypt",
+          "url": "https://uibowl.io/website?imgId=cmr360f0j000wjt04lct4bypt",
+          "role": "selection",
+          "recorded_state": "Candidate search results for an issuer keyword"
+        },
+        {
+          "id": "cmr360f18000yjt041hanfpkv",
+          "url": "https://uibowl.io/website?imgId=cmr360f18000yjt041hanfpkv",
+          "role": "comparison-partial",
+          "recorded_state": "One populated candidate column and two unfilled slots"
+        },
+        {
+          "id": "cmr360f1y0010jt047oqepqjd",
+          "url": "https://uibowl.io/website?imgId=cmr360f1y0010jt047oqepqjd",
+          "role": "comparison-filled",
+          "recorded_state": "Three populated columns with aligned cost, condition and benefit rows"
+        }
+      ],
+      "observation": "과거 기록은 빈/부분/채워진 비교 슬롯과 비용·조건·혜택의 행 대응을 설명한다.",
+      "transfer_hypothesis": "선택 수가 바뀌어도 비교 항목과 후보 위치의 대응을 유지하는 안을 검토한다.",
+      "harmful_when": "후보 3개를 만능 규칙으로 삼거나 데스크톱 캡처로 모바일 표가 검증됐다고 주장하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    },
+    {
+      "id": "moodee-mobile",
+      "name": "Moodee",
+      "ecosystem": "moodee",
+      "platform": "mobile",
+      "family_ids": [
+        "conversation",
+        "expressive"
+      ],
+      "component_families": [
+        "conversation",
+        "composer",
+        "context-header"
+      ],
+      "indexing_basis": "researcher-proposed-facets-not-verified-source-classification",
+      "evidence_level": "historical-frame-notes",
+      "study_id": "study-20260910",
+      "study_locator": "moodee-mobile",
+      "observed_on": "2026-09-10",
+      "last_revalidated_on": null,
+      "source_product_id": null,
+      "source_entry_url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sc90003ju041xdyg7ek",
+      "source_locator_kind": "historically-recorded-frame-links",
+      "frames": [
+        {
+          "id": "cmsda5sc90003ju041xdyg7ek",
+          "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sc90003ju041xdyg7ek",
+          "role": "usage-and-upsell",
+          "recorded_state": "Usage sheet over dimmed conversation"
+        },
+        {
+          "id": "cmsda5sd00005ju045ndpr4nj",
+          "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sd00005ju045ndpr4nj",
+          "role": "usage-and-upsell",
+          "recorded_state": "Another usage-sheet value and tier label"
+        },
+        {
+          "id": "cmsda5sdk0007ju04xhffnqpm",
+          "url": "https://uibowl.io/name/%EB%AC%B4%EB%94%94%20Moodee?imgId=cmsda5sdk0007ju04xhffnqpm",
+          "role": "operational",
+          "recorded_state": "Conversation with emotion tags, character, ambient backdrop and reply control"
+        }
+      ],
+      "observation": "과거 기록은 어두운 녹색 배경·캐릭터·반투명 대화와 밝은 사용량 시트의 층을 설명한다.",
+      "transfer_hypothesis": "정서적 맥락을 가진 제품에서 표현을 보존하면서 제한/비용을 구분하는 안을 검토한다.",
+      "harmful_when": "캐릭터·배경 복제, 분위기 안에 경고 숨기기, 사용량 두 값을 한 세션의 시간 순서로 단정하는 경우.",
+      "component_craft_status": "capture-extraction-required",
+      "responsive_evidence": "not-verified",
+      "interaction_evidence": "not-verified",
+      "popularity_status": "not-revalidated",
+      "capture_readiness": "not-bound",
+      "design_ready": false,
+      "next_action": "Reopen the exact recorded frames through permitted UI; do not retry a denied resource by another access path. Create new scoped capture evidence, independent research and real Owner selection."
+    }
+  ],
+  "collection_backlog": [
+    {
+      "id": "reader-corpus",
+      "priority": 1,
+      "family_ids": [
+        "news-reading",
+        "knowledge-search"
+      ],
+      "reason": "No task-matched source family in the indexed studies. Search/list/detail/source-trust reading must not be replaced by dashboard or editorial commerce.",
+      "done_when": "Multiple genuine products, each with core reading/search plus a second task/state frame, exact source identities and permitted project capture evidence; independent fit review remains separate."
+    },
+    {
+      "id": "responsive-state-closure",
+      "priority": 2,
+      "family_ids": [
+        "comparison",
+        "operations",
+        "commerce"
+      ],
+      "reason": "Current notes do not bind same-product compact/medium/wide or source interactions.",
+      "done_when": "Record widths/states actually visible. Mark every unseen adaptation target-proposal; never fabricate source responsiveness. Verify later on target artifacts."
+    },
+    {
+      "id": "concrete-component-craft",
+      "priority": 2,
+      "family_ids": [
+        "comparison",
+        "analytics",
+        "creation",
+        "expressive"
+      ],
+      "reason": "Historical prose does not preserve exact source-capture evidence for component recipes.",
+      "done_when": "New scoped observations trace material, edge, depth, type, spacing, color roles, imagery and motion limits; compile only through existing grammar/review gates."
+    },
+    {
+      "id": "inclusive-public-service",
+      "priority": 3,
+      "family_ids": [
+        "public-access",
+        "health"
+      ],
+      "reason": "Age, access needs, public-service and medical task evidence remain unrepresented or weak.",
+      "done_when": "Observe representative real task/state families and obtain actual interaction/assistive-technology evidence when needed; a calm visual style alone cannot close this gap."
+    }
+  ]
+}

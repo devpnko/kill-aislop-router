@@ -7,7 +7,7 @@
   "properties": {
     "participant_version": {"const": 1},
     "provider_id": {"type": "string", "minLength": 1},
-    "role": {"enum": ["creator", "critic", "scanner", "browser-evidence", "adjudicator"]},
+    "role": {"enum": ["creator", "researcher", "critic", "scanner", "browser-evidence", "adjudicator"]},
     "visibility": {"const": "internal"},
     "orchestrator_id": {"const": "kill-slop-router"}
   },

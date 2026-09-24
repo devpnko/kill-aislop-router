@@ -1,0 +1,118 @@
+{
+  "independent_component_choice_review_version": 1,
+  "id": "korea-component-choice-independent-review-20260923",
+  "date": "2026-09-23",
+  "review_kind": "manual-independent-peer-review",
+  "review_mode": "sealed-study-text-only",
+  "orchestrator": "KillSlopRouter",
+  "participant_role": "internal-independent-research-critic",
+  "participant_actor": "/root/korea_component_critic",
+  "participant_actor_namespace": "agent-task-identifier-not-filesystem-path",
+  "authority_scope": "non-authoritative-derivative-text-review",
+  "verdict": "accepted-as-bounded-derivative-text-research",
+  "verdict_scope": "봉인된 연구의 텍스트 축약·인용 연결·조건부 비교 범위만 수용한다. 새 원본 관찰, 접근·권리 인증, 정식 reference pass, 제품 적합 순위 또는 Creator 승인 판정이 아니다.",
+  "reviewed_artifacts": [
+    {
+      "path": "docs/research/ui-bowl-second-pass-access-2026-09-23.json",
+      "digest": "sha256:0b8697501c4809987936c14e1f9735aa649ee6891eb828d71fdb622dfb80be70"
+    },
+    {
+      "path": "docs/research/ui-bowl-second-pass-access-2026-09-23.md",
+      "digest": "sha256:059d91b44f2a4d431b1ecfab0307daac78259fe7d421df653458ec21204cf717"
+    },
+    {
+      "path": "docs/research/ui-bowl-component-choice-matrix-2026-09-23.json",
+      "digest": "sha256:4fbd85823d6bccb01546e2d44bbae4652c0eda588bcfc8dee090f90431d3b475"
+    },
+    {
+      "path": "docs/research/ui-bowl-component-choice-matrix-2026-09-23.md",
+      "digest": "sha256:3b0c173fb05d277ce9b97bff8014fb28d8ab263b6d8f3395ebdc4194b96b74b3"
+    }
+  ],
+  "source_artifacts": [
+    {
+      "path": "docs/research/ui-bowl-korea-component-study-2026-09-22.json",
+      "digest": "sha256:8500cbe81a478e42e139378351371a655d210e5273cf917b9fbcf09c36f2a7b9"
+    },
+    {
+      "path": "docs/research/ui-bowl-korea-component-study-review-2026-09-22.json",
+      "digest": "sha256:cfa27ad63c49883238cca3e9d4ca96b3173e9f5bcfb91ec255fa4ad7f84807b7"
+    }
+  ],
+  "inspection": {
+    "new_text_artifacts_read_and_hashed": 4,
+    "sealed_source_artifacts_rehashed": 2,
+    "comparison_questions_reviewed": 5,
+    "alternatives_semantically_reviewed": 10,
+    "source_entry_pointer_and_subject_bindings_checked": 11,
+    "cited_existing_frame_ids": 25,
+    "cited_product_surface_groups": 9,
+    "entry_frame_bindings_checked": 28,
+    "anatomy_citations_checked": 50,
+    "anatomy_frame_bindings_checked": 80,
+    "visual_aspect_citations_checked": 66,
+    "visual_aspect_frame_bindings_checked": 148,
+    "excluded_entry_bindings_checked": 3,
+    "prior_review_note_bindings_checked": 5,
+    "prior_review_note_part_frame_bindings_checked": 10,
+    "local_markdown_links_checked": 5,
+    "matrix_source_links_matched_to_sealed_cited_frames": 10,
+    "public_text_artifacts_scanned_for_private_paths_and_inline_pixels": 4,
+    "closure_or_link_issues_found": 0,
+    "raw_images_viewed_this_review": 0,
+    "raw_image_hashes_recomputed_this_review": 0,
+    "new_product_frames_acquired_this_review": 0,
+    "access_capture_metadata_records_read": 2,
+    "access_capture_bytes_inspected_this_review": 0,
+    "source_behavior_executions_this_review": 0,
+    "target_proposal_tests_executed_this_review": 0,
+    "repository_test_suites_executed_this_review": 0,
+    "count_meaning": "인용·프레임 수는 기존 텍스트의 연결 검사 수다. 원본을 다시 보거나 이미지 해시를 검증한 수가 아니다. 링크 검사는 로컬 존재·봉인 URL 문자열 일치이며 외부 접속 검사가 아니다."
+  },
+  "assessment": [
+    "관찰 축약 50개 부분·66개 시각 축의 내용과 프레임 연결은 봉인 연구 범위 안에 있다. 10개 대안의 고려 조건·금지 맥락·타깃 관계·상충점·미확인은 관찰과 구분된 가설이다.",
+    "다섯 비교군은 통제된 우열 실험이 아니다. 플랫폼·화면 폭·업무·숙련도·위험의 차이가 남으며, 목록과 작업대 또는 국소 문구 도움과 필기 입력을 무조건 교환 가능한 대안으로 만들지 않았다.",
+    "기존 검토의 빈 검색어 범위와 과정형 역할명 주의가 파생 기록에 반영됐다. 후보·점·카드·강조 외곽을 실제 요청 완료·상태 전이·성공·반응형 증거로 승격하지 않는다.",
+    "접근 기록은 공개 요금제 설명과 계정 entitlement를 분리하고 과거 수집 권한을 소급 인증하지 않는다. 이 판단은 저자 보고의 문서 일관성 검토이며 새 홈·멤버십 캡처를 독립 관찰했다는 뜻이 아니다."
+  ],
+  "resolved_review_notes": [
+    {
+      "id": "P2-O01",
+      "severity": "nonblocking-citation-precision",
+      "status": "resolved",
+      "resolution": "위계 제안의 직접 근거로 body, query, category, instrument-context, return-control 인용이 보완됐다. 추가된 suggestion-surface와 language-context도 정확한 봉인 부분·프레임에 연결된다."
+    }
+  ],
+  "must_fix_remaining": [],
+  "nonblocking_notes": [],
+  "remaining_research_limits": [
+    "실제 상품 목록·상품 상세·지도 조작·긴 원문 전체 읽기·동일 제품의 여러 실제 폭에 관한 다섯 자료 공백과 표본 편중이 남는다. 명시된 연구 한계이지 해결된 적용 준비가 아니다.",
+    "원 연구의 42개 반응형 변형과 65개 적용 검사는 미실행 타깃 제안이다. 이번에 이를 실행하거나 공식 검토 영수증으로 대체하지 않았다.",
+    "텍스트와 해시 일치는 수집 방식·권리·현행 서비스·인간 저작·접근성·금융 또는 보안의 적합성을 증명하지 않는다. 기존 연구·검토의 바이트와 한계는 그대로 보존한다.",
+    "이번 수용은 명시된 네 새 문서와 두 봉인 소스 다이제스트에만 해당한다. 변경된 파생 자료는 변경 범위를 다시 검토해야 한다."
+  ],
+  "boundaries": {
+    "network_or_browser_used_this_review": false,
+    "raw_image_observation_performed_this_review": false,
+    "new_source_acquisition_performed_this_review": false,
+    "access_browser_claims_independently_observed": false,
+    "source_acquisition_method_authenticated": false,
+    "historical_capture_entitlement_verified": false,
+    "source_reuse_rights_approved": false,
+    "formal_reference_cli_review": false,
+    "formal_reference_pipeline_pass": false,
+    "formal_cli_ran_receipt": false,
+    "owner_approval": false,
+    "creator_approval": false,
+    "creator_input_approved": false,
+    "ready_reference_pack": false,
+    "design_ready": false,
+    "visual_authority_granted": false,
+    "source_behavior_executed": false,
+    "same_product_responsive_behavior_verified": false,
+    "accessibility_conformance_verified": false,
+    "source_pixels_included": false,
+    "private_capture_paths_or_filenames_included": false,
+    "account_values_included": false
+  }
+}

@@ -2,6 +2,76 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Reference-required design and unified delivery
+
+New visual exploration declares `reference_requirement` by default and asserts it with
+`design run --require-reference`. Missing verified reference packs or requested
+component recipes block creation. The immutable brief preserves the requirement
+on resume. Valid historical no-reference briefs remain inspectable as `not_bound`;
+they are not reference-derived. New starts and unfinished resume/dispatch now
+require a ready pack or a genuine scoped Owner `reference_opt_out` decision.
+This is an intentional creation/continuation behavior change, not a rewrite of
+old receipts. Preserve unfinished old runs and start a successor; do not add a
+pack or opt-out to an active ledger. Completed-run resume remains a verified
+no-op. The exact-three matrices and downstream Owner/browser/critic gates stay
+unchanged. The public starter now declares required intent without a fabricated
+pack: it deliberately fails schema/preflight until real project evidence is bound.
+Synthetic opt-out decisions were moved to test-only fixtures and are not shipped.
+An opt-out is only a separately requested Owner scope change, never a workaround
+for missing UI Bowl access, a continuation or this repair authorization.
+Keep all original executable/evidence pins available for historical verification;
+compatibility does not waive a missing old adapter file or physical identity.
+`design provenance` is a separate derived report, not a mutation of signed state
+JSON. `capabilities` inspects the executing package, not global/account loading.
+See [reference delivery](reference-delivery.md). Keep old runs and selections as
+history; start a successor rather than adding references retrospectively.
+
+## Optional component craft recipes
+
+The additive [component recipe contract](component-recipes.md) is opt-in for
+new reference runs. Adapters need support for `component_recipe` and candidate
+`design-contract.component_specs`; missing fields fail closed. Use the updated
+Router for the whole journey. Do not mutate existing packs, ledgers, selections
+or approvals to add recipes: bind a fresh producer run and fresh Owner selection.
+No-recipe runs retain their existing matrices and review sets. This development
+does not install or migrate global plugins automatically.
+
+## Static design browser proof
+
+The official static-design adapter now requires reviewed scenario bindings for
+every required state × locale, executed at every viewport and configured color
+scheme. Its report is version 2 and includes native steps, visible-state proof,
+and digest-bound screenshots/traces. Ordinary runtime scenario contracts and
+the default exact-three design matrices are unchanged. Generic allowlisted
+no-reference Playwright adapters retain their existing explicit trust boundary.
+
+Existing official marker-only evidence must not be re-signed or upgraded in
+place. Keep the original run as history, review the
+[design scenario setup](design-exploration.md#executed-state-proof), reconfigure
+the host against the updated bundled adapter, and start a new run from verified
+brief/baseline/reference inputs. New Owner decisions must bind that new run.
+Missing scenario coverage stops before browser child spawn as `manual_pending`;
+failed executed checks stop result ingest. No automatic install, baseline
+promotion, owner approval, or product edit is part of this migration.
+
+## Explicit project-root discovery and setup guidance
+
+`doctor`, `plan`, `run`, `host configure-codex` and `browser configure` now
+resolve an implicit profile only inside an explicit `--root`. Previously they
+could silently read the invoking project's profile instead. No upward search
+is performed across that explicit boundary. Invocations without `--root`
+retain upward discovery; explicit `--profile` still takes precedence. Scripts
+that intentionally shared a profile while using another root must now pass
+that profile explicitly. A missing or non-directory explicit root is an error.
+
+Doctor JSON adds `project_root` and `next_actions`; existing fields, readiness
+semantics and exit codes remain. A missing profile's `next_required_command`
+now points to bootstrap. Human-readable run output adds attempt counts and
+continuation hints using the currently executing Node/bundled CLI paths, not
+PATH lookup. Automation state and signed receipt JSON are unchanged.
+The hints cannot authorize a missing adapter, original resume authority,
+browser proof or Owner approval. See [setup and continuation](project-setup.md).
+
 ## Parent identity and catalog migration
 
 New runs bind `$killsloprouter:kill-slop-router` as the sole parent through a

@@ -25,6 +25,8 @@ import {
   verifyPlanningGateForAudit
 } from "./planning.mjs";
 import {
+  assertInternalIdentityIsNotOrchestrator,
+  canonicalIdentityKey,
   createJourneyIdentity,
   createParticipant,
   identitiesMatch,
@@ -383,6 +385,12 @@ export function verifyAuditJourneyIdentity(run, {
     requireValue(run.creator?.participant === null,
       "audit creator participant must be null when no creator is routed", 4);
   }
+  if (run.creator?.actor_id) {
+    assertInternalIdentityIsNotOrchestrator(run.creator.actor_id, {
+      orchestratorId: run.journey_identity.orchestrator_id,
+      label: "audit creator actor_id"
+    });
+  }
   if (run.baseline_lineage) {
     try {
       verifyBaselineLineage(run.baseline_lineage, "audit baseline_lineage");
@@ -471,6 +479,16 @@ export function verifyAuditJourneyIdentity(run, {
       baselineLineagesMatch(packet.baseline_lineage || null, run.baseline_lineage || null),
       `packet ${packet.packet_id} baseline_lineage conflicts with the audit run`,
       4
+    );
+  }
+  for (const result of run.results || []) {
+    if (!result?.normalized?.reviewer?.actor_id) continue;
+    assertInternalIdentityIsNotOrchestrator(
+      result.normalized.reviewer.actor_id,
+      {
+        orchestratorId: run.journey_identity.orchestrator_id,
+        label: `recorded result ${result.packet_id} reviewer.actor_id`
+      }
     );
   }
   requireValue(DIGEST_PATTERN.test(run.audit_authority_digest || ""),
@@ -668,6 +686,12 @@ export function initializeAudit({
   }
   requireValue(Array.isArray(artifacts) && artifacts.length > 0, "audit init requires at least one artifact");
   if (plan.creator) requireValue(creatorActorId, "--creator-id is required when the route has a creator");
+  if (creatorActorId) {
+    assertInternalIdentityIsNotOrchestrator(creatorActorId, {
+      label: "audit creator actor_id",
+      exitCode: 3
+    });
+  }
 
   const absoluteRoot = path.resolve(root);
   let artifactSnapshots;
@@ -1269,12 +1293,18 @@ function standardResult(run, input, sourcePath, evidenceSnapshotter = null, sour
     `provider mismatch for ${packet.packet_id}: expected ${packet.provider.id}`);
   requireValue(input.reviewer?.actor_id, `${packet.packet_id} requires reviewer.actor_id`);
   requireValue(input.reviewer?.kind, `${packet.packet_id} requires reviewer.kind`);
+  assertInternalIdentityIsNotOrchestrator(input.reviewer.actor_id, {
+    orchestratorId: run.journey_identity.orchestrator_id,
+    label: `${packet.packet_id} reviewer.actor_id`
+  });
   if (packet.reviewer_independence_required && run.creator.actor_id) {
-    requireValue(input.reviewer.actor_id !== run.creator.actor_id,
+    requireValue(canonicalIdentityKey(input.reviewer.actor_id) !==
+      canonicalIdentityKey(run.creator.actor_id),
       `${packet.packet_id} reviewer cannot be the creator`);
   }
   if (packet.reviewer_independence_required && run.creator.provider_id) {
-    requireValue(input.provider_id !== run.creator.provider_id,
+    requireValue(canonicalIdentityKey(input.provider_id) !==
+      canonicalIdentityKey(run.creator.provider_id),
       `${packet.packet_id} provider cannot self-review its own artifact`);
   }
   requireValue(VALID_VERDICTS.has(input.verdict), `${packet.packet_id} has invalid verdict`);
@@ -1585,10 +1615,12 @@ function verifyIntegrity(run, approval) {
       requireValue(reconstructed.normalized_digest === result.normalized_digest,
         `recorded result normalization changed: ${result.packet_id}`, 4);
       if (packet.reviewer_independence_required) {
-        requireValue(result.normalized.reviewer?.actor_id !== run.creator?.actor_id,
+        requireValue(canonicalIdentityKey(result.normalized.reviewer?.actor_id) !==
+          canonicalIdentityKey(run.creator?.actor_id),
           `recorded reviewer became the creator: ${result.packet_id}`, 4);
         requireValue(
-          !run.creator?.provider_id || result.normalized.provider_id !== run.creator.provider_id,
+          !run.creator?.provider_id || canonicalIdentityKey(result.normalized.provider_id) !==
+            canonicalIdentityKey(run.creator.provider_id),
           `recorded provider became the creator provider: ${result.packet_id}`,
           4
         );
@@ -1696,11 +1728,17 @@ function normalizeApproval(run, input, sourcePath, sourceSnapshotOverride = null
   requireValue(["approved", "rejected"].includes(input.status),
     "approval status must be approved or rejected");
   requireValue(input.owner_id, "approval requires owner_id");
+  assertInternalIdentityIsNotOrchestrator(input.owner_id, {
+    orchestratorId: run.journey_identity.orchestrator_id,
+    label: "approval owner_id"
+  });
   requireValue(input.note, "approval requires an explicit note");
   requireValue(input.decided_at && !Number.isNaN(Date.parse(input.decided_at)),
     "approval requires a valid decided_at timestamp");
   if (run.creator.actor_id) {
-    requireValue(input.owner_id !== run.creator.actor_id, "the artifact creator cannot approve the run");
+    requireValue(canonicalIdentityKey(input.owner_id) !==
+      canonicalIdentityKey(run.creator.actor_id),
+    "the artifact creator cannot approve the run");
   }
   const normalized = {
     status: input.status,

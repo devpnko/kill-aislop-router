@@ -5,7 +5,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { canonicalDigest, hashArtifact, sha256, snapshotArtifact } from "../integrity.mjs";
+import { canonicalDigest, hashArtifact, readFilePinned, sha256, snapshotArtifact } from "../integrity.mjs";
+import {
+  validateDesignScenario,
+  selectDesignScenarios,
+  designBrowserCases,
+  designBrowserExecutionId
+} from "../design-browser-proof.mjs";
 import {
   identitiesMatch,
   verifyJourneyIdentity,
@@ -19,7 +25,7 @@ const ASSERTION_TYPES = new Set([
   "visible", "hidden", "text", "value", "checked", "url", "count", "no-overlap", "no-clipping",
   "computed-style"
 ]);
-const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions"]);
+const SCENARIO_KEYS = new Set(["id", "path", "actions", "assertions", "design"]);
 const ACTION_KEYS = new Set(["type", "locator", "value"]);
 const ASSERTION_KEYS = new Set(["type", "locator", "property", "value"]);
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -146,6 +152,7 @@ function validateScenarioDocument(value) {
           "Playwright count assertion requires a non-negative integer value");
       }
     }
+    validateDesignScenario(scenario);
   }
   return value.scenarios;
 }
@@ -566,28 +573,12 @@ async function inspectOverflow(page) {
   });
 }
 
-async function inspectKeyboard(page, maxTabs) {
-  const selector = [
-    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
-    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
-    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
-  ].join(",");
-  const focusable = await page.locator(selector).evaluateAll((elements) => elements.flatMap((element) => {
-    const style = getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) return [];
-    if (element.closest("[inert]")) return [];
-    const closedDetails = element.closest("details:not([open])");
-    if (closedDetails) {
-      const summary = closedDetails.querySelector(":scope > summary");
-      if (!summary || (element !== summary && !summary.contains(element))) return [];
-    }
-    let ancestor = element.parentElement;
-    while (ancestor && ancestor !== document.body) {
-      const ancestorStyle = getComputedStyle(ancestor);
-      if (ancestorStyle.display === "none" || ancestorStyle.visibility === "hidden") return [];
-      ancestor = ancestor.parentElement;
-    }
+// Serialized into both evaluateAll (target inventory) and evaluate (focus).
+// Keep the identity algorithm shared: locator CSS pierces open shadow roots,
+// whereas document.activeElement alone stops at their host. No DOM is changed.
+function keyboardDomProbe(input) {
+  const composedParent = (element) => element.assignedSlot || element.parentElement || element.getRootNode()?.host || null;
+  const keyFor = (element) => {
     const segments = [];
     let current = element;
     while (current && current !== document.body) {
@@ -595,64 +586,127 @@ async function inspectKeyboard(page, maxTabs) {
         segments.unshift(`#${current.id}`);
         break;
       }
-      const siblings = current.parentElement
-        ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
+      const siblings = current.parentNode?.children
+        ? [...current.parentNode.children].filter((candidate) => candidate.tagName === current.tagName)
         : [];
       segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
       current = current.parentElement;
     }
-    return [{ key: segments.join(" > ") }];
-  }));
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  });
+    const localKey = segments.join(" > ");
+    const root = element.getRootNode();
+    return root instanceof ShadowRoot ? `${keyFor(root.host)} >>> ${localKey}` : localKey;
+  };
+  if (Array.isArray(input)) {
+    const within = (element, ancestor) => {
+      for (let current = element; current; current = composedParent(current)) {
+        if (current === ancestor) return true;
+      }
+      return false;
+    };
+    const modals = [];
+    const collectModals = (root) => {
+      modals.push(...root.querySelectorAll("dialog:modal"));
+      for (const element of root.querySelectorAll("*")) {
+        if (element.shadowRoot) collectModals(element.shadowRoot);
+      }
+    };
+    collectModals(document);
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    const focusedModals = modals.filter((dialog) => within(active, dialog));
+    // :modal reflects native showModal(), not author-provided open/aria-modal.
+    // DOM order is not top-layer order. Do not guess an ambiguous modal stack.
+    const modal = modals.length === 1 ? modals[0] : focusedModals.length === 1 ? focusedModals[0] : null;
+    if (modals.length > 1 && !modal) throw new Error("Keyboard modal scope is ambiguous; active modal evidence required");
+    const eligible = input.filter((element) => {
+      if (element.tabIndex < 0 || element.matches(":disabled") || (modal && !within(element, modal))) return false;
+      const rect = element.getBoundingClientRect();
+      // Effective visibility may be restored below a visibility:hidden host.
+      if (rect.width <= 0 || rect.height <= 0 || getComputedStyle(element).visibility === "hidden") return false;
+      let branch = element;
+      let escapesInert = false;
+      for (let ancestor = element; ancestor; ancestor = composedParent(ancestor)) {
+        const style = getComputedStyle(ancestor);
+        if (style.display === "none" || (!escapesInert && ancestor.hasAttribute("inert"))) return false;
+        // A native modal escapes ancestor inertness, but not its own inert flag.
+        if (ancestor === modal) escapesInert = true;
+        if (ancestor.matches("details:not([open])")) {
+          const summary = ancestor.querySelector(":scope > summary");
+          if (!summary || (branch !== summary && !summary.contains(branch))) return false;
+        }
+        branch = ancestor;
+      }
+      return true;
+    });
+    const groups = [];
+    return eligible.flatMap((element) => {
+      if (!(element instanceof HTMLInputElement) || element.type !== "radio" || !element.name) {
+        return [{ key: keyFor(element) }];
+      }
+      // Native groups use exact name, form owner and DOM tree, NOT closest form
+      // or name alone. Unnamed/custom ARIA radios remain independent targets.
+      const root = element.getRootNode();
+      if (groups.some((group) => group.root === root && group.form === element.form && group.name === element.name)) return [];
+      groups.push({ root, form: element.form, name: element.name });
+      const members = eligible.filter((other) => other instanceof HTMLInputElement && other.type === "radio" &&
+        other.name === element.name && other.form === element.form && other.getRootNode() === root);
+      const checked = members.find((other) => other.checked);
+      if (checked) return [{ key: keyFor(checked) }];
+      // An unchecked group's entry member depends on the current focus origin.
+      // Require an actual Tab visit to the group; never simply drop it.
+      return [{ key: keyFor(members[0]), alternative_keys: members.slice(1).map(keyFor) }];
+    });
+  }
+  let element = document.activeElement;
+  while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+  if (input === "blur") {
+    if (element instanceof HTMLElement) element.blur();
+    return null;
+  }
+  if (!element || element === document.body) return null;
+  const style = getComputedStyle(element);
+  return {
+    key: keyFor(element),
+    tag: element.tagName.toLowerCase(),
+    id: element.id || null,
+    role: element.getAttribute("role"),
+    name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
+    outline: `${style.outlineStyle} ${style.outlineWidth}`,
+    box_shadow: style.boxShadow
+  };
+}
+
+async function inspectKeyboard(page, maxTabs) {
+  const selector = [
+    "a[href]:not([tabindex='-1'])", "button:not([disabled]):not([tabindex='-1'])",
+    "input:not([disabled]):not([tabindex='-1'])", "select:not([disabled]):not([tabindex='-1'])",
+    "textarea:not([disabled]):not([tabindex='-1'])", "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  const focusable = await page.locator(selector).evaluateAll(keyboardDomProbe);
+  await page.evaluate(keyboardDomProbe, "blur");
   const visited = [];
-  const requiredKeys = new Set(focusable.map((entry) => entry.key));
   const visitedKeys = new Set();
+  const reached = (entry) => visitedKeys.has(entry.key) ||
+    (entry.alternative_keys || []).some((key) => visitedKeys.has(key));
   let stagnantSteps = 0;
   const limit = Math.max(1, maxTabs);
   for (let index = 0; index < limit; index += 1) {
     await page.keyboard.press("Tab");
-    const active = await page.evaluate(() => {
-      const element = document.activeElement;
-      if (!element || element === document.body) return null;
-      const style = getComputedStyle(element);
-      const segments = [];
-      let current = element;
-      while (current && current !== document.body) {
-        if (current.id) {
-          segments.unshift(`#${current.id}`);
-          break;
-        }
-        const siblings = current.parentElement
-          ? [...current.parentElement.children].filter((candidate) => candidate.tagName === current.tagName)
-          : [];
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${siblings.indexOf(current) + 1})`);
-        current = current.parentElement;
-      }
-      return {
-        key: segments.join(" > "),
-        tag: element.tagName.toLowerCase(),
-        id: element.id || null,
-        role: element.getAttribute("role"),
-        name: element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 120) || null,
-        outline: `${style.outlineStyle} ${style.outlineWidth}`,
-        box_shadow: style.boxShadow
-      };
-    });
+    const active = await page.evaluate(keyboardDomProbe, "active");
     if (active) {
       visited.push(active);
       const previousSize = visitedKeys.size;
       visitedKeys.add(active.key);
       stagnantSteps = visitedKeys.size === previousSize ? stagnantSteps + 1 : 0;
-      if ([...requiredKeys].every((key) => visitedKeys.has(key))) break;
+      if (focusable.every(reached)) break;
       if (stagnantSteps > Math.max(12, focusable.length + 4)) break;
     }
   }
   return {
     focusable_count: focusable.length,
+    sequential_targets: focusable,
     visited,
-    unreached: focusable.filter((entry) => !visitedKeys.has(entry.key))
+    unreached: focusable.filter((entry) => !reached(entry)).map(({ key }) => ({ key }))
   };
 }
 
@@ -714,21 +768,29 @@ function hashFile(file) {
   return `sha256:${crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")}`;
 }
 
-async function designMarkers(page, locales, states) {
-  return page.evaluate(({ requiredLocales, requiredStates }) => {
-    const localeFound = Object.fromEntries(requiredLocales.map((locale) => [locale,
-      document.documentElement.lang === locale || [...document.querySelectorAll("[data-killsloprouter-locale]")]
-        .some((element) => element.getAttribute("data-killsloprouter-locale") === locale)
-    ]));
-    const stateFound = Object.fromEntries(requiredStates.map((state) => [state,
-      [...document.querySelectorAll("[data-killsloprouter-state]")]
-        .some((element) => element.getAttribute("data-killsloprouter-state") === state)
-    ]));
-    return { localeFound, stateFound };
-  }, { requiredLocales: locales, requiredStates: states });
+async function inspectDesignState(page, state, locale) {
+  return page.evaluate(({ requiredState, requiredLocale }) => {
+    const visible = (element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 &&
+        element.checkVisibility({ opacityProperty: true, visibilityProperty: true }) &&
+        !element.closest('[hidden], [inert], [aria-hidden="true"]');
+    };
+    const matches = [...document.querySelectorAll("[data-killsloprouter-state]")]
+      .filter((element) => element.getAttribute("data-killsloprouter-state") === requiredState &&
+        visible(element));
+    const stateVisible = matches.length === 1;
+    const localeRoot = stateVisible
+      ? matches[0].closest("[data-killsloprouter-locale], [lang]") : null;
+    const observedLocale = localeRoot?.getAttribute("data-killsloprouter-locale") ||
+      localeRoot?.getAttribute("lang") || null;
+    return { state_visible: stateVisible,
+      locale_visible: stateVisible && observedLocale === requiredLocale,
+      observed_locale: observedLocale, navigator_locale: navigator.language };
+  }, { requiredState: state, requiredLocale: locale });
 }
 
-async function runDesignBrowser(request, runtime) {
+async function runDesignBrowser(request, runtime, sealedScenarios) {
   const { packet, settings = {}, output_directory: outputDirectory } = request;
   const task = packet.design_task;
   requireValue(task?.kind === "browser-evidence", "design Playwright packet kind must be browser-evidence");
@@ -746,7 +808,8 @@ async function runDesignBrowser(request, runtime) {
     "design prototype must be a regular non-symlink file");
   requireValue(path.extname(prototypePath).toLowerCase() === ".html",
     "official design Playwright accepts a static HTML prototype");
-  requireValue(hashFile(prototypePath) === prototype.digest, "design prototype digest mismatch");
+  const pinnedPrototype = readFilePinned(prototypePath, { label: "design prototype" });
+  requireValue(pinnedPrototype.digest === prototype.digest, "design prototype digest mismatch");
   const target = pathToFileURL(fs.realpathSync(prototypePath)).toString();
   const requiredViewports = packet.evidence_contract?.required_viewports || [];
   const requiredChecks = packet.evidence_contract?.required_checks || [];
@@ -756,6 +819,8 @@ async function runDesignBrowser(request, runtime) {
   for (const viewport of requiredViewports) {
     requireValue(settings.viewports?.[viewport], `missing configured viewport: ${viewport}`);
   }
+  const scenarios = selectDesignScenarios(sealedScenarios, task);
+  const cases = designBrowserCases(scenarios, requiredViewports, settings.color_schemes);
   fs.mkdirSync(outputDirectory, { recursive: true });
 
   const { playwright, axeSource } = runtime;
@@ -775,26 +840,41 @@ async function runDesignBrowser(request, runtime) {
     console: true,
     network: true
   };
-  const localesFound = new Set();
-  const statesFound = new Set();
   try {
-    for (const viewportName of requiredViewports) {
+    for (const binding of cases) {
+      const viewportName = binding.viewport;
+      const scenario = scenarios.find((item) => item.id === binding.scenario);
       const viewport = settings.viewports[viewportName];
       const context = await browser.newContext({
         viewport,
-        colorScheme: settings.color_schemes?.[0] || "light",
-        locale: requiredLocales[0] || settings.locale,
+        colorScheme: binding.color_scheme,
+        locale: binding.locale,
         reducedMotion: "reduce",
         serviceWorkers: "block"
       });
       const execution = {
-        viewport: viewportName,
+        ...binding,
+        execution_id: designBrowserExecutionId(binding),
+        viewport_size: viewport,
+        actions: [],
+        assertions: [],
+        state_before: null,
+        state_after: false,
+        locale_after: false,
+        outcome: "failed",
         console_errors: [],
         page_errors: [],
         request_failures: [],
+        failed_responses: [],
         blocked_requests: []
       };
+      const checks = { ...aggregate };
+      // Each row starts independently; aggregate failure must not poison a
+      // later diagnostic row or disguise which exact cases passed.
+      for (const key of Object.keys(checks)) checks[key] =
+        !["visual-regression", "screen-reader"].includes(key);
       executions.push(execution);
+      await context.tracing.start({ screenshots: true, snapshots: true, sources: false });
       const page = await context.newPage();
       page.setDefaultTimeout(settings.navigation_timeout_ms);
       page.on("console", (message) => {
@@ -804,27 +884,72 @@ async function runDesignBrowser(request, runtime) {
       page.on("requestfailed", (failed) => execution.request_failures.push({
         url: failed.url(), error: failed.failure()?.errorText || "unknown"
       }));
+      page.on("response", (response) => {
+        if (response.status() >= 400) execution.failed_responses.push({
+          url: response.url(), status: response.status()
+        });
+      });
       await context.route("**/*", async (route) => {
         const url = route.request().url();
-        if (url === target) return route.continue();
+        if (url === target && route.request().method() === "GET") {
+          // Render the exact descriptor-pinned bytes for every case, never
+          // reopen a mutable prototype between locale/state captures.
+          return route.fulfill({ status: 200, contentType: "text/html; charset=utf-8",
+            body: pinnedPrototype.source });
+        }
         if (requestProtocolAllowed(url)) return route.continue();
         execution.blocked_requests.push({ url, origin: normalizedNetworkOrigin(url) });
         return route.abort("blockedbyclient");
       });
+      await context.routeWebSocket("**/*", async (socket) => {
+        execution.blocked_requests.push({ url: socket.url(), method: "WEBSOCKET" });
+        await socket.close({ code: 1008, reason: "KillSlopRouter static prototype has no network authority" });
+      });
       try {
         await page.goto(target, { waitUntil: "domcontentloaded", timeout: settings.navigation_timeout_ms });
-        const markers = await designMarkers(page, requiredLocales, requiredStates);
-        for (const [locale, found] of Object.entries(markers.localeFound)) if (found) localesFound.add(locale);
-        for (const [state, found] of Object.entries(markers.stateFound)) if (found) statesFound.add(state);
-        aggregate.state &&= Object.values(markers.stateFound).every(Boolean);
+        execution.state_before = (await inspectDesignState(page, binding.state, binding.locale)).state_visible;
+        let failedAction = false;
+        for (const action of scenario.actions) {
+          if (failedAction) {
+            execution.actions.push({ step: action, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAction(page, action, settings.navigation_timeout_ms);
+            execution.actions.push({ step: action, status: "passed" });
+          } catch (error) {
+            failedAction = true;
+            execution.actions.push({ step: action, status: "failed", error: error.message });
+          }
+        }
+        for (const assertion of scenario.assertions) {
+          if (failedAction) {
+            execution.assertions.push({ step: assertion, status: "skipped" });
+            continue;
+          }
+          try {
+            await performAssertion(page, assertion, settings.navigation_timeout_ms);
+            execution.assertions.push({ step: assertion, status: "passed" });
+          } catch (error) {
+            execution.assertions.push({ step: assertion, status: "failed", error: error.message });
+          }
+        }
+        const observed = await inspectDesignState(page, binding.state, binding.locale);
+        execution.state_after = observed.state_visible;
+        execution.locale_after = observed.locale_visible;
+        execution.observed_locale = observed.observed_locale;
+        execution.navigator_locale = observed.navigator_locale;
+        checks.state = !failedAction && execution.assertions.every((item) => item.status === "passed") &&
+          execution.state_after && execution.locale_after &&
+          (binding.state === "default" || execution.state_before === false);
 
         execution.overflow = await inspectOverflow(page);
-        aggregate.overflow &&= !execution.overflow.document_overflow &&
+        checks.overflow = !execution.overflow.document_overflow &&
           execution.overflow.offenders.length === 0 &&
           execution.overflow.overlaps.length === 0 &&
           execution.overflow.clipped_text.length === 0;
         execution.keyboard = await inspectKeyboard(page, settings.max_keyboard_tabs);
-        aggregate.keyboard &&= execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
+        checks.keyboard = execution.keyboard.focusable_count > 0 && execution.keyboard.unreached.length === 0;
 
         const originalViewport = page.viewportSize();
         await page.setViewportSize({
@@ -832,22 +957,22 @@ async function runDesignBrowser(request, runtime) {
           height: originalViewport.height
         });
         execution.zoom_200 = await inspectOverflow(page);
-        aggregate["zoom-200"] &&= !execution.zoom_200.document_overflow &&
+        checks["zoom-200"] = !execution.zoom_200.document_overflow &&
           execution.zoom_200.offenders.length === 0 &&
           execution.zoom_200.overlaps.length === 0 &&
           execution.zoom_200.clipped_text.length === 0;
         await page.setViewportSize(originalViewport);
 
         execution.axe = await runAxe(page, axeSource);
-        aggregate.contrast &&= !execution.axe.violations.some((item) => item.id === "color-contrast");
-        aggregate["aria-semantics"] &&= !execution.axe.violations.some((item) => item.id !== "color-contrast");
+        checks.contrast = !execution.axe.violations.some((item) => item.id === "color-contrast");
+        checks["aria-semantics"] = !execution.axe.violations.some((item) => item.id !== "color-contrast");
         const ariaSnapshot = await page.locator("body").ariaSnapshot();
-        aggregate["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
-        aggregate.console &&= execution.console_errors.length === 0 && execution.page_errors.length === 0;
-        aggregate.network &&= execution.request_failures.length === 0 && execution.blocked_requests.length === 0;
+        checks["aria-semantics"] &&= Boolean(ariaSnapshot.trim());
 
-        const screenshotName = `${safeId(task.subject_id)}--${safeId(viewportName)}.png`;
+        const screenshotName = `${execution.execution_id}.png`;
         await stabilizeVisualCapture(page);
+        const captureState = await inspectDesignState(page, binding.state, binding.locale);
+        checks.state &&= captureState.state_visible && captureState.locale_visible;
         await page.screenshot({
           path: path.join(outputDirectory, screenshotName),
           fullPage: true,
@@ -855,29 +980,45 @@ async function runDesignBrowser(request, runtime) {
           caret: "hide",
           scale: "css"
         });
-        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName });
+        execution.screenshot = screenshotName;
+        execution.screenshot_digest = hashFile(path.join(outputDirectory, screenshotName));
+        evidence.push({ kind: "screenshot", path: screenshotName, viewport: viewportName, state: binding.state });
+      } catch (error) {
+        checks.state = false;
+        execution.error = error.message;
       } finally {
+        const traceName = `${execution.execution_id}.zip`;
+        await context.tracing.stop({ path: path.join(outputDirectory, traceName) });
+        execution.trace = traceName;
+        execution.trace_digest = hashFile(path.join(outputDirectory, traceName));
+        evidence.push({ kind: "trace", path: traceName, viewport: viewportName, state: binding.state });
+        checks.console = execution.console_errors.length === 0 && execution.page_errors.length === 0;
+        checks.network = execution.request_failures.length === 0 &&
+          execution.failed_responses.length === 0 && execution.blocked_requests.length === 0;
+        checks.state &&= Boolean(execution.screenshot);
+        execution.checks = Object.fromEntries(requiredChecks.map((check) => [check, checks[check] === true]));
+        execution.outcome = Object.values(execution.checks).every(Boolean) ? "passed" : "failed";
+        for (const check of requiredChecks) aggregate[check] &&= execution.checks[check];
         await context.close();
       }
     }
   } finally {
     await browser.close();
   }
-  aggregate.state &&= requiredLocales.every((locale) => localesFound.has(locale)) &&
-    requiredStates.every((state) => statesFound.has(state));
   const checks = Object.fromEntries(requiredChecks.map((check) => [check, aggregate[check] === true]));
   const reportName = `${safeId(task.subject_id)}--playwright-report.json`;
   const report = {
-    design_playwright_report_version: 1,
+    design_playwright_report_version: 2,
     run_id: request.run_id,
     packet_id: packet.packet_id,
+    packet_digest: packet.packet_digest,
+    scenario_digest: settings.scenario_digest,
     subject_id: task.subject_id,
     subject_result_digest: task.subject_result_digest,
     prototype: { path: prototypePath, digest: prototype.digest },
     browser: { engine: "playwright", implementation: "chromium", version: browserVersion },
     checks,
-    locales_found: [...localesFound],
-    states_found: [...statesFound],
+    coverage_semantics: "native-scenario-visible-state-locale-matrix",
     executions
   };
   fs.writeFileSync(path.join(outputDirectory, reportName), `${JSON.stringify(report, null, 2)}\n`);
@@ -899,8 +1040,10 @@ async function runDesignBrowser(request, runtime) {
       browser_engine: "playwright",
       browser_engine_version: browserVersion,
       checks,
-      locales_tested: [...localesFound],
-      states_tested: [...statesFound],
+      locales_tested: requiredLocales.filter((locale) => executions
+        .filter((item) => item.locale === locale).every((item) => item.checks.state)),
+      states_tested: requiredStates.filter((state) => executions
+        .filter((item) => item.state === state).every((item) => item.checks.state)),
       evidence
     },
     metadata: {
@@ -945,7 +1088,7 @@ async function run(request) {
   const childAuthority = readPlaywrightChildAuthority(request, settings);
 
   if (packet.design_task?.kind === "browser-evidence") {
-    return runDesignBrowser(request, childAuthority.runtime);
+    return runDesignBrowser(request, childAuthority.runtime, childAuthority.scenarios);
   }
 
   const scenarios = childAuthority.scenarios;
