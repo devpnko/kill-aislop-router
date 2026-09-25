@@ -48,11 +48,11 @@ import {
   PLAYWRIGHT_PROVIDER_TARGET
 } from "./playwright.mjs";
 import { claimsSourceCompositionCopy } from "./source-composition.mjs";
+import { assertReferenceIdentitySafe, referenceProjection } from "./reference-projection.mjs";
 import { verifyDesignBrowserReport } from "./design-browser-proof.mjs";
 import {
   COMPONENT_CRAFT_CHECK,
   componentSchemaContract,
-  projectComponentRecipe,
   selectedComponentRecipes,
   validateComponentSpecs,
   validateComponentViewports,
@@ -946,49 +946,6 @@ function resolveReviewerSourceArtifacts(state) {
   return authority.artifacts;
 }
 
-function referenceProjection(pack) {
-  const reasoning = [...pack.verified_hierarchy_reasoning]
-    .sort((left, right) => left.reasoning_id.localeCompare(right.reasoning_id));
-  const reasoningAliases = new Map(reasoning.map((item, index) => [
-    item.reasoning_id,
-    `causal-${String(index + 1).padStart(3, "0")}`
-  ]));
-  const grammar = [...pack.verified_grammar]
-    .sort((left, right) => left.grammar_id.localeCompare(right.grammar_id));
-  const grammarAliases = new Map(grammar.map((item, index) => [
-    item.grammar_id,
-    `grammar-${String(index + 1).padStart(3, "0")}`
-  ]));
-  const causalReasoning = reasoning.map((item) => ({
-    reasoning_id: reasoningAliases.get(item.reasoning_id),
-    user_decision: item.user_decision,
-    likely_constraint: item.likely_constraint,
-    consequence_if_flattened: item.consequence_if_flattened,
-    confidence: item.confidence
-  }));
-  const transferableGrammar = grammar.map((item) => ({
-    grammar_id: grammarAliases.get(item.grammar_id),
-    dimension: item.dimension,
-    principle: item.principle,
-    application: item.application,
-    application_conditions: structuredClone(item.application_conditions),
-    tradeoff: item.tradeoff,
-    harmful_when: structuredClone(item.harmful_when),
-    requires_live_data: item.requires_live_data,
-    ...(item.component_recipe ? {
-      component_recipe: projectComponentRecipe(item.component_recipe)
-    } : {}),
-    avoid: item.avoid,
-    reasoning_ids: item.reasoning_ids.map((id) => reasoningAliases.get(id))
-  }));
-  return {
-    causal_reasoning: causalReasoning,
-    transferable_grammar: transferableGrammar,
-    reasoning_aliases: reasoningAliases,
-    grammar_aliases: grammarAliases
-  };
-}
-
 function referenceChecksForStage(pack, stage) {
   return [
     ...pack.downstream_contract.design_check_contracts,
@@ -1002,18 +959,8 @@ function creatorContractRoles(checks) {
 }
 
 function assertCreatorSafeProjection(pack, projection) {
-  const serialized = JSON.stringify(projection).toLocaleLowerCase("en");
-  const sourceIdentities = pack.references.flatMap((reference) => [
-    reference.reference_id,
-    reference.app_name,
-    reference.source.uri,
-    reference.source.record_id,
-    reference.source.product_record_id,
-    reference.source.screen_record_id
-  ]).filter((value) => typeof value === "string" && value.trim().length >= 3);
-  requireValue(sourceIdentities.every((identity) =>
-    !serialized.includes(identity.trim().toLocaleLowerCase("en"))),
-  "reference intelligence cannot project source identities to a design participant", 4);
+  assertReferenceIdentitySafe(pack, projection,
+    "reference intelligence cannot project source identities to a design participant");
 }
 
 function referenceDesignContract(state, stage, audience) {
@@ -1656,15 +1603,6 @@ function validateReferenceReasoningTrace(state, result, label, { color = false }
 
 function validateCandidateSourceIndependence(state, result, label) {
   if (!state.reference_pack) return;
-  const sourceIdentities = state.reference_pack.normalized.references.flatMap((reference) => [
-    reference.reference_id,
-    reference.app_name,
-    reference.source.uri,
-    reference.source.record_id,
-    reference.source.product_record_id,
-    reference.source.screen_record_id
-  ]).filter((value) => typeof value === "string" && value.trim().length >= 3)
-    .map((value) => value.trim().toLocaleLowerCase("en"));
   const prototypes = result.evidence.filter((item) => item.kind === "prototype")
     .map((item) => fs.readFileSync(item.path, "utf8"));
   const contractClaims = result.evidence.filter((item) => item.kind === "design-contract")
@@ -1679,10 +1617,8 @@ function validateCandidateSourceIndependence(state, result, label) {
     prototypes,
     contract_claims: contractClaims
   };
-  const candidateExpression = JSON.stringify(candidateContent);
-  const normalized = candidateExpression.toLocaleLowerCase("en");
-  requireValue(sourceIdentities.every((identity) => !normalized.includes(identity)),
-    `${label} contains a source brand, URI, or record identity`, 4);
+  assertReferenceIdentitySafe(state.reference_pack.normalized, candidateContent,
+    `${label} contains a source brand, URI, or record identity`);
   requireValue(!stringLeaves(candidateContent).some((value) =>
     claimsSourceCompositionCopy(value)),
     `${label} claims or embeds source-composition copying`, 4);

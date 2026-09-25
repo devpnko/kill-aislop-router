@@ -1143,6 +1143,60 @@ function writeDesignBriefFromReferenceState(space, state) {
   return { briefPath, baseline };
 }
 
+for (const kind of ["brand", "uri", "local-id", "nested-local-id"]) {
+  test(`fresh grammar ${kind} identity leak blocks before independent review and Owner selection`, () => {
+    const space = workspace();
+    try {
+      const configured = host(space, { discovery: { plain_local_ids: true },
+        grammar: { projection_identity_leak: kind } });
+      const state = startReferenceIntelligence({ statePath: space.statePath,
+        briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+      assert.equal(state.status, "blocked");
+      assert.equal(state.phase, "reference-grammar");
+      assert.equal(state.results.length, 1, "unsafe grammar is not accepted");
+      const attempt = state.attempts.find(item => item.packet_id === "reference-grammar");
+      assert.equal(attempt.execution_status, "blocked_result_validation");
+      assert.match(attempt.error, /reference grammar is not creator-safe.*field=.*avoid; identity=/);
+      assert.ok(!state.attempts.some(item => item.packet_id === "reference-review"));
+      assert.equal(state.selection_scope_digest, null);
+      assert.equal(state.outputs.reference_pack, undefined);
+      assert.equal(readReferenceState(space.statePath).status, "blocked");
+    } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+  });
+}
+
+test("neutral domain exclusions reach design preflight unchanged after real synthetic reference children", () => {
+  const space = workspace();
+  try {
+    const configured = host(space, { discovery: { plain_local_ids: true },
+      grammar: { projection_domain_exclusion: true } });
+    let state = startReferenceIntelligence({ statePath: space.statePath,
+      briefPath: space.briefPath, hostManifest: configured.manifest, root: space.directory });
+    assert.equal(state.phase, "owner-reference-selection");
+    assert.equal(state.status, "manual_pending");
+    assert.equal(state.attempts.filter(item => item.execution_status === "ran").length, 3);
+    state = resumeReferenceIntelligence(space.statePath, {
+      hostManifest: configured.manifest, selectionPath: writeSelection(space, state)
+    });
+    assert.equal(state.status, "complete");
+    const packPath = state.outputs.reference_pack.resolved_path;
+    const frozenPack = hashArtifact(packPath);
+    const frozenState = hashArtifact(space.statePath);
+    const bound = writeDesignBriefFromReferenceState(space, state);
+    const dry = dryRunDesignExploration({ briefPath: bound.briefPath, baselinePath: bound.baseline,
+      root: space.directory, requireReference: true });
+    assert.equal(dry.status, "manual_pending", "missing creator adapters are not execution");
+    assert.equal(dry.direction_matrix.length, 9);
+    const pack = JSON.parse(fs.readFileSync(packPath, "utf8"));
+    assert.ok(pack.references.some(item => item.reference_id === "sports"));
+    assert.ok(pack.references.some(item => item.reference_id === "earnings"));
+    assert.ok(pack.references.every(item => !["sports", "earnings"].includes(item.source.record_id)));
+    assert.ok(pack.verified_grammar.some(item => item.avoid === "Do not reuse sports scores or earnings periods."));
+    assert.equal(hashArtifact(packPath), frozenPack);
+    assert.equal(hashArtifact(space.statePath), frozenState);
+  } finally { fs.rmSync(space.directory, { recursive: true, force: true }); }
+});
+
 test("reference dry run binds service planning, parent identity, rights, and manual readiness", () => {
   const space = workspace();
   try {

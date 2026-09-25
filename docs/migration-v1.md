@@ -2,6 +2,21 @@
 
 V1 keeps the existing route and audit contracts and adds an execution layer.
 
+## Local reference keys and creator-safe projection
+
+The reference identity repair distinguishes plain-word local join keys from
+real app names, URLs and external record IDs. It does not remove source
+firewalls or waive identifying language in negative clauses. See
+[the projection contract](reference-intelligence.md#creator-projection-identity-checks).
+Packet fields/aliases are unchanged; historical ledgers are not rewritten.
+Fresh grammar whose grammar/reasoning projection leaks an identity is now
+rejected at ingestion, before Owner selection, instead of failing only at later
+design dispatch. The whole design envelope still has its own check. Parent
+diagnostics add the bounded field/identity/token hint. Neither changed wording
+nor a new run can inherit an old selection-scope digest. Ordinary local-key
+collisions alone need no producer rewrite when using a verified repaired
+distribution; installed delivery must be verified separately.
+
 ## Reference-required design and unified delivery
 
 New visual exploration declares `reference_requirement` by default and asserts it with

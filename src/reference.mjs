@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { assertReferenceProjectionSafe } from "./reference-projection.mjs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { componentSchemaContract, validateComponentRecipe } from "./component-recipes.mjs";
@@ -3516,6 +3517,16 @@ function recordResult(
   requireValue(!resultFor(state, packet.packet_id),
     `reference result already exists for packet: ${packet.packet_id}`, 4);
   const normalized = validateReferenceResult(state, packet, input);
+  // Fresh admission only: historical accepted results remain readable and
+  // immutable. Prevent a newly accepted grammar from reaching Owner selection
+  // only to fail its first creator projection after the Owner has chosen.
+  if (normalized.kind === "reference-grammar") {
+    assertReferenceProjectionSafe({
+      references: resultFor(state, "reference-discovery").normalized.references,
+      verified_hierarchy_reasoning: normalized.references.flatMap((item) => item.hierarchy_reasoning),
+      verified_grammar: normalized.references.flatMap((item) => item.grammar)
+    }, "reference grammar is not creator-safe");
+  }
   let boundSource = sourceSnapshot;
   if (!boundSource) {
     const pinned = readPinnedJson(path.resolve(sourcePath), `reference result ${packet.packet_id}`);
@@ -4672,6 +4683,7 @@ function buildExpectedReferencePack(state, compiledAt) {
 
 function compileReferencePack(state) {
   const pack = buildExpectedReferencePack(state, nowIso());
+  assertReferenceProjectionSafe(pack, "reference compilation is not creator-safe");
   const target = path.join(state.state_directory, "outputs", "reference-pack.json");
   state.outputs.reference_pack = writePinnedJson(
     target,

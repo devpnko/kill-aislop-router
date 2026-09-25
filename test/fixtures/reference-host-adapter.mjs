@@ -417,7 +417,8 @@ function grammarResult() {
     references: discovery.references.map((item) => item.reference_id)
   });
   const references = discovery.references.map((reference) => {
-    const definition = referenceDefinitions.find((item) => item.reference_id === reference.reference_id);
+    const definition = referenceDefinitions.find((item) =>
+      item.reference_id === reference.reference_id || item.reference_id === reference.source.record_id);
     const score = fitScore(definition.fitDimensions);
     const fit = score >= 80 ? "exact" : score >= 50 ? "adjacent" : "weak";
     const grammarObservationId = settings.cite_promotional_observation &&
@@ -495,6 +496,18 @@ function grammarResult() {
   });
   if (settings.missing_hierarchy_reasoning) {
     references[0].hierarchy_reasoning = [];
+  }
+  if (settings.projection_identity_leak) {
+    const reference = discovery.references[0];
+    const value = settings.projection_identity_leak === "brand" ? reference.app_name
+      : settings.projection_identity_leak === "uri" ? reference.source.uri
+      : settings.projection_identity_leak === "nested-local-id"
+        ? JSON.stringify({ reference_ids: [reference.reference_id] })
+      : `reference_id: ${reference.reference_id}`;
+    references[0].grammar[0].avoid = `Do not reuse ${value}.`;
+  }
+  if (settings.projection_domain_exclusion) {
+    references[0].grammar[0].avoid = "Do not reuse sports scores or earnings periods.";
   }
   if (settings.component_recipe_fault) {
     const recipe = references.flatMap((entry) => entry.grammar).find((entry) => entry.component_recipe).component_recipe;
@@ -607,6 +620,23 @@ if (packet.reference_task.kind === "reference-discovery") result = discoveryResu
 if (packet.reference_task.kind === "reference-grammar") result = grammarResult();
 if (packet.reference_task.kind === "reference-review") result = reviewResult();
 if (!result) throw new Error(`unsupported reference fixture task: ${packet.reference_task.kind}`);
+if (settings.plain_local_ids && result.kind === "reference-discovery") {
+  // Change local join keys only, not the exported records/captures/brand names.
+  const aliases = new Map(referenceDefinitions.slice(0, 2).map((item, index) =>
+    [item.reference_id, ["sports", "earnings"][index]]));
+  for (const reference of result.references) {
+    const original = reference.reference_id;
+    if (!aliases.has(original)) continue;
+    reference.reference_id = aliases.get(original);
+    for (const observation of reference.observed) {
+      observation.observation_id = observation.observation_id.replace(
+        `obs-${original}`, `obs-${reference.reference_id}`);
+    }
+  }
+  for (const item of result.evidence) {
+    if (aliases.has(item.reference_id)) item.reference_id = aliases.get(item.reference_id);
+  }
+}
 
 process.stdout.write(JSON.stringify({
   host_adapter_response_version: 1,

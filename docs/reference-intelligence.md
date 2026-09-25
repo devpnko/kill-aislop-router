@@ -363,6 +363,55 @@ forbids `network:external`. This optional bridge does not alter the exact-three
 3×3 matrix, Playwright evidence, Owner shortlist, color exploration, final
 Owner approval, or any visual-intent/signature gate.
 
+### Creator projection identity checks
+
+Local `reference_id` values are join keys, not automatically product names.
+A plain ASCII-word key can coincide with ordinary domain vocabulary: a clause
+such as "Do not reuse sports scores or earnings periods" must not become a
+source-identity leak merely because a researcher named its local records
+`sports` and `earnings`. The projection still strips the source reference
+fields and aliases grammar/reasoning IDs. Plain-word local keys are rejected
+in source/reference provenance slots or explicit identifier claims such as
+`reference_id: sports` and `data-source-id="sports"`. Plural/data-prefixed and
+camel-case provenance fields, nested JSON/array values, quoted JS assignments
+and markup provenance elements are checked without executing their content.
+Unclosed or ambiguous supported provenance values remain fail-closed; unrelated
+text after a closed value does not inherit its provenance context. Technical local keys
+(with separators or digits), real app names, URLs and external record IDs
+retain the conservative substring check. Negative wording is **not** a blanket
+exception: "Do not use ActualSourceBrand" still leaks a real identity.
+An external product/record actually named `sports` remains blocked. The same
+policy applies to candidate prose, contracts and HTML, not only dispatch.
+
+This is a deterministic namespace/context distinction, not a natural-language
+anonymity proof or a whitelist of domains. Ambiguous external identity matches
+remain blocked. Source-composition criticism, capture isolation, immutable
+source hashes, role separation and Owner gates are unchanged. No source
+phrasing is automatically deleted or rewritten to satisfy the check.
+
+New grammar ingestion checks the grammar/causal-reasoning slice of the
+creator-bound projection before acceptance, independent review and Owner
+selection; compilation checks that slice again. Design dispatch checks its
+whole envelope as well: this early check does not guarantee that other envelope
+fields cannot collide with an external identity. Parent-facing errors identify the projection field,
+identity field and bounded token hint. They do not include full sentences,
+URLs/query credentials, local paths, or raw artifacts. Only fixed diagnostic
+field names are displayed; unknown or identity-bearing keys are anonymous.
+These errors are not inserted
+into creator packets. The first reported collision may not be the only one;
+check nested component recipes as well as `avoid`.
+
+Historical completed producer states remain immutable/readable; no receipt
+or pack rewrite is necessary solely for a local-key collision. A **new** design
+preflight under a verified distribution containing this repair can consume
+the same verified pack without mutating it. Existing design states retain
+their exact packet/projection digests; this does not authorize resealing them.
+If real identifying language must change, use independently reviewed successor
+research and a new selection scope: run/result digests are part of that scope,
+even when the intended source combination is unchanged. Preserve real Owner
+evidence; never manufacture or transplant an approval. Source implementation
+of this fix is not evidence that an installed plugin has received it.
+
 The derived authority also binds sorted, unique
 `source_recipient_provider_ids` from accepted producer results plus every
 executable source-recipient attempt, including failed attempts. Its
