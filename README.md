@@ -18,7 +18,7 @@ For specific UI parts, search the [component research library](docs/reference-li
 14 component analyses across 30 Korean-service frames, with source links,
 anatomy, visual craft, application limits and proposed target checks.
 
-This branch is an **uninstalled source-craft candidate**, not a production
+This branch is a **development source-craft candidate**, not a production
 delivery. It adds [separate primary-reference candidate comparison](docs/reference-candidates.md):
 research and justify the candidate count, render each primary-reference treatment,
 obtain independent feedback, then let the real Owner select a baseline or reject
