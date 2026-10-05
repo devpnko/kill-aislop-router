@@ -5,6 +5,9 @@ import { canonicalDigest, hashArtifact } from "./integrity.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FEATURES = {
+  "scoped-source-craft-review": ["src/source-craft.mjs", "src/design.mjs", "src/specimen-comparison.mjs",
+    "schemas/source-craft-authority.schema.json", "schemas/source-craft-review.schema.json",
+    "docs/source-craft-review.md"],
   "reference-intelligence": [
     "src/reference.mjs", "registry/human-design-reasoning.json",
     "schemas/human-design-reasoning-registry.schema.json",
@@ -13,7 +16,18 @@ const FEATURES = {
     "schemas/reference-run.schema.json", "schemas/uibowl-manual-export.schema.json",
     "docs/reference-intelligence.md"
   ],
-  "component-craft": ["src/component-recipes.mjs", "schemas/component-recipe.schema.json", "schemas/component-specs.schema.json"],
+  "component-craft": ["src/component-recipes.mjs", "schemas/component-recipe.schema.json", "schemas/component-specs.schema.json",
+    "src/component-craft.mjs", "schemas/component-craft.schema.json",
+    "schemas/component-craft-implementation.schema.json", "schemas/component-craft-review.schema.json",
+    "docs/component-craft-coverage.md"],
+  "visual-goal-specimen-feedback": ["src/visual-goals.mjs", "src/design.mjs", "src/cli.mjs",
+    "schemas/visual-goal-contract.schema.json", "schemas/visual-goal-review.schema.json",
+    "docs/visual-goal-feedback.md"],
+  "design-constraint-provenance": ["src/design-constraints.mjs",
+    "schemas/design-constraint-audit.schema.json", "docs/design-constraints.md"],
+  "reference-candidate-comparison": ["src/reference-candidates.mjs", "src/specimen-comparison.mjs", "src/design.mjs", "src/cli.mjs",
+    "schemas/design-reference-candidate.schema.json", "schemas/design-specimen-owner-decision.schema.json",
+    "schemas/design-brief.schema.json", "docs/reference-candidates.md"],
   "reference-research-library": ["src/reference-library.mjs", "registry/reference-library.json",
     "schemas/reference-library.schema.json", "docs/reference-library.md",
     "docs/research/ui-bowl-korea-component-study-2026-09-22.json",

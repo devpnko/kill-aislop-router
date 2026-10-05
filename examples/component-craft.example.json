@@ -1,0 +1,70 @@
+{
+  "component_craft_version": 1,
+  "parts": [
+    {
+      "part_id": "identity",
+      "role": "Identify the compared object",
+      "binding": {
+        "kind": "recipe",
+        "grammar_id": "grammar-001",
+        "recipe_digest": "sha256:cc184e7c0d3e0b399bb46f4b49346f9836fabcdcd2943fce70bc006d532b2f04",
+        "part_ids": [
+          "identity"
+        ]
+      }
+    },
+    {
+      "part_id": "value",
+      "role": "Compare the main value with its unit",
+      "binding": {
+        "kind": "recipe",
+        "grammar_id": "grammar-001",
+        "recipe_digest": "sha256:cc184e7c0d3e0b399bb46f4b49346f9836fabcdcd2943fce70bc006d532b2f04",
+        "part_ids": [
+          "value"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "identity-value-treatment",
+      "part_ids": [
+        "identity",
+        "value"
+      ],
+      "aspects": [
+        "surface",
+        "edges",
+        "elevation",
+        "typography",
+        "spacing",
+        "color"
+      ],
+      "expectation": "An open reading plane, a small identity accent, clear value type and selective edge/depth preserve state separation together.",
+      "binding": {
+        "kind": "recipe",
+        "grammar_id": "grammar-001",
+        "recipe_digest": "sha256:cc184e7c0d3e0b399bb46f4b49346f9836fabcdcd2943fce70bc006d532b2f04"
+      },
+      "decision": {
+        "disposition": "adapt",
+        "basis": "recipe-transfer",
+        "rationale": "Use target roles and hue while preserving comparison and selective emphasis.",
+        "target_treatment": "Compact labeled accent; raised detail control; open value plane and tabular type.",
+        "preserves": [
+          "contrast hierarchy",
+          "small accent area",
+          "accent placement",
+          "state separation",
+          "surface-edge-depth relationships"
+        ],
+        "changes": [
+          "target hue"
+        ],
+        "evidence_ids": []
+      }
+    }
+  ],
+  "constraint_evidence": []
+}

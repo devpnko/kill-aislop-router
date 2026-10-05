@@ -49,7 +49,25 @@
       "type": "object",
       "required": ["kind"],
       "properties": {
-        "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
+        "constraint_audit": {"$ref": "design-constraint-audit.schema.json#/$defs/packet"},
+        "constraint_evidence": {"$ref": "design-constraint-audit.schema.json#/$defs/sources"},
+        "constraint_released_proposals": {"$ref": "design-constraint-audit.schema.json#/properties/released_proposals"},
+        "reference_candidate_scope": {
+          "type": "object",
+          "required": ["binding_digest", "task_frame_digest", "primary_only", "source_craft_parity_assessed"],
+          "properties": {
+            "binding_digest": {"$ref": "#/$defs/digest"},
+            "task_frame_digest": {"$ref": "#/$defs/digest"},
+            "primary_only": {"const": true},
+            "source_craft_parity_assessed": {"const": false}
+          },
+          "additionalProperties": false
+        },
+        "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review",
+          "specimen-review", "source-craft-review"]},
+        "source_craft_review": {"$ref": "source-craft-authority.schema.json#/$defs/packet"},
+        "reviewer_actor_id": {"type": "string", "minLength": 1},
+        "source_craft_cohort_bindings": {"type": "array", "minItems": 1, "items": {"type": "object"}},
         "reference_delivery": {
           "type": "object",
           "required": ["status", "intent_status", "owner_decision_digest", "source_derived_craft"],
@@ -71,7 +89,8 @@
             "design_check_contracts", "projection_digest"
           ],
           "properties": {
-            "audience": {"enum": ["creator", "independent-reviewer"]},
+            "audience": {"enum": ["creator", "independent-reviewer",
+              "specimen-reviewer"]},
             "pack_digest": {"$ref": "#/$defs/digest"},
             "authority_scope": {"const": "discovery-evidence-only"},
             "reasoning_registry_digest": {"$ref": "#/$defs/digest"},
@@ -118,6 +137,40 @@
           "additionalProperties": true
         }
       },
+      "dependentRequired": {
+        "constraint_evidence": ["constraint_audit"],
+        "constraint_released_proposals": ["constraint_audit"]
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "source-craft-review"}}},
+          "then": {
+            "required": ["source_craft_review", "source_craft_cohort_bindings", "reviewer_actor_id"],
+            "not": {"anyOf": [{"required": ["reference_intelligence"]}, {"required": ["constraint_audit"]}, {"required": ["visual_goal_contract"]}]}
+          },
+          "else": {"not": {"anyOf": [{"required": ["source_craft_review"]}, {"required": ["source_craft_cohort_bindings"]}, {"required": ["reviewer_actor_id"]}]}}
+        },
+        {
+          "if": {"properties": {"kind": {"const": "browser-evidence"}}},
+          "then": {"not": {"required": ["constraint_audit"]}}
+        },
+        {
+          "if": {"properties": {"kind": {"enum": ["direction-review", "color-review", "specimen-review"]}}},
+          "then": {
+            "if": {"required": ["constraint_audit"]},
+            "then": {
+              "required": ["constraint_evidence", "constraint_released_proposals"],
+              "properties": {"constraint_audit": {"required": ["review_inventory"]}}
+            }
+          },
+          "else": {
+            "not": {"anyOf": [
+              {"required": ["constraint_evidence"]}, {"required": ["constraint_released_proposals"]}
+            ]},
+            "properties": {"constraint_audit": {"not": {"required": ["review_inventory"]}}}
+          }
+        }
+      ],
       "additionalProperties": true
     },
     "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
@@ -141,6 +194,16 @@
     "optional-strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
   },
   "allOf": [
+    {
+      "if": {"properties": {"design_task": {"properties": {"kind": {"const": "source-craft-review"}}, "required": ["kind"]}}},
+      "then": {
+        "required": ["forbidden_permissions"],
+        "properties": {
+          "required_permissions": {"contains": {"const": "reference-evidence:read"}, "not": {"contains": {"const": "network:external"}}},
+          "forbidden_permissions": {"contains": {"const": "network:external"}, "not": {"contains": {"const": "reference-evidence:read"}}}
+        }
+      }
+    },
     {
       "if": {
         "properties": {
@@ -242,9 +305,19 @@
         }
       },
       "else": {
-        "properties": {
-          "required_permissions": {
-            "not": {"contains": {"const": "reference-evidence:read"}}
+        "if": {
+          "not": {
+            "properties": {
+              "design_task": {"properties": {"kind": {"const": "source-craft-review"}}, "required": ["kind"]}
+            },
+            "required": ["design_task"]
+          }
+        },
+        "then": {
+          "properties": {
+            "required_permissions": {
+              "not": {"contains": {"const": "reference-evidence:read"}}
+            }
           }
         }
       }
@@ -273,6 +346,49 @@
           },
           "forbidden_permissions": {
             "contains": {"const": "reference-evidence:read"}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "design_task": {
+            "properties": {
+              "kind": {
+                "const": "specimen-review"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "design_task": {
+            "properties": {
+              "reference_intelligence": {
+                "properties": {
+                  "audience": {
+                    "const": "specimen-reviewer"
+                  }
+                }
+              }
+            }
+          },
+          "required_permissions": {
+            "not": {
+              "contains": {
+                "const": "reference-evidence:read"
+              }
+            }
+          },
+          "forbidden_permissions": {
+            "contains": {
+              "const": "reference-evidence:read"
+            }
           }
         }
       }

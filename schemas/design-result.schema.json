@@ -9,7 +9,10 @@
   ],
   "properties": {
     "design_result_version": {"const": 1},
-    "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review"]},
+    "component_craft_review": {"$ref": "component-craft-review.schema.json"},
+    "constraint_audit_review": {"$ref": "design-constraint-audit.schema.json#/$defs/review"},
+    "kind": {"enum": ["direction-candidate", "browser-evidence", "direction-review", "color-candidate", "color-review",
+      "specimen-review", "source-craft-review"]},
     "packet_id": {"type": "string", "minLength": 1},
     "provider_id": {"type": "string", "minLength": 1},
     "actor": {
@@ -141,9 +144,35 @@
         }],
         "additionalProperties": false
       }
+    },
+    "visual_goal_review": {
+      "$ref": "visual-goal-review.schema.json"
+    },
+    "source_craft_review": {
+      "$ref": "source-craft-review.schema.json"
     }
   },
   "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "source-craft-review"}}},
+      "then": {
+        "required": ["source_craft_review", "blockers"],
+        "not": {"anyOf": [
+          {"required": ["scores"]}, {"required": ["ranking"]},
+          {"required": ["reference_checks"]}, {"required": ["reference_reasoning_trace"]},
+          {"required": ["component_craft_review"]}, {"required": ["visual_goal_review"]},
+          {"required": ["constraint_audit_review"]}
+        ]}
+      },
+      "else": {"not": {"required": ["source_craft_review"]}}
+    },
+    {
+      "if": {"not": {"properties": {"kind": {"enum": ["direction-review", "color-review",
+        "specimen-review"]}}}},
+      "then": {"not": {"anyOf": [
+        {"required": ["component_craft_review"]}, {"required": ["constraint_audit_review"]}
+      ]}}
+    },
     {
       "if": {"properties": {"kind": {"const": "direction-candidate"}}},
       "then": {
@@ -180,6 +209,68 @@
           {"not": {"required": ["reference_reasoning_trace"]}},
           {"not": {"required": ["reference_checks"]}}
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "specimen-review"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "component_craft_review",
+          "visual_goal_review",
+          "blockers"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "scores"
+              ]
+            },
+            {
+              "required": [
+                "ranking"
+              ]
+            },
+            {
+              "required": [
+                "reference_checks"
+              ]
+            },
+            {
+              "required": [
+                "reference_reasoning_trace"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "not": {
+          "properties": {
+            "kind": {
+              "enum": [
+                "direction-review",
+                "color-review",
+                "specimen-review"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "visual_goal_review"
+          ]
+        }
       }
     }
   ],

@@ -37,6 +37,10 @@ import { sealedEntrypointGraphDigest } from "../src/sealed-entrypoint.mjs";
 import { designScenarios } from "./fixtures/design-browser-contract.mjs";
 import { assertPublishedSchema } from "./fixtures/schema-validation.mjs";
 import { fixtureOptOutPath, noReferenceFixtureBrief } from "./fixtures/design-no-reference.mjs";
+import { targetCraft } from "./fixtures/component-craft-fixture.mjs";
+import { targetVisualGoals } from "./fixtures/visual-goal-fixture.mjs";
+import { selectedComponentRecipes } from "../src/component-recipes.mjs";
+import { referenceProjection } from "../src/reference-projection.mjs";
 import {
   referenceCaptureBytes,
   referenceMetadataBytes
@@ -87,7 +91,7 @@ export function registerDesignTests(selection) {
   for (const args of selectDesignTests(selection)) nodeTest(...args);
 }
 
-function workspace() {
+export function workspace() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "killsloprouter-design-"));
   const baseline = path.join(directory, "project");
   fs.mkdirSync(baseline, { recursive: true });
@@ -351,7 +355,7 @@ function attachStandaloneReferencePack(space, mutate = null) {
   return { pack, packPath };
 }
 
-function attachReferencePack(space, mutate = null, {
+export function attachReferencePack(space, mutate = null, {
   accessMode = "manual-export",
   includeCaptures = true,
   componentRecipes = false,
@@ -663,6 +667,10 @@ function attachReferencePack(space, mutate = null, {
       external_network: false
     }
   };
+  if (componentRecipes) {
+    designBrief.component_craft = targetCraft(selectedComponentRecipes(referenceProjection(pack).transferable_grammar));
+    designBrief.visual_goal_contract = targetVisualGoals(designBrief.component_craft);
+  }
   fs.writeFileSync(space.briefPath, `${JSON.stringify(designBrief, null, 2)}\n`);
   return { pack, packPath, producerStatePath, producerState };
 }
@@ -764,7 +772,7 @@ const capabilities = {
   ]
 };
 
-function host(directory, settings = {}, mutate = null) {
+export function host(directory, settings = {}, mutate = null) {
   const manifestPath = path.join(directory, `host-${Math.random().toString(16).slice(2)}.json`);
   const brief = JSON.parse(fs.readFileSync(path.join(directory, "design-brief.json"), "utf8"));
   const browserProvider = brief.reference_pack
@@ -792,6 +800,11 @@ function host(directory, settings = {}, mutate = null) {
       "browser-evidence": browserProvider
     }
   };
+  if (brief.specimen_feedback) {
+    manifest.allowed_providers.push(brief.providers.specimen_reviewer);
+    manifest.providers[brief.providers.specimen_reviewer] = provider("agent-json-v1", capabilities.directionReview, 4,
+      ["artifact:read", "evidence:write"], settings.specimenReview);
+  }
   if (mutate) mutate(manifest);
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return loadHostManifest(manifestPath);
@@ -1660,6 +1673,9 @@ test("component craft specifications survive direction/color browser review, Own
     const reviewPacket = state.packets.find((item) => item.packet_id === reviewer.packet_id);
     const badReview = JSON.parse(fs.readFileSync(reviewer.source.resolved_path, "utf8"));
     badReview.reference_checks[0].checks.find((item) => item.check_id === "component-craft-and-reflow").passed = false;
+    assert.throws(() => validateDesignResult(state, reviewPacket, badReview, reviewer.source.resolved_path),
+      /conflicts with the bound rendered/);
+    badReview.component_craft_review.candidates[0].parts[0].observations[0].present = false;
     assert.throws(() => validateDesignResult(state, reviewPacket, badReview, reviewer.source.resolved_path),
       /failure requires a matching hard blocker/);
     const resumed = resumeDesignExploration(space.statePath, { hostManifest: manifest });

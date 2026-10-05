@@ -506,7 +506,11 @@ test("require-reference flag is never ignored by an unrelated command", () => {
 test("unified package exposes reference craft, onboarding and account-sync together", () => {
   const report = inspectDistribution();
   assert.equal(report.status, "available");
-  assert.equal(report.features.length, 8);
+  assert.equal(report.features.length, 12);
+  assert.equal(report.features.find(item => item.id === "scoped-source-craft-review").status, "available");
+  assert.equal(report.features.find(item => item.id === "design-constraint-provenance").status, "available");
+  assert.equal(report.features.find(item => item.id === "reference-candidate-comparison").status, "available");
+  assert.equal(report.features.find(item => item.id === "visual-goal-specimen-feedback").status, "available");
   assert.equal(report.features.find((item) => item.id === "reference-research-library").status, "available");
   assert.equal(report.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.equal(report.project_reference_bound, false);
@@ -525,6 +529,22 @@ test("distribution inventory does not trust a version string when feature files 
   const report = inspectDistribution(space.directory);
   assert.equal(report.status, "incomplete");
   assert.ok(report.features.every((feature) => feature.status === "missing"));
+});
+
+test("component craft availability requires the target coverage engine and rendered review contract", (t) => {
+  const space = workspace(t);
+  const copy = path.join(space.directory, "craft-plugin");
+  fs.mkdirSync(copy);
+  for (const entry of PLUGIN_BUNDLE_ENTRIES) {
+    fs.cpSync(path.join(root, entry), path.join(copy, entry), { recursive: true });
+  }
+  assert.equal(inspectDistribution(copy).status, "available");
+  fs.rmSync(path.join(copy, "src/component-craft.mjs"));
+  fs.rmSync(path.join(copy, "schemas/component-craft-review.schema.json"));
+  const report = inspectDistribution(copy);
+  assert.equal(report.status, "incomplete");
+  assert.equal(report.features.find((feature) => feature.id === "component-craft").status, "missing");
+  assert.equal(report.features.find((feature) => feature.id === "reference-research-library").status, "available");
 });
 
 test("a copied bundle without its reasoning registry fails installed capability preflight", (t) => {

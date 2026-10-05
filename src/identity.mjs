@@ -143,7 +143,7 @@ export function participantRoleForStage(stageId, designTaskKind = null) {
   if (["reference-discovery", "reference-grammar"].includes(stageId)) return "researcher";
   if (["direction-candidate", "color-candidate"].includes(designTaskKind)) return "creator";
   if (designTaskKind === "browser-evidence" || stageId === "browser-evidence") return "browser-evidence";
-  if (["direction-review", "color-review"].includes(designTaskKind)) return "critic";
+  if (["direction-review", "color-review", "specimen-review", "source-craft-review"].includes(designTaskKind)) return "critic";
   if (stageId === "static-discovery") return "scanner";
   if (stageId === "adjudication") return "adjudicator";
   return "critic";

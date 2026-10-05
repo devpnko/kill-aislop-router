@@ -150,11 +150,16 @@ selected craft fails before creator execution. Omitted adapters remain
 `manual_pending`. Once bound, the original brief digest preserves the requirement
 across resume even without repeating the flag. Tampering fails closed.
 
-With an eligible dry-run, use the same arguments without `--dry-run` and add
-`--out .killsloprouter/design-run.json`. Preserve the independent critic/browser,
-exact-three direction matrix, real Owner shortlist, color matrix and final exact
-artifact approval. The creator receives transferable craft and reasoning, not
-source assets, copy or pixels. This is not permission to clone a released UI.
+With an eligible dry-run, use the same arguments without `--dry-run` and add a
+new authorized `--out`. Preserve the gates of the chosen route: a
+`reference_candidate` run produces one specimen, then independent target review
+and complete-cohort `design compare` / real Owner `design select` or reject-all.
+It does not run the legacy matrices or compile final approval. Selected HTML is
+only the bounded successor handoff described in [reference candidates](reference-candidates.md).
+The legacy exact-three route retains its direction matrix, real Owner shortlist,
+color matrix and final exact-artifact approval. Creators receive transferable
+craft and reasoning, never source assets, copy or pixels; neither route permits
+cloning a released UI.
 
 ## Present references before asking for a design decision
 

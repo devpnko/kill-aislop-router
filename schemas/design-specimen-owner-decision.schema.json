@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-specimen-owner-decision.schema.json",
+  "title": "External Owner rendered specimen selection or reject-all; never final design approval",
+  "type": "object", "additionalProperties": false,
+  "required": ["design_specimen_owner_decision_version", "comparison_digest", "owner_id", "status", "selected_run_id", "observed_render_bindings", "rationale", "planned_expansion", "decided_at", "acknowledges_not_final_approval"],
+  "properties": {
+    "design_specimen_owner_decision_version": {"const": 1},
+    "comparison_digest": {"$ref": "#/$defs/digest"},
+    "owner_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["select", "reject-all"]},
+    "selected_run_id": {"type": ["string", "null"]},
+    "observed_render_bindings": {
+      "type": "array", "items": {"type": "object", "additionalProperties": false,
+        "required": ["run_id", "render_binding_digest", "observation"],
+        "properties": {"run_id": {"type": "string", "minLength": 1}, "render_binding_digest": {"$ref": "#/$defs/digest"}, "observation": {"type": "string", "minLength": 1}}}
+    },
+    "rationale": {"type": "string", "minLength": 1},
+    "planned_expansion": {"type": ["string", "null"]},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "acknowledges_not_final_approval": {"const": true}
+  },
+  "$defs": {"digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}},
+  "allOf": [{"if": {"properties": {"status": {"const": "reject-all"}}},
+    "then": {"properties": {"selected_run_id": {"type": "null"}, "planned_expansion": {"type": "null"}}},
+    "else": {"properties": {"selected_run_id": {"type": "string", "minLength": 1}, "planned_expansion": {"type": "string", "minLength": 1}}}}]
+}

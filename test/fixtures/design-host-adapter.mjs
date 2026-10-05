@@ -9,6 +9,8 @@ import {
 import { canonicalDigest, hashArtifact } from "../../src/integrity.mjs";
 import { designPrototype } from "./design-browser-contract.mjs";
 import { componentSpecs } from "./component-recipe-fixture.mjs";
+import { craftImplementation, craftReview } from "./component-craft-fixture.mjs";
+import { visualGoalReview } from "./visual-goal-fixture.mjs";
 
 let source = "";
 for await (const chunk of process.stdin) source += chunk;
@@ -61,7 +63,7 @@ if (packet.design_task.reference_intelligence ||
       return prior.length === 1 && prior[0].kind === packet.design_task.subject_kind &&
         prior[0].candidate_id === packet.design_task.subject_id;
     }
-    if (designKind === "direction-review") {
+    if (["direction-review", "specimen-review"].includes(designKind)) {
       return prior.length === packet.design_task.candidate_ids.length * 2 &&
         prior.every((item) => item.kind === "direction-candidate" ||
           item.kind === "browser-evidence" &&
@@ -255,6 +257,8 @@ function designContractEvidence(task, candidateId) {
       task.reference_intelligence.component_recipe_contract.required_viewports, task.required_states);
     if (settings.component_spec_tamper) document.component_specs[0].recipe_digest = `sha256:${"0".repeat(64)}`;
   }
+  const targetCraft = task.reference_intelligence.component_recipe_contract?.target_craft;
+  if (targetCraft && !settings.omit_target_craft) document.component_craft = craftImplementation(targetCraft);
   const target = write(`${candidateId}-design-contract.json`, JSON.stringify(document));
   return { kind: "design-contract", path: target, contract_roles: contractRoles };
 }
@@ -361,17 +365,48 @@ function browserResult() {
 
 function reviewResult(kind) {
   const task = packet.design_task;
-  const report = write(`${kind}.json`, JSON.stringify({ candidates: task.candidate_ids, pid: process.pid }));
+  const audit = task.constraint_audit;
+  if (audit) {
+    const inventory = audit.review_inventory;
+    if (!Array.isArray(inventory) || inventory.length !== audit.entries.length ||
+      new Set(inventory.map(item => item.pointer)).size !== inventory.length ||
+      inventory.some(item => canonicalDigest(item.value) !== item.value_digest ||
+        !audit.entries.some(entry => entry.pointer === item.pointer && entry.value_digest === item.value_digest))) {
+      throw new Error("synthetic constraint reviewer did not receive complete exact instruction values");
+    }
+  }
+  // Synthetic protocol evidence only: records what a fresh child actually saw,
+  // never an assertion of real authority, visual quality, or Owner approval.
+  const constraintReview = audit && !settings.omit_constraint_audit_review ? {
+    version: 1, contract_digest: audit.contract_digest,
+    entries: audit.entries.map((entry, index) => ({ pointer: entry.pointer,
+      supported: entry.pointer !== settings.constraint_unsupported_pointer &&
+        !(settings.constraint_audit_supported === false && index === 0),
+      note: `Synthetic protocol judgment after reading exact inventory value ${entry.value_digest}; not a real authority determination.` })),
+    released_proposals_not_reintroduced: settings.constraint_released_proposals_reintroduced !== true
+  } : null;
+  const constraintFailed = constraintReview && (!constraintReview.released_proposals_not_reintroduced ||
+    constraintReview.entries.some(entry => !entry.supported));
+  const report = write(`${kind}.json`, JSON.stringify({ candidates: task.candidate_ids, pid: process.pid,
+    ...(audit ? { constraint_review_inventory: audit.review_inventory } : {}) }));
   const reportDigest = hashArtifact(path.join(request.output_directory, report));
-  const direction = kind === "direction-review";
+  const direction = kind === "direction-review" || kind === "specimen-review";
   const criteria = direction
     ? ["beauty_lift", "product_fit", "trust_clarity", "density_fit", "responsiveness", "implementation", "distinctiveness", "redesign_depth_fidelity", "typography_fit"]
     : ["project_fit", "harmony", "role_clarity", "contrast", "semantic_separation", "locale_resilience", "distinctiveness"];
   const firstCreator = request.prior_results.find((result) =>
     result.kind === (direction ? "direction-candidate" : "color-candidate"))?.actor.actor_id;
+  const targetCraft = task.reference_intelligence?.component_recipe_contract?.target_craft;
+  const targetReview = targetCraft && !settings.omit_target_craft_review ? craftReview(targetCraft,
+    task.candidate_ids.map((candidate_id) => ({ normalized: { candidate_id }, result_digest: task.candidate_bindings[candidate_id].result_digest })),
+    task.candidate_ids.map((candidate_id) => ({ normalized: { candidate_id }, result_digest: task.browser_bindings[candidate_id].result_digest,
+      evidence: task.browser_bindings[candidate_id].evidence.map((item) => ({ ...item, evidence_kind: item.kind })) })),
+    { required_viewports: task.reference_intelligence.component_recipe_contract.required_viewports,
+      required_states: task.reference_intelligence.component_recipe_contract.required_states },
+    { passed: settings.failed_reference_check !== "component-craft-and-reflow" }) : null;
   let sourceComposition = null;
   let sourceCompositionDigest = null;
-  if (task.reference_intelligence && !settings.omit_source_composition_analysis) {
+  if (kind !== "specimen-review" && task.reference_intelligence && !settings.omit_source_composition_analysis) {
     const captureAliases = task.reference_intelligence.review_source_authority
       .captures.map((item) => item.capture_alias);
     const sourceDocument = {
@@ -464,7 +499,7 @@ function reviewResult(kind) {
     },
     status: "completed",
     packet_digest: packet.packet_digest,
-    scores: task.candidate_ids.map((candidateId) => ({
+    ...(kind !== "specimen-review" ? { scores: task.candidate_ids.map((candidateId) => ({
       candidate_id: candidateId,
       criteria: Object.fromEntries(criteria.map((criterion) => [
         criterion,
@@ -472,8 +507,20 @@ function reviewResult(kind) {
       ])),
       rationale: "fixture candidate clears the independent review threshold"
     })),
-    ranking: [...task.candidate_ids],
+    ranking: [...task.candidate_ids] } : {}),
+    ...(targetReview ? { component_craft_review: targetReview } : {}),
+    ...(visualGoalReview(task, settings) ? { visual_goal_review: visualGoalReview(task, settings) } : {}),
+    ...(constraintReview ? { constraint_audit_review: constraintReview } : {}),
     blockers: [
+      ...(constraintFailed && !settings.omit_constraint_failure_blocker ? task.candidate_ids.map(candidate_id => ({
+        candidate_id, code: "constraint-audit-unresolved", message: "Synthetic negative provenance/carryover judgment; preserved as evidence, not approval.", hard: true
+      })) : []),
+      ...(["unresolved", "rejected"].includes(settings.visual_goal_verdict) ? task.candidate_ids.map(candidate_id => ({
+        candidate_id, code: "visual-goal-unresolved", message: "Synthetic visual goal not satisfied despite local closure.", hard: true
+      })) : []),
+      ...(["open", "not-assessed"].includes(settings.local_regression_status) ? task.candidate_ids.map(candidate_id => ({
+        candidate_id, code: "local-regression-unresolved", message: "Synthetic local regression remains unresolved.", hard: true
+      })) : []),
       ...(settings.failed_reference_check && !settings.omit_reference_failure_blocker
         ? task.candidate_ids.map((candidateId) => ({
           candidate_id: candidateId,
@@ -496,7 +543,7 @@ function reviewResult(kind) {
           hard: true
         })) : [])
     ],
-    ...(task.reference_intelligence && !settings.omit_reference_checks ? {
+    ...(kind !== "specimen-review" && task.reference_intelligence && !settings.omit_reference_checks ? {
       reference_checks: task.candidate_ids.map((candidateId) => ({
         candidate_id: candidateId,
         checks: task.reference_intelligence.design_check_contracts.map((contract) => ({
@@ -613,6 +660,7 @@ let result;
 if (packet.design_task.kind === "direction-candidate") result = directionResult();
 if (packet.design_task.kind === "browser-evidence") result = browserResult();
 if (packet.design_task.kind === "direction-review") result = reviewResult("direction-review");
+if (packet.design_task.kind === "specimen-review") result = reviewResult("specimen-review");
 if (packet.design_task.kind === "color-candidate") result = colorResult();
 if (packet.design_task.kind === "color-review") result = reviewResult("color-review");
 

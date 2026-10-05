@@ -132,6 +132,7 @@ test("parent identity aliases cannot become internal providers or result actors"
     { stageId: "reference-review", role: "critic" },
     { stageId: "design-direction-generation", designTaskKind: "direction-candidate" },
     { stageId: "design-direction-review", designTaskKind: "direction-review" },
+    { stageId: "source-craft-review", designTaskKind: "source-craft-review" },
     { stageId: "browser-evidence", designTaskKind: "browser-evidence" }
   ];
   for (const alias of aliases) {

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/visual-goal-contract.schema.json",
+  "title": "KillSlopRouter visual-goal-contract v1",
+  "type": "object",
+  "required": [
+    "visual_goal_contract_version",
+    "goals"
+  ],
+  "properties": {
+    "observation_locales": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "visual_goal_contract_version": {
+      "const": 1
+    },
+    "goals": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "goal_id",
+          "intent",
+          "unacceptable_outcomes",
+          "relationship_ids"
+        ],
+        "properties": {
+          "goal_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "intent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unacceptable_outcomes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "relationship_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

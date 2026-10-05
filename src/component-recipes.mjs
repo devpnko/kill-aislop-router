@@ -117,8 +117,8 @@ export function selectedComponentRecipes(grammar) {
 // A child runs in its own evidence directory, not the package root. Ship a
 // closed schema with the packet instead of an unusable relative file hint.
 export function componentSchemaContract(kind) {
-  need(["recipe", "specs"].includes(kind), "unsupported schema contract");
-  const documents = new Map(["component-recipe.schema.json", "component-specs.schema.json"].map((name) => [
+  need(["recipe", "specs", "craft", "craft-implementation", "craft-review"].includes(kind), "unsupported schema contract");
+  const documents = new Map(["recipe", "specs", "craft", "craft-implementation", "craft-review"].map((kind) => `component-${kind}.schema.json`).map((name) => [
     name, readJsonPinned(fileURLToPath(new URL(`../schemas/${name}`, import.meta.url)),
       { label: `component schema ${name}` }).input
   ]));

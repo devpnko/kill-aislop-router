@@ -92,6 +92,26 @@ try {
     "schemas/component-recipe.schema.json",
     "schemas/component-specs.schema.json",
     "src/component-recipes.mjs",
+    "src/component-craft.mjs",
+    "src/visual-goals.mjs",
+    "schemas/visual-goal-contract.schema.json",
+    "schemas/visual-goal-review.schema.json",
+    "docs/visual-goal-feedback.md",
+    "src/design-constraints.mjs",
+    "schemas/design-constraint-audit.schema.json",
+    "docs/design-constraints.md",
+    "src/reference-candidates.mjs",
+    "src/specimen-comparison.mjs",
+    "src/source-craft.mjs",
+    "schemas/source-craft-authority.schema.json",
+    "schemas/source-craft-review.schema.json",
+    "docs/source-craft-review.md",
+    "schemas/design-reference-candidate.schema.json",
+    "schemas/design-specimen-owner-decision.schema.json",
+    "docs/reference-candidates.md",
+    "schemas/component-craft.schema.json",
+    "schemas/component-craft-implementation.schema.json",
+    "schemas/component-craft-review.schema.json",
     "schemas/reference-packet.schema.json",
     "schemas/reference-result.schema.json",
     "schemas/reference-run.schema.json",
@@ -116,6 +136,7 @@ try {
     "docs/reference-intelligence.md",
     "docs/reference-fit-first.md",
     "docs/component-recipes.md",
+    "docs/component-craft-coverage.md",
     "docs/reference-delivery.md",
     "docs/reference-catalog.md",
     "docs/reference-library.md",
@@ -275,7 +296,11 @@ try {
   assert.equal(capabilities.status, 0, capabilities.stderr || capabilities.stdout);
   const distribution = JSON.parse(capabilities.stdout);
   assert.equal(distribution.status, "available");
-  assert.equal(distribution.features.length, 8);
+  assert.equal(distribution.features.length, 12);
+  assert.equal(distribution.features.find(item => item.id === "design-constraint-provenance").status, "available");
+  assert.equal(distribution.features.find(item => item.id === "reference-candidate-comparison").status, "available");
+  assert.equal(distribution.features.find(item => item.id === "scoped-source-craft-review").status, "available");
+  assert.equal(distribution.features.find(item => item.id === "visual-goal-specimen-feedback").status, "available");
   assert.equal(distribution.features.find((item) => item.id === "reference-research-library").status, "available");
   assert.equal(distribution.features.find((item) => item.id === "reference-selection-handoff").status, "available");
   assert.ok(distribution.features.every((item) => item.status === "available"));

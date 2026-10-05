@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/visual-goal-review.schema.json",
+  "title": "KillSlopRouter visual-goal-review v1",
+  "type": "object",
+  "required": [
+    "visual_goal_review_version",
+    "contract_digest",
+    "candidates"
+  ],
+  "properties": {
+    "visual_goal_review_version": {
+      "const": 1
+    },
+    "contract_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "result_digest",
+          "browser_result_digest",
+          "goals",
+          "local_regression",
+          "relationship_comparisons",
+          "preserve_instructions"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "result_digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "browser_result_digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "goals": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": [
+                "goal_id",
+                "verdict",
+                "rationale",
+                "observations"
+              ],
+              "properties": {
+                "goal_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "verdict": {
+                  "enum": [
+                    "satisfied",
+                    "unresolved",
+                    "rejected"
+                  ]
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "observations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "viewport",
+                      "state",
+                      "screenshot_digest",
+                      "observation"
+                    ],
+                    "properties": {
+                      "locale": { "type": "string", "minLength": 1 },
+                      "viewport": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "screenshot_digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      },
+                      "observation": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "local_regression": {
+            "type": "object",
+            "required": [
+              "status",
+              "note"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "closed",
+                  "open",
+                  "not-assessed"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "relationship_comparisons": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": [
+                "relationship_id",
+                "binding_digest",
+                "basis",
+                "verdict",
+                "rationale",
+                "observations"
+              ],
+              "properties": {
+                "relationship_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "binding_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "basis": {
+                  "enum": [
+                    "verified-recipe",
+                    "target-invention"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "supported",
+                    "unsupported",
+                    "unassessed"
+                  ]
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "observations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "viewport",
+                      "state",
+                      "screenshot_digest",
+                      "observation"
+                    ],
+                    "properties": {
+                      "locale": { "type": "string", "minLength": 1 },
+                      "viewport": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "state": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "screenshot_digest": {
+                        "type": "string",
+                        "pattern": "^sha256:[a-f0-9]{64}$"
+                      },
+                      "observation": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "preserve_instructions": {
+            "type": "array",
+            "minItems": 0,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": [
+                "relationship_id",
+                "mode",
+                "text"
+              ],
+              "properties": {
+                "relationship_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "mode": {
+                  "enum": [
+                    "suggestion",
+                    "bound-obligation"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "decision_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              },
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "mode": {
+                        "const": "bound-obligation"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "decision_digest"
+                    ]
+                  },
+                  "else": {
+                    "not": {
+                      "required": [
+                        "decision_digest"
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

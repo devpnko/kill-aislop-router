@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/source-craft-authority.schema.json",
+  "title": "KillSlopRouter source-craft-authority v1",
+  "description": "Bounded authority for source-to-target component-craft comparison. External evidence integrity and authority checks are the caller's responsibility; structural protocol validation does not establish a legal license. This document grants neither owner approval nor source-duplication rights. Source pixels provide comparison context, not CSS or implementation authority.",
+  "type": "object",
+  "required": [
+    "source_craft_authority_version",
+    "purpose",
+    "status",
+    "issuer_id",
+    "reviewer_provider_id",
+    "reviewer_actor_id",
+    "project_id",
+    "screen_id",
+    "comparison_id",
+    "candidate_id",
+    "primary_reference_id",
+    "pack_digest",
+    "producer_state_digest",
+    "task_frame_digest",
+    "cohort_digest",
+    "capture_digests",
+    "rights_basis",
+    "creator_access",
+    "browser_access",
+    "redistribution",
+    "network_external",
+    "source_duplication",
+    "human_authorship",
+    "owner_approval_granted",
+    "comparison_slots",
+    "target_invention_relationship_ids"
+  ],
+  "properties": {
+    "source_craft_authority_version": {
+      "const": 1
+    },
+    "purpose": {
+      "const": "source-target-component-craft"
+    },
+    "status": {
+      "const": "authorized"
+    },
+    "issuer_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "reviewer_provider_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "reviewer_actor_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "project_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "screen_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "comparison_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "candidate_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "primary_reference_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "pack_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "producer_state_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "task_frame_digest": {
+      "description": "Digest of the bound task frame including the pinned baseline, task, evidence and locale scope.",
+      "$ref": "#/$defs/digest"
+    },
+    "cohort_digest": {
+      "description": "Digest of the exact normalized and sorted absolute planned-state paths, binding comparison membership and count.",
+      "$ref": "#/$defs/digest"
+    },
+    "capture_digests": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "rights_basis": {
+      "description": "An assertion and evidence whose external integrity and authority checks are the caller's responsibility. Structural protocol validation does not establish a legal license or grant approval, cloning, or source-duplication rights.",
+      "type": "object",
+      "required": [
+        "assertion",
+        "evidence"
+      ],
+      "properties": {
+        "assertion": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "evidence": {
+          "type": "object",
+          "required": [
+            "path",
+            "digest"
+          ],
+          "properties": {
+            "path": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "digest": {
+              "$ref": "#/$defs/digest"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "creator_access": {
+      "const": false
+    },
+    "browser_access": {
+      "const": false
+    },
+    "redistribution": {
+      "const": false
+    },
+    "network_external": {
+      "const": false
+    },
+    "source_duplication": {
+      "const": false
+    },
+    "human_authorship": {
+      "const": false
+    },
+    "owner_approval_granted": {
+      "const": false
+    },
+    "comparison_slots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "slot_id",
+          "relationship_id",
+          "capture_digest",
+          "viewport",
+          "state",
+          "locale"
+        ],
+        "properties": {
+          "slot_id": {
+            "$ref": "#/$defs/semanticId"
+          },
+          "relationship_id": {
+            "$ref": "#/$defs/semanticId"
+          },
+          "capture_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "viewport": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "state": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "locale": {
+            "$ref": "#/$defs/nonemptyString"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "target_invention_relationship_ids": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/semanticId"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "packet": {
+      "description": "Private reviewer projection of verified authority obligations. Issuer identity, rights assertions, and unrelated free prose are not projected.",
+      "type": "object",
+      "required": [
+        "authority_contract_digest",
+        "obligations",
+        "review_field",
+        "review_contract",
+        "comparison_scope",
+        "private_reviewer_only",
+        "creator_access",
+        "browser_access",
+        "redistribution",
+        "network_external",
+        "source_duplication",
+        "human_authorship",
+        "owner_approval_granted",
+        "rule"
+      ],
+      "properties": {
+        "authority_contract_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "obligations": {
+          "type": "object",
+          "required": [
+            "project_id",
+            "screen_id",
+            "comparison_id",
+            "candidate_id",
+            "primary_reference_id",
+            "pack_digest",
+            "producer_state_digest",
+            "task_frame_digest",
+            "cohort_digest",
+            "capture_digests",
+            "comparison_slots",
+            "target_invention_relationship_ids"
+          ],
+          "properties": {
+            "project_id": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "screen_id": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "comparison_id": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "candidate_id": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "primary_reference_id": {
+              "$ref": "#/$defs/nonemptyString"
+            },
+            "pack_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "producer_state_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "task_frame_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "cohort_digest": {
+              "$ref": "#/$defs/digest"
+            },
+            "capture_digests": {
+              "$ref": "#/properties/capture_digests"
+            },
+            "comparison_slots": {
+              "$ref": "#/properties/comparison_slots"
+            },
+            "target_invention_relationship_ids": {
+              "$ref": "#/properties/target_invention_relationship_ids"
+            }
+          },
+          "additionalProperties": false
+        },
+        "review_field": {
+          "const": "source_craft_review"
+        },
+        "review_contract": {
+          "description": "Embedded review-schema object, not a review instance.",
+          "type": "object"
+        },
+        "comparison_scope": {
+          "const": "authorized-source-captures-versus-actual-target-renders"
+        },
+        "private_reviewer_only": {
+          "const": true
+        },
+        "creator_access": {
+          "const": false
+        },
+        "browser_access": {
+          "const": false
+        },
+        "redistribution": {
+          "const": false
+        },
+        "network_external": {
+          "const": false
+        },
+        "source_duplication": {
+          "const": false
+        },
+        "human_authorship": {
+          "const": false
+        },
+        "owner_approval_granted": {
+          "const": false
+        },
+        "rule": {
+          "$ref": "#/$defs/nonemptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "semanticId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

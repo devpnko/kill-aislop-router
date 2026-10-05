@@ -1,5 +1,10 @@
 # Project-aware design exploration
 
+This page describes the legacy exact-three direction/color matrix route. For
+new reference-by-reference visual exploration, first use [separate primary-reference
+candidates](reference-candidates.md) when that matches the request. This matrix
+is not an automatic fallback or expansion of a selected specimen.
+
 `killsloprouter design run` resolves a missing visual direction without turning
 an anti-slop critic into a house-style generator. It compares project-specific
 hypotheses, requires real Playwright evidence for every candidate, and produces

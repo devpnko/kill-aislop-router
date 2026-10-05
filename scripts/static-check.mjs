@@ -504,9 +504,14 @@ const designPacketSchema = JSON.parse(fs.readFileSync(
 const packetReferenceContract = designPacketSchema.properties.design_task.properties
   .reference_intelligence;
 assert.deepEqual(packetReferenceContract.properties.audience.enum,
-  ["creator", "independent-reviewer"]);
+  ["creator", "independent-reviewer", "specimen-reviewer"]);
 assert.equal(packetReferenceContract.properties.source_pixels_included.const, false);
 assert.equal(packetReferenceContract.properties.source_identities_included.const, false);
+assert.ok(designPacketSchema.allOf.some((entry) =>
+  entry.if?.properties?.design_task?.properties?.kind?.const === "specimen-review" &&
+  entry.then?.properties?.required_permissions?.not?.contains?.const === "reference-evidence:read" &&
+  entry.then?.properties?.forbidden_permissions?.contains?.const === "reference-evidence:read"),
+"specimen feedback must not acquire source-capture rights");
 assert.equal(packetReferenceContract.properties
   .source_pixels_exposed_to_downstream_creator.const, false);
 assert.ok(designPacketSchema.allOf.some((entry) =>

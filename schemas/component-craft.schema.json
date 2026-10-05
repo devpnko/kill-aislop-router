@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/component-craft.schema.json",
+  "title": "KillSlopRouter component-craft v1",
+  "type": "object",
+  "required": [
+    "component_craft_version",
+    "parts",
+    "relationships",
+    "constraint_evidence"
+  ],
+  "properties": {
+    "component_craft_version": {
+      "const": 1
+    },
+    "parts": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "part_id",
+          "role",
+          "binding"
+        ],
+        "properties": {
+          "part_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "binding": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "grammar_id",
+                  "recipe_digest",
+                  "part_ids"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "recipe"
+                  },
+                  "grammar_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "recipe_digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "part_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "rationale"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "target-invention"
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "relationship_id",
+          "part_ids",
+          "aspects",
+          "expectation",
+          "binding",
+          "decision"
+        ],
+        "properties": {
+          "relationship_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "part_ids": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          },
+          "aspects": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "surface",
+                "edges",
+                "elevation",
+                "typography",
+                "spacing",
+                "color",
+                "imagery",
+                "motion"
+              ]
+            }
+          },
+          "expectation": {
+            "type": "string",
+            "minLength": 1
+          },
+          "binding": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "grammar_id",
+                  "recipe_digest"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "recipe"
+                  },
+                  "grammar_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "recipe_digest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "rationale"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "target-invention"
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "decision": {
+            "type": "object",
+            "required": [
+              "disposition",
+              "basis",
+              "rationale",
+              "target_treatment",
+              "preserves",
+              "changes",
+              "evidence_ids"
+            ],
+            "properties": {
+              "disposition": {
+                "enum": [
+                  "preserve",
+                  "adapt",
+                  "replace"
+                ]
+              },
+              "basis": {
+                "enum": [
+                  "recipe-transfer",
+                  "target-invention",
+                  "parent-preference",
+                  "functional",
+                  "accessibility",
+                  "approved-brand"
+                ]
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "target_treatment": {
+                "type": "string",
+                "minLength": 1
+              },
+              "preserves": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "changes": {
+                "type": "array",
+                "minItems": 0,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "evidence_ids": {
+                "type": "array",
+                "minItems": 0,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "disposition": {
+                      "const": "preserve"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "changes": {
+                      "maxItems": 0
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "changes": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "basis": {
+                      "enum": [
+                        "functional",
+                        "accessibility",
+                        "approved-brand"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "evidence_ids": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "constraint_evidence": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "path",
+          "digest",
+          "relationship_ids"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "relationship_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

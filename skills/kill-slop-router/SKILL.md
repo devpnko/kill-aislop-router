@@ -58,6 +58,50 @@ Report an opted-out journey as `not_bound`, never as learned/applied source craf
 A bounded keyboard/bug fix with an approved visual contract does
 not require unrelated reference research or new design directions.
 
+For new visual direction work, first propose faithful, separate reference-derived
+mockups after recovering the product tasks and planning scope. Read
+`<plugin-root>/docs/reference-candidates.md` and verify the
+`reference-candidate-comparison` capability. Propose a justified candidate count
+from task-fit coverage and distinct component treatments; never infer a fixed
+nine or mix multiple source skins into every candidate. Use one verified primary
+reference and its supported recipe closure per candidate, with the same product
+task/baseline/evidence frame across candidates. Missing source detail remains
+unproven; a gallery thumbnail is not precise typography or responsive evidence.
+Use the legacy 3×3 route when its broader direction/color exploration is actually
+chosen, not as an automatic expansion of a first specimen. An approved-style
+bounded repair still stays on its existing audit/repair path.
+Creators remain source-blind. Close adaptation means concrete target anatomy,
+type roles, surface/edge/elevation, spacing, numeric treatment and states from
+verified neutral recipes, not copying brand, assets, strings or source pixels.
+
+When the requested outcome requires checking actual source-to-target component
+fidelity, read `<plugin-root>/docs/source-craft-review.md` and verify the
+`scoped-source-craft-review` capability. A new reference-candidate brief may bind
+an external `source_craft_review` authority for a separate independent reviewer.
+The existing two-purpose source access does not grant this permission. Never
+author a rights grant or infer it from this skill, prior research or Owner taste.
+Without this grant report source comparison as unassessed, not source-grade
+craft. Keep creators, browser and target-only specimen critics source-blind;
+never forward private source-review prose, reports or pixels to them. Require
+the actual scoped comparison and its limitations before claiming it ran.
+Insufficient detail, lost relationships and unassessed slots cannot be closed
+by browser PASS. This optional comparison neither certifies universal aesthetic
+parity nor grants copying rights or Owner approval.
+
+In this route require `constraint_audit` (see `docs/design-constraints.md`).
+Classify function/accessibility/rights separately from model design proposals
+and genuinely approved visual obligations. After Owner rejection, inventory and
+release unsupported inherited skin constraints; removing old HTML alone is not
+a reset. No automatic white/gray ban or universal colorful theme replaces them.
+Require locale-bound visual-goal observations, independent rendered review and
+official browser proof for each selectable candidate. Do not erase a rejected
+direction with a spacing fix, passing tasks or a within-pool ranking.
+Use `design compare` for the complete declared candidate cohort and `design
+select` only for the actual external Owner's choice or rejection of all.
+Selection freezes a baseline handoff, not G7, source-pixel rights, a final design
+system or permission to start production. Respect the handoff's explicit
+successor support limits; do not claim selected-baseline expansion ran.
+
 For a request to sync KSR plugin versions across Codex accounts or toggle that
 setting, use `<plugin-root>/docs/account-plugin-sync.md` before project bootstrap.
 The bundled `plugin sync` command owns the preference and per-account checks.
@@ -128,7 +172,7 @@ override the verified visual intent and signature.
 4. Treat the generated host manifest as manual-only. Bind real project contracts in the profile. Replace a manual adapter only when its entrypoint, digest, permissions, strength, and complete capabilities are known. When the owner explicitly authorizes external Codex review, the optional `host configure-codex` flow in `<plugin-root>/docs/codex-review-host.md` may bind selected audit reviewers. Never infer that network grant, never store credentials, and never use the bridge for scanner, browser, design creation, or owner approval.
 5. Resolve the generated `visual_intents` entry from project, brand, approved-reference, or explicit owner evidence. Surface is semantic, not aesthetic: `marketing-editorial` does not authorize a paper/editorial look, and `operator-product-ui` does not prescribe a gray dashboard. Never use scanner output or anti-slop rules as visual direction.
 6. Keep visual intent unresolved when evidence is ambiguous. When direction already has exact project authority, create the receipt described in `<plugin-root>/docs/visual-intent-contract.md`, bind every evidence digest, and copy the exact mode, editorial boundary, energy, depth, `preserve`, and `avoid` values into the profile. Use editorial mode only when the evidence explicitly requires it; use `bounded` only with named scopes.
-7. If direction is genuinely undecided and the task needs visual creation, use `<plugin-root>/docs/design-exploration.md`. Build a brief from product and repository evidence with exactly three distinct project-specific theses, not three renamed style presets. Run the 3×3 direction matrix through authorized creators and separate Playwright packets using self-contained digest-bound prototypes, stop for the real owner to shortlist three, run the 3×3 color matrix, and stop again for exact owner approval. Missing adapters remain `manual_pending`; never author the owner files yourself.
+7. If direction is genuinely undecided and the task needs visual creation, choose the supported route matching the actual request. For separate one-primary-reference candidates use `docs/reference-candidates.md` above. For the existing exact-three exploration use `<plugin-root>/docs/design-exploration.md`: build three project-specific theses, run the 3×3 direction matrix, stop for the real owner to shortlist three, run the 3×3 color matrix, then stop for exact owner approval. Do not start the matrix merely because it was the older default when the Owner requested reference-by-reference comparison. Missing adapters remain `manual_pending`; never author the owner files yourself.
    When service planning is locked and a ready project reference pack is absent,
    follow `<plugin-root>/docs/reference-intelligence.md` before visual creation.
    Missing rights/access/research authority blocks acquisition; it does not
@@ -201,6 +245,21 @@ override the verified visual intent and signature.
    Keep exact source literals/pixels private. Creators instead bind concrete
    target values, part selectors, state treatments, stress cases and responsive
    mappings in `design-contract.component_specs`, preserving project character.
+   For a new recipe-backed run, read `<plugin-root>/docs/component-craft-coverage.md`
+   and bind `component_craft` in the brief before dispatch: inventory the target
+   parts/relationships and justify preserve/adapt/replace. Distinguish extracted
+   recipe support from target invention and parent preference from evidenced
+   constraints. Require the independent rendered `component_craft_review`; do not
+   accept declarative coverage or browser PASS as proof of the actual treatment.
+   Preserve historical runs without retrofitting their receipts.
+   New recipe-backed starts also require `visual_goal_contract`: bind the intended
+   outcome and unacceptable direction outcomes separately from local defect closure.
+   Read `<plugin-root>/docs/visual-goal-feedback.md`. If a direction is uncertain or
+   has been rejected, offer the optional single-specimen checkpoint before producing
+   its siblings. A rejected/unresolved visual goal stays blocked after technical or
+   spacing fixes. Reviewer preservation advice is a suggestion unless it repeats a
+   bound obligation; it cannot approve a skin. Only eligible independent feedback
+   plus explicit continuation expands the matrix; abandonment grants no approval.
    Do not flatten a rich reference into default paper-neutral cards or combine
    incompatible component skins. Three distinct browser widths and the derived
    independent `component-craft-and-reflow` check are required once recipes are
@@ -323,10 +382,14 @@ editorial may describe evidence but never choose concrete values by themselves.
 - Preserve approved palette roles and tokens, typography, density, shape,
   elevation, imagery, and motion. Treat every `forbidden_transformations` entry
   as a hard creation and review boundary.
-- When direction is missing, require the 3×3 direction matrix, independent
-  Playwright evidence per artifact, owner shortlist of three, 3×3 color matrix,
-  computed color-role contrast, and exact owner approval before binding intent
-  or signature receipts.
+- When direction is missing, follow the supported route chosen for the actual
+  request. Separate primary-reference candidates require official Playwright
+  evidence, independent specimen review and real Owner select/reject-all. Their
+  frozen specimen is only a bounded successor handoff, never intent/signature,
+  G7 or design-system approval. When the legacy 3×3 route is chosen, require its
+  direction matrix, Owner shortlist of three, color matrix, computed color-role
+  contrast and exact Owner approval before compiling intent/signature receipts.
+  Never expand a reference-candidate specimen into that matrix automatically.
 - Permit editorial treatment only when the verified contract says `bounded` or `required`, and never outside `editorial_scope`.
 - Run overlapping tools as separate critics with different questions.
 - Replace unavailable or weak tools only with capability-complete fallbacks of

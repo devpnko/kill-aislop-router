@@ -95,6 +95,11 @@ reference-backed design. Do not author approvals or claim research ran.
 
 ## Creator handoff and rendered specimen
 
+New design runs selecting recipes also require the
+[target part/relationship coverage contract](component-craft-coverage.md).
+Recipe counts and family coverage alone do not establish target appearance
+coverage. Historical runs are not rewritten or newly certified.
+
 The creator-safe projection retains transferable treatments and fact/proposal
 labels, removing observation IDs. Source identities, URLs, pixels, capture
 paths, assets, copy, exact source style literals and source-access permission

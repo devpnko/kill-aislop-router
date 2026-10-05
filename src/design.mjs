@@ -10,6 +10,7 @@ import {
   canonicalDigest,
   hashArtifact,
   publicSnapshot,
+  readFilePinned,
   readJsonPinned,
   snapshotArtifact,
   verifySnapshot,
@@ -48,8 +49,19 @@ import {
   PLAYWRIGHT_PROVIDER_TARGET
 } from "./playwright.mjs";
 import { claimsSourceCompositionCopy } from "./source-composition.mjs";
-import { assertReferenceIdentitySafe, referenceProjection } from "./reference-projection.mjs";
+import { assertReferenceIdentitySafe } from "./reference-projection.mjs";
 import { verifyDesignBrowserReport } from "./design-browser-proof.mjs";
+import { validateVisualGoalContract, visualGoalPacketContract, validateVisualGoalReview, visualGoalScreenshotBindings } from "./visual-goals.mjs";
+import { validateReferenceCandidate, candidateReferenceProjection, referenceCandidateBinding } from "./reference-candidates.mjs";
+import { validateSourceCraftAuthority, validateSourceCraftReview, sourceCraftPacketContract } from "./source-craft.mjs";
+import { trustedPlatformPath } from "./path-security.mjs";
+import { assertConstraintAuditRequirement, validateConstraintAudit, verifyConstraintEvidence,
+  constraintPacketContract, assertConstraintPacket, validateConstraintReview,
+  validateConstraintPreserveInstructions } from "./design-constraints.mjs";
+import {
+  validateComponentCraft, verifyCraftConstraints, craftPacketContract,
+  assertCraftPacket, validateCraftImplementation, validateCraftReview
+} from "./component-craft.mjs";
 import {
   COMPONENT_CRAFT_CHECK,
   componentSchemaContract,
@@ -74,6 +86,8 @@ export const DESIGN_RESULT_KINDS = new Set([
   "direction-candidate",
   "browser-evidence",
   "direction-review",
+  "specimen-review",
+  "source-craft-review",
   "color-candidate",
   "color-review"
 ]);
@@ -344,13 +358,99 @@ function makePacket(state, {
     },
     design_task: {
       ...task,
+      ...(state.brief.constraint_audit && !["browser-evidence", "source-craft-review"].includes(task.kind) ? {
+        constraint_audit: constraintPacketContract(state.brief, { reviewer: ["direction-review", "color-review", "specimen-review"].includes(task.kind) }),
+        ...(["direction-review", "color-review", "specimen-review"].includes(task.kind) ? {
+          constraint_evidence: verifyDesignConstraintAuthority(state),
+          constraint_released_proposals: structuredClone(state.brief.constraint_audit.released_proposals)
+        } : {})
+      } : {}),
+      ...(state.brief.reference_candidate ? {
+        reference_candidate_scope: {
+          binding_digest: canonicalDigest(referenceCandidateBinding(state)),
+          task_frame_digest: referenceCandidateBinding(state).task_frame_digest,
+          primary_only: true, source_craft_parity_assessed: false
+        }
+      } : {}),
+      ...(state.brief.visual_goal_contract && !["browser-evidence", "source-craft-review"].includes(task.kind) ? {
+        visual_goal_contract: visualGoalPacketContract(state.brief.visual_goal_contract, state.brief.component_craft)
+      } : {}),
       ...(state.reference_opt_out_source ? {
         reference_delivery: optOutDelivery(state)
       } : {})
     }
   };
   packet.packet_digest = canonicalDigest(packet);
+  verifyTargetCraftPacket(state, packet);
   return packet;
+}
+
+function targetCraftRecipes(state) {
+  return selectedComponentRecipes(candidateReferenceProjection(state.brief, state.reference_pack.normalized).transferable_grammar);
+}
+
+function verifyTargetCraftAuthority(state) {
+  const constraints = verifyCraftConstraints(state.brief.component_craft, state.brief_source.resolved_path);
+  for (const evidence of constraints) {
+    requireValue(!state.state_directory || !inside(evidence.path, state.state_directory),
+      "component craft constraint authority must remain outside child-writable design evidence", 4);
+    requireValue(!inside(fs.realpathSync(evidence.path), fs.realpathSync(state.baseline.resolved_path)),
+      "component craft reviewer-only constraint evidence must remain outside the creator-readable baseline", 4);
+    assertCreatorSafeProjection(state.reference_pack.normalized, evidence.input);
+  }
+  return constraints.map(({ input: _input, ...item }) => item);
+}
+
+function verifyTargetCraftPacket(state, packet) {
+  if (packet.design_task.kind === "source-craft-review") {
+    requireValue(state.brief.source_craft_review &&
+      packet.design_task.constraint_audit === undefined &&
+      packet.design_task.visual_goal_contract === undefined &&
+      packet.design_task.reference_intelligence === undefined,
+    "source craft is a separate private review, not a target review or existing source-composition authority", 4);
+    return;
+  }
+  assertConstraintPacket(packet, state.brief, verifyDesignConstraintAuthority(state));
+  const binding = referenceCandidateBinding(state);
+  const candidateScope = binding ? {
+    binding_digest: canonicalDigest(binding), task_frame_digest: binding.task_frame_digest,
+    primary_only: true, source_craft_parity_assessed: false
+  } : null;
+  requireValue(canonicalDigest(packet.design_task.reference_candidate_scope ?? null) === canonicalDigest(candidateScope),
+    "reference candidate packet lost or changed its primary/task frame binding", 4);
+  const goals = state.brief.visual_goal_contract;
+  const expectedGoals = goals && packet.design_task.kind !== "browser-evidence"
+    ? visualGoalPacketContract(goals, state.brief.component_craft) : null;
+  requireValue(canonicalDigest(packet.design_task.visual_goal_contract ?? null) === canonicalDigest(expectedGoals),
+    "final participant packet lost or changed visual-goal obligations", 4);
+  if (goals) assertCreatorSafeProjection(state.reference_pack.normalized, expectedGoals);
+  if (!state.brief.component_craft) return;
+  assertCraftPacket(packet, state.brief.component_craft, targetCraftRecipes(state),
+    verifyTargetCraftAuthority(state));
+}
+
+function verifyDesignConstraintAuthority(state) {
+  const sources = verifyConstraintEvidence(state.brief, state.brief_source.resolved_path, {
+    baselinePath: state.baseline.resolved_path, stateDirectory: state.state_directory
+  });
+  if (state.reference_pack && state.brief.constraint_audit) {
+    assertCreatorSafeProjection(state.reference_pack.normalized, constraintPacketContract(state.brief, { reviewer: true }));
+    for (const source of sources) assertCreatorSafeProjection(state.reference_pack.normalized, source.input);
+  }
+  const descriptors = sources.map(({ input: _input, ...item }) => item);
+  if (state.run_id !== "dry-run") requireValue(state.brief.constraint_audit
+    ? canonicalDigest(state.constraint_sources ?? null) === canonicalDigest(descriptors)
+    : state.constraint_sources === undefined,
+  "design constraint audit evidence changed physical identity or binding", 4);
+  return descriptors;
+}
+
+function requireNewTargetCraft(brief, referencePack) {
+  if (!referencePack?.normalized.verified_grammar.some((item) => item.component_recipe)) return;
+  requireValue(brief.component_craft,
+    "component craft coverage is missing: map intended target parts and relationships to recipes or explicit invention in component_craft before creator dispatch; preserve historical runs and use a successor brief", 5);
+  requireValue(brief.visual_goal_contract,
+    "visual goal contract is missing: bind intended outcomes and unacceptable direction outcomes separately from local regression closure; preserve historical runs and start a scoped successor", 5);
 }
 
 function directionCandidateId(directionId, depth) {
@@ -368,8 +468,10 @@ function referenceForbiddenPermissions(state, { reviewer = false } = {}) {
     : ["network:external", "reference-evidence:read"];
 }
 
-function directionPackets(state) {
-  return state.brief.directions.flatMap((direction) => DESIGN_DEPTHS.map((depth) => {
+function directionPackets(state, onlyCandidateId = null) {
+  if (state.brief.reference_candidate) onlyCandidateId = state.brief.specimen_feedback.candidate_id;
+  return state.brief.directions.flatMap((direction) => DESIGN_DEPTHS
+    .filter((depth) => !onlyCandidateId || directionCandidateId(direction.id, depth) === onlyCandidateId).map((depth) => {
     const candidateId = directionCandidateId(direction.id, depth);
     return makePacket(state, {
       packetId: `direction-${candidateId}`,
@@ -516,6 +618,26 @@ function colorPackets(state) {
         }
       });
     }));
+}
+
+function specimenReviewPacket(state, record) {
+  const browser = resultForCandidate(state, record.normalized.candidate_id, "browser-evidence");
+  requireValue(browser, "specimen feedback requires accepted official browser evidence", 4);
+  return makePacket(state, {
+    packetId: "specimen-review", stageId: "specimen-review",
+    providerId: state.brief.providers.specimen_reviewer,
+    capabilities: DIRECTION_REVIEW_CAPABILITIES, strength: 4,
+    permissions: ["artifact:read", "evidence:write"],
+    forbiddenPermissions: ["network:external", "reference-evidence:read"],
+    task: {
+      kind: "specimen-review", candidate_ids: [record.normalized.candidate_id],
+      candidate_bindings: { [record.normalized.candidate_id]: resultBinding(state, record) },
+      browser_bindings: { [record.normalized.candidate_id]: resultBinding(state, browser) },
+      project: state.brief.product, baseline_policy: state.brief.baseline_policy,
+      review_scope: "single-candidate-feedback-not-matrix-or-owner-approval",
+      reference_intelligence: referenceDesignContract(state, "direction-review", "specimen-reviewer")
+    }
+  });
 }
 
 function validateProduct(product) {
@@ -847,6 +969,7 @@ function validatePinnedReferencePack(brief, pinned, root) {
   requireValue(pinned.digest === brief.reference_pack.digest,
     "reference intelligence pack file digest mismatch", 4);
   const pack = validateReferencePack(pinned.input);
+  candidateReferenceProjection(brief, pack);
   const recipeFamilies = pack.verified_grammar.filter((item) => item.component_recipe)
     .map((item) => item.component_recipe.family);
   const missingFamilies = (brief.reference_requirement?.required_recipe_families || [])
@@ -946,6 +1069,245 @@ function resolveReviewerSourceArtifacts(state) {
   return authority.artifacts;
 }
 
+function sourceCraftParticipants(states) {
+  const byKind = (kinds) => states.flatMap(state => [
+    ...state.results.filter(record => kinds.includes(record.normalized.kind)).map(record => record.normalized.actor.actor_id),
+    ...state.attempts.filter(attempt => attempt.execution_authority?.host_manifest && kinds.includes(
+      state.packets.find(packet => packet.packet_id === attempt.packet_id)?.design_task.kind)).flatMap(attempt => {
+      const source = attempt.execution_authority.host_manifest;
+      const pinned = readPinnedDesignJson(source.resolved_path, "source craft historical participant host");
+      requireValue(pinned.digest === source.digest && pinned.physical_identity_digest === source.physical_identity_digest,
+        "source craft historical participant host authority changed", 4);
+      const fixedActor = pinned.input.providers?.[attempt.provider_id]?.settings?.actor_id;
+      return typeof fixedActor === "string" ? [fixedActor] : [];
+    })
+  ]);
+  const participants = {
+    creator_ids: [...states.flatMap(state => state.brief.directions.map(item => item.creator_provider_id)),
+      ...byKind(["direction-candidate", "color-candidate"])],
+    browser_ids: [...states.map(state => state.brief.providers.browser_evidence), ...byKind(["browser-evidence"])],
+    critic_ids: [...states.flatMap(state => [state.brief.providers.specimen_reviewer,
+      state.brief.providers.direction_reviewer, state.brief.providers.color_reviewer]), ...byKind(["specimen-review"])],
+    source_producer_ids: states.flatMap(state => {
+      const authority = state.reference_pack.producer_state.review_source_authority;
+      return [...authority.source_recipient_actor_ids, ...authority.source_recipient_provider_ids];
+    }),
+    other_excluded_ids: states.flatMap(state => [state.journey_identity.orchestrator_id,
+      state.journey_identity.display_name, state.journey_identity.canonical_entrypoint]),
+    issuer_excluded_ids: states.flatMap(state => state.source_craft_authority
+      ? [state.source_craft_authority.input.reviewer_provider_id, state.source_craft_authority.input.reviewer_actor_id] : [])
+  };
+  return Object.fromEntries(Object.entries(participants).map(([key, values]) => [key, [...new Set(values.filter(Boolean))]]));
+}
+
+function sourceCraftArtifacts(state, authority) {
+  const permitted = new Set(state.reference_pack.normalized.evidence_manifest.filter(item =>
+    item.kind === "source-capture" && item.reference_id === state.brief.reference_candidate.primary_reference_id &&
+    authority.capture_digests.includes(item.digest)).map(item => item.evidence_id));
+  return [...new Map(resolveReviewerSourceArtifacts(state).filter(item =>
+    permitted.has(item.evidence_id) && authority.capture_digests.includes(item.digest)).map(item => [item.digest, item])).values()];
+}
+
+function sourceCraftContext(state, authority, states = [state]) {
+  const candidateBinding = referenceCandidateBinding(state);
+  const primary = new Set(state.reference_pack.normalized.evidence_manifest.filter(item =>
+    item.kind === "source-capture" && item.reference_id === state.brief.reference_candidate.primary_reference_id)
+    .map(item => item.digest));
+  requireValue(Array.isArray(authority.capture_digests) && authority.capture_digests.every(digest => primary.has(digest)),
+    "source craft authority may grant only the exact primary reference capture subset", 4);
+  const artifacts = sourceCraftArtifacts(state, authority);
+  requireValue(new Set(artifacts.map(item => item.digest)).size === authority.capture_digests.length,
+    "source craft permitted captures are missing from pinned producer evidence", 4);
+  const captures = artifacts.map(item => {
+    const pinned = readFilePinned(item.resolved_path, { label: "source craft authorized capture", requireCallerOwned: false });
+    requireValue(pinned.digest === item.digest && pinned.physical_identity_digest === item.physical_identity_digest &&
+      pinned.source.length >= 24 && pinned.source.subarray(12, 16).toString("ascii") === "IHDR",
+    "source craft capture bytes or physical identity changed", 4);
+    return { digest: item.digest, pixel_width: pinned.source.readUInt32BE(16), pixel_height: pinned.source.readUInt32BE(20) };
+  });
+  return {
+    project_id: state.brief.project_id, screen_id: state.brief.screen_id,
+    comparison_id: state.brief.reference_candidate.comparison_id,
+    candidate_id: state.brief.specimen_feedback.candidate_id,
+    primary_reference_id: state.brief.reference_candidate.primary_reference_id,
+    pack_digest: state.reference_pack.pack_digest,
+    producer_state_digest: state.reference_pack.producer_state.state_digest,
+    task_frame_digest: candidateBinding.task_frame_digest,
+    cohort_digest: canonicalDigest(candidateBinding.planned_state_paths),
+    reviewer_provider_id: state.brief.source_craft_review.provider_id,
+    reviewer_actor_id: authority.reviewer_actor_id,
+    required_viewports: state.brief.evidence.required_viewports,
+    required_states: state.brief.evidence.required_states,
+    required_locales: state.brief.locales,
+    participants: sourceCraftParticipants(states), relationships: state.brief.component_craft.relationships,
+    captures
+  };
+}
+
+function outsideSourceCraftInputs(state, source, label) {
+  const physical = fs.realpathSync(source);
+  const directory = fs.existsSync(state.state_directory) ? fs.realpathSync(state.state_directory) : path.resolve(state.state_directory);
+  requireValue(!inside(physical, fs.realpathSync(state.baseline.resolved_path)) && !inside(physical, directory) &&
+    physical !== path.resolve(state.state_path || ""),
+  `${label} must remain outside the creator baseline and child-writable design state`, 4);
+  for (const target of state.brief.reference_candidate?.planned_state_paths || []) {
+    const cohortDirectory = stateDirectory(target);
+    requireValue(physical !== path.resolve(target) && !inside(physical,
+      fs.existsSync(cohortDirectory) ? fs.realpathSync(cohortDirectory) : path.resolve(cohortDirectory)),
+    `${label} must remain outside every declared cohort writable state directory`, 4);
+  }
+}
+
+function resolveSourceCraftAuthority(state) {
+  if (!state.brief.source_craft_review) return null;
+  const binding = state.brief.source_craft_review.authority;
+  const pinned = readPinnedDesignJson(path.resolve(path.dirname(state.brief_source.resolved_path), binding.path), "source craft external authority");
+  requireValue(pinned.digest === binding.digest, "source craft authority digest mismatch", 4);
+  const authority = pinned.input;
+  outsideSourceCraftInputs(state, pinned.path, "source craft authority");
+  validateSourceCraftAuthority(authority, sourceCraftContext(state, authority));
+  const rights = readFilePinned(path.resolve(path.dirname(pinned.path), authority.rights_basis.evidence.path),
+    { label: "source craft rights evidence" });
+  requireValue(rights.digest === authority.rights_basis.evidence.digest, "source craft rights evidence digest mismatch", 4);
+  outsideSourceCraftInputs(state, rights.path, "source craft rights evidence");
+  return { source: pinnedDesignSnapshot(pinned, path.dirname(state.brief_source.resolved_path)),
+    rights_source: pinnedDesignSnapshot(rights, path.dirname(pinned.path)), input: authority };
+}
+
+function verifySourceCraftAuthority(state) {
+  if (!state.brief.source_craft_review) {
+    requireValue(state.source_craft_authority === undefined, "source craft authority requires explicit brief opt-in", 4);
+    return null;
+  }
+  const current = resolveSourceCraftAuthority(state);
+  requireValue(canonicalDigest(current) === canonicalDigest(state.source_craft_authority),
+    "source craft authority or rights evidence changed physical identity or binding", 4);
+  return current;
+}
+
+function sourceCraftPacket(state, cohortBindings, { dry = false } = {}) {
+  const authority = verifySourceCraftAuthority(state);
+  const candidate = resultForCandidate(state, state.brief.specimen_feedback.candidate_id, "direction-candidate");
+  const browser = resultForCandidate(state, state.brief.specimen_feedback.candidate_id, "browser-evidence");
+  const target = resultForPacket(state, "specimen-review");
+  requireValue(dry || (candidate && browser && target), "source craft requires accepted candidate, official browser and target-only review", 4);
+  return makePacket(state, {
+    packetId: "source-craft-review", stageId: "source-craft-review", providerId: state.brief.source_craft_review.provider_id,
+    capabilities: ["source-target-component-craft-review"], strength: 4,
+    permissions: ["artifact:read", "evidence:write", "reference-evidence:read"], forbiddenPermissions: ["network:external"],
+    task: { kind: "source-craft-review", candidate_id: state.brief.specimen_feedback.candidate_id,
+      authority_digest: authority.source.digest,
+      reviewer_actor_id: authority.input.reviewer_actor_id,
+      source_craft_review: sourceCraftPacketContract(authority.input),
+      ...(dry ? {} : {
+        candidate_bindings: { [candidate.normalized.candidate_id]: resultBinding(state, candidate) },
+        browser_bindings: { [candidate.normalized.candidate_id]: resultBinding(state, browser) },
+        target_review_binding: { packet_digest: state.packets.find(item => item.packet_id === target.packet_id).packet_digest,
+          result_digest: target.result_digest },
+        source_craft_cohort_bindings: structuredClone(cohortBindings)
+      }) }
+  });
+}
+
+function verifySourceCraftPacket(state, packet) {
+  if (packet.design_task.kind !== "source-craft-review" && packet.packet_id !== "source-craft-review") return;
+  requireValue(Array.isArray(packet.design_task.source_craft_cohort_bindings) &&
+    canonicalDigest(packet) === canonicalDigest(sourceCraftPacket(state, packet.design_task.source_craft_cohort_bindings)),
+  "source craft packet lost its exact private authority, candidate, browser or target-review binding", 4);
+}
+
+function restrictedCraftAttempts(state) {
+  return state.attempts.filter(attempt => attempt.execution_authority &&
+    ["direction-candidate", "browser-evidence", "specimen-review"].includes(
+      state.packets.find(packet => packet.packet_id === attempt.packet_id)?.design_task.kind));
+}
+
+function sourceCraftAttemptAliases(source, restricted) {
+  return matchingExecutableAuthority(source.execution_authority.adapter_entrypoint, restricted.execution_authority.adapter_entrypoint) ||
+    source.execution_authority.provider_declaration_digest === restricted.execution_authority.provider_declaration_digest ||
+    (!source.execution_authority.adapter_entrypoint && !restricted.execution_authority.adapter_entrypoint && source.adapter === restricted.adapter);
+}
+
+// Called only at dispatch/ingest/comparison, never while recursively reading a peer.
+export function verifySourceCraftCohort(state, { states = null, manifest = null, allowPending = false } = {}) {
+  if (!state.brief.source_craft_review) return null;
+  const binding = referenceCandidateBinding(state);
+  const peers = states || binding.planned_state_paths.map(file => {
+    if (trustedPlatformPath(file) === trustedPlatformPath(state.state_path)) return state;
+    if (!fs.existsSync(file)) return null;
+    return readDesignState(file);
+  });
+  if (peers.some(peer => !peer || !["direction-candidate", "browser-evidence", "specimen-review"].every(kind =>
+    peer.results.some(record => record.normalized.kind === kind)))) {
+    requireValue(allowPending, "source craft waits for every declared cohort creator, official browser and target critic result", 4);
+    return null;
+  }
+  requireValue(peers.length === binding.planned_candidate_count &&
+    canonicalDigest(peers.map(peer => trustedPlatformPath(peer.state_path)).sort()) === canonicalDigest(binding.planned_state_paths),
+  "source craft requires the exact predeclared cohort", 4);
+  for (const peer of peers) {
+    requireValue(peer.brief.source_craft_review, "source craft comparison policy must be opted in consistently across the complete cohort", 4);
+    const peerBinding = referenceCandidateBinding(peer);
+    requireValue(peerBinding && peerBinding.comparison_id === binding.comparison_id &&
+      peerBinding.task_frame_digest === binding.task_frame_digest &&
+      canonicalDigest(peerBinding.planned_state_paths) === canonicalDigest(binding.planned_state_paths),
+    "source craft cohort task frame or declaration differs", 4);
+    for (const source of [state.source_craft_authority.source, state.source_craft_authority.rights_source])
+      outsideSourceCraftInputs(peer, source.resolved_path, "source craft cohort authority");
+    for (const attempt of peer.attempts) {
+      const kind = peer.packets.find(packet => packet.packet_id === attempt.packet_id)?.design_task.kind;
+      if (["direction-candidate", "browser-evidence", "specimen-review"].includes(kind) &&
+        ["ran", "blocked_abandoned_after_crash"].includes(attempt.execution_status))
+        requireValue(attempt.execution_authority, "source craft cannot dismiss an executed cohort attempt with missing execution authority", 4);
+    }
+  }
+  validateSourceCraftAuthority(state.source_craft_authority.input,
+    sourceCraftContext(state, state.source_craft_authority.input, peers));
+  const sourceAttempts = peers.flatMap(peer => {
+    const attempts = peer.attempts.filter(attempt => attempt.packet_id === "source-craft-review" && attempt.execution_authority);
+    if (peer.in_flight?.packet_id === "source-craft-review") attempts.push(peer.in_flight);
+    return attempts;
+  });
+  if (manifest?.providers?.[state.brief.source_craft_review.provider_id] &&
+    manifest.providers[state.brief.source_craft_review.provider_id].adapter !== "manual-v1") {
+    const declaration = manifest.providers[state.brief.source_craft_review.provider_id];
+    requireValue(typeof declaration.settings?.actor_id === "string" &&
+      canonicalIdentityKey(declaration.settings.actor_id) === canonicalIdentityKey(state.source_craft_authority.input.reviewer_actor_id),
+    "source craft host requires the externally fixed reviewer actor before exposure", 4);
+    sourceAttempts.push({ adapter: declaration.adapter,
+      execution_authority: executionAuthoritySnapshot(state, { provider: { id: state.brief.source_craft_review.provider_id } }, manifest, declaration) });
+  }
+  const sourceIds = canonicalIdentitySet(peers.flatMap(peer => peer.source_craft_authority
+    ? [peer.source_craft_authority.input.reviewer_provider_id, peer.source_craft_authority.input.reviewer_actor_id] : []));
+  const participants = sourceCraftParticipants(peers);
+  requireValue([...participants.creator_ids, ...participants.browser_ids, ...participants.critic_ids]
+    .every(id => !sourceIds.has(canonicalIdentityKey(id))), "source craft recipients cannot serve as any cohort creator, browser or target critic", 4);
+  const producerIds = canonicalIdentitySet(participants.source_producer_ids);
+  requireValue([...participants.creator_ids, ...participants.browser_ids, ...participants.critic_ids]
+    .every(id => !producerIds.has(canonicalIdentityKey(id))),
+  "cohort source producer recipients cannot create, browse or target-review a source-blind specimen", 4);
+  const producerAttempts = peers.flatMap(peer => peer.reference_pack.producer_state.review_source_authority
+    .source_recipient_execution_lineage.attempts.map(attempt => ({ adapter: attempt.adapter,
+      execution_authority: { adapter_entrypoint: attempt.adapter_entrypoint,
+        provider_declaration_digest: attempt.provider_declaration_digest } })));
+  for (const restricted of peers.flatMap(restrictedCraftAttempts)) for (const source of producerAttempts)
+    requireValue(!sourceCraftAttemptAliases(source, restricted),
+      "source producer executable aliases a cohort creator, browser or target critic", 4);
+  for (const restricted of peers.flatMap(restrictedCraftAttempts)) for (const source of sourceAttempts)
+    requireValue(!sourceCraftAttemptAliases(source, restricted), "source craft executable aliases a cohort creator, browser or target critic", 4);
+  const bindings = peers.map(peer => ({ run_id: peer.run_id, state_path: peer.state_path,
+    brief_source: structuredClone(peer.brief_source), reference_binding_digest: canonicalDigest(referenceCandidateBinding(peer)),
+    source_craft_authority_digest: peer.source_craft_authority ? canonicalDigest(peer.source_craft_authority) : null,
+    accepted_results: ["direction-candidate", "browser-evidence", "specimen-review"].map(kind =>
+      resultBinding(peer, peer.results.find(record => record.normalized.kind === kind))),
+    restricted_execution_digests: restrictedCraftAttempts(peer).map(attempt => canonicalDigest(attempt))
+  })).sort((left, right) => left.state_path.localeCompare(right.state_path));
+  const packet = state.packets.find(item => item.packet_id === "source-craft-review");
+  if (packet) requireValue(canonicalDigest(bindings) === canonicalDigest(packet.design_task.source_craft_cohort_bindings),
+    "source craft immutable cohort bindings changed after source authorization", 4);
+  return bindings;
+}
+
 function referenceChecksForStage(pack, stage) {
   return [
     ...pack.downstream_contract.design_check_contracts,
@@ -965,11 +1327,12 @@ function assertCreatorSafeProjection(pack, projection) {
 
 function referenceDesignContract(state, stage, audience) {
   if (!state.reference_pack) return null;
-  requireValue(["creator", "independent-reviewer"].includes(audience),
+  requireValue(["creator", "independent-reviewer", "specimen-reviewer"].includes(audience),
     "reference design contract requires an explicit participant audience", 4);
   const pack = state.reference_pack.normalized;
-  const projection = referenceProjection(pack);
-  const checks = referenceChecksForStage(pack, stage);
+  const projection = candidateReferenceProjection(state.brief, pack);
+  const checks = referenceChecksForStage(pack, stage).filter((check) =>
+    audience !== "specimen-reviewer" || check.check_id === "component-craft-and-reflow");
   const body = {
     audience,
     pack_digest: state.reference_pack.pack_digest,
@@ -999,6 +1362,14 @@ function referenceDesignContract(state, stage, audience) {
         required_states: [...state.brief.evidence.required_states],
         human_authorship_certified: false,
         visual_authority_granted: false,
+        ...(state.brief.component_craft ? {
+          target_craft: craftPacketContract(state.brief.component_craft,
+            selectedComponentRecipes(projection.transferable_grammar)),
+          ...(audience !== "creator" ? {
+            target_constraint_evidence: verifyCraftConstraints(state.brief.component_craft,
+              state.brief_source.resolved_path).map(({ input: _input, ...item }) => item)
+          } : {})
+        } : {}),
         rule: "Implement the visual craft as well as layout. Bind actual project values, part selectors, interaction/state treatments and compact/medium/wide viewport mappings in component_specs. Preserve target character and comparison axes; inspect the rendered specimen independently. Do not equate scanner/browser success with aesthetic approval."
       }
     } : {}),
@@ -1024,7 +1395,8 @@ export function validateDesignBrief(brief) {
   exact(brief, new Set([
     "design_brief_version", "project_id", "surface", "screen_id", "locales", "product",
     "baseline_policy", "editorial_boundary", "directions", "color_strategies", "providers",
-    "evidence", "reference_pack", "reference_requirement", "reference_opt_out"
+    "evidence", "reference_pack", "reference_requirement", "reference_opt_out", "component_craft",
+    "visual_goal_contract", "specimen_feedback", "reference_candidate", "constraint_audit", "source_craft_review"
   ]), "design brief");
   requireValue(brief.design_brief_version === 1, "design_brief_version must be 1");
   string(brief.project_id, "design brief project_id");
@@ -1032,6 +1404,22 @@ export function validateDesignBrief(brief) {
   safeId(brief.screen_id, "design brief screen_id");
   uniqueStrings(brief.locales, "design brief locales");
   validateProduct(brief.product);
+  validateReferenceCandidate(brief);
+  if (brief.visual_goal_contract !== undefined) requireValue(brief.component_craft,
+    "component craft coverage is missing: visual goals require mapped target relationships", 5);
+  if (brief.visual_goal_contract !== undefined) validateVisualGoalContract(brief.visual_goal_contract, brief.component_craft);
+  if (brief.specimen_feedback !== undefined) {
+    exact(brief.specimen_feedback, new Set(["specimen_feedback_version", "candidate_id"]), "specimen feedback");
+    requireValue(brief.specimen_feedback.specimen_feedback_version === 1 && brief.visual_goal_contract,
+      "specimen feedback requires version 1 and explicit visual goals", 4);
+    requireValue(brief.directions?.some((direction) => DESIGN_DEPTHS.some((depth) =>
+      directionCandidateId(direction.id, depth) === brief.specimen_feedback.candidate_id)),
+    "specimen feedback must select one exact planned direction/depth", 4);
+  }
+  if (brief.component_craft !== undefined) {
+    requireValue(brief.reference_pack, "component craft requires bound reference recipes", 4);
+    validateComponentCraft(brief.component_craft);
+  }
   if (brief.reference_requirement !== undefined) {
     exact(brief.reference_requirement, new Set(["mode", "required_recipe_families"]),
       "design brief reference_requirement");
@@ -1104,8 +1492,8 @@ export function validateDesignBrief(brief) {
   requireValue(brief.editorial_boundary.treatment !== "forbidden" || brief.editorial_boundary.scope.length === 0,
     "forbidden editorial treatment requires empty scope");
 
-  requireValue(Array.isArray(brief.directions) && brief.directions.length === 3,
-    "design brief requires exactly three project-specific directions");
+  requireValue(Array.isArray(brief.directions) && brief.directions.length === (brief.reference_candidate ? 1 : 3),
+    "design brief requires exactly three project-specific directions, or one explicit reference candidate");
   const directionIds = [];
   const directionCreators = [];
   for (const [index, direction] of brief.directions.entries()) {
@@ -1133,10 +1521,10 @@ export function validateDesignBrief(brief) {
       `${label}.allowed_depth contains an invalid value`);
     directionCreators.push(direction.creator_provider_id);
   }
-  requireValue(new Set(directionIds).size === 3, "design direction ids must be unique");
+  requireValue(new Set(directionIds).size === brief.directions.length, "design direction ids must be unique");
 
-  requireValue(Array.isArray(brief.color_strategies) && brief.color_strategies.length === 3,
-    "design brief requires exactly three color strategies");
+  requireValue(Array.isArray(brief.color_strategies) && brief.color_strategies.length === (brief.reference_candidate ? 0 : 3),
+    "design brief requires exactly three color strategies, or none for an explicit reference candidate");
   const strategyIds = [];
   const colorCreators = [];
   for (const [index, strategy] of brief.color_strategies.entries()) {
@@ -1155,17 +1543,22 @@ export function validateDesignBrief(brief) {
     for (const key of ["seed_sources", "role_intent", "anti_patterns"]) uniqueStrings(strategy[key], `${label}.${key}`);
     colorCreators.push(strategy.creator_provider_id);
   }
-  requireValue(new Set(strategyIds).size === 3, "color strategy ids must be unique");
+  requireValue(new Set(strategyIds).size === brief.color_strategies.length, "color strategy ids must be unique");
 
-  exact(brief.providers, new Set(["direction_reviewer", "color_reviewer", "browser_evidence"]),
+  exact(brief.providers, new Set(["direction_reviewer", "color_reviewer", "browser_evidence", "specimen_reviewer"]),
     "design brief providers");
-  for (const key of ["direction_reviewer", "color_reviewer", "browser_evidence"]) {
+  for (const key of ["direction_reviewer", "color_reviewer", "browser_evidence",
+    ...(brief.specimen_feedback || brief.providers.specimen_reviewer !== undefined ? ["specimen_reviewer"] : [])]) {
     string(brief.providers[key], `design brief providers.${key}`);
     assertInternalIdentityIsNotOrchestrator(brief.providers[key], {
       label: `design brief providers.${key}`
     });
   }
   const allCreators = canonicalIdentitySet([...directionCreators, ...colorCreators]);
+  if (brief.providers.specimen_reviewer) requireValue(
+    !allCreators.has(canonicalIdentityKey(brief.providers.specimen_reviewer)) &&
+    canonicalIdentityKey(brief.providers.specimen_reviewer) !== canonicalIdentityKey(brief.providers.browser_evidence),
+    "specimen reviewer must be independent from every creator and browser provider");
   requireValue(!allCreators.has(canonicalIdentityKey(brief.providers.direction_reviewer)),
     "direction reviewer provider must be independent from every direction and color creator");
   requireValue(!allCreators.has(canonicalIdentityKey(brief.providers.color_reviewer)),
@@ -1200,6 +1593,18 @@ export function validateDesignBrief(brief) {
   uniqueStrings(brief.evidence.required_states, "design brief evidence.required_states");
   requireValue(containsAll(brief.evidence.required_states, brief.product.required_states),
     "design evidence states must cover all product required states");
+  validateConstraintAudit(brief);
+  if (brief.source_craft_review !== undefined) {
+    exact(brief.source_craft_review, new Set(["authority", "provider_id"]), "source craft review opt-in");
+    exact(brief.source_craft_review.authority, new Set(["path", "digest"]), "source craft review authority binding");
+    string(brief.source_craft_review.authority.path, "source craft review authority path");
+    requireValue(SHA256_PATTERN.test(brief.source_craft_review.authority.digest), "source craft authority digest is invalid");
+    string(brief.source_craft_review.provider_id, "source craft reviewer provider");
+    requireValue(brief.reference_candidate && brief.specimen_feedback, "source craft requires a new explicit reference candidate specimen");
+    requireValue(!canonicalIdentitySet([...directionCreators, ...colorCreators, ...Object.values(brief.providers)])
+      .has(canonicalIdentityKey(brief.source_craft_review.provider_id)), "source craft reviewer must be independent from creators, browser and target critics");
+    assertInternalIdentityIsNotOrchestrator(brief.source_craft_review.provider_id, { label: "source craft reviewer provider" });
+  }
   return brief;
 }
 
@@ -1284,7 +1689,7 @@ function validateDesignContractEvidence(state, result, stage) {
   const document = readEvidenceJson(evidence[0],
     `${result.kind} ${result.candidate_id} design contract`);
   exact(document, new Set([
-    "design_contract_evidence_version", "candidate_id", "contract_roles", "claims", "component_specs"
+    "design_contract_evidence_version", "candidate_id", "contract_roles", "claims", "component_specs", "component_craft"
   ]), "design contract evidence");
   requireValue(document.design_contract_evidence_version === 1,
     "design_contract_evidence_version must be 1", 4);
@@ -1300,9 +1705,10 @@ function validateDesignContractEvidence(state, result, stage) {
   requireValue(containsAll(document.contract_roles, required),
     `${result.kind} ${result.candidate_id} design contract omits required roles: ${required
       .filter((role) => !document.contract_roles.includes(role)).join(", ")}`, 4);
-  const recipes = selectedComponentRecipes(referenceProjection(state.reference_pack.normalized).transferable_grammar);
+  const recipes = targetCraftRecipes(state);
   validateComponentSpecs(document.component_specs, recipes, state.brief.evidence,
     state.brief.reference_requirement?.required_recipe_families || []);
+  validateCraftImplementation(document.component_craft, state.brief.component_craft, document.component_specs);
 }
 
 function readEvidenceJson(item, label) {
@@ -1412,7 +1818,7 @@ function baseResult(state, packet, input, sourcePath) {
     "subject_kind", "subject_id", "subject_result_digest", "browser_engine", "browser_engine_version",
     "checks", "locales_tested", "states_tested", "scores", "ranking", "blockers",
     "design_candidate_id", "color_strategy_id", "source_design_digest", "palette", "color_system",
-    "reference_reasoning_trace", "reference_checks", "evidence"
+    "reference_reasoning_trace", "reference_checks", "evidence", "component_craft_review", "visual_goal_review", "constraint_audit_review", "source_craft_review"
   ]), "design result");
   requireValue(input.design_result_version === 1, "design_result_version must be 1", 4);
   requireValue(DESIGN_RESULT_KINDS.has(input.kind), "design result kind is invalid", 4);
@@ -1422,6 +1828,11 @@ function baseResult(state, packet, input, sourcePath) {
   requireValue(input.packet_digest === packet.packet_digest, "design result packet digest mismatch", 4);
   requireValue(input.status === "completed", "design result must be completed", 4);
   actor(input.actor, state.journey_identity);
+  if (state.brief.specimen_feedback && ["direction-candidate", "color-candidate"].includes(input.kind)) {
+    const critic = resultForPacket(state, "specimen-review");
+    requireValue(!critic || canonicalIdentityKey(critic.normalized.actor.actor_id) !== canonicalIdentityKey(input.actor.actor_id),
+      "specimen critic cannot become a sibling creator", 4);
+  }
   requireIndependentReferenceOptOut(state, input.actor.actor_id);
   if (state.reference_pack && [
     "direction-candidate", "color-candidate", "browser-evidence"
@@ -1515,14 +1926,16 @@ function resultBinding(state, record, verificationContext = null) {
         })
       } : {})
     },
-    evidence: record.evidence.map((item) => ({
+    evidence: record.evidence.filter((item) => !(state.brief.visual_goal_contract?.observation_locales &&
+      record.normalized.kind === "browser-evidence" && item.evidence_kind === "screenshot")).map((item) => ({
       kind: item.evidence_kind,
       digest: item.digest,
       viewport: item.viewport,
       state: item.state,
       checks: [...(item.checks || [])],
       contract_roles: [...(item.contract_roles || [])]
-    })),
+    })).concat(state.brief.visual_goal_contract?.observation_locales && record.normalized.kind === "browser-evidence"
+      ? visualGoalScreenshotBindings(record) : []),
     execution: {
       adapter: attempt.adapter,
       attempt: attempt.attempt,
@@ -1541,7 +1954,7 @@ function validateReferenceReasoningTrace(state, result, label, { color = false }
     requireValue(Array.isArray(result.reference_reasoning_trace) &&
       result.reference_reasoning_trace.length > 0,
     `${label} requires a reference reasoning trace`, 4);
-    const projection = referenceProjection(state.reference_pack.normalized);
+    const projection = candidateReferenceProjection(state.brief, state.reference_pack.normalized);
     const grammarById = new Map(projection.transferable_grammar
       .map((item) => [item.grammar_id, item]));
     const reasoningById = new Map(projection.causal_reasoning
@@ -1887,11 +2300,61 @@ function validateReferenceEvidenceBinding(state, reviewResult, candidate, browse
     `${label} does not resolve to digest-bound evidence for ${candidate.normalized.candidate_id}`, 4);
 }
 
+function validateGoalVerdicts(state, result, records) {
+  const verdicts = validateVisualGoalReview(result.visual_goal_review, state.brief.visual_goal_contract,
+    state.brief.component_craft, records,
+    records.map((record) => resultForCandidate(state, record.normalized.candidate_id, "browser-evidence")), state.brief.evidence);
+  for (const [candidateId, passed] of verdicts) {
+    if (!passed) requireValue(result.blockers?.some((blocker) => blocker.candidate_id === candidateId &&
+      blocker.hard === true && blocker.code === "visual-goal-unresolved"),
+    "unresolved visual goal requires a persistent hard blocker; local closure or scores cannot replace it", 4);
+    const local = result.visual_goal_review.candidates.find((item) => item.candidate_id === candidateId).local_regression;
+    if (local.status !== "closed") requireValue(result.blockers?.some((blocker) => blocker.candidate_id === candidateId &&
+      blocker.hard === true && blocker.code === "local-regression-unresolved"),
+    "open or unassessed local regression requires its separate blocker", 4);
+  }
+  return verdicts;
+}
+
+function validateSpecimenReview(state, packet, result) {
+  const candidateId = state.brief.specimen_feedback?.candidate_id;
+  const candidate = resultForCandidate(state, candidateId, "direction-candidate");
+  const browser = resultForCandidate(state, candidateId, "browser-evidence");
+  requireValue(candidate && browser && packet.packet_id === "specimen-review" &&
+    canonicalDigest(packet) === canonicalDigest(specimenReviewPacket(state, candidate)),
+  "specimen review is not the exact bound candidate/browser checkpoint", 4);
+  requireValue(!canonicalIdentitySet(state.results.filter((item) =>
+    ["direction-candidate", "color-candidate"].includes(item.normalized.kind)).map((item) => item.normalized.actor.actor_id))
+    .has(canonicalIdentityKey(result.actor.actor_id)),
+  "creator cannot review its specimen", 4);
+  requireValue(canonicalIdentityKey(browser.normalized.actor.actor_id) !== canonicalIdentityKey(result.actor.actor_id),
+    "browser actor cannot review its own specimen evidence", 4);
+  requireValue(result.scores === undefined && result.ranking === undefined && result.reference_checks === undefined,
+    "specimen review cannot impersonate the aggregate direction ranking or full reference review", 4);
+  requireValue(Array.isArray(result.blockers), "specimen blockers must be an array", 4);
+  for (const blocker of result.blockers) {
+    exact(blocker, new Set(["candidate_id", "code", "message", "hard"]), "specimen blocker");
+    requireValue(blocker.candidate_id === candidateId && typeof blocker.hard === "boolean", "specimen blocker scope mismatch", 4);
+    string(blocker.code, "specimen blocker code"); string(blocker.message, "specimen blocker message");
+  }
+  const craft = validateCraftReview(result.component_craft_review, state.brief.component_craft,
+    [candidate], [browser], state.brief.evidence);
+  if (!craft.get(candidateId)) requireValue(result.blockers.some((item) => item.hard &&
+    item.code === "reference-check-failed:component-craft-and-reflow"), "failed specimen craft requires its hard blocker", 4);
+  validateGoalVerdicts(state, result, [candidate]);
+  requireValue(result.evidence.some((item) => item.kind === "review-report") &&
+    !result.evidence.some((item) => item.kind === "source-composition-analysis"),
+  "specimen review needs a target review report, not a source-capture analysis", 4);
+}
+
 function validateScoreSet(state, result, kind) {
   const direction = kind === "direction-review";
   const records = state.results.filter((record) => record.normalized.kind ===
     (direction ? "direction-candidate" : "color-candidate"));
   const candidateIds = records.map((record) => record.normalized.candidate_id);
+  const craftVerdicts = validateCraftReview(result.component_craft_review, state.brief.component_craft,
+    records, candidateIds.map((key) => resultForCandidate(state, key, "browser-evidence")), state.brief.evidence);
+  validateGoalVerdicts(state, result, records);
   requireValue(Array.isArray(result.scores) && result.scores.length === candidateIds.length,
     `${kind} must score every candidate`, 4);
   const seen = new Set();
@@ -1976,6 +2439,10 @@ function validateScoreSet(state, result, kind) {
             item.candidate_id
           ).source_composition_independence === "pass"),
           `${checkLabel} conflicts with the typed source-composition verdict`, 4);
+        }
+        if (check.check_id === "component-craft-and-reflow" && state.brief.component_craft) {
+          requireValue(check.passed === craftVerdicts.get(item.candidate_id),
+            `${checkLabel} conflicts with the bound rendered part/relationship review`, 4);
         }
         if (check.check_id === "promotional-citation-firewall") {
           requireValue(check.passed === (sourceAnalysis.candidates.get(
@@ -2126,14 +2593,51 @@ function validateColorCandidate(state, packet, result) {
 }
 
 export function validateDesignResult(state, packet, input, sourcePath) {
+  verifyTargetCraftPacket(state, packet);
   const result = baseResult(state, packet, input, sourcePath);
+  if (result.kind === "source-craft-review") {
+    exact(input, new Set(["design_result_version", "kind", "packet_id", "provider_id", "actor", "status",
+      "packet_digest", "source_craft_review", "blockers", "evidence"]), "private source craft result");
+    verifySourceCraftPacket(state, packet);
+    const authority = verifySourceCraftAuthority(state);
+    const id = state.brief.specimen_feedback.candidate_id;
+    const candidate = resultForCandidate(state, id, "direction-candidate");
+    const browser = resultForCandidate(state, id, "browser-evidence");
+    requireValue(canonicalIdentityKey(result.actor.actor_id) === canonicalIdentityKey(authority.input.reviewer_actor_id),
+      "source craft result actor must match the externally fixed reviewer", 4);
+    const accepted = validateSourceCraftReview(result.source_craft_review, authority.input, {
+      ...sourceCraftContext(state, authority.input), authority_digest: authority.source.digest,
+      candidate_result_digest: candidate.result_digest, browser_result_digest: browser.result_digest,
+      screenshots: visualGoalScreenshotBindings(browser)
+    });
+    requireValue(Array.isArray(result.blockers), "source craft blockers must be an array", 4);
+    for (const blocker of result.blockers) {
+      exact(blocker, new Set(["candidate_id", "code", "message", "hard"]), "source craft blocker");
+      requireValue(blocker.candidate_id === id && typeof blocker.hard === "boolean", "source craft blocker scope mismatch", 4);
+      string(blocker.code, "source craft blocker code"); string(blocker.message, "source craft blocker message");
+    }
+    requireValue(accepted || result.blockers.some(item => item.hard && item.code === "source-craft-unresolved"),
+      "negative or insufficient source craft requires hard blocker source-craft-unresolved", 4);
+    requireValue(result.evidence.some(item => item.kind === "review-report") && result.evidence.every(item => item.kind === "review-report"),
+      "source craft evidence must be a private review report only", 4);
+    return result;
+  }
+  requireValue(result.source_craft_review === undefined, "only the opted-in private source craft reviewer may return source craft judgments", 4);
+  const constraintsSupported = validateConstraintReview(result.constraint_audit_review, state.brief, result.kind);
+  requireValue(constraintsSupported || (packet.design_task.candidate_ids || []).every(candidateId =>
+    result.blockers?.some(blocker => blocker.candidate_id === candidateId && blocker.hard && blocker.code === "constraint-audit-unresolved")),
+  "negative constraint audit review requires persistent hard blocker constraint-audit-unresolved for every reviewed candidate", 4);
+  validateConstraintPreserveInstructions(result.visual_goal_review, state.brief);
   const candidate = result.kind === "direction-candidate" || result.kind === "color-candidate";
-  const review = result.kind === "direction-review" || result.kind === "color-review";
+  const review = ["direction-review", "color-review", "specimen-review"].includes(result.kind);
   if (!candidate) {
     requireValue(result.reference_reasoning_trace === undefined,
       `${result.kind} cannot return a creator reference reasoning trace`, 4);
   }
   if (!review) {
+    requireValue(result.visual_goal_review === undefined, `${result.kind} cannot return an independent visual-goal review`, 4);
+    requireValue(result.component_craft_review === undefined,
+      `${result.kind} cannot return independent rendered craft review`, 4);
     requireValue(result.reference_checks === undefined,
       `${result.kind} cannot return independent reference checks`, 4);
   }
@@ -2143,6 +2647,7 @@ export function validateDesignResult(state, packet, input, sourcePath) {
     validateScoreSet(state, result, result.kind);
   }
   if (result.kind === "color-candidate") validateColorCandidate(state, packet, result);
+  if (result.kind === "specimen-review") validateSpecimenReview(state, packet, result);
   return result;
 }
 
@@ -2252,6 +2757,7 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
     requireIndependentReferenceOptOut(state);
   }
   verifyBoundSnapshot(state.baseline, "design baseline");
+  verifyDesignConstraintAuthority(state);
   if (state.reference_pack) {
     verifyBoundSnapshot(state.reference_pack.source, "reference intelligence pack");
     const pinnedPack = readPinnedDesignJson(
@@ -2296,7 +2802,9 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
         canonicalDigest(state.reference_pack.producer_state.review_source_authority),
     "reference intelligence pack state binding mismatch", 4);
   }
+  verifySourceCraftAuthority(state);
   for (const packet of state.packets || []) {
+    verifyTargetCraftPacket(state, packet);
     verifyPacketJourney(packet, state.journey_identity, `design packet ${packet.packet_id}`);
     requireValue(state.reference_opt_out_source
       ? canonicalDigest(packet.design_task?.reference_delivery || null) === canonicalDigest(optOutDelivery(state))
@@ -2356,6 +2864,9 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
     if (attempt.execution_authority !== undefined) {
       verifyAttemptExecutionAuthority(state, packet, attempt, verificationContext);
     } else {
+      requireValue(packet.design_task.kind !== "source-craft-review" ||
+        !["ran", "blocked_abandoned_after_crash", "blocked_abandoned_before_spawn"].includes(attempt.execution_status),
+      "source craft exposure attempt cannot lose its pre-spawn execution authority", 4);
       const recovery = state.lease_recoveries?.find((receipt) =>
         receipt.recovery_digest === attempt.recovery_digest &&
         receipt.retry_required === true &&
@@ -2425,8 +2936,11 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
   }
   if (state.in_flight !== null) {
     object(state.in_flight, "design in_flight intent");
+    const sourceCraft = state.in_flight.packet_id === "source-craft-review";
     requireValue(Object.keys(state.in_flight).sort().join(",") ===
-      ["attempt", "packet_digest", "packet_id", "provider_id", "started_at"].sort().join(","),
+      ["attempt", "packet_digest", "packet_id", "provider_id", "started_at", ...(sourceCraft ? [
+        "execution_authority", "adapter", "strength", "capabilities", "permission_scopes", "host_manifest_digest", "adapter_entrypoint"
+      ] : [])].sort().join(","),
     "design in_flight intent contains unsupported or missing fields", 4);
     const packet = state.packets.find((item) => item.packet_id === state.in_flight.packet_id);
     requireValue(packet && state.in_flight.provider_id === packet.provider.id &&
@@ -2434,7 +2948,9 @@ export function readDesignState(statePath, { faultInjector = null } = {}) {
       Number.isInteger(state.in_flight.attempt) && state.in_flight.attempt >= 1 &&
       !Number.isNaN(Date.parse(state.in_flight.started_at || "")),
     "design in_flight intent conflicts with its packet", 4);
+    if (sourceCraft) verifyAttemptExecutionAuthority(state, packet, state.in_flight, verificationContext);
   }
+  validateSpecimenState(state);
   validateDesignDecisionState(state, verificationContext);
   validatePendingFinalization(state);
   for (const [label, snapshot] of Object.entries(state.outputs || {})) {
@@ -3301,6 +3817,8 @@ function expectedCompletePackets(state, verificationContext = null) {
   return [
     ...directionCandidates,
     ...directionBrowsers,
+    ...(state.brief.specimen_feedback ? [specimenReviewPacket(state,
+      resultForCandidate(state, state.brief.specimen_feedback.candidate_id, "direction-candidate"))] : []),
     directionReview,
     ...colors,
     ...colorBrowsers,
@@ -3812,6 +4330,10 @@ function verifyAttemptExecutionAuthority(
       `reference-backed design browser attempt ${packet.packet_id} lacks official Playwright authority`, 4);
     }
   }
+  if (packet.design_task.kind === "source-craft-review") requireValue(
+    typeof declaration.settings?.actor_id === "string" &&
+    canonicalIdentityKey(declaration.settings.actor_id) === canonicalIdentityKey(state.source_craft_authority.input.reviewer_actor_id),
+  "source craft execution authority lost its externally fixed reviewer actor", 4);
   if (declaration.entrypoint) {
     object(authority.adapter_entrypoint,
       `design attempt ${packet.packet_id} adapter entrypoint authority`);
@@ -3927,7 +4449,7 @@ function adapterRun(state, packet) {
   const subject = packet.design_task.subject_id
     ? resultForCandidate(state, packet.design_task.subject_id, packet.design_task.subject_kind)
     : null;
-  if (!state.reference_pack) {
+  if (!state.reference_pack && !state.brief.constraint_audit) {
     return {
       run_id: state.run_id,
       journey_identity: structuredClone(state.journey_identity),
@@ -3971,7 +4493,12 @@ function adapterRun(state, packet) {
       (record.normalized.kind === "browser-evidence" &&
         record.normalized.subject_kind === "color-candidate"));
   }
-  const reviewer = kind === "direction-review" || kind === "color-review";
+  if (["specimen-review", "source-craft-review"].includes(kind)) {
+    results = state.results.filter((record) =>
+      record.normalized.candidate_id === state.brief.specimen_feedback.candidate_id &&
+      ["direction-candidate", "browser-evidence"].includes(record.normalized.kind));
+  }
+  const reviewer = ["direction-review", "color-review", "specimen-review"].includes(kind);
   return {
     run_id: state.run_id,
     journey_identity: structuredClone(state.journey_identity),
@@ -3991,8 +4518,12 @@ function adapterRun(state, packet) {
       screen_id: state.brief.screen_id
     },
     artifacts: [
-      state.baseline,
-      ...(reviewer ? resolveReviewerSourceArtifacts(state) : [])
+      ...(kind === "source-craft-review" ? sourceCraftArtifacts(state, state.source_craft_authority.input) : [state.baseline]),
+      ...(reviewer && kind !== "specimen-review" && state.reference_pack ? resolveReviewerSourceArtifacts(state) : []),
+      ...(reviewer ? verifyCraftConstraints(state.brief.component_craft,
+        state.brief_source.resolved_path).map((item) => snapshotArtifact(item.path, { root: state.state_directory })) : []),
+      ...(reviewer ? verifyDesignConstraintAuthority(state)
+        .map((item) => snapshotArtifact(item.path, { root: state.state_directory })) : [])
     ],
     results
   };
@@ -4005,6 +4536,9 @@ function verifyDesignAuthorityGraph(state, phase) {
 }
 
 function runPacket(state, lease, packet, manifest, selectors, faultInjector = null) {
+  verifyTargetCraftPacket(state, packet);
+  verifySpecimenPacket(state, packet);
+  verifySourceCraftPacket(state, packet);
   if (resultForPacket(state, packet.packet_id)) return;
   const previous = lastAttempt(state, packet.packet_id);
   if (previous?.execution_status?.startsWith("blocked") && !retryMatches(selectors, packet)) return;
@@ -4030,6 +4564,7 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
     state.brief,
     manifest
   );
+  if (packet.design_task.kind === "source-craft-review") verifySourceCraftCohort(state, { manifest });
   verifyDesignAuthorityGraph(state, "before child intent");
   const executionAuthority = executionAuthoritySnapshot(
     state, packet, manifest, inspection.declaration
@@ -4040,7 +4575,13 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
     provider_id: packet.provider.id,
     attempt,
     packet_digest: packet.packet_digest,
-    started_at: nowIso()
+    started_at: nowIso(),
+    ...(packet.design_task.kind === "source-craft-review" ? {
+      execution_authority: executionAuthority, adapter: inspection.adapter,
+      strength: inspection.declaration.strength, capabilities: inspection.declaration.capabilities,
+      permission_scopes: inspection.declaration.permissions, host_manifest_digest: inspection.host_manifest_digest,
+      adapter_entrypoint: executionAuthority.adapter_entrypoint
+    } : {})
   };
   writeState(state, lease, { inFlight: true, faultInjector });
   markStateLeaseChildExecution(lease, {
@@ -4055,15 +4596,27 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
     attempt
   });
   verifyDesignAuthorityGraph(state, "immediately before child spawn");
+  if (packet.design_task.kind === "source-craft-review") verifySourceCraftCohort(state, { manifest });
   const executed = executeAuditPacket({
     run: adapterRun(state, packet),
     packet,
     manifest,
     attempt,
     outputDirectory,
-    outputGrantRoot: state.state_directory
+    outputGrantRoot: state.state_directory,
+    ...(packet.design_task.kind === "source-craft-review" ? {
+      authorityFaultInjector: (point, details) => {
+        faultInjector?.(`source-craft-${point}`, details);
+        if (point === "after-child-authority-preflight-before-final-confirmation") {
+          verifyDesignAuthorityGraph(state, "at final source craft child handoff");
+          verifySourceCraftAuthority(state);
+          verifySourceCraftCohort(state, { manifest });
+        }
+      }
+    } : {})
   });
   verifyDesignAuthorityGraph(state, "after child execution before result ingest");
+  if (packet.design_task.kind === "source-craft-review") verifySourceCraftCohort(state, { manifest });
   const {
     result,
     declaration: _declaration,
@@ -4072,6 +4625,12 @@ function runPacket(state, lease, packet, manifest, selectors, faultInjector = nu
   } = executed;
   const stored = {
     ...attemptRecord,
+    ...(packet.design_task.kind === "source-craft-review" ? {
+      packet_id: packet.packet_id, provider_id: packet.provider.id, participant: structuredClone(packet.participant),
+      attempt, adapter: inspection.adapter, strength: inspection.declaration.strength,
+      capabilities: inspection.declaration.capabilities, permission_scopes: inspection.declaration.permissions,
+      host_manifest_digest: inspection.host_manifest_digest, adapter_entrypoint: executionAuthority.adapter_entrypoint
+    } : {}),
     execution_authority: executionAuthority,
     packet_digest: packet.packet_digest,
     attempted_at: nowIso()
@@ -4119,7 +4678,9 @@ function haltForPackets(state, lease, phase, packets, faultInjector = null) {
     .filter(({ attempt }) => attempt?.execution_status?.startsWith("blocked"));
   if (failures.length) {
     return stop(state, lease, "blocked", phase, failures.map(({ packet, attempt }) =>
-      `${packet.packet_id}: ${attempt.error || attempt.execution_status}`), [], faultInjector);
+      packet.design_task.kind === "source-craft-review"
+        ? "source-craft-unresolved: private source craft execution or validation did not complete"
+        : `${packet.packet_id}: ${attempt.error || attempt.execution_status}`), [], faultInjector);
   }
   return stop(state, lease, "manual_pending", phase, [], missing.map((packet) => {
     const attempt = lastAttempt(state, packet.packet_id);
@@ -4150,6 +4711,7 @@ function ingestKnownManual(state, lease, entries, faultInjector = null) {
     4);
     requireValue(!resultForPacket(state, packet.packet_id),
       `manual design result duplicates an existing packet: ${packet.packet_id}`, 4);
+    if (packet.design_task.kind === "source-craft-review") verifySourceCraftCohort(state);
     recordResult(state, packet, entry.input, entry.path, entry.source);
     state.attempts.push({
       packet_id: packet.packet_id,
@@ -4223,6 +4785,130 @@ function writeApprovalTemplate(state) {
   return target;
 }
 
+function validateSpecimenState(state) {
+  if (state.brief.reference_candidate) {
+    referenceCandidateBinding(state);
+    requireValue(!state.specimen_expansion && !state.shortlist && !state.approval &&
+      Object.keys(state.outputs || {}).length === 0,
+    "reference candidate is specimen-only; selection never compiles matrix or G7 approval", 4);
+  }
+  const selection = state.brief.specimen_feedback;
+  if (!selection) {
+    requireValue(state.specimen_expansion === undefined && state.specimen_abandonment === undefined &&
+      !(state.packets || []).some((packet) => packet.design_task.kind === "specimen-review"),
+    "specimen feedback requires a brief-bound checkpoint; do not retrofit a historical run", 4);
+    return;
+  }
+  const review = resultForPacket(state, "specimen-review");
+  for (const packet of state.packets) verifySpecimenPacket(state, packet);
+  if (state.specimen_expansion) {
+    exact(state.specimen_expansion, new Set(["review_result_digest", "continued_at", "owner_approval_granted"]), "specimen expansion");
+    requireValue(review && state.specimen_expansion.review_result_digest === review.result_digest &&
+      state.specimen_expansion.owner_approval_granted === false &&
+      !Number.isNaN(Date.parse(state.specimen_expansion.continued_at)) &&
+      !review.normalized.blockers.some((blocker) => blocker.hard),
+    "specimen expansion requires eligible independent feedback, not local PASS or Owner approval", 4);
+    const canonical = directionPackets(state);
+    requireValue(canonical.every((expected) => state.packets.some((packet) =>
+      packet.packet_id === expected.packet_id && canonicalDigest(packet) === canonicalDigest(expected))),
+    "specimen expansion must atomically bind all nine canonical creator packets", 4);
+  } else {
+    const allowed = new Set([`direction-${selection.candidate_id}`, `browser-${selection.candidate_id}`, "specimen-review",
+      ...(state.brief.source_craft_review ? ["source-craft-review"] : [])]);
+    requireValue(state.packets.every((packet) => allowed.has(packet.packet_id)) &&
+      new Set(state.packets.map((packet) => packet.packet_id)).size === state.packets.length && !state.shortlist && !state.approval,
+      "pending specimen cannot dispatch siblings, shortlist or approve", 4);
+    const selected = directionPackets(state, selection.candidate_id)[0];
+    const candidate = resultForCandidate(state, selection.candidate_id, "direction-candidate");
+    for (const packet of state.packets) {
+      if (packet.packet_id === selected.packet_id) requireValue(canonicalDigest(packet) === canonicalDigest(selected),
+        "selected specimen creator packet must match its exact canonical candidate", 4);
+      if (packet.packet_id === `browser-${selection.candidate_id}`) requireValue(candidate &&
+        canonicalDigest(packet) === canonicalDigest(browserPacket(state, candidate)),
+      "selected specimen browser packet must match its exact accepted candidate", 4);
+    }
+  }
+  for (const packet of state.packets) verifySourceCraftPacket(state, packet);
+  if (state.brief.source_craft_review && state.phase === "specimen-feedback") requireValue(
+    resultForPacket(state, "source-craft-review") || (state.status === "blocked" && review?.normalized.blockers.some(item => item.hard)),
+    "source craft opted-in specimen cannot reach eligible feedback before its separate review", 4);
+  const abandoned = state.specimen_abandonment;
+  requireValue(Boolean(abandoned) === (state.phase === "specimen-abandoned"), "specimen abandonment state/phase mismatch", 4);
+  if (abandoned) {
+    exact(abandoned, new Set(["candidate_id", "reason", "abandoned_at", "owner_approval_granted"]), "specimen abandonment");
+    string(abandoned.reason, "specimen abandonment reason");
+    requireValue(abandoned.candidate_id === selection.candidate_id && abandoned.owner_approval_granted === false &&
+      !Number.isNaN(Date.parse(abandoned.abandoned_at)) && state.status === "blocked" &&
+      !state.shortlist && !state.approval && Object.keys(state.outputs).length === 0,
+    "abandonment is terminal and cannot create approvals or bindings", 4);
+  }
+}
+
+function verifySpecimenPacket(state, packet) {
+  if (packet.design_task.kind !== "specimen-review" && packet.packet_id !== "specimen-review") return;
+  const candidate = resultForCandidate(state, state.brief.specimen_feedback?.candidate_id, "direction-candidate");
+  requireValue(candidate && canonicalDigest(packet) === canonicalDigest(specimenReviewPacket(state, candidate)),
+    "specimen packet must preserve the exact candidate/browser binding and target-only permissions", 4);
+}
+
+function continueSpecimen(state, lease, manual, hostManifest, selectors, expandSpecimen, faultInjector) {
+  const id = state.brief.specimen_feedback.candidate_id;
+  // A start may crash after its initial empty checkpoint, before packet publish.
+  if (!state.packets.some((packet) => packet.packet_id === `direction-${id}`)) {
+    addPackets(state, lease, directionPackets(state, id), faultInjector);
+  }
+  const creation = [state.packets.find((packet) => packet.packet_id === `direction-${id}`)];
+  runPackets(state, lease, creation, hostManifest, selectors, faultInjector);
+  let halted = haltForPackets(state, lease, "specimen-generation", creation, faultInjector);
+  if (halted) return halted;
+  const candidate = resultForCandidate(state, id, "direction-candidate");
+  if (!state.packets.some((packet) => packet.packet_id === `browser-${id}`)) {
+    addPackets(state, lease, [browserPacket(state, candidate)], faultInjector);
+  }
+  const browsers = [state.packets.find((packet) => packet.packet_id === `browser-${id}`)];
+  runPackets(state, lease, browsers, hostManifest, selectors, faultInjector);
+  halted = haltForPackets(state, lease, "specimen-browser-evidence", browsers, faultInjector);
+  if (halted) return halted;
+  if (!state.packets.some((packet) => packet.packet_id === "specimen-review")) {
+    addPackets(state, lease, [specimenReviewPacket(state, candidate)], faultInjector);
+  }
+  ingestKnownManual(state, lease, manual, faultInjector);
+  const reviews = [state.packets.find((packet) => packet.packet_id === "specimen-review")];
+  runPackets(state, lease, reviews, hostManifest, selectors, faultInjector);
+  halted = haltForPackets(state, lease, "specimen-review", reviews, faultInjector);
+  if (halted) return halted;
+  const review = resultForPacket(state, "specimen-review");
+  const hard = review.normalized.blockers.filter((blocker) => blocker.hard);
+  if (hard.length) return stop(state, lease, "blocked", "specimen-feedback", hard.map((item) =>
+    `${item.code}: ${item.message}`), [], faultInjector);
+  if (state.brief.source_craft_review) {
+    const cohort = verifySourceCraftCohort(state, { manifest: hostManifest, allowPending: true });
+    if (!cohort) return stop(state, lease, "manual_pending", "source-craft-review", [],
+      ["Source craft waits for immutable creator, official browser and target-only review results across the complete declared cohort."], faultInjector);
+    if (!state.packets.some(packet => packet.packet_id === "source-craft-review")) {
+      addPackets(state, lease, [sourceCraftPacket(state, cohort)], faultInjector);
+    }
+    ingestKnownManual(state, lease, manual, faultInjector);
+    const sourcePackets = [state.packets.find(packet => packet.packet_id === "source-craft-review")];
+    runPackets(state, lease, sourcePackets, hostManifest, selectors, faultInjector);
+    halted = haltForPackets(state, lease, "source-craft-review", sourcePackets, faultInjector);
+    if (halted) return halted;
+    if (resultForPacket(state, "source-craft-review").normalized.blockers.some(item => item.hard)) {
+      return stop(state, lease, "blocked", "specimen-feedback", ["source-craft-unresolved: independent private source craft review is not eligible"], [], faultInjector);
+    }
+  }
+  if (!expandSpecimen) return stop(state, lease, "manual_pending", "specimen-feedback", [], [
+    state.brief.reference_candidate
+      ? "Reference specimen is critic-eligible, not Owner approval. Compare the complete declared cohort and record Owner select or reject-all; --abandon-specimen --reason rejects this run."
+      : "Single specimen feedback is eligible, not matrix/Owner approval. Explicit --expand-specimen continues exploration; --abandon-specimen --reason stops it."
+  ], faultInjector);
+  state.specimen_expansion = { review_result_digest: review.result_digest, continued_at: nowIso(), owner_approval_granted: false };
+  // addPackets commits the expansion record and all siblings in ONE state write.
+  // No resumable checkpoint may contain expansion authority but only one creator.
+  addPackets(state, lease, directionPackets(state).filter((packet) => !state.packets.some((item) => item.packet_id === packet.packet_id)), faultInjector);
+  return null;
+}
+
 function continueDesignExplorationWithLease(state, lease, {
   hostManifest = null,
   resultPaths = [],
@@ -4230,8 +4916,31 @@ function continueDesignExplorationWithLease(state, lease, {
   approvalPath = null,
   retry = null,
   requireReference = false,
+  requireConstraintAudit = false,
+  expandSpecimen = false,
+  abandonSpecimen = false,
+  abandonmentReason = null,
   faultInjector = null
 } = {}) {
+  validateSpecimenState(state);
+  requireValue(!(expandSpecimen && state.brief.reference_candidate),
+    "reference candidate cannot expand into an unrelated matrix; compare/select then plan a successor from the frozen artifact", 4);
+  requireValue(!(expandSpecimen && abandonSpecimen), "cannot expand and abandon the same specimen", 4);
+  requireValue(!(expandSpecimen || abandonSpecimen) || state.brief.specimen_feedback,
+    "specimen actions require a new brief-bound specimen checkpoint", 4);
+  assertDesignReferenceRequirement(state.brief, requireReference);
+  assertConstraintAuditRequirement(state.brief, requireConstraintAudit);
+  if (state.specimen_abandonment) return state;
+  if (expandSpecimen) requireValue(state.phase === "specimen-feedback" && resultForPacket(state, "specimen-review"),
+    "expansion requires already recorded specimen feedback; do not pre-authorize expansion before review", 4);
+  if (abandonSpecimen) {
+    requireValue(!state.shortlist && !state.approval && !resultPaths.length && !shortlistPath && !approvalPath,
+      "abandon specimen separately before any shortlist or approval; do not combine with result ingest", 4);
+    string(abandonmentReason, "specimen abandonment reason");
+    state.specimen_abandonment = { candidate_id: state.brief.specimen_feedback.candidate_id,
+      reason: abandonmentReason, abandoned_at: nowIso(), owner_approval_granted: false };
+    return stop(state, lease, "blocked", "specimen-abandoned", ["Exploration abandoned; no design or Owner approval. Preserve evidence and use a successor for a changed specimen."], [], faultInjector);
+  }
   assertDesignReferenceRequirement(state.brief, requireReference);
   verifyJourneyIdentity(state.journey_identity, {
     runId: state.run_id,
@@ -4273,6 +4982,10 @@ function continueDesignExplorationWithLease(state, lease, {
   const manual = manualEntries(resultPaths, state.state_directory);
 
   ingestKnownManual(state, lease, manual, faultInjector);
+  if (state.brief.specimen_feedback && !state.specimen_expansion) {
+    const feedback = continueSpecimen(state, lease, manual, hostManifest, selectors, expandSpecimen, faultInjector);
+    if (feedback) { requireNoUnknownManual(manual); return feedback; }
+  }
   const directionCreation = packetsOfStage(state, "design-direction-generation");
   runPackets(state, lease, directionCreation, hostManifest, selectors, faultInjector);
   let halted = haltForPackets(state, lease, "direction-generation", directionCreation, faultInjector);
@@ -4457,6 +5170,7 @@ export function startDesignExploration({
   routerVersion = "1.0.0",
   invocation = "explicit",
   requireReference = false,
+  requireConstraintAudit = false,
   root = process.cwd(),
   faultInjector = null
 }) {
@@ -4472,11 +5186,13 @@ export function startDesignExploration({
     const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
     const brief = validateDesignBrief(pinnedBrief.input);
     assertDesignReferenceRequirement(brief, requireReference);
+    assertConstraintAuditRequirement(brief, requireConstraintAudit);
     assertResolvedReferenceIntent(brief);
     const referenceOptOut = resolveReferenceOptOut(brief, pinnedBrief.path);
     requireValue(!referenceOptOut || !inside(referenceOptOut.resolved_path, stateDirectory(absoluteState)),
       "design reference opt-out Owner decision must remain outside the child-writable design state directory", 4);
     const referencePack = resolveReferencePack(brief, root);
+    requireNewTargetCraft(brief, referencePack);
     assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
     validateComponentBrowserPreflight(referencePack, brief, hostManifest);
     const runId = crypto.randomUUID();
@@ -4492,6 +5208,11 @@ export function startDesignExploration({
       state_directory: stateDirectory(absoluteState),
       brief,
       brief_source: pinnedDesignSnapshot(pinnedBrief, root),
+      ...(brief.constraint_audit ? {
+        constraint_sources: verifyConstraintEvidence(brief, pinnedBrief.path, {
+          baselinePath: absoluteBaseline, stateDirectory: stateDirectory(absoluteState)
+        }).map(({ input: _input, ...item }) => item)
+      } : {}),
       reference_pack: referencePack,
       ...(referenceOptOut ? { reference_opt_out_source: referenceOptOut } : {}),
       baseline: snapshotArtifact(absoluteBaseline, { root }),
@@ -4513,9 +5234,13 @@ export function startDesignExploration({
       state_digest: null
     });
     requireIndependentReferenceOptOut(state);
+    verifyDesignConstraintAuthority(state);
+    verifyTargetCraftAuthority(state);
+    if (brief.source_craft_review) state.source_craft_authority = resolveSourceCraftAuthority(state);
     fs.mkdirSync(state.state_directory, { recursive: true });
     writeState(state, lease, { faultInjector });
-    addPackets(state, lease, directionPackets(state), faultInjector);
+    addPackets(state, lease, directionPackets(state).filter((packet) => !brief.specimen_feedback ||
+      packet.design_task.candidate_id === brief.specimen_feedback.candidate_id), faultInjector);
     return continueDesignExplorationWithLease(state, lease, {
       hostManifest, resultPaths, shortlistPath, approvalPath, retry, faultInjector
     });
@@ -4527,6 +5252,7 @@ export function resumeDesignExploration(statePath, options = {}) {
   return withDesignLease(absolute, "design-resume", options.faultInjector || null, (lease) => {
     const state = readDesignState(absolute);
     assertDesignReferenceRequirement(state.brief, options.requireReference);
+    assertConstraintAuditRequirement(state.brief, options.requireConstraintAudit);
     return continueDesignExplorationWithLease(state, lease, options);
   });
 }
@@ -4596,7 +5322,9 @@ export function recoverDesignStateLease(statePath, {
     const originPacket = origin.active_packet;
     const packet = originPacket
       ? state.packets.find((item) => item.packet_id === originPacket.packet_id)
-      : null;
+      : active?.packet_id === "source-craft-review"
+        ? state.packets.find((item) => item.packet_id === active.packet_id)
+        : null;
     const checkpointedAttempt = !active && origin.phase === "child-execution" && originPacket && packet
       ? state.attempts.find((item) =>
         item.packet_id === originPacket.packet_id &&
@@ -4679,18 +5407,26 @@ export function recoverDesignStateLease(statePath, {
         recovery_digest: receipt.recovery_digest,
         error: "orchestrator crashed before a trustworthy child result was checkpointed",
         retry_required: true,
-        recovered_at: receipt.recovered_at
+        recovered_at: receipt.recovered_at,
+        ...(active.packet_id === "source-craft-review" ? {
+          execution_authority: active.execution_authority, adapter: active.adapter,
+          strength: active.strength, capabilities: active.capabilities,
+          permission_scopes: active.permission_scopes, host_manifest_digest: active.host_manifest_digest,
+          adapter_entrypoint: active.adapter_entrypoint
+        } : {})
       });
     }
     state.in_flight = null;
-    state.status = active ? "blocked" : "manual_pending";
-    state.phase = active ? "design-recovery" : state.phase;
-    state.blockers = active
-      ? [`${active.packet_id}: unknown child outcome after orchestrator crash; explicit retry required`]
-      : [];
-    state.pending = active
-      ? state.pending
-      : ["resume the recovered KillSlopRouter design journey from its verified checkpoint"];
+    if (!state.specimen_abandonment) {
+      state.status = active ? "blocked" : "manual_pending";
+      state.phase = active ? "design-recovery" : state.phase;
+      state.blockers = active
+        ? [`${active.packet_id}: unknown child outcome after orchestrator crash; explicit retry required`]
+        : [];
+      state.pending = active
+        ? state.pending
+        : ["resume the recovered KillSlopRouter design journey from its verified checkpoint"];
+    }
     writeState(state, claimed.controller, { faultInjector });
     releaseStateLease(claimed.controller);
     return {
@@ -4710,7 +5446,7 @@ export function recoverDesignStateLease(statePath, {
 function dryPacket(state, kind, providerId, capabilities, strength, permissions, suffix = "") {
   const referenceStage = kind === "color-candidate" || kind === "color-review"
     ? "color-review"
-    : kind === "direction-review" ? "direction-review" : null;
+    : ["direction-review", "specimen-review"].includes(kind) ? "direction-review" : null;
   const reviewer = kind === "direction-review" || kind === "color-review";
   return makePacket(state, {
     packetId: `dry-${kind}-${providerId}${suffix}`.replace(/[^A-Za-z0-9._-]/g, "-"),
@@ -4731,6 +5467,9 @@ function dryPacket(state, kind, providerId, capabilities, strength, permissions,
     checks: kind === "browser-evidence" ? state.brief.evidence.required_checks : [],
     task: {
       kind,
+      ...(kind === "color-candidate" ? {
+        color_strategy: state.brief.color_strategies.find(strategy => suffix === `-${strategy.id}`)
+      } : {}),
       ...(kind === "browser-evidence" ? {
         locales: [...state.brief.locales],
         required_states: [...state.brief.evidence.required_states]
@@ -4739,7 +5478,7 @@ function dryPacket(state, kind, providerId, capabilities, strength, permissions,
         reference_intelligence: referenceDesignContract(
           state,
           referenceStage,
-          reviewer ? "independent-reviewer" : "creator"
+          kind === "specimen-review" ? "specimen-reviewer" : reviewer ? "independent-reviewer" : "creator"
         )
       } : {})
     }
@@ -4754,6 +5493,7 @@ export function dryRunDesignExploration({
   routerVersion = "1.0.0",
   invocation = "explicit",
   requireReference = false,
+  requireConstraintAudit = false,
   root = process.cwd()
 }) {
   const absoluteBrief = path.resolve(briefPath);
@@ -4761,9 +5501,11 @@ export function dryRunDesignExploration({
   const pinnedBrief = readPinnedDesignJson(absoluteBrief, "design brief");
   const brief = validateDesignBrief(pinnedBrief.input);
   assertDesignReferenceRequirement(brief, requireReference);
+  assertConstraintAuditRequirement(brief, requireConstraintAudit);
   assertResolvedReferenceIntent(brief);
   const referenceOptOut = resolveReferenceOptOut(brief, pinnedBrief.path);
   const referencePack = resolveReferencePack(brief, root);
+  requireNewTargetCraft(brief, referencePack);
   assertReferenceSourceExecutableIsolation(referencePack, brief, hostManifest);
   validateComponentBrowserPreflight(referencePack, brief, hostManifest);
   const state = {
@@ -4777,17 +5519,30 @@ export function dryRunDesignExploration({
     ...(referenceOptOut ? { reference_opt_out_source: referenceOptOut } : {}),
     baseline: snapshotArtifact(absoluteBaseline, { root })
   };
+  if (brief.source_craft_review) {
+    state.state_directory = path.resolve(path.dirname(absoluteBrief), ".source-craft-dry-run");
+    state.results = []; state.packets = []; state.attempts = [];
+    state.source_craft_authority = resolveSourceCraftAuthority(state);
+    const sourceReviewer = hostManifest?.providers?.[brief.source_craft_review.provider_id];
+    if (sourceReviewer && sourceReviewer.adapter !== "manual-v1") requireValue(
+      typeof sourceReviewer.settings?.actor_id === "string" &&
+      canonicalIdentityKey(sourceReviewer.settings.actor_id) === canonicalIdentityKey(state.source_craft_authority.input.reviewer_actor_id),
+    "source craft host requires the externally fixed reviewer actor before exposure", 4);
+  }
   requireIndependentReferenceOptOut(state);
   const packets = [
     ...directionPackets(state),
+    ...(brief.specimen_feedback ? [dryPacket(state, "specimen-review", brief.providers.specimen_reviewer,
+      DIRECTION_REVIEW_CAPABILITIES, 4, ["artifact:read", "evidence:write"])] : []),
+    ...(brief.source_craft_review ? [sourceCraftPacket(state, [], { dry: true })] : []),
     dryPacket(state, "browser-evidence", brief.providers.browser_evidence,
       REQUIRED_BROWSER_CAPABILITIES, 3, ["artifact:read", "evidence:write", "browser:control"]),
-    dryPacket(state, "direction-review", brief.providers.direction_reviewer,
+    ...(!brief.reference_candidate ? [dryPacket(state, "direction-review", brief.providers.direction_reviewer,
       DIRECTION_REVIEW_CAPABILITIES, 4, ["artifact:read", "evidence:write"]),
     ...brief.color_strategies.map((strategy) => dryPacket(state, "color-candidate",
       strategy.creator_provider_id, COLOR_CAPABILITIES, 3, ["artifact:read", "evidence:write"], `-${strategy.id}`)),
     dryPacket(state, "color-review", brief.providers.color_reviewer,
-      COLOR_REVIEW_CAPABILITIES, 4, ["artifact:read", "evidence:write"])
+      COLOR_REVIEW_CAPABILITIES, 4, ["artifact:read", "evidence:write"])] : [])
   ];
   const readiness = packets.map((packet) => {
     const inspected = inspectPacketAdapter(packet, hostManifest);
@@ -4804,6 +5559,13 @@ export function dryRunDesignExploration({
     baseline: publicSnapshot(state.baseline),
     brief: publicSnapshot(state.brief_source),
     reference_delivery: designReferenceDelivery(state),
+    ...(brief.specimen_feedback ? { specimen_feedback: {
+      candidate_id: brief.specimen_feedback.candidate_id,
+      initial_creator_count: 1,
+      remaining_creators: brief.reference_candidate ? "none-in-this-run" : "deferred-until-eligible-feedback-and-explicit-expansion",
+      readiness_scope: brief.reference_candidate ? "single-primary-reference-specimen-only" : "eventual-full-matrix-including-specimen-checkpoint",
+      owner_approval_granted: false
+    } } : {}),
     ...(state.reference_pack ? {
       reference_intelligence: {
         pack_digest: state.reference_pack.pack_digest,
@@ -4814,19 +5576,20 @@ export function dryRunDesignExploration({
             .reviewer_source_capture_readiness
         ),
         source_pixels_included: false,
-        exact_three_3x3_route_unchanged: true
+        exact_three_3x3_route_unchanged: !brief.reference_candidate
       }
     } : {}),
-    direction_matrix: brief.directions.flatMap((direction) => DESIGN_DEPTHS.map((depth) => ({
+    direction_matrix: brief.directions.flatMap((direction) => DESIGN_DEPTHS.filter(depth =>
+      !brief.reference_candidate || directionCandidateId(direction.id, depth) === brief.specimen_feedback.candidate_id).map((depth) => ({
       candidate_id: directionCandidateId(direction.id, depth),
       direction_id: direction.id,
       redesign_depth: depth,
       thesis: direction.thesis
     }))),
     color_matrix: {
-      shortlisted_directions: 3,
+      shortlisted_directions: brief.reference_candidate ? 0 : 3,
       strategies_per_direction: brief.color_strategies.length,
-      total_candidates: 9,
+      total_candidates: brief.reference_candidate ? 0 : 9,
       strategies: brief.color_strategies.map((strategy) => ({
         id: strategy.id,
         color_space: strategy.color_space,
@@ -4834,8 +5597,11 @@ export function dryRunDesignExploration({
       }))
     },
     readiness,
+    ...(brief.reference_candidate ? { reference_candidate: referenceCandidateBinding(state) } : {}),
     pending: pending.map((item) => `${item.packet_id}: ${item.reason || item.execution_status}`),
-    hard_gates: [
+    hard_gates: brief.reference_candidate ? ["constraint-audit", "independent-specimen-review", "playwright-evidence",
+      ...(brief.source_craft_review ? ["independent-source-craft-review", "immutable-cohort-before-source-access"] : []),
+      "complete-declared-cohort", "external-owner-selection-or-reject-all", "artifact-digest", "source-rights-firewall"] : [
       "independent-review", "playwright-evidence", "owner-shortlist", "computed-contrast",
       "owner-approval", "artifact-digest", "locale", "network-privacy",
       "downstream-domain-review", "downstream-privacy-review"
@@ -4845,6 +5611,18 @@ export function dryRunDesignExploration({
 
 export function dispatchDesignPackets(state, outputDirectory) {
   assertResolvedReferenceIntent(state.brief);
+  if (state.brief.source_craft_review) requireValue(
+    canonicalDigest(state) === canonicalDigest(readDesignState(state.state_path)),
+    "source craft dispatch must use the exact persisted design authority graph", 4);
+  verifySourceCraftAuthority(state);
+  validateSpecimenState(state);
+  requireValue(!state.specimen_abandonment, "abandoned specimen is terminal; no further dispatch", 4);
+  for (const packet of state.packets) {
+    verifyTargetCraftPacket(state, packet);
+    verifySpecimenPacket(state, packet);
+    verifySourceCraftPacket(state, packet);
+    if (packet.design_task.kind === "source-craft-review") verifySourceCraftCohort(state);
+  }
   const directory = path.resolve(outputDirectory);
   fs.mkdirSync(directory, { recursive: true });
   for (const packet of state.packets) writeJsonAtomic(path.join(directory, `${packet.packet_id}.json`), packet);
@@ -4912,6 +5690,12 @@ export function designReferenceDelivery(state) {
     ["direction-candidate", "color-candidate"].includes(packet.design_task.kind));
   return {
     reference_delivery_version: 1,
+    target_craft: {
+      status: state.brief.component_craft ? "bound-review-required" : "legacy-unassessed",
+      contract_digest: state.brief.component_craft ? canonicalDigest(state.brief.component_craft) : null,
+      source_craft_parity_assessed: false,
+      owner_approval_granted: false
+    },
     status: pack ? "bound" : "not_bound",
     required: state.brief.reference_requirement?.mode === "required",
     intent_status: pack ? "reference-bound" : state.reference_opt_out_source ? "owner-opt-out" : "unresolved-historical",
@@ -4922,8 +5706,10 @@ export function designReferenceDelivery(state) {
         ? "Proceed only within the recorded no-reference scope. Do not claim source-derived craft or waive independent review/browser/Owner stops."
         : "Preserve this historical ledger. UI Bowl is required by default: propose reference-first and start a successor with a ready pack before further dispatch. Missing access is a stop, not permission to substitute no-reference work.",
     pack_digest: pack?.pack_digest || null,
+    ...(state.brief.reference_candidate ? { reference_candidate: referenceCandidateBinding(state) } : {}),
     required_recipe_families: [...(state.brief.reference_requirement?.required_recipe_families || [])],
     selected_recipe_families: [...new Set((pack?.normalized.verified_grammar || [])
+      .filter(item => !state.brief.reference_candidate || state.brief.reference_candidate.primary_grammar_ids.includes(item.grammar_id))
       .filter((item) => item.component_recipe).map((item) => item.component_recipe.family))].sort(),
     creator_packets: creators.length,
     reference_bound_creator_packets: creators.filter((packet) =>
@@ -4931,13 +5717,15 @@ export function designReferenceDelivery(state) {
     source_providers: [...new Set((pack?.normalized.references || [])
       .map((reference) => reference.source.provider))].sort(),
     // Owner provenance only; never feed source identities to creator packets.
-    selected_references: (pack?.normalized.references || []).map((reference) => ({
+    selected_references: (pack?.normalized.references || [])
+      .filter(reference => !state.brief.reference_candidate || reference.reference_id === state.brief.reference_candidate.primary_reference_id).map((reference) => ({
       reference_id: reference.reference_id,
       app_name: reference.app_name,
       role: reference.role,
       source_uri: reference.source.uri,
       fit_rationale: reference.product_fit.rationale,
       transfers: pack.normalized.verified_grammar
+        .filter(item => !state.brief.reference_candidate || state.brief.reference_candidate.primary_grammar_ids.includes(item.grammar_id))
         .filter((item) => item.reference_id === reference.reference_id)
         .map((item) => ({
           grammar_id: item.grammar_id,

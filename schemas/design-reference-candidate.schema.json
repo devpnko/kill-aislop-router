@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-reference-candidate.schema.json",
+  "title": "Optional single-primary-reference specimen plan; not visual approval",
+  "type": "object", "additionalProperties": false,
+  "required": ["reference_candidate_version", "comparison_id", "planned_candidate_count", "planned_state_paths", "candidate_count_rationale", "primary_reference_id", "primary_grammar_ids", "task_frame"],
+  "properties": {
+    "reference_candidate_version": {"const": 1},
+    "comparison_id": {"type": "string", "minLength": 1},
+    "planned_candidate_count": {"type": "integer", "minimum": 1, "maximum": 24, "$comment": "Resource guard, not a design-quality quota."},
+    "planned_state_paths": {"type": "array", "minItems": 1, "maxItems": 24, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "candidate_count_rationale": {"type": "string", "minLength": 1},
+    "primary_reference_id": {"type": "string", "minLength": 1},
+    "primary_grammar_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "task_frame": {"type": "string", "minLength": 1}
+  }
+}

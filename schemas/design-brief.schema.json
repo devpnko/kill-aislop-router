@@ -8,7 +8,23 @@
     "baseline_policy", "editorial_boundary", "directions", "color_strategies", "providers", "evidence"
   ],
   "properties": {
+    "source_craft_review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["authority", "provider_id"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "authority": {
+          "type": "object", "additionalProperties": false,
+          "required": ["path", "digest"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1},
+            "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+          }
+        }
+      }
+    },
     "design_brief_version": {"const": 1},
+    "component_craft": {"$ref": "component-craft.schema.json"},
     "project_id": {"type": "string", "minLength": 1},
     "surface": {"enum": ["operator-product-ui", "consumer-product-ui", "marketing-editorial"]},
     "screen_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
@@ -115,11 +131,11 @@
       "additionalProperties": false
     },
     "directions": {
-      "type": "array", "minItems": 3, "maxItems": 3,
+      "type": "array", "minItems": 1, "maxItems": 3,
       "items": {"$ref": "#/$defs/direction"}
     },
     "color_strategies": {
-      "type": "array", "minItems": 3, "maxItems": 3,
+      "type": "array", "minItems": 0, "maxItems": 3,
       "items": {"$ref": "#/$defs/color-strategy"}
     },
     "providers": {
@@ -128,7 +144,11 @@
       "properties": {
         "direction_reviewer": {"type": "string", "minLength": 1},
         "color_reviewer": {"type": "string", "minLength": 1},
-        "browser_evidence": {"type": "string", "minLength": 1}
+        "browser_evidence": {"type": "string", "minLength": 1},
+        "specimen_reviewer": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     },
@@ -139,6 +159,28 @@
         "required_viewports": {"allOf": [{"$ref": "#/$defs/strings"}, {"minItems": 2}]},
         "required_checks": {"$ref": "#/$defs/strings"},
         "required_states": {"$ref": "#/$defs/strings"}
+      },
+      "additionalProperties": false
+    },
+    "visual_goal_contract": {
+      "$ref": "visual-goal-contract.schema.json"
+    },
+    "constraint_audit": {"$ref": "design-constraint-audit.schema.json"},
+    "reference_candidate": {"$ref": "design-reference-candidate.schema.json"},
+    "specimen_feedback": {
+      "type": "object",
+      "required": [
+        "specimen_feedback_version",
+        "candidate_id"
+      ],
+      "properties": {
+        "specimen_feedback_version": {
+          "const": 1
+        },
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        }
       },
       "additionalProperties": false
     }
@@ -182,11 +224,29 @@
     }
   },
   "allOf": [{
+    "if": {"required": ["source_craft_review"]},
+    "then": {"required": ["reference_candidate", "specimen_feedback", "component_craft", "visual_goal_contract", "reference_pack"]}
+  }, {
+    "if": {"required": ["reference_candidate"]},
+    "then": {
+      "required": ["reference_pack", "specimen_feedback", "visual_goal_contract", "component_craft", "constraint_audit"],
+      "properties": {"directions": {"minItems": 1, "maxItems": 1}, "color_strategies": {"maxItems": 0}}
+    },
+    "else": {"properties": {"directions": {"minItems": 3, "maxItems": 3}, "color_strategies": {"minItems": 3, "maxItems": 3}}}
+  }, {
     "if": {"required": ["reference_requirement"]},
     "then": {"required": ["reference_pack"]}
   }, {
     "if": {"required": ["reference_opt_out"]},
     "then": {"not": {"anyOf": [{"required": ["reference_requirement"]}, {"required": ["reference_pack"]}]}}
+  }, {
+    "if": {"required": ["visual_goal_contract"]},
+    "then": {"required": ["component_craft", "reference_pack"]}
+  }, {
+    "if": {"required": ["specimen_feedback"]},
+    "then": {"required": ["visual_goal_contract"], "properties": {
+      "providers": {"required": ["specimen_reviewer"]}
+    }}
   }],
   "additionalProperties": false
 }

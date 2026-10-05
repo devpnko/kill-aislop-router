@@ -18,6 +18,30 @@ For specific UI parts, search the [component research library](docs/reference-li
 14 component analyses across 30 Korean-service frames, with source links,
 anatomy, visual craft, application limits and proposed target checks.
 
+This branch is an **uninstalled source-craft candidate**, not a production
+delivery. It adds [separate primary-reference candidate comparison](docs/reference-candidates.md):
+research and justify the candidate count, render each primary-reference treatment,
+obtain independent feedback, then let the real Owner select a baseline or reject
+all. [Constraint provenance](docs/design-constraints.md) keeps model preferences
+from becoming mandatory inherited skin. It preserves source-blind creators and
+does not authorize source-pixel copying or certify human authorship.
+
+Optional [scoped source-craft review](docs/source-craft-review.md) gives only a
+separately authorized independent critic access to permitted primary-reference
+captures and the actual target renders. Missing rights, insufficient detail and
+unresolved relationships remain blockers. Creator/browser inputs stay source-blind;
+the ordinary source-neutral review does not establish source-image fidelity.
+
+For recipe-backed creation, bind target relationships and explicit visual goals.
+An optional [single-specimen feedback route](docs/visual-goal-feedback.md) runs one
+candidate through the official browser and independent review before the other
+eight. Technical PASS/local fixes cannot clear an unresolved visual goal. Check
+`capabilities --json` for `visual-goal-specimen-feedback`; older installations do
+not gain this route from these docs or a source checkout. The reference-candidate
+route does not require eight siblings or the legacy color matrix; the legacy
+3×3 route remains available unchanged. A selected prototype is a bounded handoff,
+not a final approved design system or automatic production continuation.
+
 ```bash
 node bin/killsloprouter.mjs reference library --query '검색/탭'
 node bin/killsloprouter.mjs reference library --component briefing-card --details

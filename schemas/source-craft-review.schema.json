@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/devpnko/kill-aislop-router/schemas/source-craft-review.schema.json",
+  "title": "KillSlopRouter source-craft-review v1",
+  "description": "Evidence-bound source-to-target component-craft review. Supported is derived only from adequate evidence and all comparison slots being retained or adapted; no explicit pass field or numeric score supplies that conclusion. Source pixels are comparison context, not CSS, source-duplication rights, human-authorship proof, or owner approval.",
+  "type": "object",
+  "required": [
+    "source_craft_review_version",
+    "authority_digest",
+    "candidate_result_digest",
+    "browser_result_digest",
+    "reviewer_provider_id",
+    "reviewer_actor_id",
+    "adequacy",
+    "rationale",
+    "limitations",
+    "slots",
+    "target_invention_relationship_ids",
+    "source_duplication",
+    "human_authorship",
+    "owner_approval_granted"
+  ],
+  "properties": {
+    "source_craft_review_version": {
+      "const": 1
+    },
+    "authority_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "candidate_result_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "browser_result_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "reviewer_provider_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "reviewer_actor_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "adequacy": {
+      "$ref": "#/$defs/adequacy"
+    },
+    "rationale": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "limitations": {
+      "$ref": "#/$defs/limitations"
+    },
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "slot_id",
+          "relationship_id",
+          "source_capture_digest",
+          "target_screenshot_digest",
+          "viewport",
+          "state",
+          "locale",
+          "adequacy",
+          "limitations",
+          "verdict",
+          "rationale",
+          "adaptation_justification"
+        ],
+        "properties": {
+          "slot_id": {
+            "$ref": "#/$defs/semanticId"
+          },
+          "relationship_id": {
+            "$ref": "#/$defs/semanticId"
+          },
+          "source_capture_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "target_screenshot_digest": {
+            "$ref": "#/$defs/digest"
+          },
+          "viewport": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "state": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "locale": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "adequacy": {
+            "$ref": "#/$defs/adequacy"
+          },
+          "limitations": {
+            "$ref": "#/$defs/limitations"
+          },
+          "verdict": {
+            "enum": [
+              "retained",
+              "adapted",
+              "lost",
+              "unassessed"
+            ]
+          },
+          "rationale": {
+            "$ref": "#/$defs/nonemptyString"
+          },
+          "adaptation_justification": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/nonemptyString"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "adapted"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "properties": {
+                "adaptation_justification": {
+                  "$ref": "#/$defs/nonemptyString"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "adaptation_justification": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "adequacy": {
+                  "const": "insufficient"
+                }
+              },
+              "required": [
+                "adequacy"
+              ]
+            },
+            "then": {
+              "properties": {
+                "limitations": {
+                  "type": "array",
+                  "minItems": 1
+                },
+                "verdict": {
+                  "const": "unassessed"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "unassessed"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "properties": {
+                "adequacy": {
+                  "const": "insufficient"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "target_invention_relationship_ids": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/semanticId"
+      }
+    },
+    "source_duplication": {
+      "const": false
+    },
+    "human_authorship": {
+      "const": false
+    },
+    "owner_approval_granted": {
+      "const": false
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "adequacy": {
+            "const": "insufficient"
+          }
+        },
+        "required": [
+          "adequacy"
+        ]
+      },
+      "then": {
+        "properties": {
+          "limitations": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "adequacy": {
+                  "const": "adequate"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "semanticId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "adequacy": {
+      "enum": [
+        "adequate",
+        "insufficient"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonemptyString"
+      }
+    }
+  }
+}

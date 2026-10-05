@@ -2,11 +2,39 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import Ajv2020 from "ajv/dist/2020.js";
 import { fileURLToPath } from "node:url";
 import { selectDesignScenarios } from "../src/design-browser-proof.mjs";
 import { validatePlaywrightScenarioDocument } from "../src/playwright.mjs";
+import { publicDesignState } from "../src/cli.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+test("source-aware CLI summaries never serialize private reviewer or execution payloads", () => {
+  const secret = "PRIVATE_SOURCE_REVIEW_PIXELS_RIGHTS_AND_PROSE";
+  const state = {
+    brief: { source_craft_review: { authority: { path: secret } } },
+    run_id: "synthetic", journey_identity: { display_name: "KillSlopRouter" },
+    status: "blocked", phase: "specimen-feedback", state_path: "/synthetic/state.json", state_digest: "digest",
+    blockers: [secret], pending: [secret], source_craft_authority: { input: secret },
+    packets: [{ packet_id: "source-craft-review", design_task: { kind: "source-craft-review", private: secret },
+      provider: { id: "private-critic" }, packet_digest: "packet-digest" }],
+    results: [{ packet_id: "source-craft-review", provider_id: "private-critic", result_digest: "result-digest",
+      evidence: [{ resolved_path: secret }], normalized: { kind: "source-craft-review", blockers: [{ hard: true, message: secret }],
+        source_craft_review: { adequacy: "insufficient", rationale: secret, slots: [{ adaptation_justification: secret }] } } }],
+    attempts: [{ packet_id: "source-craft-review", attempt: 1, adapter: "agent-json-v1", execution_status: "ran",
+      error: secret, execution_authority: { path: secret }, stdout: secret }]
+  };
+  const summary = publicDesignState(state);
+  assert.equal(summary.design_public_state_version, 1);
+  assert.equal(summary.blocker_count, 1);
+  assert.equal(summary.source_craft.status, "blocked");
+  assert.equal(summary.source_craft.owner_approval_granted, false);
+  assert.doesNotMatch(JSON.stringify(summary), new RegExp(secret));
+  assert.equal(state.results[0].normalized.source_craft_review.rationale, secret);
+  const legacy = { brief: {}, results: [] };
+  assert.equal(publicDesignState(legacy), legacy);
+});
 
 function readSchema(name) {
   return JSON.parse(fs.readFileSync(path.join(root, "schemas", name), "utf8"));
@@ -18,6 +46,35 @@ function satisfiesRequiredObject(schema, value) {
   }
   return (schema.required || []).every((key) => Object.hasOwn(value, key));
 }
+
+test("packet permission conditionals isolate source craft from old source review and source-blind roles", () => {
+  const schema = readSchema("design-packet.schema.json");
+  // Exercise every interacting top-level permission conditional together. The
+  // real child/browser integration separately validates the complete packet.
+  const validate = new Ajv2020({ strict: false }).compile({ type: "object", allOf: schema.allOf });
+  const packet = kind => ({ design_task: { kind }, required_permissions: ["artifact:read", "evidence:write"],
+    forbidden_permissions: ["network:external"] });
+  const source = packet("source-craft-review");
+  source.required_permissions.push("reference-evidence:read");
+  assert.equal(validate(source), true, JSON.stringify(validate.errors));
+  assert.equal(validate({ ...source, required_permissions: source.required_permissions.filter(p => p !== "reference-evidence:read") }), false);
+  assert.equal(validate({ ...source, required_permissions: [...source.required_permissions, "network:external"], forbidden_permissions: [] }), false);
+  for (const kind of ["direction-candidate", "color-candidate", "browser-evidence", "specimen-review", "direction-review", "color-review"]) {
+    const blind = packet(kind);
+    if (kind === "specimen-review") blind.forbidden_permissions.push("reference-evidence:read");
+    assert.equal(validate(blind), true, `${kind}: ${JSON.stringify(validate.errors)}`);
+    blind.required_permissions.push("reference-evidence:read");
+    assert.equal(validate(blind), false, kind);
+  }
+  for (const kind of ["direction-review", "color-review"]) {
+    const prior = packet(kind);
+    prior.design_task.reference_intelligence = { audience: "independent-reviewer" };
+    prior.required_permissions.push("reference-evidence:read");
+    assert.equal(validate(prior), true, JSON.stringify(validate.errors));
+    prior.design_task.kind = "direction-candidate";
+    assert.equal(validate(prior), false);
+  }
+});
 
 test("published design-state proof and scenario examples preserve exact matrix coverage", () => {
   const report = readSchema("design-playwright-report.schema.json");
@@ -226,7 +283,7 @@ test("published reference schemas keep popularity subordinate and the pack non-a
   const referenceIntelligence = designPacket.properties.design_task.properties
     .reference_intelligence;
   assert.deepEqual(referenceIntelligence.properties.audience.enum,
-    ["creator", "independent-reviewer"]);
+    ["creator", "independent-reviewer", "specimen-reviewer"]);
   assert.equal(referenceIntelligence.properties.source_pixels_included.const, false);
   assert.equal(referenceIntelligence.properties.source_identities_included.const, false);
   assert.equal(

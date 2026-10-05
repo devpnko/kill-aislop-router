@@ -70,6 +70,8 @@ import {
 } from "./usage-guidance.mjs";
 import { inspectDistribution } from "./distribution.mjs";
 import { loadReferenceLibrary, referenceLibraryReport, formatReferenceLibrary } from "./reference-library.mjs";
+import { assertConstraintAuditRequirement } from "./design-constraints.mjs";
+import { compareDesignSpecimens, selectDesignSpecimen } from "./specimen-comparison.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRouterPath = path.join(packageRoot, "router", "default-router.json");
@@ -86,7 +88,10 @@ const BOOLEAN_OPTIONS = new Set([
   "migrate-identity",
   "migrate-legacy-entry",
   "module-graph",
-  "require-reference"
+  "require-reference",
+  "require-constraint-audit",
+  "expand-specimen",
+  "abandon-specimen"
 ]);
 const PLUGIN_SYNC_OPTIONS = new Set([
   "home", "mode", "account-home", "discover-accounts", "apply", "dry-run", "json", "format"
@@ -114,8 +119,16 @@ function parseArgs(argv) {
   const libraryLookup = args.command === "reference" && args.subcommand === "library";
   const libraryOptions = new Set(["component", "source", "query", "details", "json", "format", "help"]);
   const librarySeen = new Set();
+  const specimenCommand = args.command === "design" && ["compare", "select"].includes(args.subcommand);
+  const specimenOptions = new Set(args.subcommand === "compare" ? ["runs", "out", "json", "format", "help"] : ["comparison", "decision", "json", "format", "help"]);
+  const specimenSeen = new Set();
   for (; index < argv.length; index += 1) {
     const token = argv[index];
+    if (specimenCommand) {
+      const key = token === "-h" ? "help" : token.startsWith("--") ? token.slice(2) : null;
+      if (!specimenOptions.has(key) || specimenSeen.has(key)) throw new RouterError(`unknown or repeated design ${args.subcommand} option: ${token}`, 2);
+      specimenSeen.add(key);
+    }
     if (libraryLookup) {
       const key = token === "-h" ? "help" : token.startsWith("--") ? token.slice(2) : null;
       if (!libraryOptions.has(key) || librarySeen.has(key)) throw new RouterError(`unknown or repeated reference library option: ${token}`, 2);
@@ -128,9 +141,17 @@ function parseArgs(argv) {
     }
     if (!token.startsWith("--")) throw new RouterError(`unexpected argument: ${token}`, 2);
     const key = token.slice(2);
+    if (["expand-specimen", "abandon-specimen"].includes(key) &&
+        !(args.command === "design" && args.subcommand === "run")) {
+      throw new RouterError(`--${key} is only supported by design run --resume`, 2);
+    }
     if (key === "require-reference" &&
         !(args.command === "design" && ["run", "status", "provenance", "dispatch"].includes(args.subcommand))) {
       throw new RouterError("--require-reference is only supported by design run/status/provenance/dispatch", 2);
+    }
+    if (key === "require-constraint-audit" &&
+        !(args.command === "design" && ["run", "status", "provenance", "dispatch"].includes(args.subcommand))) {
+      throw new RouterError("--require-constraint-audit is only supported by design run/status/provenance/dispatch", 2);
     }
     if (args.command === "plugin" && args.subcommand === "sync" && !PLUGIN_SYNC_OPTIONS.has(key)) {
       throw new RouterError(`unknown plugin sync option: --${key}`, 2);
@@ -160,6 +181,7 @@ function parseArgs(argv) {
       (librarySeen.has("format") && args.json && args.format !== "json"))) {
     throw new RouterError("reference library format must be text or json and agree with --json", 2);
   }
+  if (specimenCommand && !["text", "json"].includes(args.format)) throw new RouterError("design compare/select format must be text or json", 2);
   return args;
 }
 
@@ -189,6 +211,10 @@ Usage:
   killsloprouter browser attest --artifact PATH --out FILE [--root DIR]
   killsloprouter design run --brief FILE --baseline PATH --out FILE [--host-config FILE] [--require-reference]
   killsloprouter design run --resume FILE [--host-config FILE] [--shortlist FILE] [--approval FILE]
+  killsloprouter design run --resume FILE --expand-specimen [--host-config FILE]
+  killsloprouter design run --resume FILE --abandon-specimen --reason TEXT
+  killsloprouter design compare --runs FILE,FILE --out FILE
+  killsloprouter design select --comparison FILE --decision FILE
   killsloprouter design status --run FILE [--json]
   killsloprouter design provenance --run FILE [--json]
   killsloprouter design dispatch --run FILE --out-dir DIR
@@ -849,15 +875,104 @@ function formatDesignState(state) {
   return `${lines.join("\n")}\n`;
 }
 
+// Source-aware observations and execution diagnostics are private evidence.
+// New opt-in state output is deliberately a typed summary, never a sanitized
+// clone of arbitrary reviewer prose. Legacy CLI state output stays unchanged.
+export function publicDesignState(value) {
+  if (!value.brief?.source_craft_review) return value;
+  const review = value.results.find(item => item.normalized.kind === "source-craft-review");
+  return {
+    design_public_state_version: 1,
+    run_id: value.run_id, journey_identity: value.journey_identity,
+    status: value.status, phase: value.phase,
+    state_path: value.state_path, state_digest: value.state_digest,
+    blocker_count: value.blockers.length, pending_count: value.pending.length,
+    packets: value.packets.map(packet => ({ packet_id: packet.packet_id,
+      kind: packet.design_task.kind, provider_id: packet.provider.id, packet_digest: packet.packet_digest })),
+    results: value.results.map(record => ({ packet_id: record.packet_id,
+      kind: record.normalized.kind, provider_id: record.provider_id, result_digest: record.result_digest })),
+    attempts: value.attempts.map(attempt => ({ packet_id: attempt.packet_id,
+      attempt: attempt.attempt, adapter: attempt.adapter, execution_status: attempt.execution_status })),
+    source_craft: {
+      requested: true,
+      status: !review ? "pending" : review.normalized.blockers.some(item => item.hard) ? "blocked" : "assessed",
+      result_digest: review?.result_digest || null,
+      adequacy: review?.normalized.source_craft_review.adequacy || null,
+      source_craft_parity_assessed: false,
+      owner_approval_granted: false
+    },
+    note: "Scoped source review evidence is private. This summary omits authority documents, reviewer prose, capture/report paths and raw child diagnostics. Use the private ledger for authorized inspection; never forward it to creators or browsers. Assessment is not parity or Owner approval."
+  };
+}
+
 function designOutput(value, args) {
+  if (value.brief?.source_craft_review) {
+    const summary = publicDesignState(value);
+    if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    else process.stdout.write([
+      `KillSlopRouter design exploration ${summary.run_id}`,
+      `status: ${summary.status}`, `phase: ${summary.phase}`,
+      `blockers: ${summary.blocker_count}`, `pending: ${summary.pending_count}`,
+      `source craft: ${summary.source_craft.status}`,
+      `state: ${summary.state_path}`, `state digest: ${summary.state_digest}`, summary.note
+    ].join("\n") + "\n");
+    return;
+  }
   if (args.json || args.format === "json") process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
   else process.stdout.write(formatDesignState(value));
 }
 
 function designCommand(args) {
+  // This read only chooses a stricter output boundary. It never authorizes a
+  // state or replaces the engine's pinned reads. Private failure details stay
+  // in the ledger/API rather than leaking through the generic CLI catch.
+  let privateReview = false;
+  let privacyUnknown = false;
+  const inspectPrivacy = (inputPath, comparison = false) => {
+    if (!inputPath) return;
+    try {
+      const input = readJsonPinned(path.resolve(inputPath), { label: "design output privacy" }).input;
+      privateReview ||= Boolean(input.source_craft_review || input.brief?.source_craft_review);
+      if (comparison) {
+        if (!Array.isArray(input.candidates) || input.candidates.length > 24) privacyUnknown = true;
+        else for (const candidate of input.candidates) {
+          privateReview ||= Object.hasOwn(candidate, "source_craft_review");
+          inspectPrivacy(candidate.state_path);
+        }
+      }
+    } catch { privacyUnknown = true; }
+  };
+  for (const inputPath of [args.brief, args.resume, args.run, args.state]) inspectPrivacy(inputPath);
+  if (args.runs) {
+    const paths = args.runs.split(",");
+    if (paths.length > 24) privacyUnknown = true;
+    else for (const inputPath of paths) inspectPrivacy(inputPath.trim());
+  }
+  inspectPrivacy(args.comparison, true);
+  try { return executeDesignCommand(args); }
+  catch (error) {
+    if (!privateReview && !privacyUnknown) throw error;
+    throw new RouterError(
+      "Design command blocked under the private-evidence output boundary. Inspect the bound inputs and private ledger locally. No source disclosure or approval may be inferred from this failure.",
+      error.exitCode || 5
+    );
+  }
+}
+
+function executeDesignCommand(args) {
   const command = args.subcommand;
-  if (!command || !["run", "status", "provenance", "dispatch", "lease-status", "recover"].includes(command)) {
-    throw new RouterError("design requires run, status, provenance, dispatch, lease-status, or recover", 2);
+  if (!command || !["run", "status", "provenance", "dispatch", "lease-status", "recover", "compare", "select"].includes(command)) {
+    throw new RouterError("design requires run, status, provenance, dispatch, lease-status, recover, compare, or select", 2);
+  }
+  if (command === "compare") {
+    if (!args.runs || !args.out) throw new RouterError("design compare requires --runs FILE,FILE and --out FILE", 2);
+    output(compareDesignSpecimens(args.runs.split(",").map(value => value.trim()), args.out), { ...args, out: null });
+    return;
+  }
+  if (command === "select") {
+    if (!args.comparison || !args.decision) throw new RouterError("design select requires --comparison and --decision", 2);
+    output(selectDesignSpecimen(args.comparison, args.decision), args);
+    return;
   }
   if (command === "lease-status") {
     if (!args.state) throw new RouterError("design lease-status requires --state", 2);
@@ -905,6 +1020,7 @@ function designCommand(args) {
     if (!args.run) throw new RouterError(`design ${command} requires --run`, 2);
     const state = readDesignState(args.run);
     assertDesignReferenceRequirement(state.brief, args["require-reference"]);
+    assertConstraintAuditRequirement(state.brief, args["require-constraint-audit"]);
     if (command === "provenance") {
       output(designReferenceDelivery(state), args, (value) =>
         [`KillSlopRouter reference delivery: ${value.status}`, value.note,
@@ -925,6 +1041,10 @@ function designCommand(args) {
     if (args["dry-run"]) throw new RouterError("--resume and --dry-run cannot be combined", 2);
     const state = resumeDesignExploration(args.resume, {
       requireReference: Boolean(args["require-reference"]),
+      requireConstraintAudit: Boolean(args["require-constraint-audit"]),
+      expandSpecimen: Boolean(args["expand-specimen"]),
+      abandonSpecimen: Boolean(args["abandon-specimen"]),
+      abandonmentReason: args.reason || null,
       hostManifest,
       resultPaths: args.results,
       shortlistPath: args.shortlist || null,
@@ -938,10 +1058,12 @@ function designCommand(args) {
   if (!args.brief || !args.baseline) {
     throw new RouterError("design run requires --brief and --baseline", 2);
   }
+  if (args["expand-specimen"] || args["abandon-specimen"]) throw new RouterError("specimen actions require --resume", 2);
   const router = readJson(defaultRouterPath, "default router");
   const request = {
     briefPath: args.brief,
     requireReference: Boolean(args["require-reference"]),
+    requireConstraintAudit: Boolean(args["require-constraint-audit"]),
     baselinePath: args.baseline,
     hostManifest,
     routerId: router.router_id,

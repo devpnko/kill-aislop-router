@@ -19,6 +19,16 @@
     "state_directory": {"type": "string", "minLength": 1},
     "brief": {"type": "object"},
     "brief_source": {"$ref": "#/$defs/snapshot"},
+    "constraint_sources": {"$ref": "design-constraint-audit.schema.json#/$defs/sources"},
+    "source_craft_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source", "rights_source", "input"],
+      "properties": {
+        "source": {"$ref": "#/$defs/snapshot"},
+        "rights_source": {"$ref": "#/$defs/snapshot"},
+        "input": {"$ref": "source-craft-authority.schema.json"}
+      }
+    },
     "reference_opt_out_source": {"$ref": "#/$defs/snapshot"},
     "reference_pack": {
       "oneOf": [
@@ -80,14 +90,49 @@
             "provider_id": {"type": "string", "minLength": 1},
             "attempt": {"type": "integer", "minimum": 1},
             "packet_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-            "started_at": {"type": "string", "format": "date-time"}
+            "started_at": {"type": "string", "format": "date-time"},
+            "execution_authority": {"$ref": "#/$defs/executionAuthority"},
+            "adapter": {"$ref": "#/$defs/attempt/properties/adapter"},
+            "strength": {"type": "integer", "minimum": 1, "maximum": 4},
+            "capabilities": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "permission_scopes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+            "host_manifest_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+            "adapter_entrypoint": {"$ref": "#/$defs/executionAuthority/properties/adapter_entrypoint"}
           },
+          "allOf": [{
+            "if": {"properties": {"packet_id": {"const": "source-craft-review"}}},
+            "then": {"required": ["execution_authority", "adapter", "strength", "capabilities", "permission_scopes", "host_manifest_digest", "adapter_entrypoint"]},
+            "else": {"not": {"anyOf": [
+              {"required": ["execution_authority"]}, {"required": ["adapter"]}, {"required": ["strength"]},
+              {"required": ["capabilities"]}, {"required": ["permission_scopes"]},
+              {"required": ["host_manifest_digest"]}, {"required": ["adapter_entrypoint"]}
+            ]}}
+          }],
           "additionalProperties": false
         }
       ]
     },
     "shortlist": {"type": ["object", "null"]},
     "approval": {"type": ["object", "null"]},
+    "specimen_expansion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["review_result_digest", "continued_at", "owner_approval_granted"],
+      "properties": {
+        "review_result_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "continued_at": {"type": "string", "format": "date-time"},
+        "owner_approval_granted": {"const": false}
+      }
+    },
+    "specimen_abandonment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_id", "reason", "abandoned_at", "owner_approval_granted"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "abandoned_at": {"type": "string", "format": "date-time"},
+        "owner_approval_granted": {"const": false}
+      }
+    },
     "selection_scope_digest": {"type": ["string", "null"]},
     "approval_scope_digest": {"type": ["string", "null"]},
     "pending_finalization": {

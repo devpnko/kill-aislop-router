@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://killsloprouter.dev/schemas/design-constraint-audit.schema.json",
+  "title": "Target design instruction provenance; not an Owner approval",
+  "description": "Complete target instruction inventory, including proposed visual goals. Proposed appearance is not a shared hard requirement or reviewer preservation authority.",
+  "type": "object",
+  "required": [
+    "version",
+    "context",
+    "entries",
+    "evidence",
+    "released_proposals"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "context": {
+      "enum": [
+        "exploration",
+        "reconsideration-after-rejection"
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/entry"
+      },
+      "maxItems": 512
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "$ref": "#/$defs/evidence"
+      },
+      "maxItems": 64
+    },
+    "released_proposals": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": [
+          "instruction",
+          "reason"
+        ],
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 128
+    }
+  },
+  "allOf": [{
+    "if": {"properties": {"context": {"const": "reconsideration-after-rejection"}}},
+    "then": {"properties": {"released_proposals": {"minItems": 1}}}
+  }],
+  "additionalProperties": false,
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "pointer",
+        "value_digest",
+        "role",
+        "rationale",
+        "evidence_ids"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "role": {
+          "enum": [
+            "functional",
+            "accessibility",
+            "privacy",
+            "source-rights",
+            "approved-visual",
+            "host-requirement",
+            "design-proposal"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ids": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"role": {"not": {"const": "design-proposal"}}}},
+          "then": {"properties": {"evidence_ids": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"pointer": {"pattern": "^(?:/product|/editorial_boundary|/baseline_policy/(?:preserve|forbid)/[0-9]+)$"}}},
+          "then": {"properties": {"role": {"not": {"const": "design-proposal"}}}}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "evidence_id",
+        "path",
+        "digest"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_id",
+          "path",
+          "digest",
+          "physical_identity_digest",
+          "bytes"
+        ],
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "physical_identity_digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "version",
+        "contract_digest",
+        "entries",
+        "released_proposals_not_reintroduced"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "contract_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "pointer",
+              "supported",
+              "note"
+            ],
+            "properties": {
+              "pointer": {
+                "type": "string",
+                "minLength": 1
+              },
+              "supported": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "released_proposals_not_reintroduced": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "packet": {
+      "type": "object",
+      "required": [
+        "version",
+        "contract_digest",
+        "context",
+        "entries",
+        "evidence",
+        "released_proposal_count",
+        "owner_approval_granted",
+        "predecessor_authority_inherited",
+        "review_field",
+        "rule"
+      ],
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "contract_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "context": {
+          "enum": [
+            "exploration",
+            "reconsideration-after-rejection"
+          ]
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/entry"
+          }
+        },
+        "review_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 512,
+          "items": {
+            "type": "object",
+            "required": ["pointer", "value_digest", "value"],
+            "properties": {
+              "pointer": {"type": "string", "minLength": 1},
+              "value_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+              "value": {}
+            },
+            "additionalProperties": false
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "object",
+            "required": [
+              "evidence_id",
+              "digest"
+            ],
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "released_proposal_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "owner_approval_granted": {
+          "const": false
+        },
+        "predecessor_authority_inherited": {
+          "const": false
+        },
+        "review_field": {
+          "const": "constraint_audit_review"
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
